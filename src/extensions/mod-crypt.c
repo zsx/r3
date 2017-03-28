@@ -418,12 +418,12 @@ static REBNATIVE(dh_generate_key)
 
     REBCNT priv_index = Find_Canon_In_Context(obj, CRYPT_WORD_PRIV_KEY, FALSE);
     if (priv_index == 0)
-        fail (Error(RE_MISC));
+        fail (Error_Misc_Raw());
     Init_Binary(CTX_VAR(obj, priv_index), priv_bin);
 
     REBCNT pub_index = Find_Canon_In_Context(obj, CRYPT_WORD_PUB_KEY, FALSE);
     if (pub_index == 0)
-        fail (Error(RE_MISC));
+        fail (Error_Misc_Raw());
     Init_Binary(CTX_VAR(obj, pub_index), pub_bin);
 
     return R_VOID;

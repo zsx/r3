@@ -254,7 +254,7 @@ static REB_R Protect_Unprotect_Core(REBFRM *frame_, REBFLGS flags)
         }
     }
 
-    if (GET_FLAG(flags, PROT_HIDE)) fail (Error(RE_BAD_REFINES));
+    if (GET_FLAG(flags, PROT_HIDE)) fail (Error_Bad_Refines_Raw());
 
     Protect_Value(value, flags);
 
@@ -333,7 +333,7 @@ REBNATIVE(unprotect)
     UNUSED(PAR(values));
 
     if (REF(hide))
-        fail (Error(RE_MISC));
+        fail (Error_Misc_Raw());
 
     return Protect_Unprotect_Core(frame_, FLAGIT(PROT_WORD));
 }

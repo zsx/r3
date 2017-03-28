@@ -233,7 +233,7 @@ REBNATIVE(do)
             ++param;
         }
         if (NOT_END(param))
-            fail (Error(RE_USE_EVAL_FOR_EVAL));
+            fail (Error_Use_Eval_For_Eval_Raw());
 
         if (Eval_Value_Throws(D_OUT, source))
             return R_OUT_IS_THROWN;
@@ -254,13 +254,13 @@ REBNATIVE(do)
         //
         REBFRM *f = CTX_FRAME_IF_ON_STACK(c);
         if (f != NULL)
-            fail (Error(RE_DO_RUNNING_FRAME));
+            fail (Error_Do_Running_Frame_Raw());
 
         // Right now all stack based contexts are either running (stopped by
         // the above) or expired (in which case their values are unavailable).
         //
         if (CTX_VARS_UNAVAILABLE(c))
-            fail (Error(RE_DO_EXPIRED_FRAME));
+            fail (Error_Do_Expired_Frame_Raw());
 
         REBFRM frame;
         f = &frame;
@@ -287,7 +287,7 @@ REBNATIVE(do)
     // (like SET-WORD!, SET-PATH! and FUNCTION!).  DO used to do this for
     // functions only, EVAL generalizes it.
     //
-    fail (Error(RE_USE_EVAL_FOR_EVAL));
+    fail (Error_Use_Eval_For_Eval_Raw());
 }
 
 
@@ -353,7 +353,7 @@ repush:
             DECLARE_LOCAL (arg2);
             Init_Error(arg2, error);
 
-            fail (Error(RE_MULTIPLE_DO_ERRORS, arg1, arg2));
+            fail (Error_Multiple_Do_Errors_Raw(arg1, arg2));
         }
 
         f.eval_type = REB_0; // invariant of Do_Next_In_Frame
@@ -411,7 +411,7 @@ repush:
                 //
                 DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 
-                fail (Error(RE_MULTIPLE_DO_ERRORS, arg1, arg2));
+                fail (Error_Multiple_Do_Errors_Raw(arg1, arg2));
             }
 
             CATCH_THROWN(arg_or_error, D_OUT);
@@ -475,7 +475,7 @@ REBNATIVE(apply)
     //
     if (NOT_END(first_def)) {
         if (!IS_SET_WORD(first_def) && !IS_BAR(first_def)) {
-            fail (Error(RE_APPLY_HAS_CHANGED));
+            fail (Error_Apply_Has_Changed_Raw());
         }
     }
 #endif
@@ -490,7 +490,7 @@ REBNATIVE(apply)
         name = Canon(SYM___ANONYMOUS__); // Do_Core requires non-NULL symbol
 
     if (!IS_FUNCTION(D_OUT))
-        fail (Error(RE_APPLY_NON_FUNCTION, ARG(value))); // for SPECIALIZE too
+        fail (Error_Apply_Non_Function_Raw(ARG(value))); // for SPECIALIZE too
 
     f->gotten = D_OUT;
     f->out = D_OUT;

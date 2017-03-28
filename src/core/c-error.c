@@ -620,7 +620,7 @@ REBOOL Make_Error_Object_Throws(
     else {
         // No other argument types are handled by this routine at this time.
 
-        fail (Error(RE_INVALID_ERROR, arg));
+        fail (Error_Invalid_Error_Raw(arg));
     }
 
     // Validate the error contents, and reconcile message template and ID
@@ -641,7 +641,7 @@ REBOOL Make_Error_Object_Throws(
             // make sure any id or type provided do not conflict.
 
             if (!IS_BLANK(&vars->message)) // assume a MESSAGE: is wrong
-                fail (Error(RE_INVALID_ERROR, arg));
+                fail (Error_Invalid_Error_Raw(arg));
 
             DECLARE_LOCAL (id);
             DECLARE_LOCAL (type);
@@ -652,7 +652,7 @@ REBOOL Make_Error_Object_Throws(
             );
 
             if (message == NULL)
-                fail (Error(RE_INVALID_ERROR, arg));
+                fail (Error_Invalid_Error_Raw(arg));
 
             Move_Value(&vars->message, message);
 
@@ -661,7 +661,7 @@ REBOOL Make_Error_Object_Throws(
                     !IS_WORD(&vars->id)
                     || VAL_WORD_CANON(&vars->id) != VAL_WORD_CANON(id)
                 ){
-                    fail (Error(RE_INVALID_ERROR, arg));
+                    fail (Error_Invalid_Error_Raw(arg));
                 }
             }
             Move_Value(&vars->id, id); // binding and case normalized
@@ -671,7 +671,7 @@ REBOOL Make_Error_Object_Throws(
                     !IS_WORD(&vars->id)
                     || VAL_WORD_CANON(&vars->type) != VAL_WORD_CANON(type)
                 ){
-                    fail (Error(RE_INVALID_ERROR, arg));
+                    fail (Error_Invalid_Error_Raw(arg));
                 }
             }
             Move_Value(&vars->type, type); // binding and case normalized
@@ -715,7 +715,7 @@ REBOOL Make_Error_Object_Throws(
                 assert(IS_STRING(message) || IS_BLOCK(message));
 
                 if (!IS_BLANK(&vars->message))
-                    fail (Error(RE_INVALID_ERROR, arg));
+                    fail (Error_Invalid_Error_Raw(arg));
 
                 Move_Value(&vars->message, message);
 
@@ -741,7 +741,7 @@ REBOOL Make_Error_Object_Throws(
                 //
                 //     make error! [type: 'script id: 'set-self]
 
-                fail (Error(RE_INVALID_ERROR, arg));
+                fail (Error_Invalid_Error_Raw(arg));
             }
         }
         else {
@@ -763,10 +763,10 @@ REBOOL Make_Error_Object_Throws(
             SET_INTEGER(&vars->code, RE_USER);
         else if (IS_INTEGER(&vars->code)) {
             if (VAL_INT32(&vars->code) != RE_USER)
-                fail (Error(RE_INVALID_ERROR, arg));
+                fail (Error_Invalid_Error_Raw(arg));
         }
         else
-            fail (Error(RE_INVALID_ERROR, arg));
+            fail (Error_Invalid_Error_Raw(arg));
 
         // !!! Because we will experience crashes in the molding logic,
         // we put some level of requirement besides "code # not 0".
@@ -781,7 +781,7 @@ REBOOL Make_Error_Object_Throws(
                 || IS_BLANK(&vars->message)
             )
         ) {
-            fail (Error(RE_INVALID_ERROR, arg));
+            fail (Error_Invalid_Error_Raw(arg));
         }
     }
 
@@ -1131,7 +1131,7 @@ REBCTX *Error_Lookback_Quote_Too_Late(const RELVAL *word, REBSPC *specifier) {
     DECLARE_LOCAL (specific);
     Derelativize(specific, word, specifier);
 
-    fail (Error(RE_ENFIX_QUOTE_LATE, specific, END));
+    fail (Error_Enfix_Quote_Late_Raw(specific));
 }
 
 
@@ -1146,7 +1146,7 @@ REBCTX *Error_Lookback_Quote_Too_Late(const RELVAL *word, REBSPC *specifier) {
 REBCTX *Error_Non_Logic_Refinement(REBFRM *f) {
     DECLARE_LOCAL (word);
     Init_Word(word, VAL_PARAM_SPELLING(f->param));
-    fail (Error(RE_NON_LOGIC_REFINE, word, Type_Of(f->arg)));
+    fail (Error_Non_Logic_Refine_Raw(word, Type_Of(f->arg)));
 }
 
 
@@ -1165,7 +1165,7 @@ REBCTX *Error_Bad_Func_Def(const REBVAL *spec, const REBVAL *body)
     DECLARE_LOCAL (def);
 
     Init_Block(def, array);
-    return Error(RE_BAD_FUNC_DEF, def, END);
+    return Error_Bad_Func_Def_Raw(def);
 }
 
 
@@ -1182,7 +1182,7 @@ REBCTX *Error_No_Arg(REBSTR *label, const RELVAL *param)
     DECLARE_LOCAL (label_word);
     Init_Word(label_word, label);
 
-    return Error(RE_NO_ARG, label_word, param_word, END);
+    return Error_No_Arg_Raw(label_word, param_word);
 }
 
 
@@ -1194,7 +1194,7 @@ REBCTX *Error_Invalid_Datatype(REBCNT id)
     DECLARE_LOCAL (id_value);
 
     SET_INTEGER(id_value, id);
-    return Error(RE_INVALID_DATATYPE, id_value, END);
+    return Error_Invalid_Datatype_Raw(id_value);
 }
 
 
@@ -1206,7 +1206,7 @@ REBCTX *Error_No_Memory(REBCNT bytes)
     DECLARE_LOCAL (bytes_value);
 
     SET_INTEGER(bytes_value, bytes);
-    return Error(RE_NO_MEMORY, bytes_value, END);
+    return Error_No_Memory_Raw(bytes_value);
 }
 
 
@@ -1223,7 +1223,7 @@ REBCTX *Error_Invalid_Arg_Core(const RELVAL *value, REBSPC *specifier)
     DECLARE_LOCAL (specific);
     Derelativize(specific, value, specifier);
 
-    return Error(RE_INVALID_ARG, specific, END);
+    return Error_Invalid_Arg_Raw(specific);
 }
 
 
@@ -1242,7 +1242,7 @@ REBCTX *Error_Bad_Func_Def_Core(const RELVAL *item, REBSPC *specifier)
 {
     DECLARE_LOCAL (specific);
     Derelativize(specific, item, specifier);
-    return Error(RE_BAD_FUNC_DEF, specific);
+    return Error_Bad_Func_Def_Raw(specific);
 }
 
 
@@ -1268,11 +1268,11 @@ REBCTX *Error_Bad_Refine_Revoke(REBFRM *f)
     Init_Refinement(refine_name, VAL_PARAM_SPELLING(f->param));
 
     if (IS_VOID(f->arg)) // was void and shouldn't have been
-        return Error(RE_BAD_REFINE_REVOKE, refine_name, param_name, END);
+        return Error_Bad_Refine_Revoke_Raw(refine_name, param_name);
 
     // wasn't void and should have been
     //
-    return Error(RE_ARGUMENT_REVOKED, refine_name, param_name, END);
+    return Error_Argument_Revoked_Raw(refine_name, param_name);
 }
 
 
@@ -1283,7 +1283,7 @@ REBCTX *Error_No_Value_Core(const RELVAL *target, REBSPC *specifier) {
     DECLARE_LOCAL (specified);
     Derelativize(specified, target, specifier);
 
-    return Error(RE_NO_VALUE, specified, END);
+    return Error_No_Value_Raw(specified);
 }
 
 
@@ -1298,7 +1298,7 @@ REBCTX *Error_Partial_Lookback(REBFRM *f)
     DECLARE_LOCAL (param_name);
     Init_Word(param_name, VAL_PARAM_SPELLING(f->param));
 
-    return Error(RE_PARTIAL_LOOKBACK, label, param_name, END);
+    return Error_Partial_Lookback_Raw(label, param_name);
 }
 
 
@@ -1321,9 +1321,9 @@ REBCTX *Error_No_Catch_For_Throw(REBVAL *thrown)
     CATCH_THROWN(arg, thrown); // clears bit
 
     if (IS_BLANK(thrown))
-        return Error(RE_NO_CATCH, arg, END);
+        return Error_No_Catch_Raw(arg);
 
-    return Error(RE_NO_CATCH_NAMED, arg, thrown, END);
+    return Error_No_Catch_Named_Raw(arg, thrown);
 }
 
 
@@ -1334,7 +1334,7 @@ REBCTX *Error_No_Catch_For_Throw(REBVAL *thrown)
 //
 REBCTX *Error_Invalid_Type(enum Reb_Kind kind)
 {
-    return Error(RE_INVALID_TYPE, Get_Type(kind), END);
+    return Error_Invalid_Type_Raw(Get_Type(kind));
 }
 
 
@@ -1345,7 +1345,7 @@ REBCTX *Error_Invalid_Type(enum Reb_Kind kind)
 //
 REBCTX *Error_Out_Of_Range(const REBVAL *arg)
 {
-    return Error(RE_OUT_OF_RANGE, arg, END);
+    return Error_Out_Of_Range_Raw(arg);
 }
 
 
@@ -1359,7 +1359,7 @@ REBCTX *Error_Protected_Key(REBVAL *key)
     DECLARE_LOCAL (key_name);
     Init_Word(key_name, VAL_KEY_SPELLING(key));
 
-    return Error(RE_PROTECTED_WORD, key_name, END);
+    return Error_Protected_Word_Raw(key_name);
 }
 
 
@@ -1371,7 +1371,7 @@ REBCTX *Error_Illegal_Action(enum Reb_Kind type, REBSYM action)
     DECLARE_LOCAL (action_word);
     Init_Word(action_word, Canon(action));
 
-    return Error(RE_CANNOT_USE, action_word, Get_Type(type), END);
+    return Error_Cannot_Use_Raw(action_word, Get_Type(type));
 }
 
 
@@ -1383,7 +1383,7 @@ REBCTX *Error_Math_Args(enum Reb_Kind type, REBSYM action)
     DECLARE_LOCAL (action_word);
     Init_Word(action_word, Canon(action));
 
-    return Error(RE_NOT_RELATED, action_word, Get_Type(type), END);
+    return Error_Not_Related_Raw(action_word, Get_Type(type));
 }
 
 
@@ -1395,11 +1395,9 @@ REBCTX *Error_Unexpected_Type(enum Reb_Kind expected, enum Reb_Kind actual)
     assert(expected < REB_MAX);
     assert(actual < REB_MAX);
 
-    return Error(
-        RE_EXPECT_VAL,
+    return Error_Expect_Val_Raw(
         Get_Type(expected),
-        Get_Type(actual),
-        END
+        Get_Type(actual)
     );
 }
 
@@ -1428,23 +1426,19 @@ REBCTX *Error_Arg_Type(
         REBVAL *datatype = Get_Type(kind);
         assert(IS_DATATYPE(datatype));
 
-        return Error(
-            RE_EXPECT_ARG,
+        return Error_Expect_Arg_Raw(
             label_word,
             datatype,
-            param_word,
-            END
+            param_word
         );
     }
 
     // Although REB_MAX_VOID is not a type, the typeset bits are used
     // to check it.  Since Get_Type() will fail, use another error.
     //
-    return Error(
-        RE_ARG_REQUIRED,
+    return Error_Arg_Required_Raw(
         label_word,
-        param_word,
-        END
+        param_word
     );
 }
 
@@ -1457,11 +1451,11 @@ REBCTX *Error_Bad_Return_Type(REBSTR *label, enum Reb_Kind kind) {
     Init_Word(label_word, label);
 
     if (kind == REB_MAX_VOID)
-        return Error(RE_NEEDS_RETURN_VALUE, label_word, END);
+        return Error_Needs_Return_Value_Raw(label_word);
 
     REBVAL *datatype = Get_Type(kind);
     assert(IS_DATATYPE(datatype));
-    return Error(RE_BAD_RETURN_TYPE, label_word, datatype, END);
+    return Error_Bad_Return_Type_Raw(label_word, datatype);
 }
 
 
@@ -1470,7 +1464,7 @@ REBCTX *Error_Bad_Return_Type(REBSTR *label, enum Reb_Kind kind) {
 //
 REBCTX *Error_Bad_Make(enum Reb_Kind type, const REBVAL *spec)
 {
-    return Error(RE_BAD_MAKE_ARG, Get_Type(type), spec, END);
+    return Error_Bad_Make_Arg_Raw(Get_Type(type), spec);
 }
 
 
@@ -1479,7 +1473,7 @@ REBCTX *Error_Bad_Make(enum Reb_Kind type, const REBVAL *spec)
 //
 REBCTX *Error_Cannot_Reflect(enum Reb_Kind type, const REBVAL *arg)
 {
-    return Error(RE_CANNOT_USE, arg, Get_Type(type), END);
+    return Error_Cannot_Use_Raw(arg, Get_Type(type));
 }
 
 
@@ -1490,7 +1484,7 @@ REBCTX *Error_On_Port(REBCNT errnum, REBCTX *port, REBINT err_code)
 {
     REBVAL *spec = CTX_VAR(port, STD_PORT_SPEC);
     if (!IS_OBJECT(spec))
-        fail (Error(RE_INVALID_PORT));
+        fail (Error_Invalid_Port_Raw());
 
     REBVAL *val = VAL_CONTEXT_VAR(spec, STD_PORT_SPEC_HEAD_REF); // informative
     if (IS_BLANK(val))
@@ -1693,7 +1687,7 @@ void Trap_Security(REBCNT flag, REBSTR *sym, REBVAL *value)
             Init_Word(DS_TOP, sym);
             value = DS_TOP;
         }
-        fail (Error(RE_SECURITY, value));
+        fail (Error_Security_Raw(value));
     }
     else if (flag == SEC_QUIT) OS_EXIT(101);
 }
@@ -1736,6 +1730,6 @@ REBINT Find_Next_Error_Base_Code(void)
 {
     REBCTX * categories = VAL_CONTEXT(Get_System(SYS_CATALOG, CAT_ERRORS));
     if (CTX_LEN(categories) > RE_USER / RE_CATEGORY_SIZE)
-        fail (Error(RE_OUT_OF_ERROR_NUMBERS));
+        fail (Error_Out_Of_Error_Numbers_Raw());
     return (CTX_LEN(categories) - 1) * RE_CATEGORY_SIZE;
 }

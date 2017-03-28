@@ -897,7 +897,7 @@ int Decode_UTF8_Negative_If_Latin1(
     for (; len > 0; len--, src++) {
         if ((ch = *src) >= 0x80) {
             if (!(src = Back_Scan_UTF8_Char(&ch, src, &len)))
-                fail (Error(RE_BAD_UTF8));
+                fail (Error_Bad_Utf8_Raw());
 
             if (ch > 0xff) flag = 1;
         }
@@ -941,7 +941,7 @@ REBOOL Decode_UTF8_Maybe_Astral_Throws(
     for (; len > 0; len--, src++) {
         if ((ch = *src) >= 0x80) {
             if (!(src = Back_Scan_UTF8_Char_Core(&ch, src, &len)))
-                fail (Error(RE_BAD_UTF8));
+                fail (Error_Bad_Utf8_Raw());
 
             if (ch > 0xFFFF) { // too big to fit in today's REBUNI
                 if (IS_FUNCTION(handler)) {

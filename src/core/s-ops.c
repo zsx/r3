@@ -97,7 +97,7 @@ REBYTE *Temp_Byte_Chars_May_Fail(
     REBYTE *bp;
     REBSER *src = VAL_SERIES(val);
 
-    if (index > tail) fail (Error(RE_PAST_END));
+    if (index > tail) fail (Error_Past_End_Raw());
 
     Resize_Series(BYTE_BUF, max_len+1);
     bp = BIN_HEAD(BYTE_BUF);
@@ -112,7 +112,7 @@ REBYTE *Temp_Byte_Chars_May_Fail(
     for (; index < tail; index++) {
         c = GET_ANY_CHAR(src, index);
         if (c >= 0x80) {
-            if (!allow_utf8) fail (Error(RE_INVALID_CHARS));
+            if (!allow_utf8) fail (Error_Invalid_Chars_Raw());
 
             len = Encode_UTF8_Char(bp, c);
             max_len -= len;
@@ -124,19 +124,19 @@ REBYTE *Temp_Byte_Chars_May_Fail(
         }
         else break;
         if (max_len < 0)
-            fail (Error(RE_TOO_LONG));
+            fail (Error_Too_Long_Raw());
     }
 
     // Rest better be just spaces:
     for (; index < tail; index++) {
         c = GET_ANY_CHAR(src, index);
-        if (!IS_SPACE(c)) fail (Error(RE_INVALID_CHARS));
+        if (!IS_SPACE(c)) fail (Error_Invalid_Chars_Raw());
     }
 
     *bp = '\0';
 
     len = bp - BIN_HEAD(BYTE_BUF);
-    if (len == 0) fail (Error(RE_TOO_SHORT));
+    if (len == 0) fail (Error_Too_Short_Raw());
 
     if (length) *length = len;
 

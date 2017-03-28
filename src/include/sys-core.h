@@ -617,6 +617,8 @@ enum Reb_Vararg_Op {
 
 #include "sys-globals.h"
 
+#include "tmp-error-funcs.h"
+
 #include "sys-trap.h" // includes PUSH_TRAP, fail(), and panic() macros
 
 #include "sys-value.h" // basic definitions that don't need series accessrors

@@ -342,13 +342,13 @@ REBNATIVE(case)
         }
 
         if (IS_VOID(D_CELL)) // no void conditions allowed (as with IF)
-            fail (Error(RE_NO_RETURN));
+            fail (Error_No_Return_Raw());
 
         if (IS_END(f.value)) // require conditions and branches in pairs
-            fail (Error(RE_PAST_END));
+            fail (Error_Past_End_Raw());
 
         if (IS_BAR(f.value)) // BAR! out of sync, between condition and branch
-            fail (Error(RE_BAR_HIT_MID_CASE));
+            fail (Error_Bar_Hit_Mid_Case_Raw());
 
         // Regardless of whether a "condition" was true or false, it's
         // necessary to evaluate the next "branch" to know how far to skip:
@@ -462,7 +462,7 @@ REBNATIVE(switch)
     // block in source, as that is likely a mistake.
     //
     if (IS_BLOCK(value) && GET_VAL_FLAG(value, VALUE_FLAG_UNEVALUATED))
-        fail (Error(RE_BLOCK_SWITCH, value));
+        fail (Error_Block_Switch_Raw(value));
 
     // Frame's extra D_CELL is free since the function has > 1 arg.  Reuse it
     // as a temporary GC-safe location for holding evaluations.  This
@@ -608,7 +608,7 @@ REBNATIVE(catch)
     // /ANY would override /NAME, so point out the potential confusion
     //
     if (REF(any) && REF(name))
-        fail (Error(RE_BAD_REFINES));
+        fail (Error_Bad_Refines_Raw());
 
     if (Do_Any_Array_At_Throws(D_OUT, ARG(block))) {
         if (
@@ -645,7 +645,7 @@ REBNATIVE(catch)
                     // !!! Should we test a typeset for illegal name types?
                     //
                     if (IS_BLOCK(candidate))
-                        fail (Error(RE_INVALID_ARG, ARG(names)));
+                        fail (Error_Invalid_Arg(ARG(names)));
 
                     Derelativize(temp1, candidate, VAL_SPECIFIER(ARG(names)));
                     Move_Value(temp2, D_OUT);
@@ -770,7 +770,7 @@ REBNATIVE(throw)
         // trying to use it to trigger errors, because if THROW just didn't
         // take errors in the spec it wouldn't guide what *to* use.
         //
-        fail (Error(RE_USE_FAIL_FOR_ERROR, value));
+        fail (Error_Use_Fail_For_Error_Raw(value));
 
         // Note: Caller can put the ERROR! in a block or use some other
         // such trick if it wants to actually throw an error.

@@ -54,11 +54,11 @@ static void Setup_File(struct devreq_file *file, REBFLGS flags, REBVAL *path)
     if (flags & AM_OPEN_NEW) {
         SET_FLAG(req->modes, RFM_NEW);
         if (NOT(flags & AM_OPEN_WRITE))
-            fail (Error(RE_BAD_FILE_MODE, path));
+            fail (Error_Bad_File_Mode_Raw(path));
     }
 
     if (!(ser = Value_To_OS_Path(path, TRUE)))
-        fail (Error(RE_BAD_FILE_PATH, path));
+        fail (Error_Bad_File_Path_Raw(path));
 
     // !!! Original comment said "Convert file name to OS format, let
     // it GC later."  Then it grabs the series data from inside of it.
@@ -138,7 +138,7 @@ static void Open_File_Port(REBCTX *port, struct devreq_file *file, REBVAL *path)
     REBREQ *req = AS_REBREQ(file);
 
     if (Is_Port_Open(port))
-        fail (Error(RE_ALREADY_OPEN, path));
+        fail (Error_Already_Open_Raw(path));
 
     if (OS_DO_DEVICE(req, RDC_OPEN) < 0)
         fail (Error_On_Port(RE_CANNOT_OPEN, port, req->error));
@@ -284,16 +284,16 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 {
     REBVAL *spec = CTX_VAR(port, STD_PORT_SPEC);
     if (!IS_OBJECT(spec))
-        fail (Error(RE_INVALID_SPEC, spec));
+        fail (Error_Invalid_Spec_Raw(spec));
 
     REBVAL *path = Obj_Value(spec, STD_PORT_SPEC_HEAD_REF);
     if (!path)
-        fail (Error(RE_INVALID_SPEC, spec));
+        fail (Error_Invalid_Spec_Raw(spec));
 
     if (IS_URL(path))
         path = Obj_Value(spec, STD_PORT_SPEC_HEAD_PATH);
     else if (!IS_FILE(path))
-        fail (Error(RE_INVALID_SPEC, path));
+        fail (Error_Invalid_Spec_Raw(path));
 
     REBREQ *req = Ensure_Port_State(port, RDI_FILE);
     struct devreq_file *file = DEVREQ_FILE(req);
@@ -345,7 +345,7 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
     case SYM_APPEND: {
         if (!(IS_BINARY(D_ARG(2)) || IS_STRING(D_ARG(2)) || IS_BLOCK(D_ARG(2))))
-            fail (Error(RE_INVALID_ARG, D_ARG(2)));
+            fail (Error_Invalid_Arg(D_ARG(2)));
         file->index = file->size;
         SET_FLAG(req->modes, RFM_RESEEK); }
         //
@@ -358,7 +358,7 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
         if (REF(allow)) {
             assert(!IS_VOID(ARG(access)));
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         }
 
         REBVAL *data = ARG(data); // binary, string, or block
@@ -369,7 +369,7 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         REBOOL opened;
         if (IS_OPEN(req)) {
             if (!GET_FLAG(req->modes, RFM_WRITE))
-                fail (Error(RE_READ_ONLY, path));
+                fail (Error_Read_Only_Raw(path));
 
             opened = FALSE; // already open
         }
@@ -405,8 +405,11 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
             Cleanup_File(file);
         }
 
-        if (req->error)
-            fail (Error(RE_WRITE_ERROR, path));
+        if (req->error) {
+            DECLARE_LOCAL(i);
+            SET_INTEGER(i, req->error);
+            fail (Error_Write_Error_Raw(path, i));
+        }
 
         Move_Value(D_OUT, CTX_VALUE(port));
         return R_OUT; }
@@ -417,7 +420,7 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         UNUSED(PAR(spec));
         if (REF(allow)) {
             assert(!IS_VOID(ARG(access)));
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         }
 
         REBFLGS flags = (
@@ -441,14 +444,14 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
         UNUSED(PAR(value));
         if (REF(deep))
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         if (REF(types)) {
             assert(!IS_VOID(ARG(kinds)));
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         }
 
         if (!IS_OPEN(req))
-            fail (Error(RE_NOT_OPEN, path)); // !!! wrong msg
+            fail (Error_Not_Open_Raw(path)); // !!! wrong msg
 
         REBCNT len = Set_Length(file, REF(part) ? VAL_INT64(ARG(limit)) : -1);
         REBFLGS flags = 0;
@@ -474,10 +477,10 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         UNUSED(PAR(port));
 
         if (IS_OPEN(req))
-            fail (Error(RE_NO_DELETE, path));
+            fail (Error_No_Delete_Raw(path));
         Setup_File(file, 0, path);
         if (OS_DO_DEVICE(req, RDC_DELETE) < 0)
-            fail (Error(RE_NO_DELETE, path));
+            fail (Error_No_Delete_Raw(path));
 
         Move_Value(D_OUT, CTX_VALUE(port));
         return R_OUT; }
@@ -486,7 +489,7 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         INCLUDE_PARAMS_OF_RENAME;
 
         if (IS_OPEN(req))
-            fail (Error(RE_NO_RENAME, path));
+            fail (Error_No_Rename_Raw(path));
 
         Setup_File(file, 0, path);
 
@@ -494,12 +497,12 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         //
         REBSER *target = Value_To_OS_Path(ARG(to), TRUE);
         if (target == NULL)
-            fail (Error(RE_BAD_FILE_PATH, ARG(to)));
+            fail (Error_Bad_File_Path_Raw(ARG(to)));
         req->common.data = BIN_HEAD(target);
         OS_DO_DEVICE(req, RDC_RENAME);
         Free_Series(target);
         if (req->error)
-            fail (Error(RE_NO_RENAME, path));
+            fail (Error_No_Rename_Raw(path));
 
         Move_Value(D_OUT, ARG(from));
         return R_OUT; }
@@ -523,7 +526,7 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         UNUSED(PAR(target));
         if (REF(mode)) {
             assert(!IS_VOID(ARG(field)));
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         }
 
         if (!IS_OPEN(req)) {
@@ -601,8 +604,11 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         SET_FLAG(req->modes, RFM_RESEEK);
         SET_FLAG(req->modes, RFM_TRUNCATE);
         req->length = 0;
-        if (OS_DO_DEVICE(req, RDC_WRITE) < 0)
-            fail (Error(RE_WRITE_ERROR, path));
+        if (OS_DO_DEVICE(req, RDC_WRITE) < 0) {
+            DECLARE_LOCAL(i);
+            SET_INTEGER(i, req->error);
+            fail (Error_Write_Error_Raw(path, i));
+        }
         return R_OUT;
 
     default:

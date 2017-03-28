@@ -1166,7 +1166,7 @@ static void Free_Unbiased_Series_Data(REBYTE *unbiased, REBCNT size_unpooled)
 void Expand_Series(REBSER *s, REBCNT index, REBCNT delta)
 {
     assert(index <= SER_LEN(s));
-    if (delta & 0x80000000) fail (Error(RE_PAST_END)); // 2GB max
+    if (delta & 0x80000000) fail (Error_Past_End_Raw()); // 2GB max
 
     if (delta == 0) return;
 
@@ -1260,7 +1260,7 @@ void Expand_Series(REBSER *s, REBCNT index, REBCNT delta)
 //=//// INSUFFICIENT CAPACITY, NEW ALLOCATION REQUIRED ////////////////////=//
 
     if (GET_SER_FLAG(s, SERIES_FLAG_FIXED_SIZE))
-        fail (Error(RE_LOCKED_SERIES));
+        fail (Error_Locked_Series_Raw());
 
 #ifndef NDEBUG
     if (Reb_Opts->watch_expand) {

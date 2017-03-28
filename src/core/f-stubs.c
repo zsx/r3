@@ -487,7 +487,7 @@ void Partial1(REBVAL *value, const REBVAL *limit, REBCNT *span)
             || VAL_TYPE(value) != VAL_TYPE(limit)
             || VAL_SERIES(value) != VAL_SERIES(limit)
         ){
-            fail (Error(RE_INVALID_PART, limit));
+            fail (Error_Invalid_Part_Raw(limit));
         }
 
         len = cast(REBINT, VAL_INDEX(limit)) - cast(REBINT, VAL_INDEX(value));
@@ -564,7 +564,7 @@ REBINT Partial(REBVAL *aval, REBVAL *bval, REBVAL *lval)
             val = bval;
         }
         else
-            fail (Error(RE_INVALID_PART, lval));
+            fail (Error_Invalid_Part_Raw(lval));
 
         len = cast(REBINT, VAL_INDEX(lval)) - cast(REBINT, VAL_INDEX(val));
     }
@@ -606,7 +606,7 @@ i64 Add_Max(enum Reb_Kind type, i64 n, i64 m, i64 maxi)
 {
     i64 r = n + m;
     if (r < -maxi || r > maxi) {
-        if (type != REB_0) fail (Error(RE_TYPE_LIMIT, Get_Type(type)));
+        if (type != REB_0) fail (Error_Type_Limit_Raw(Get_Type(type)));
         r = r > 0 ? maxi : -maxi;
     }
     return r;
@@ -619,7 +619,7 @@ i64 Add_Max(enum Reb_Kind type, i64 n, i64 m, i64 maxi)
 int Mul_Max(enum Reb_Kind type, i64 n, i64 m, i64 maxi)
 {
     i64 r = n * m;
-    if (r < -maxi || r > maxi) fail (Error(RE_TYPE_LIMIT, Get_Type(type)));
+    if (r < -maxi || r > maxi) fail (Error_Type_Limit_Raw(Get_Type(type)));
     return (int)r;
 }
 

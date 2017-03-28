@@ -81,7 +81,7 @@ REBOOL Do_Breakpoint_Throws(
         // Host did not register any breakpoint handler, so raise an error
         // about this as early as possible.
         //
-        fail (Error(RE_HOST_NO_BREAKPOINT));
+        fail (Error_Host_No_Breakpoint_Raw());
     }
 
     DECLARE_LOCAL (temp);
@@ -392,7 +392,7 @@ REBNATIVE(resume)
         // /WITH and /DO both dictate a default return result, (/DO evaluates
         // and /WITH does not)  They are mutually exclusive.
         //
-        fail (Error(RE_BAD_REFINES));
+        fail (Error_Bad_Refines_Raw());
     }
 
     // We don't actually want to run the code for a /DO here.  If we tried
@@ -465,7 +465,7 @@ REBNATIVE(resume)
         }
 
         if (frame == NULL)
-            fail (Error(RE_NO_CURRENT_PAUSE));
+            fail (Error_No_Current_Pause_Raw());
     }
 
     Init_Any_Context(

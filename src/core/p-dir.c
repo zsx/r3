@@ -153,7 +153,7 @@ static void Init_Dir_Path(struct devreq_file *dir, REBVAL *path, REBINT wild, RE
         // Path did not end with /, so we better be wild:
         if (wild == 0) {
             // !!! Comment said `OS_FREE(dir->path);` (needed?)
-            fail (Error(RE_BAD_FILE_PATH, path));
+            fail (Error_Bad_File_Path_Raw(path));
         }
         else if (wild < 0) {
             dir->path[len++] = OS_MAKE_CH(OS_DIR_SEP);
@@ -183,12 +183,12 @@ static REB_R Dir_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
     // Validate and fetch relevant PORT fields:
     spec = CTX_VAR(port, STD_PORT_SPEC);
-    if (!IS_OBJECT(spec)) fail (Error(RE_INVALID_SPEC, spec));
+    if (!IS_OBJECT(spec)) fail (Error_Invalid_Spec_Raw(spec));
     path = Obj_Value(spec, STD_PORT_SPEC_HEAD_REF);
-    if (!path) fail (Error(RE_INVALID_SPEC, spec));
+    if (!path) fail (Error_Invalid_Spec_Raw(spec));
 
     if (IS_URL(path)) path = Obj_Value(spec, STD_PORT_SPEC_HEAD_PATH);
-    else if (!IS_FILE(path)) fail (Error(RE_INVALID_SPEC, path));
+    else if (!IS_FILE(path)) fail (Error_Invalid_Spec_Raw(path));
 
     state = CTX_VAR(port, STD_PORT_STATE); // if block, then port is open.
 
@@ -206,11 +206,11 @@ static REB_R Dir_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         UNUSED(PAR(source));
         if (REF(part)) {
             assert(!IS_VOID(ARG(limit)));
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         }
         if (REF(seek)) {
             assert(!IS_VOID(ARG(index)));
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         }
         UNUSED(PAR(string)); // handled in dispatcher
         UNUSED(PAR(lines)); // handled in dispatcher
@@ -244,14 +244,14 @@ static REB_R Dir_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
     case SYM_CREATE:
         if (IS_BLOCK(state))
-            fail (Error(RE_ALREADY_OPEN, path));
+            fail (Error_Already_Open_Raw(path));
     create:
         Init_Dir_Path(
             &dir, path, 0, POL_WRITE | REMOVE_TAIL_SLASH
         ); // Sets RFM_DIR too
         result = OS_DO_DEVICE(&dir.devreq, RDC_CREATE);
         if (result < 0)
-            fail (Error(RE_NO_CREATE, path));
+            fail (Error_No_Create_Raw(path));
         if (action == SYM_CREATE) {
             Move_Value(D_OUT, D_ARG(1));
             return R_OUT;
@@ -260,18 +260,18 @@ static REB_R Dir_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         break;
 
     case SYM_RENAME:
-        if (IS_BLOCK(state)) fail (Error(RE_ALREADY_OPEN, path));
+        if (IS_BLOCK(state)) fail (Error_Already_Open_Raw(path));
         else {
             REBSER *target;
 
             Init_Dir_Path(&dir, path, 0, POL_WRITE | REMOVE_TAIL_SLASH); // Sets RFM_DIR too
             // Convert file name to OS format:
             if (!(target = Value_To_OS_Path(D_ARG(2), TRUE)))
-                fail (Error(RE_BAD_FILE_PATH, D_ARG(2)));
+                fail (Error_Bad_File_Path_Raw(D_ARG(2)));
             dir.devreq.common.data = BIN_HEAD(target);
             OS_DO_DEVICE(&dir.devreq, RDC_RENAME);
             Free_Series(target);
-            if (dir.devreq.error) fail (Error(RE_NO_RENAME, path));
+            if (dir.devreq.error) fail (Error_No_Rename_Raw(path));
         }
         break;
 
@@ -283,7 +283,7 @@ static REB_R Dir_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         // !!! add recursive delete (?)
         result = OS_DO_DEVICE(&dir.devreq, RDC_DELETE);
         ///OS_FREE(dir.file.path);
-        if (result < 0) fail (Error(RE_NO_DELETE, path));
+        if (result < 0) fail (Error_No_Delete_Raw(path));
         // !!! Returned D_ARG(2) before, but there is no second argument :-/
         Move_Value(D_OUT, D_ARG(1));
         return R_OUT;
@@ -293,19 +293,19 @@ static REB_R Dir_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
         UNUSED(PAR(spec));
         if (REF(read))
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         if (REF(write))
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         if (REF(seek))
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         if (REF(allow)) {
             assert(!IS_VOID(ARG(access)));
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         }
 
         // !! If open fails, what if user does a READ w/o checking for error?
         if (IS_BLOCK(state))
-            fail (Error(RE_ALREADY_OPEN, path));
+            fail (Error_Already_Open_Raw(path));
 
         if (REF(new))
             goto create;

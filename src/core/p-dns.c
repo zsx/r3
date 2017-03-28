@@ -50,7 +50,7 @@ static REB_R DNS_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
     REBREQ *sock = Ensure_Port_State(port, RDI_DNS);
     spec = CTX_VAR(port, STD_PORT_SPEC);
-    if (!IS_OBJECT(spec)) fail (Error(RE_INVALID_PORT));
+    if (!IS_OBJECT(spec)) fail (Error_Invalid_Port_Raw());
 
     sock->timeout = 4000; // where does this go? !!!
 
@@ -62,12 +62,12 @@ static REB_R DNS_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         UNUSED(PAR(source));
         if (REF(part)) {
             assert(!IS_VOID(ARG(limit)));
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         }
 
         if (REF(seek)) {
             assert(!IS_VOID(ARG(index)));
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         }
 
         UNUSED(PAR(string)); // handled in dispatcher
@@ -145,16 +145,16 @@ pick:
 
         UNUSED(PAR(spec));
         if (REF(new))
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         if (REF(read))
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         if (REF(write))
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         if (REF(seek))
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         if (REF(allow)) {
             assert(!IS_VOID(ARG(access)));
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         }
 
         if (OS_DO_DEVICE(sock, RDC_OPEN))

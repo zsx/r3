@@ -356,7 +356,7 @@ REBOOL Set_Bits(REBSER *bset, const REBVAL *val, REBOOL set)
                 if (IS_CHAR(item)) {
                     n = VAL_CHAR(item);
 span_bits:
-                    if (n < c) fail (Error(RE_PAST_END, item));
+                    if (n < c) fail (Error_Past_End_Raw());
                     for (; c <= n; c++) Set_Bit(bset, c, set);
                 }
                 else
@@ -451,7 +451,7 @@ REBOOL Check_Bits(REBSER *bset, const REBVAL *val, REBOOL uncased)
                 if (IS_CHAR(item)) {
                     n = VAL_CHAR(item);
 scan_bits:
-                    if (n < c) fail (Error(RE_PAST_END, item));
+                    if (n < c) fail (Error_Past_End_Raw());
                     for (; c <= n; c++)
                         if (Check_Bit(bset, c, uncased)) goto found;
                 }
@@ -576,22 +576,22 @@ REBTYPE(Bitset)
         UNUSED(PAR(value));
         if (REF(part)) {
             assert(!IS_VOID(ARG(limit)));
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         }
         if (REF(only))
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         if (REF(skip)) {
             assert(!IS_VOID(ARG(size)));
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         }
         if (REF(last))
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         if (REF(reverse))
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         if (REF(tail))
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         if (REF(match))
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
 
         if (!Check_Bits(VAL_SERIES(value), arg, REF(case)))
             return R_BLANK;
@@ -625,11 +625,11 @@ set_bits:
         UNUSED(PAR(series));
         if (REF(map)) {
             assert(!IS_VOID(ARG(key)));
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         }
 
         if (NOT(REF(part)))
-            fail (Error(RE_MISSING_ARG));
+            fail (Error_Missing_Arg_Raw());
 
         if (Set_Bits(VAL_SERIES(value), ARG(limit), FALSE))
             break;
@@ -642,13 +642,13 @@ set_bits:
         UNUSED(PAR(value));
         if (REF(part)) {
             assert(!IS_VOID(ARG(limit)));
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         }
         if (REF(deep))
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         if (REF(types)) {
             assert(!IS_VOID(ARG(kinds)));
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         }
 
         Init_Any_Series_At(

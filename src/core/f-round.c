@@ -50,7 +50,7 @@ REBDEC Round_Dec(REBDEC dec, REBCNT flags, REBDEC scale)
     REBI64 j;
 
     if (flags & RF_TO) {
-        if (scale == 0.0) fail (Error(RE_ZERO_DIVIDE));
+        if (scale == 0.0) fail (Error_Zero_Divide_Raw());
         scale = fabs(scale);
     } else scale = 1.0;
 
@@ -93,7 +93,7 @@ REBDEC Round_Dec(REBDEC dec, REBCNT flags, REBDEC scale)
         if (fabs(dec = dec * scale) != HUGE_VAL)
             return dec;
         else
-            fail (Error(RE_OVERFLOW));
+            fail (Error_Overflow_Raw());
     }
     return ldexp(dec / scale, e);
 }
@@ -110,7 +110,7 @@ REBDEC Round_Dec(REBDEC dec, REBCNT flags, REBDEC scale)
     else if ((m = n + s) <= cast(REBU64, 1) << 63) \
         num = -cast(REBI64, m); \
     else \
-        fail (Error(RE_OVERFLOW)); \
+        fail (Error_Overflow_Raw()); \
 }
 
 #define Int_Ceil { \
@@ -119,7 +119,7 @@ REBDEC Round_Dec(REBDEC dec, REBCNT flags, REBDEC scale)
     else if ((m = n + s) < cast(REBU64, 1) << 63) \
         num = m; \
     else \
-        fail (Error(RE_OVERFLOW)); \
+        fail (Error_Overflow_Raw()); \
 }
 
 #define Int_Away { \
@@ -127,7 +127,7 @@ REBDEC Round_Dec(REBDEC dec, REBCNT flags, REBDEC scale)
         if (num < 0 && m == cast(REBU64, 1) << 63) \
             num = m; \
         else \
-            fail (Error(RE_OVERFLOW)); \
+            fail (Error_Overflow_Raw()); \
     else \
         num = (num > 0) ? cast(REBI64, m) : -cast(REBI64, m); \
 }
@@ -145,7 +145,7 @@ REBI64 Round_Int(REBI64 num, REBCNT flags, REBI64 scale)
     REBU64 sc, n, r, m, s;
 
     if (flags & RF_TO) {
-        if (scale == 0) fail (Error(RE_ZERO_DIVIDE));
+        if (scale == 0) fail (Error_Zero_Divide_Raw());
         sc = Int_Abs(scale);
     }
     else sc = 1;
@@ -188,7 +188,7 @@ deci Round_Deci(deci num, REBCNT flags, deci scale)
     deci deci_one = {1u, 0u, 0u, 0u, 0};
 
     if (flags & RF_TO) {
-        if (deci_is_zero(scale)) fail (Error(RE_ZERO_DIVIDE));
+        if (deci_is_zero(scale)) fail (Error_Zero_Divide_Raw());
         scale = deci_abs(scale);
     }
     else scale = deci_one;

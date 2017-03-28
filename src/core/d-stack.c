@@ -332,7 +332,7 @@ REBNATIVE(backtrace)
         // while specifying a level gives one.  They are mutually exclusive.
         //
         if (REF(limit) || REF(brief))
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
 
         // See notes on handling of breakpoint below for why 0 is accepted.
         //

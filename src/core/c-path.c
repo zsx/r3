@@ -47,7 +47,7 @@ REBINT PD_Fail(REBPVS *pvs)
     DECLARE_LOCAL (specified_item);
     Derelativize(specified_item, pvs->item, pvs->item_specifier);
 
-    fail (Error(RE_INVALID_PATH, specified_orig, specified_item));
+    fail (Error_Invalid_Path_Raw(specified_orig, specified_item));
 }
 
 
@@ -323,7 +323,7 @@ REBOOL Do_Path_Throws_Core(
         // error for that case.
         //
         if (label_out == NULL)
-            fail (Error(RE_TOO_LONG));
+            fail (Error_Too_Long_Raw());
 
         REBVAL *bottom = DS_AT(dsp_orig + 1);
         REBVAL *top = DS_TOP;
@@ -359,7 +359,7 @@ REBCTX *Error_Bad_Path_Select(REBPVS *pvs)
     DECLARE_LOCAL (item);
     Derelativize(item, pvs->item, pvs->item_specifier);
 
-    return Error(RE_INVALID_PATH, orig, item);
+    return Error_Invalid_Path_Raw(orig, item);
 }
 
 
@@ -374,7 +374,7 @@ REBCTX *Error_Bad_Path_Set(REBPVS *pvs)
     DECLARE_LOCAL (item);
     Derelativize(item, pvs->item, pvs->item_specifier);
 
-    return Error(RE_BAD_PATH_SET, orig, item);
+    return Error_Bad_Path_Set_Raw(orig, item);
 }
 
 
@@ -398,7 +398,7 @@ REBCTX *Error_Bad_Path_Field_Set(REBPVS *pvs)
     DECLARE_LOCAL (item);
     Derelativize(item, pvs->item, pvs->item_specifier);
 
-    return Error(RE_BAD_FIELD_SET, item, Type_Of(pvs->opt_setval));
+    return Error_Bad_Field_Set_Raw(item, Type_Of(pvs->opt_setval));
 }
 
 

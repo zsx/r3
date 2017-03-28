@@ -144,7 +144,7 @@ REBOOL Update_Typeset_Bits_Core(
     if (NOT_END(item) && IS_BLOCK(item)) {
         // Double blocks are a variadic signal.
         if (NOT_END(item + 1))
-            fail (Error(RE_MISC));
+            fail (Error_Misc_Raw());
 
         item = VAL_ARRAY_AT(item);
         SET_VAL_FLAG(typeset, TYPESET_FLAG_VARIADIC);

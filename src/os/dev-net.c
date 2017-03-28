@@ -605,7 +605,7 @@ DEVICE_CMD Modify_Socket(REBREQ *sock)
         break; }
 
     default:
-        fail (Error(RE_MISC)); // not return DR_ERROR?  Is failing here ok?
+        fail (Error_Misc_Raw()); // not return DR_ERROR?  Is failing here ok?
     }
 
     if (result < 0) {

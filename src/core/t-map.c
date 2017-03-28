@@ -256,7 +256,7 @@ void Expand_Hash(REBSER *ser)
     if (pnum == 0) {
         DECLARE_LOCAL (temp);
         SET_INTEGER(temp, SER_LEN(ser) + 1);
-        fail (Error(RE_SIZE_LIMIT, temp));
+        fail (Error_Size_Limit_Raw(temp));
     }
 
     assert(!Is_Array_Series(ser));
@@ -314,7 +314,7 @@ static REBCNT Find_Map_Entry(
     // changed, there'd be no notification to rehash the map.
     //
     if (!Is_Value_Immutable(key))
-        fail (Error(RE_MAP_KEY_UNLOCKED, key));
+        fail (Error_Map_Key_Unlocked_Raw(key));
 
     // Must set the value:
     if (n) {  // re-set it:
@@ -397,7 +397,7 @@ static void Append_Map(
             //
             // Keys with no value not allowed, e.g. `make map! [1 "foo" 2]`
             //
-            fail (Error(RE_PAST_END));
+            fail (Error_Past_End_Raw());
         }
 
         Find_Map_Entry(
@@ -615,22 +615,22 @@ REBTYPE(Map)
 
         if (REF(part)) {
             assert(!IS_VOID(ARG(limit)));
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         }
         if (REF(only))
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         if (REF(skip)) {
             assert(!IS_VOID(ARG(size)));
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         }
         if (REF(last))
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         if (REF(reverse))
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         if (REF(tail))
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         if (REF(match))
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
 
         REBINT n = Find_Map_Entry(
             map,
@@ -664,7 +664,7 @@ REBTYPE(Map)
         UNUSED(PAR(value)); // handled as arg
 
         if (REF(only))
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
 
         if (!IS_BLOCK(arg))
             fail (Error_Invalid_Arg(val));
@@ -693,7 +693,7 @@ REBTYPE(Map)
 
         if (REF(part)) {
             assert(!IS_VOID(ARG(limit)));
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         }
         if (NOT(REF(map)))
             fail (Error_Illegal_Action(REB_MAP, action));
@@ -723,13 +723,13 @@ REBTYPE(Map)
         UNUSED(PAR(value));
         if (REF(part)) {
             assert(!IS_VOID(ARG(limit)));
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         }
         if (REF(deep))
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         if (REF(types)) {
             assert(!IS_VOID(ARG(kinds)));
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         }
 
         // !!! the copying map case should probably not be a MAKE case, but

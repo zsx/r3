@@ -356,16 +356,16 @@ REBTYPE(Tuple)
 
             case SYM_DIVIDE:
                 if (IS_DECIMAL(arg) || IS_PERCENT(arg)) {
-                    if (dec == 0.0) fail (Error(RE_ZERO_DIVIDE));
+                    if (dec == 0.0) fail (Error_Zero_Divide_Raw());
                     v=(REBINT)Round_Dec(v/dec, 0, 1.0);
                 } else {
-                    if (a == 0) fail (Error(RE_ZERO_DIVIDE));
+                    if (a == 0) fail (Error_Zero_Divide_Raw());
                     v /= a;
                 }
                 break;
 
             case SYM_REMAINDER:
-                if (a == 0) fail (Error(RE_ZERO_DIVIDE));
+                if (a == 0) fail (Error_Zero_Divide_Raw());
                 v %= a;
                 break;
 
@@ -404,10 +404,10 @@ REBTYPE(Tuple)
         UNUSED(PAR(value));
 
         if (REF(only))
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
 
         if (REF(seed))
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         for (; len > 0; len--, vp++) {
             if (*vp)
                 *vp = cast(REBYTE, Random_Int(REF(secure)) % (1 + *vp));

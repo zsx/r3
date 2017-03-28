@@ -583,7 +583,7 @@ REBSER *Make_Image(REBCNT w, REBCNT h, REBOOL error)
 
     if (w > 0xFFFF || h > 0xFFFF) {
         if (error)
-            fail (Error(RE_SIZE_LIMIT, Get_Type(REB_IMAGE)));
+            fail (Error_Size_Limit_Raw(Get_Type(REB_IMAGE)));
         return NULL;
     }
 
@@ -836,7 +836,7 @@ REBVAL *Find_Image(REBFRM *frame_)
     ){
         UNUSED(PAR(limit));
         UNUSED(PAR(size));
-        fail (Error(RE_BAD_REFINE));
+        fail (Error_Bad_Refines_Raw());
     }
 
     REBOOL only = FALSE;
@@ -1092,7 +1092,7 @@ REBTYPE(Image)
 
         if (REF(map)) {
             assert(!IS_VOID(ARG(key)));
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         }
 
         if (REF(part)) {
@@ -1133,11 +1133,11 @@ REBTYPE(Image)
         UNUSED(PAR(value));
 
         if (REF(deep))
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
 
         if (REF(types)) {
             assert(!IS_VOID(ARG(kinds)));
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         }
 
         if (NOT(REF(part))) {

@@ -220,7 +220,7 @@ void MAKE_Decimal(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
                 --exp;
                 d *= 10.0;
                 if (!FINITE(d))
-                    fail (Error(RE_OVERFLOW));
+                    fail (Error_Overflow_Raw());
             }
 
             while (exp <= -1) {
@@ -237,7 +237,7 @@ void MAKE_Decimal(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
 
 dont_divide_if_percent:
     if (!FINITE(d))
-        fail (Error(RE_OVERFLOW));
+        fail (Error_Overflow_Raw());
 
     VAL_RESET_HEADER(out, kind);
     VAL_DECIMAL(out) = d;
@@ -391,7 +391,7 @@ REBTYPE(Decimal)
 
             case SYM_DIVIDE:
             case SYM_REMAINDER:
-                if (d2 == 0.0) fail (Error(RE_ZERO_DIVIDE));
+                if (d2 == 0.0) fail (Error_Zero_Divide_Raw());
                 if (action == SYM_DIVIDE) d1 /= d2;
                 else d1 = fmod(d1, d2);
                 goto setDec;
@@ -403,7 +403,7 @@ REBTYPE(Decimal)
                     goto setDec;
                 }
                 //if (d1 < 0 && d2 < 1 && d2 != -1)
-                //  fail (Error(RE_POSITIVE));
+                //  fail (Error_Positive_Raw());
                 d1 = pow(d1, d2);
                 goto setDec;
 
@@ -487,7 +487,7 @@ REBTYPE(Decimal)
 
             UNUSED(PAR(value));
             if (REF(only))
-                fail (Error(RE_BAD_REFINES));
+                fail (Error_Bad_Refines_Raw());
 
             if (REF(seed)) {
                 Set_Random(*cast(REBI64*, &VAL_DECIMAL(val))); // use IEEE bits
@@ -508,7 +508,7 @@ REBTYPE(Decimal)
     fail (Error_Illegal_Action(VAL_TYPE(val), action));
 
 setDec:
-    if (!FINITE(d1)) fail (Error(RE_OVERFLOW));
+    if (!FINITE(d1)) fail (Error_Overflow_Raw());
 
     VAL_RESET_HEADER(D_OUT, type);
     VAL_DECIMAL(D_OUT) = d1;

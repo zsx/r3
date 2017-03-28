@@ -49,11 +49,11 @@ static REB_R Serial_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
     // Validate PORT fields:
     spec = CTX_VAR(port, STD_PORT_SPEC);
-    if (!IS_OBJECT(spec)) fail (Error(RE_INVALID_PORT));
+    if (!IS_OBJECT(spec)) fail (Error_Invalid_Port_Raw());
     path = Obj_Value(spec, STD_PORT_SPEC_HEAD_REF);
-    if (!path) fail (Error(RE_INVALID_SPEC, spec));
+    if (!path) fail (Error_Invalid_Spec_Raw(spec));
 
-    //if (!IS_FILE(path)) fail (Error(RE_INVALID_SPEC, path));
+    //if (!IS_FILE(path)) fail (Error_Invalid_Spec_Raw(path));
 
     REBREQ *req = Ensure_Port_State(port, RDI_SERIAL);
     struct devreq_serial *serial = DEVREQ_SERIAL(req);
@@ -66,7 +66,7 @@ static REB_R Serial_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         case SYM_OPEN:
             arg = Obj_Value(spec, STD_PORT_SPEC_SERIAL_PATH);
             if (! (IS_FILE(arg) || IS_STRING(arg) || IS_BINARY(arg)))
-                fail (Error(RE_INVALID_PORT_ARG, arg));
+                fail (Error_Invalid_Port_Arg_Raw(arg));
 
             serial->path = ALLOC_N(REBCHR, MAX_SERIAL_DEV_PATH);
             OS_STRNCPY(
@@ -80,7 +80,7 @@ static REB_R Serial_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
             );
             arg = Obj_Value(spec, STD_PORT_SPEC_SERIAL_SPEED);
             if (! IS_INTEGER(arg))
-                fail (Error(RE_INVALID_PORT_ARG, arg));
+                fail (Error_Invalid_Port_Arg_Raw(arg));
 
             serial->baud = VAL_INT32(arg);
             //Secure_Port(SYM_SERIAL, ???, path, ser);
@@ -89,7 +89,7 @@ static REB_R Serial_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
                 || VAL_INT64(arg) < 5
                 || VAL_INT64(arg) > 8
             ) {
-                fail (Error(RE_INVALID_PORT_ARG, arg));
+                fail (Error_Invalid_Port_Arg_Raw(arg));
             }
             serial->data_bits = VAL_INT32(arg);
 
@@ -98,7 +98,7 @@ static REB_R Serial_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
                 || VAL_INT64(arg) < 1
                 || VAL_INT64(arg) > 2
             ) {
-                fail (Error(RE_INVALID_PORT_ARG, arg));
+                fail (Error_Invalid_Port_Arg_Raw(arg));
             }
             serial->stop_bits = VAL_INT32(arg);
 
@@ -107,7 +107,7 @@ static REB_R Serial_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
                 serial->parity = SERIAL_PARITY_NONE;
             } else {
                 if (!IS_WORD(arg))
-                    fail (Error(RE_INVALID_PORT_ARG, arg));
+                    fail (Error_Invalid_Port_Arg_Raw(arg));
 
                 switch (VAL_WORD_SYM(arg)) {
                     case SYM_ODD:
@@ -117,7 +117,7 @@ static REB_R Serial_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
                         serial->parity = SERIAL_PARITY_EVEN;
                         break;
                     default:
-                        fail (Error(RE_INVALID_PORT_ARG, arg));
+                        fail (Error_Invalid_Port_Arg_Raw(arg));
                 }
             }
 
@@ -126,7 +126,7 @@ static REB_R Serial_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
                 serial->flow_control = SERIAL_FLOW_CONTROL_NONE;
             } else {
                 if (!IS_WORD(arg))
-                    fail (Error(RE_INVALID_PORT_ARG, arg));
+                    fail (Error_Invalid_Port_Arg_Raw(arg));
 
                 switch (VAL_WORD_SYM(arg)) {
                     case SYM_HARDWARE:
@@ -136,7 +136,7 @@ static REB_R Serial_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
                         serial->flow_control = SERIAL_FLOW_CONTROL_SOFTWARE;
                         break;
                     default:
-                        fail (Error(RE_INVALID_PORT_ARG, arg));
+                        fail (Error_Invalid_Port_Arg_Raw(arg));
                 }
             }
 
@@ -165,11 +165,11 @@ static REB_R Serial_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         UNUSED(PAR(source));
         if (REF(part)) {
             assert(!IS_VOID(ARG(limit)));
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         }
         if (REF(seek)) {
             assert(!IS_VOID(ARG(index)));
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         }
         UNUSED(PAR(string)); // handled in dispatcher
         UNUSED(PAR(lines)); // handled in dispatcher
@@ -213,16 +213,16 @@ static REB_R Serial_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
         if (REF(seek)) {
             assert(!IS_VOID(ARG(index)));
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         }
         if (REF(append))
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         if (REF(allow)) {
             assert(!IS_VOID(ARG(access)));
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         }
         if (REF(lines))
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
 
         // Determine length. Clip /PART to size of string if needed.
         REBVAL *data = ARG(data);

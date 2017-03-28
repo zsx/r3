@@ -145,7 +145,7 @@ static int sig_word_num(REBSTR *canon)
             DECLARE_LOCAL (word);
             Init_Word(word, canon);
 
-            fail (Error(RE_INVALID_SPEC, word));
+            fail (Error_Invalid_Spec_Raw(word));
         }
     }
 }
@@ -173,7 +173,7 @@ static REB_R Signal_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
             case SYM_OPEN:
                 val = Obj_Value(spec, STD_PORT_SPEC_SIGNAL_MASK);
                 if (!IS_BLOCK(val))
-                    fail (Error(RE_INVALID_SPEC, val));
+                    fail (Error_Invalid_Spec_Raw(val));
 
                 sigemptyset(&signal->mask);
                 for(sig = VAL_ARRAY_AT_HEAD(val, 0); NOT_END(sig); sig ++) {
@@ -182,7 +182,7 @@ static REB_R Signal_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
                         if (VAL_WORD_SYM(sig) == SYM_ALL) {
                             if (sigfillset(&signal->mask) < 0) {
                                 // !!! Needs better error
-                                fail (Error(RE_INVALID_SPEC, sig));
+                                fail (Error_Invalid_Spec_Raw(sig));
                             }
                             break;
                         }
@@ -193,11 +193,11 @@ static REB_R Signal_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
                                 sig_word_num(VAL_WORD_CANON(sig))
                             ) < 0
                         ) {
-                            fail (Error(RE_INVALID_SPEC, sig));
+                            fail (Error_Invalid_Spec_Raw(sig));
                         }
                     }
                     else
-                        fail (Error(RE_INVALID_SPEC, sig));
+                        fail (Error_Invalid_Spec_Raw(sig));
                 }
 
                 if (OS_DO_DEVICE(req, RDC_OPEN))
@@ -274,7 +274,7 @@ static REB_R Signal_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
             return R_TRUE;
 
         case SYM_OPEN: {
-            fail (Error(RE_ALREADY_OPEN, D_ARG(1)));
+            fail (Error_Already_Open_Raw(D_ARG(1)));
         }
 
         default:
@@ -305,6 +305,6 @@ REBNATIVE(get_signal_actor_handle)
     Make_Port_Actor_Handle(D_OUT, &Signal_Actor);
     return R_OUT;
 #else
-    fail (Error(RE_MISC));
+    fail (Error_Misc_Raw());
 #endif
 }

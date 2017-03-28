@@ -263,7 +263,7 @@ static REB_R Loop_Series_Common(
         }
 
     next_iteration:
-        if (VAL_TYPE(var) != type) fail (Error(RE_INVALID_TYPE, var));
+        if (VAL_TYPE(var) != type) fail (Error_Invalid_Type(VAL_TYPE(var)));
         si = VAL_INDEX(var);
     }
 
@@ -306,7 +306,7 @@ static REB_R Loop_Integer_Common(
         start = VAL_INT64(var);
 
         if (REB_I64_ADD_OF(start, incr, &start))
-            fail (Error(RE_OVERFLOW));
+            fail (Error_Overflow_Raw());
     }
 
     return R_OUT_VOID_IF_UNWRITTEN_TRUTHIFY;
@@ -443,7 +443,7 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
             break;
 
         default:
-            fail (Error(RE_MISC));
+            fail (Error_Misc_Raw());
         }
     }
     else {
@@ -1257,7 +1257,7 @@ inline static REB_R While_Until_Core(REBFRM *frame_, REBOOL trigger)
         }
 
         if (IS_VOID(D_CELL))
-            fail (Error(RE_NO_RETURN));
+            fail (Error_No_Return_Raw());
 
         if (IS_CONDITIONAL_TRUE(D_CELL) != trigger) {
             //

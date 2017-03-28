@@ -103,7 +103,7 @@ REB_R Series_Common_Action_Maybe_Unhandled(
 
         if (REF(map)) {
             assert(!IS_VOID(ARG(key)));
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         }
 
         FAIL_IF_READ_ONLY_SERIES(VAL_SERIES(value));

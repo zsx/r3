@@ -150,7 +150,7 @@ static REB_R Event_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
     // Validate and fetch relevant PORT fields:
     state = CTX_VAR(port, STD_PORT_STATE);
     spec = CTX_VAR(port, STD_PORT_SPEC);
-    if (!IS_OBJECT(spec)) fail (Error(RE_INVALID_SPEC, spec));
+    if (!IS_OBJECT(spec)) fail (Error_Invalid_Spec_Raw(spec));
 
     // Get or setup internal state data:
     if (!IS_BLOCK(state))
@@ -200,16 +200,16 @@ act_blk:
 
         UNUSED(PAR(spec));
         if (REF(new))
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         if (REF(read))
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         if (REF(write))
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         if (REF(seek))
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         if (REF(allow)) {
             assert(!IS_VOID(ARG(access)));
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         }
 
         if (!req) { //!!!

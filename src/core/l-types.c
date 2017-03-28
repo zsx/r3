@@ -54,7 +54,7 @@
 //
 void MAKE_Fail(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 {
-    fail (Error(RE_MISC));
+    fail (Error_Misc_Raw());
 }
 
 
@@ -168,7 +168,7 @@ REBNATIVE(make)
 //
 void TO_Fail(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 {
-    fail (Error(RE_MISC));
+    fail (Error_Misc_Raw());
 }
 
 
@@ -337,7 +337,7 @@ REBCNT Scan_Hex_Value(const void *p, REBCNT len, REBOOL unicode)
     return num;
 
 bad_hex:
-    fail (Error(RE_INVALID_CHARS));
+    fail (Error_Invalid_Chars_Raw());
 }
 
 
@@ -513,7 +513,7 @@ const REBYTE *Scan_Decimal(
     // !!! TBD: need check for NaN, and INF
 
     if (fabs(VAL_DECIMAL(out)) == HUGE_VAL)
-        fail (Error(RE_OVERFLOW));
+        fail (Error_Overflow_Raw());
 
     return cp;
 }

@@ -66,7 +66,7 @@
         ffi_type *rtype,
         ffi_type **atypes
     ){
-        fail (Error(RE_NOT_FFI_BUILD));
+        fail (Error_Not_Ffi_Build_Raw());
     }
 
     ffi_status ffi_prep_cif_var(
@@ -77,7 +77,7 @@
         ffi_type *rtype,
         ffi_type **atypes
     ){
-        fail (Error(RE_NOT_FFI_BUILD));
+        fail (Error_Not_Ffi_Build_Raw());
     }
 
     void ffi_call(
@@ -86,11 +86,11 @@
         void *rvalue,
         void **avalue
     ){
-        fail (Error(RE_NOT_FFI_BUILD));
+        fail (Error_Not_Ffi_Build_Raw());
     }
 
     void *ffi_closure_alloc(size_t size, void **code) {
-        fail (Error(RE_NOT_FFI_BUILD));
+        fail (Error_Not_Ffi_Build_Raw());
     }
 
     ffi_status ffi_prep_closure_loc(
@@ -100,11 +100,11 @@
         void *user_data,
         void *codeloc
     ){
-        fail (Error(RE_NOT_FFI_BUILD));
+        fail (Error_Not_Ffi_Build_Raw());
     }
 
     void ffi_closure_free(void *closure) {
-        fail (Error(RE_NOT_FFI_BUILD));
+        fail (Error_Not_Ffi_Build_Raw());
     }
 #endif
 
@@ -302,7 +302,7 @@ static void Schema_From_Block_May_Fail(
             break;
 
         default:
-            fail (Error(RE_MISC));
+            fail (Error_Misc_Raw());
         }
         return;
     }
@@ -556,11 +556,11 @@ static REBUPT arg_to_ffi(
 
         case REB_FUNCTION:{
             if (!IS_FUNCTION_RIN(arg))
-                fail (Error(RE_ONLY_CALLBACK_PTR)); // actually routines too
+                fail (Error_Only_Callback_Ptr_Raw()); // actually routines too
 
             CFUNC* cfunc = RIN_CFUNC(VAL_FUNC_ROUTINE(arg));
             if (sizeof(cfunc) != sizeof(void*)) // not necessarily true
-                fail (Error(RE_MISC));
+                fail (Error_Misc_Raw());
             memcpy(dest, &cfunc, sizeof(void*));
             break;}
 
@@ -714,7 +714,7 @@ static void ffi_to_rebol(
         //
         // !!! Was reporting Error_Invalid_Arg on uninitialized `out`
         //
-        fail (Error(RE_MISC));
+        fail (Error_Misc_Raw());
     }
 }
 
@@ -733,7 +733,7 @@ REB_R Routine_Dispatcher(REBFRM *f)
     }
     else {
         if (IS_LIB_CLOSED(RIN_LIB(rin)))
-            fail (Error(RE_BAD_LIBRARY));
+            fail (Error_Bad_Library_Raw());
     }
 
     REBCNT num_fixed = RIN_NUM_FIXED_ARGS(rin);
@@ -790,7 +790,7 @@ REB_R Routine_Dispatcher(REBFRM *f)
         // expressions).
         //
         if ((DSP - dsp_orig) % 2 != 0)
-            fail (Error(RE_MISC));
+            fail (Error_Misc_Raw());
 
         num_variable = (DSP - dsp_orig) / 2;
     }
@@ -922,7 +922,7 @@ REB_R Routine_Dispatcher(REBFRM *f)
         if (status != FFI_OK) {
             OS_FREE(cif);
             OS_FREE(args_fftypes);
-            fail (Error(RE_MISC)); // Couldn't prep CIF_VAR
+            fail (Error_Misc_Raw()); // Couldn't prep CIF_VAR
         }
     }
 
@@ -1278,7 +1278,7 @@ static REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec, ffi_abi abi) {
                 args_fftypes // NULL if 0 fixed args
             )
         ){
-            fail (Error(RE_MISC)); // !!! Couldn't prep cif...
+            fail (Error_Misc_Raw()); // !!! Couldn't prep cif...
         }
 
         Init_Handle_Managed(
@@ -1478,7 +1478,7 @@ REBNATIVE(make_callback)
     ));
 
     if (closure == NULL)
-        fail (Error(RE_MISC)); // couldn't allocate closure
+        fail (Error_Misc_Raw()); // couldn't allocate closure
 
     ffi_status status = ffi_prep_closure_loc(
         closure,
@@ -1489,7 +1489,7 @@ REBNATIVE(make_callback)
     );
 
     if (status != FFI_OK)
-        fail (Error(RE_MISC)); // couldn't prep closure
+        fail (Error_Misc_Raw()); // couldn't prep closure
 
     Init_Handle_Simple(RIN_AT(r, IDX_ROUTINE_CFUNC), thunk, 0);
     Init_Handle_Managed(

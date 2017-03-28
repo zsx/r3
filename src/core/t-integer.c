@@ -122,7 +122,7 @@ void Value_To_Int64(REBVAL *out, const REBVAL *value, REBOOL no_sign)
     }
     if (IS_DECIMAL(value) || IS_PERCENT(value)) {
         if (VAL_DECIMAL(value) < MIN_D64 || VAL_DECIMAL(value) >= MAX_D64)
-            fail (Error(RE_OVERFLOW));
+            fail (Error_Overflow_Raw());
 
         SET_INTEGER(out, cast(REBI64, VAL_DECIMAL(value)));
         goto check_sign;
@@ -222,7 +222,7 @@ void Value_To_Int64(REBVAL *out, const REBVAL *value, REBOOL no_sign)
         // leading 0x00 or 0xFF stripped away
         //
         if (n > 8)
-            fail (Error(RE_OUT_OF_RANGE, value));
+            fail (Error_Out_Of_Range_Raw(value));
 
         REBI64 i = 0;
 
@@ -244,7 +244,7 @@ void Value_To_Int64(REBVAL *out, const REBVAL *value, REBOOL no_sign)
             //
             // bits may become signed via shift due to 63-bit limit
             //
-            fail (Error(RE_OUT_OF_RANGE, value));
+            fail (Error_Out_Of_Range_Raw(value));
         }
 
         SET_INTEGER(out, i);
@@ -263,7 +263,7 @@ void Value_To_Int64(REBVAL *out, const REBVAL *value, REBOOL no_sign)
 
         if (len > MAX_HEX_LEN) {
             // Lacks BINARY!'s accommodation of leading 00s or FFs
-            fail (Error(RE_OUT_OF_RANGE, value));
+            fail (Error_Out_Of_Range_Raw(value));
         }
 
         if (!Scan_Hex(out, bp, len, len))
@@ -273,7 +273,7 @@ void Value_To_Int64(REBVAL *out, const REBVAL *value, REBOOL no_sign)
         // might run afoul of 64-bit range limit.
         //
         if (VAL_INT64(out) < 0)
-            fail (Error(RE_OUT_OF_RANGE, value));
+            fail (Error_Out_Of_Range_Raw(value));
 
         return;
     }
@@ -294,7 +294,7 @@ void Value_To_Int64(REBVAL *out, const REBVAL *value, REBOOL no_sign)
                     goto check_sign;
                 }
 
-                fail (Error(RE_OVERFLOW));
+                fail (Error_Overflow_Raw());
             }
         }
         if (Scan_Integer(out, bp, len))
@@ -323,7 +323,7 @@ void Value_To_Int64(REBVAL *out, const REBVAL *value, REBOOL no_sign)
 
 check_sign:
     if (no_sign && VAL_INT64(out) < 0)
-        fail (Error(RE_POSITIVE));
+        fail (Error_Positive_Raw());
 }
 
 
@@ -433,25 +433,25 @@ REBTYPE(Integer)
         return R_OUT;
 
     case SYM_ADD:
-        if (REB_I64_ADD_OF(num, arg, &anum)) fail (Error(RE_OVERFLOW));
+        if (REB_I64_ADD_OF(num, arg, &anum)) fail (Error_Overflow_Raw());
         num = anum;
         break;
 
     case SYM_SUBTRACT:
-        if (REB_I64_SUB_OF(num, arg, &anum)) fail (Error(RE_OVERFLOW));
+        if (REB_I64_SUB_OF(num, arg, &anum)) fail (Error_Overflow_Raw());
         num = anum;
         break;
 
     case SYM_MULTIPLY:
-        if (REB_I64_MUL_OF(num, arg, &p)) fail (Error(RE_OVERFLOW));
+        if (REB_I64_MUL_OF(num, arg, &p)) fail (Error_Overflow_Raw());
         num = p;
         break;
 
     case SYM_DIVIDE:
         if (arg == 0)
-            fail (Error(RE_ZERO_DIVIDE));
+            fail (Error_Zero_Divide_Raw());
         if (num == MIN_I64 && arg == -1)
-            fail (Error(RE_OVERFLOW));
+            fail (Error_Overflow_Raw());
         if (num % arg == 0) {
             num = num / arg;
             break;
@@ -464,7 +464,7 @@ REBTYPE(Integer)
         return T_Decimal(frame_, action);
 
     case SYM_REMAINDER:
-        if (arg == 0) fail (Error(RE_ZERO_DIVIDE));
+        if (arg == 0) fail (Error_Zero_Divide_Raw());
         num = (arg != -1) ? (num % arg) : 0; // !!! was macro called REM2 (?)
         break;
 
@@ -481,7 +481,7 @@ REBTYPE(Integer)
         break;
 
     case SYM_NEGATE:
-        if (num == MIN_I64) fail (Error(RE_OVERFLOW));
+        if (num == MIN_I64) fail (Error_Overflow_Raw());
         num = -num;
         break;
 
@@ -490,7 +490,7 @@ REBTYPE(Integer)
         break;
 
     case SYM_ABSOLUTE:
-        if (num == MIN_I64) fail (Error(RE_OVERFLOW));
+        if (num == MIN_I64) fail (Error_Overflow_Raw());
         if (num < 0) num = -num;
         break;
 
@@ -547,7 +547,7 @@ REBTYPE(Integer)
         UNUSED(PAR(value));
 
         if (REF(only))
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
 
         if (REF(seed)) {
             Set_Random(num);

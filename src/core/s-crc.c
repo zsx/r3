@@ -387,7 +387,7 @@ REBSER *Make_Hash_Sequence(REBCNT len)
         DECLARE_LOCAL (temp);
         SET_INTEGER(temp, len);
 
-        fail (Error(RE_SIZE_LIMIT, temp));
+        fail (Error_Size_Limit_Raw(temp));
     }
 
     ser = Make_Series(n + 1, sizeof(REBCNT), MKS_NONE);
@@ -473,7 +473,7 @@ REBSER *Hash_Block(const REBVAL *block, REBCNT skip, REBOOL cased)
                     // than not, this will catch bugs in callers vs. be
                     // a roadblock to them.
                     //
-                    fail (Error(RE_BLOCK_SKIP_WRONG));
+                    fail (Error_Block_Skip_Wrong_Raw());
                 }
 
                 return hashlist;

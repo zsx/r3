@@ -106,7 +106,7 @@ REBNATIVE(encode_text)
         // (Other support was unimplemented in R3-Alpha, and would just wind
         // up writing garbage.)
         //
-        fail (Error(RE_MISC));
+        fail (Error_Misc_Raw());
     }
 
     Init_Binary(D_OUT, Copy_Sequence_At_Position(ARG(string)));
@@ -170,7 +170,7 @@ static void Encode_Utf16_Core(
     #endif
     }
     else { // RESERVED for future unicode expansion
-        fail (Error(RE_MISC));
+        fail (Error_Misc_Raw());
     }
 
     TERM_BIN_LEN(bin, len * sizeof(u16));

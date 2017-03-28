@@ -138,11 +138,11 @@ REBTYPE(Function)
         UNUSED(PAR(value));
         if (REF(part)) {
             assert(!IS_VOID(ARG(limit)));
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         }
         if (REF(types)) {
             assert(!IS_VOID(ARG(kinds)));
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         }
         if (REF(deep)) {
             // !!! always "deep", allow it?
@@ -180,7 +180,7 @@ REBTYPE(Function)
 
         case SYM_BODY:
             if (IS_FUNCTION_HIJACKER(value))
-                fail (Error(RE_MISC)); // body corrupt, need to recurse
+                fail (Error_Misc_Raw()); // body corrupt, need to recurse
 
             if (IS_FUNCTION_INTERPRETED(value)) {
                 //
@@ -331,7 +331,7 @@ REBINT PD_Function(REBPVS *pvs)
     // a word or one of those that evaluated to a word raise an error.
     //
     if (!IS_WORD(pvs->selector))
-        fail (Error(RE_BAD_REFINE, pvs->selector));
+        fail (Error_Bad_Refine_Raw(pvs->selector));
 
     // We could generate a "refined" function variant at each step:
     //

@@ -179,13 +179,13 @@ REBTYPE(Char)
 
     case SYM_DIVIDE:
         arg = Math_Arg_For_Char(D_ARG(2), action);
-        if (arg == 0) fail (Error(RE_ZERO_DIVIDE));
+        if (arg == 0) fail (Error_Zero_Divide_Raw());
         chr /= arg;
         break;
 
     case SYM_REMAINDER:
         arg = Math_Arg_For_Char(D_ARG(2), action);
-        if (arg == 0) fail (Error(RE_ZERO_DIVIDE));
+        if (arg == 0) fail (Error_Zero_Divide_Raw());
         chr %= arg;
         break;
 
@@ -219,7 +219,7 @@ REBTYPE(Char)
 
         UNUSED(PAR(value));
         if (REF(only))
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
 
         if (REF(seed)) {
             Set_Random(chr);
@@ -234,7 +234,7 @@ REBTYPE(Char)
     }
 
     if ((chr >> 16) != 0 && (chr >> 16) != 0xffff)
-        fail (Error(RE_TYPE_LIMIT, Get_Type(REB_CHAR)));
+        fail (Error_Type_Limit_Raw(Get_Type(REB_CHAR)));
     SET_CHAR(D_OUT, chr);
     return R_OUT;
 }

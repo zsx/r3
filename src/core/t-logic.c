@@ -251,7 +251,7 @@ REBTYPE(Logic)
         UNUSED(PAR(value));
 
         if (REF(only))
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
 
         if (REF(seed)) {
             // random/seed false restarts; true randomizes

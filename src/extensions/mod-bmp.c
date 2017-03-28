@@ -329,7 +329,7 @@ REBNATIVE(decode_bmp)
     REBCNT len = VAL_LEN_AT(ARG(data));
 
     if (NOT(Has_Valid_BITMAPFILEHEADER(data, len)))
-        fail (Error(RE_BAD_MEDIA));
+        fail (Error_Bad_Media_Raw());
 
     REBINT              i, j, x, y, c;
     REBINT              colors, compression, bitcount;
@@ -547,7 +547,7 @@ bit_len_error:
 bad_encoding_error:
 bad_table_error:
     if (ctab) free(ctab);
-    fail (Error(RE_BAD_MEDIA)); // better error?
+    fail (Error_Bad_Media_Raw()); // better error?
 }
 
 

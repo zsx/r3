@@ -260,7 +260,7 @@ REBNATIVE(decode_gif)
     REBCNT len = VAL_LEN_AT(ARG(data));
 
     if (NOT(Has_Valid_GIF_Header(data, len)))
-        fail (Error(RE_BAD_MEDIA));
+        fail (Error_Bad_Media_Raw());
 
     REBINT  w, h;
     REBINT  transparency_index;

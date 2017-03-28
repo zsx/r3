@@ -659,7 +659,7 @@ REBTYPE(Array)
 
         UNUSED(PAR(series));
         if (REF(deep))
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
 
         REBCNT len;
 
@@ -860,11 +860,11 @@ REBTYPE(Array)
         FAIL_IF_READ_ONLY_ARRAY(array);
 
         if (REF(auto) || REF(all) || REF(lines))
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
 
         if (REF(with)) {
             assert(!IS_VOID(ARG(str)));
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         }
 
         RELVAL *head = ARR_HEAD(array);
@@ -978,7 +978,7 @@ REBTYPE(Array)
         UNUSED(PAR(value));
 
         if (REF(seed))
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
 
         if (REF(only)) { // pick an element out of the array
             if (index >= VAL_LEN_HEAD(value))

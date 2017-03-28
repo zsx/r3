@@ -50,7 +50,7 @@ static void fail_if_non_accessible(const REBVAL *val)
     if (VAL_STRUCT_INACCESSIBLE(val)) {
         DECLARE_LOCAL (i);
         SET_INTEGER(i, cast(REBUPT, VAL_STRUCT_DATA_HEAD(val)));
-        fail (Error(RE_BAD_MEMORY, i, val));
+        fail (Error_Bad_Memory_Raw(i, val));
     }
 }
 
@@ -163,7 +163,7 @@ static void get_scalar(
 
     default:
         assert(FALSE);
-        fail (Error(RE_MISC));
+        fail (Error_Misc_Raw());
     }
 }
 
@@ -385,37 +385,37 @@ static REBOOL assign_scalar_core(
     switch (FLD_TYPE_SYM(field)) {
     case SYM_INT8:
         if (i > 0x7f || i < -128)
-            fail (Error(RE_OVERFLOW));
+            fail (Error_Overflow_Raw());
         *cast(i8*, data) = cast(i8, i);
         break;
 
     case SYM_UINT8:
         if (i > 0xff || i < 0)
-            fail (Error(RE_OVERFLOW));
+            fail (Error_Overflow_Raw());
         *cast(u8*, data) = cast(u8, i);
         break;
 
     case SYM_INT16:
         if (i > 0x7fff || i < -0x8000)
-            fail (Error(RE_OVERFLOW));
+            fail (Error_Overflow_Raw());
         *cast(i16*, data) = cast(i16, i);
         break;
 
     case SYM_UINT16:
         if (i > 0xffff || i < 0)
-            fail (Error(RE_OVERFLOW));
+            fail (Error_Overflow_Raw());
         *cast(u16*, data) = cast(u16, i);
         break;
 
     case SYM_INT32:
         if (i > MAX_I32 || i < MIN_I32)
-            fail (Error(RE_OVERFLOW));
+            fail (Error_Overflow_Raw());
         *cast(i32*, data) = cast(i32, i);
         break;
 
     case SYM_UINT32:
         if (i > MAX_U32 || i < 0)
-            fail (Error(RE_OVERFLOW));
+            fail (Error_Overflow_Raw());
         *cast(u32*, data) = cast(u32, i);
         break;
 
@@ -425,7 +425,7 @@ static REBOOL assign_scalar_core(
 
     case SYM_UINT64:
         if (i < 0)
-            fail (Error(RE_OVERFLOW));
+            fail (Error_Overflow_Raw());
         *cast(u64*, data) = cast(u64, i);
         break;
 
@@ -439,7 +439,7 @@ static REBOOL assign_scalar_core(
 
     case SYM_POINTER:
         if (sizeof(void*) == 4 && i > MAX_U32)
-            fail (Error(RE_OVERFLOW));
+            fail (Error_Overflow_Raw());
         *cast(void**, data) = cast(void*, cast(REBUPT, i));
         break;
 
@@ -582,7 +582,7 @@ static void parse_attr (REBVAL *blk, REBINT *raw_size, REBUPT *raw_addr)
                 if (!IS_LIBRARY(lib))
                     fail (Error_Invalid_Arg(attr));
                 if (IS_LIB_CLOSED(VAL_LIBRARY(lib)))
-                    fail (Error(RE_BAD_LIBRARY));
+                    fail (Error_Bad_Library_Raw());
 
                 REBVAL *sym = KNOWN(VAL_ARRAY_AT_HEAD(attr, 1));
                 if (!ANY_BINSTR(sym))
@@ -593,7 +593,7 @@ static void parse_attr (REBVAL *blk, REBINT *raw_size, REBUPT *raw_addr)
                     s_cast(VAL_RAW_DATA_AT(sym))
                 );
                 if (!addr)
-                    fail (Error(RE_SYMBOL_NOT_FOUND, sym));
+                    fail (Error_Symbol_Not_Found_Raw(sym));
 
                 *raw_addr = cast(REBUPT, addr);
             }
@@ -645,7 +645,7 @@ static REBSER *make_ext_storage(
     if (raw_size >= 0 && raw_size != cast(REBINT, len)) {
         DECLARE_LOCAL (i);
         SET_INTEGER(i, raw_size);
-        fail (Error(RE_INVALID_DATA, i));
+        fail (Error_Invalid_Data_Raw(i));
     }
 
     DECLARE_LOCAL (handle);
@@ -767,7 +767,7 @@ static void Parse_Field_Type_May_Fail(
     RELVAL *val = VAL_ARRAY_AT(spec);
 
     if (IS_END(val))
-        fail (Error(RE_MISC)); // !!! better error
+        fail (Error_Misc_Raw()); // !!! better error
 
     if (IS_WORD(val)) {
         REBSYM sym = VAL_WORD_SYM(val);
@@ -976,7 +976,7 @@ void Init_Struct_Fields(REBVAL *ret, REBVAL *spec)
             fail (Error_Invalid_Arg(word));
 
         if (IS_END(fld_val))
-            fail (Error(RE_NEED_VALUE, fld_val));
+            fail (Error_Need_Value_Raw(fld_val));
 
         REBARR *fieldlist = VAL_STRUCT_FIELDLIST(ret);
         RELVAL *item = ARR_HEAD(fieldlist);
@@ -1151,14 +1151,14 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
         // !!! Why does the fail take out as an argument?  (Copied from below)
 
         if (FLD_WIDE(field) > MAX_U32)
-            fail (Error(RE_SIZE_LIMIT, out));
+            fail (Error_Size_Limit_Raw(out));
         if (dimension > MAX_U32)
-            fail (Error(RE_SIZE_LIMIT, out));
+            fail (Error_Size_Limit_Raw(out));
 
         u64 step = cast(u64, FLD_WIDE(field)) * cast(u64, dimension);
 
         if (step > VAL_STRUCT_LIMIT)
-            fail (Error(RE_SIZE_LIMIT, out));
+            fail (Error_Size_Limit_Raw(out));
 
         if (raw_addr == 0)
             EXPAND_SERIES_TAIL(data_bin, step);
@@ -1221,7 +1221,7 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
                             KNOWN(VAL_ARRAY_AT_HEAD(init, n))
                         )) {
                             //printf("Failed to assign element value\n");
-                            fail (Error(RE_MISC));
+                            fail (Error_Misc_Raw());
                         }
                     }
                 }
@@ -1234,7 +1234,7 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
                     BIN_HEAD(data_bin), offset, field, 0, init
                 )) {
                     //printf("Failed to assign scalar value\n");
-                    fail (Error(RE_MISC));
+                    fail (Error_Misc_Raw());
                 }
             }
         }
@@ -1268,7 +1268,7 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
         //  offset = ((offset + alignment - 1) / alignment) * alignment;
 
         if (offset > VAL_STRUCT_LIMIT)
-            fail (Error(RE_SIZE_LIMIT, out));
+            fail (Error_Size_Limit_Raw(out));
 
         ++ field_idx;
 
@@ -1579,7 +1579,7 @@ REBNATIVE(destroy_struct_storage)
 
     REBSER *data = ARG(struct)->payload.structure.data;
     if (NOT(Is_Array_Series(data)))
-        fail (Error(RE_NO_EXTERNAL_STORAGE));
+        fail (Error_No_External_Storage_Raw());
 
     RELVAL *handle = ARR_HEAD(AS_ARRAY(data));
 
@@ -1587,7 +1587,7 @@ REBNATIVE(destroy_struct_storage)
     SET_INTEGER(pointer, cast(REBUPT, VAL_HANDLE_POINTER(handle)));
 
     if (VAL_HANDLE_LEN(handle) == 0)
-        fail (Error(RE_ALREADY_DESTROYED, pointer));
+        fail (Error_Already_Destroyed_Raw(pointer));
 
     // TBD: assert handle length was correct for memory block size
 
@@ -1595,7 +1595,7 @@ REBNATIVE(destroy_struct_storage)
 
     if (REF(free)) {
         if (NOT(IS_FUNCTION_RIN(ARG(free_func))))
-            fail (Error(RE_FREE_NEEDS_ROUTINE));
+            fail (Error_Free_Needs_Routine_Raw());
 
         if (Do_Va_Throws(D_OUT, ARG(free_func), pointer, END))
             return R_OUT_IS_THROWN;

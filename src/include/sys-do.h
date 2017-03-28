@@ -576,7 +576,7 @@ inline static REBIXO Do_Array_At_Core(
     const REBVAL values[],
     REBCNT index
 ) {
-    fail (Error(RE_MISC));
+    fail (Error_Misc_Raw());
 }*/
 
 
@@ -828,7 +828,7 @@ inline static REBOOL Apply_Only_Throws(
         // Not consuming all the arguments given suggests a problem if `fully`
         // is passed in as TRUE.
         //
-        fail (Error(RE_APPLY_TOO_MANY));
+        fail (Error_Apply_Too_Many_Raw());
     }
 
     // Note: va_end() is handled by Do_Va_Core (one way or another)

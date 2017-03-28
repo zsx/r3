@@ -241,7 +241,7 @@ REBOOL Wait_Ports(REBARR *ports, REBCNT timeout, REBOOL only)
                 // meaning then there must be a way to deliver that result
                 // up the stack.
                 //
-                fail (Error(RE_MISC));
+                fail (Error_Misc_Raw());
             }
         }
 
@@ -453,7 +453,7 @@ REBOOL Redo_Func_Throws(REBFRM *f, REBFUN *func_new)
         // did not.
         //
         assert(FALSE);
-        fail (Error(RE_MISC));
+        fail (Error_Misc_Raw());
     }
 
     return LOGICAL(indexor == THROWN_FLAG);
@@ -489,7 +489,7 @@ REB_R Do_Port_Action(REBFRM *frame_, REBCTX *port, REBSYM action)
 
     // actor must be an object:
     if (!IS_OBJECT(actor))
-        fail (Error(RE_INVALID_ACTOR));
+        fail (Error_Invalid_Actor_Raw());
 
     // Dispatch object function:
 
@@ -500,7 +500,7 @@ REB_R Do_Port_Action(REBFRM *frame_, REBCTX *port, REBSYM action)
         DECLARE_LOCAL (action_word);
         Init_Word(action_word, Canon(action));
 
-        fail (Error(RE_NO_PORT_ACTION, action_word));
+        fail (Error_No_Port_Action_Raw(action_word));
     }
 
     if (Redo_Func_Throws(frame_, VAL_FUNC(actor))) {
@@ -531,7 +531,7 @@ post_process_output:
 
         if ((REF(string) || REF(lines)) && !IS_STRING(D_OUT)) {
             if (!IS_BINARY(D_OUT))
-                fail (Error(RE_MISC)); // !!! when can this happen?
+                fail (Error_Misc_Raw()); // !!! when can this happen?
 
             REBSER *decoded = Decode_UTF_String(
                 VAL_BIN_AT(D_OUT),
@@ -539,13 +539,13 @@ post_process_output:
                 -1
             );
             if (decoded == NULL)
-                fail (Error(RE_BAD_UTF8));
+                fail (Error_Bad_Utf8_Raw());
             Init_String(D_OUT, decoded);
         }
 
         if (REF(lines)) { // caller wants a BLOCK! of STRING!s, not one string
             if (!IS_STRING(D_OUT))
-                fail (Error(RE_MISC)); // !!! when can this happen?
+                fail (Error_Misc_Raw()); // !!! when can this happen?
 
             DECLARE_LOCAL (temp);
             Move_Value(temp, D_OUT);

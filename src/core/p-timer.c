@@ -62,7 +62,7 @@ static REB_R Timer_Actor(REBFRM *frame_, REBCTX *port, REBCNT action)
     // Validate and fetch relevant PORT fields:
     state = CTX_VAR(port, STD_PORT_STATE);
     spec  = CTX_VAR(port, STD_PORT_SPEC);
-    if (!IS_OBJECT(spec)) fail (Error(RE_INVALID_SPEC, spec));
+    if (!IS_OBJECT(spec)) fail (Error_Invalid_Spec_Raw(spec));
 
     // Get or setup internal state data:
     if (!IS_BLOCK(state))

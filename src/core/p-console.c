@@ -63,11 +63,11 @@ static REB_R Console_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
         if (REF(part)) {
             assert(!IS_VOID(ARG(limit)));
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         }
         if (REF(seek)) {
             assert(!IS_VOID(ARG(index)));
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         }
         UNUSED(PAR(string)); // handled in dispatcher
         UNUSED(PAR(lines)); // handled in dispatcher

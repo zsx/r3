@@ -105,7 +105,7 @@ static inline REBOOL Start_New_Expression_Throws(REBFRM *f) {
             // the user that something is off, but perhaps the failure
             // should be contained in a sandbox and restart the break?
             //
-            fail (Error(RE_MISC));
+            fail (Error_Misc_Raw());
         }
     }
 
@@ -979,7 +979,7 @@ reevaluate:;
                 // other means (e.g. literal as `'|` or `first [|]`)
 
                 if (NOT_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
-                    fail (Error(RE_EXPRESSION_BARRIER));
+                    fail (Error_Expression_Barrier_Raw());
 
                 SET_VOID(f->arg);
                 goto continue_arg_loop;
@@ -1183,7 +1183,7 @@ reevaluate:;
                 // has at all.
                 //
                 assert(IS_WORD(DS_TOP));
-                fail (Error(RE_BAD_REFINE, DS_TOP));
+                fail (Error_Bad_Refine_Raw(DS_TOP));
             }
 
             if (VAL_TYPE(DS_TOP) == REB_0_PICKUP) {
@@ -1579,7 +1579,7 @@ reevaluate:;
         if (IS_END(f->value)) {
             DECLARE_LOCAL (specific);
             Derelativize(specific, current, f->specifier);
-            fail (Error(RE_NEED_VALUE, specific)); // `do [a:]` is illegal
+            fail (Error_Need_Value_Raw(specific)); // `do [a:]` is illegal
         }
 
         // f->value is guarded implicitly by the frame, but `current` is a
@@ -1745,7 +1745,7 @@ reevaluate:;
         if (IS_END(f->value)) {
             DECLARE_LOCAL (specific);
             Derelativize(specific, current, f->specifier);
-            fail (Error(RE_NEED_VALUE, specific)); // `do [a/b:]` is illegal
+            fail (Error_Need_Value_Raw(specific)); // `do [a/b:]` is illegal
         }
 
         // f->value is guarded implicitly by the frame, but `current` is a

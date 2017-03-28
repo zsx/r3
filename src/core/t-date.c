@@ -299,7 +299,7 @@ static REBDAT Normalize_Date(REBINT day, REBINT month, REBINT year, REBINT tz)
     }
 
     if (year < 0 || year > MAX_YEAR)
-        fail (Error(RE_TYPE_LIMIT, Get_Type(REB_DATE)));
+        fail (Error_Type_Limit_Raw(Get_Type(REB_DATE)));
 
     dr.date.year = year;
     dr.date.month = month+1;
@@ -358,7 +358,7 @@ void Subtract_Date(REBVAL *d1, REBVAL *d2, REBVAL *result)
 
     diff  = Diff_Date(VAL_DATE(d1), VAL_DATE(d2));
     if (cast(REBCNT, abs(diff)) > (((1U << 31) - 1) / SECS_IN_DAY))
-        fail (Error(RE_OVERFLOW));
+        fail (Error_Overflow_Raw());
 
     t1 = VAL_TIME(d1);
     if (t1 == NO_TIME) t1 = 0L;
@@ -850,7 +850,7 @@ REBTYPE(Date)
             UNUSED(PAR(value));
 
             if (REF(only))
-                fail (Error(RE_BAD_REFINES));
+                fail (Error_Bad_Refines_Raw());
 
             const REBOOL secure = REF(secure);
 

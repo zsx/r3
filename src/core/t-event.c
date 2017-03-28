@@ -214,7 +214,7 @@ void Set_Event_Vars(REBVAL *evt, RELVAL *blk, REBSPC *specifier)
         ++blk;
 
         if (!Set_Event_Var(evt, var, val))
-            fail (Error(RE_BAD_FIELD_SET, var, Type_Of(val)));
+            fail (Error_Bad_Field_Set_Raw(var, Type_Of(val)));
     }
 }
 

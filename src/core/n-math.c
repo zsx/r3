@@ -89,7 +89,7 @@ static REBDEC Trig_Value(const REBVAL *value, REBOOL degrees, REBCNT which)
 static void Arc_Trans(REBVAL *out, const REBVAL *value, REBOOL degrees, REBCNT kind)
 {
     REBDEC dval = AS_DECIMAL(value);
-    if (kind != TANGENT && (dval < -1 || dval > 1)) fail (Error(RE_OVERFLOW));
+    if (kind != TANGENT && (dval < -1 || dval > 1)) fail (Error_Overflow_Raw());
 
     if (kind == SINE) dval = asin(dval);
     else if (kind == COSINE) dval = acos(dval);
@@ -163,7 +163,7 @@ REBNATIVE(tangent)
 
     REBDEC dval = Trig_Value(ARG(value), NOT(REF(radians)), TANGENT);
     if (Eq_Decimal(fabs(dval), PI / 2.0))
-        fail (Error(RE_OVERFLOW));
+        fail (Error_Overflow_Raw());
 
     SET_DECIMAL(D_OUT, tan(dval));
     return R_OUT;
@@ -262,7 +262,7 @@ REBNATIVE(log_10)
     INCLUDE_PARAMS_OF_LOG_10;
 
     REBDEC dval = AS_DECIMAL(ARG(value));
-    if (dval <= 0) fail (Error(RE_POSITIVE));
+    if (dval <= 0) fail (Error_Positive_Raw());
     SET_DECIMAL(D_OUT, log10(dval));
     return R_OUT;
 }
@@ -281,7 +281,7 @@ REBNATIVE(log_2)
     INCLUDE_PARAMS_OF_LOG_2;
 
     REBDEC dval = AS_DECIMAL(ARG(value));
-    if (dval <= 0) fail (Error(RE_POSITIVE));
+    if (dval <= 0) fail (Error_Positive_Raw());
     SET_DECIMAL(D_OUT, log(dval) / LOG2);
     return R_OUT;
 }
@@ -300,7 +300,7 @@ REBNATIVE(log_e)
     INCLUDE_PARAMS_OF_LOG_E;
 
     REBDEC dval = AS_DECIMAL(ARG(value));
-    if (dval <= 0) fail (Error(RE_POSITIVE));
+    if (dval <= 0) fail (Error_Positive_Raw());
     SET_DECIMAL(D_OUT, log(dval));
     return R_OUT;
 }
@@ -319,7 +319,7 @@ REBNATIVE(square_root)
     INCLUDE_PARAMS_OF_SQUARE_ROOT;
 
     REBDEC dval = AS_DECIMAL(ARG(value));
-    if (dval < 0) fail (Error(RE_POSITIVE));
+    if (dval < 0) fail (Error_Positive_Raw());
     SET_DECIMAL(D_OUT, sqrt(dval));
     return R_OUT;
 }
@@ -380,7 +380,7 @@ REBNATIVE(shift)
             if (REF(logical))
                 VAL_INT64(a) = 0;
             else if (VAL_INT64(a) != 0)
-                fail (Error(RE_OVERFLOW));
+                fail (Error_Overflow_Raw());
         }
         else {
             if (REF(logical))
@@ -392,7 +392,7 @@ REBNATIVE(shift)
                     : cast(REBU64, VAL_INT64(a));
                 if (c <= d) {
                     if ((c < d) || (VAL_INT64(a) >= 0))
-                        fail (Error(RE_OVERFLOW));
+                        fail (Error_Overflow_Raw());
 
                     VAL_INT64(a) = MIN_I64;
                 }
@@ -418,7 +418,7 @@ REBNATIVE(shift)
 //
 REBINT CT_Fail(const RELVAL *a, const RELVAL *b, REBINT mode)
 {
-    fail (Error(RE_MISC));
+    fail (Error_Misc_Raw());
 }
 
 
@@ -516,7 +516,7 @@ REBINT Compare_Modify_Values(RELVAL *a, RELVAL *b, REBINT strictness)
 
         if (strictness == 0) return 0;
 
-        fail (Error(RE_INVALID_COMPARE, Type_Of(a), Type_Of(b)));
+        fail (Error_Invalid_Compare_Raw(Type_Of(a), Type_Of(b)));
     }
 
     if (ta == REB_MAX_VOID) return 1; // voids always equal
@@ -525,7 +525,7 @@ compare:
     // At this point, both args are of the same datatype.
     if (!(code = Compare_Types[VAL_TYPE(a)])) return 0;
     result = code(a, b, strictness);
-    if (result < 0) fail (Error(RE_INVALID_COMPARE, Type_Of(a), Type_Of(b)));
+    if (result < 0) fail (Error_Invalid_Compare_Raw(Type_Of(a), Type_Of(b)));
     return result;
 }
 

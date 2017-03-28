@@ -97,18 +97,18 @@ void MAKE_Word(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 
         if (kind == REB_ISSUE) {
             if (NULL == Scan_Issue(out, bp, len))
-                fail (Error(RE_BAD_CHAR, arg));
+                fail (Error_Bad_Char_Raw(arg));
         }
         else {
             if (NULL == Scan_Any_Word(out, kind, bp, len))
-                fail (Error(RE_BAD_CHAR, arg));
+                fail (Error_Bad_Char_Raw(arg));
             }
     }
     else if (IS_CHAR(arg)) {
         REBYTE buf[8];
         REBCNT len = Encode_UTF8_Char(&buf[0], VAL_CHAR(arg));
         if (NULL == Scan_Any_Word(out, kind, &buf[0], len))
-            fail (Error(RE_BAD_CHAR, arg));
+            fail (Error_Bad_Char_Raw(arg));
     }
     else if (IS_DATATYPE(arg)) {
         Init_Any_Word(out, kind, Canon(VAL_TYPE_SYM(arg)));
@@ -153,7 +153,7 @@ REBTYPE(Word)
         while (TRUE) {
             REBUNI ch;
             if (!(bp = Back_Scan_UTF8_Char(&ch, bp, &len)))
-                fail (Error(RE_BAD_UTF8));
+                fail (Error_Bad_Utf8_Raw());
             if (ch == 0)
                 break;
         }

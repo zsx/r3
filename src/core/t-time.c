@@ -503,14 +503,14 @@ REBTYPE(Time)
                 goto fixTime;
 
             case SYM_DIVIDE:
-                if (secs2 == 0) fail (Error(RE_ZERO_DIVIDE));
+                if (secs2 == 0) fail (Error_Zero_Divide_Raw());
                 //secs /= secs2;
                 VAL_RESET_HEADER(D_OUT, REB_DECIMAL);
                 VAL_DECIMAL(D_OUT) = (REBDEC)secs / (REBDEC)secs2;
                 return R_OUT;
 
             case SYM_REMAINDER:
-                if (secs2 == 0) fail (Error(RE_ZERO_DIVIDE));
+                if (secs2 == 0) fail (Error_Zero_Divide_Raw());
                 secs %= secs2;
                 goto setTime;
 
@@ -534,17 +534,17 @@ REBTYPE(Time)
             case SYM_MULTIPLY:
                 secs *= num;
                 if (secs < -MAX_TIME || secs > MAX_TIME)
-                    fail (Error(RE_TYPE_LIMIT, Get_Type(REB_TIME)));
+                    fail (Error_Type_Limit_Raw(Get_Type(REB_TIME)));
                 goto setTime;
 
             case SYM_DIVIDE:
-                if (num == 0) fail (Error(RE_ZERO_DIVIDE));
+                if (num == 0) fail (Error_Zero_Divide_Raw());
                 secs /= num;
                 SET_INTEGER(D_OUT, secs);
                 goto setTime;
 
             case SYM_REMAINDER:
-                if (num == 0) fail (Error(RE_ZERO_DIVIDE));
+                if (num == 0) fail (Error_Zero_Divide_Raw());
                 secs %= num;
                 goto setTime;
 
@@ -569,7 +569,7 @@ REBTYPE(Time)
                 goto setTime;
 
             case SYM_DIVIDE:
-                if (dec == 0.0) fail (Error(RE_ZERO_DIVIDE));
+                if (dec == 0.0) fail (Error_Zero_Divide_Raw());
                 secs = (REBI64)(secs / dec);
                 goto setTime;
 
@@ -658,7 +658,7 @@ REBTYPE(Time)
             UNUSED(PAR(value));
 
             if (REF(only))
-                fail (Error(RE_BAD_REFINES));
+                fail (Error_Bad_Refines_Raw());
 
             if (REF(seed)) {
                 Set_Random(secs);

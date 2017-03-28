@@ -86,7 +86,7 @@ REBOOL Reduce_Any_Array_Throws(
             // Substituting anything (like a NONE!, or anything else) would
             // perhaps be disingenuous.
             //
-            fail (Error(RE_REDUCE_MADE_VOID));
+            fail (Error_Reduce_Made_Void_Raw());
         }
 
         DS_PUSH(reduced);

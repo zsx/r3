@@ -393,7 +393,7 @@ static void Mold_String_Series(const REBVAL *value, REB_MOLD *mold)
 
     // Empty string:
     if (idx >= VAL_LEN_HEAD(value)) {
-        // !!! Comment said `fail (Error(RE_PAST_END));`
+        // !!! Comment said `fail (Error_Past_End_Raw());`
         Append_Unencoded(mold->series, "\"\"");
         return;
     }

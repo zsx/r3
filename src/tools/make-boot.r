@@ -755,11 +755,11 @@ for-each [category info] boot-errors [
         ]
 
         id: to-word key
-        if find id-list id [
+        if find (extract id-list 2) id [
             fail ["DUPLICATE id in %errors.r:" id]
         ]
 
-        append id-list id
+        append id-list reduce [id val]
 
         either new-section [
             emit-item/assign/upper ["RE_" id] code
@@ -788,8 +788,60 @@ emit-annotation {GENERATED! update in %make-boot.r}
 
 emit-line {#define RE_MAX RE_COMMAND_MAX}
 emit-annotation {GENERATED! update in %make-boot.r}
-
 write-emitted inc/tmp-errnums.h
+
+;-------------------------------------------------------------------------
+emit-header "Error functions" %error-funcs.h
+for-each [id val] id-list [
+    n-args: 0
+    if block? val [
+        parse val [
+            any [
+                get-word! (++ n-args)
+                | skip
+            ]
+        ]
+    ]
+
+    emit-line []
+    emit-line ["//  " mold val] 
+    c-id: to-c-name id
+    f-name: uppercase/part copy c-id 1
+    parse f-name [
+        any [
+            #"_" w: (uppercase/part w 1)
+            | skip
+        ]
+    ]
+    either zero? n-args [
+        emit-line [ {static inline REBCTX *Error_} f-name {_Raw(void)}]
+        emit-line [ "^{" ]
+        emit-line/indent [ "return Error(RE_" uppercase c-id ", END);" ]
+        emit-line [ "^}" ]
+    ][
+        emit-line [ {static inline REBCTX *Error_} f-name {_Raw(} ]
+        i: 0
+        while [i < n-args] [
+            emit-line compose [ {const REBVAL *arg} (i + 1)
+                either i < (n-args - 1) [","] [""]
+            ]
+            ++ i
+        ]
+        emit-line [")"]
+        emit-line [ "^{" ]
+
+        args: copy ""
+        i: 0
+        while [i < n-args] [
+            append args compose [ {, arg} (i + 1)]
+            ++ i
+        ]
+
+        emit-line/indent [ "return Error(RE_" uppercase c-id args ", END);"]
+        emit-line [ "^}" ]
+    ]
+]
+write-emitted inc/tmp-error-funcs.h
 
 ;-------------------------------------------------------------------------
 

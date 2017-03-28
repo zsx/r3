@@ -683,7 +683,7 @@ inline static void VAL_RESET_HEADER_common( // don't call directly
 inline static REBOOL IS_CONDITIONAL_TRUE_SAFE(const REBVAL *v) {
     if (IS_BLOCK(v)) {
         if (GET_VAL_FLAG(v, VALUE_FLAG_UNEVALUATED))
-            fail (Error(RE_BLOCK_CONDITIONAL, v));
+            fail (Error_Block_Conditional_Raw(v));
             
         return TRUE;
     }

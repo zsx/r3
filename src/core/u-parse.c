@@ -280,14 +280,14 @@ static REBOOL Subparse_Throws(
 // location in the parse dialect that's the problem.
 //
 static REBCTX *Error_Parse_Rule() {
-    return Error(RE_PARSE_RULE);
+    return Error_Parse_Rule_Raw();
 }
 
 
 // Also generic.
 //
 static REBCTX *Error_Parse_End() {
-    return Error(RE_PARSE_END);
+    return Error_Parse_End_Raw();
 }
 
 
@@ -1391,7 +1391,7 @@ REBNATIVE(subparse)
                 fail (Error_No_Catch_For_Throw(result));
 
             if (IS_ANY_VALUE(result))
-                fail (Error(RE_MISC));
+                fail (Error_Misc_Raw());
         }
 
     //==////////////////////////////////////////////////////////////////==//
@@ -1423,7 +1423,7 @@ REBNATIVE(subparse)
             REBSYM cmd = VAL_CMD(P_RULE);
             if (cmd != SYM_0) {
                 if (!IS_WORD(P_RULE))
-                    fail (Error(RE_PARSE_COMMAND, P_RULE)); // COPY: :THRU ...
+                    fail (Error_Parse_Command_Raw(P_RULE)); // COPY: :THRU ...
 
                 if (cmd <= SYM_BREAK) { // optimization
 
@@ -1452,10 +1452,10 @@ REBNATIVE(subparse)
                         FETCH_NEXT_RULE_MAYBE_END(f);
 
                         if (!(IS_WORD(P_RULE) || IS_SET_WORD(P_RULE)))
-                            fail (Error(RE_PARSE_VARIABLE, P_RULE));
+                            fail (Error_Parse_Variable_Raw(P_RULE));
 
                         if (VAL_CMD(P_RULE))
-                            fail (Error(RE_PARSE_COMMAND, P_RULE));
+                            fail (Error_Parse_Command_Raw(P_RULE));
 
                         set_or_copy_word = P_RULE;
                         FETCH_NEXT_RULE_MAYBE_END(f);
@@ -1584,7 +1584,7 @@ REBNATIVE(subparse)
                     }
 
                     case SYM_LIMIT:
-                        fail (Error(RE_NOT_DONE));
+                        fail (Error_Not_Done_Raw());
 
                     case SYM__Q_Q:
                         Print_Parse_Index(f);
@@ -1624,7 +1624,7 @@ REBNATIVE(subparse)
                     DECLARE_LOCAL (temp);
                     Copy_Opt_Var_May_Fail(temp, P_RULE, P_RULE_SPECIFIER);
                     if (!ANY_SERIES(temp)) // #1263
-                        fail (Error(RE_PARSE_SERIES, P_RULE));
+                        fail (Error_Parse_Series_Raw(P_RULE));
                     Set_Parse_Series(f, temp);
 
                     // !!! `continue` is used here without any post-"match"
@@ -1694,7 +1694,7 @@ REBNATIVE(subparse)
                 // prepared for this, they only exchange numbers ATM (!!!)
                 //
                 if (!ANY_SERIES(save))
-                    fail (Error(RE_PARSE_SERIES, save));
+                    fail (Error_Parse_Series_Raw(save));
 
                 Set_Parse_Series(f, save);
                 FETCH_NEXT_RULE_MAYBE_END(f);
@@ -1902,7 +1902,7 @@ REBNATIVE(subparse)
                         // since the Do_Eval_Rule routine expects to be
                         // able to arbitrarily update P_NEXT_RULE
                         //
-                        fail (Error(RE_MISC));
+                        fail (Error_Misc_Raw());
                     }
 
                     subrule = BLANK_VALUE; // cause an error if iterating
@@ -2242,7 +2242,7 @@ REBNATIVE(parse)
         // where to look for the functionality than a generic "parse doesn't
         // take that type" error.
         //
-        fail (Error(RE_USE_SPLIT_SIMPLE));
+        fail (Error_Use_Split_Simple_Raw());
     }
 
     REBOOL interrupted;
@@ -2318,7 +2318,7 @@ REBNATIVE(parse_accept)
 // internal throw used to indicate "accept".
 {
     UNUSED(frame_);
-    fail (Error(RE_MISC));
+    fail (Error_Misc_Raw());
 }
 
 
@@ -2335,5 +2335,5 @@ REBNATIVE(parse_reject)
 // internal throw used to indicate "reject".
 {
     UNUSED(frame_);
-    fail (Error(RE_MISC));
+    fail (Error_Misc_Raw());
 }

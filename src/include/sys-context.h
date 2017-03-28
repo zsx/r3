@@ -415,7 +415,7 @@ inline static void FAIL_IF_BAD_PORT(REBCTX *port) {
         (CTX_LEN(port) < STD_PORT_MAX - 1) ||
         !IS_OBJECT(CTX_VAR(port, STD_PORT_SPEC))
     ) {
-        fail (Error(RE_INVALID_PORT));
+        fail (Error_Invalid_Port_Raw());
     }
 }
 

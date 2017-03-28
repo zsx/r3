@@ -227,7 +227,7 @@ void Remove_Series(REBSER *s, REBCNT index, REBINT len)
             // Add bias to head:
             REBCNT bias = SER_BIAS(s);
             if (REB_U32_ADD_OF(bias, len, &bias))
-                fail (Error(RE_OVERFLOW));
+                fail (Error_Overflow_Raw());
 
             if (bias > 0xffff) { //bias is 16-bit, so a simple SER_ADD_BIAS could overflow it
                 REBYTE *data = s->content.dynamic.data;

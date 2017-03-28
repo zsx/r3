@@ -528,7 +528,7 @@ static void Collect_Context_Inner_Loop(
             }
             else { // Word is duplicated
                 if (flags & COLLECT_NO_DUP)
-                    fail (Error(RE_DUP_VARS, value)); // cleans binding table
+                    fail (Error_Dup_Vars_Raw(value)); // cleans binding table
             }
             continue;
         }
@@ -891,10 +891,10 @@ REBCTX *Construct_Context(
         // be improved.
 
         if (!IS_SET_WORD(value))
-            fail (Error(RE_INVALID_TYPE, Type_Of(value)));
+            fail (Error_Invalid_Type(VAL_TYPE(value)));
 
         if (IS_END(value + 1))
-            fail (Error(RE_MISC));
+            fail (Error_Misc_Raw());
 
         assert(!IS_SET_WORD(value + 1)); // TBD: support set words!
 

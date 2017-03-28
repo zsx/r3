@@ -110,7 +110,7 @@ REBNATIVE(verify)
         if (VAL_LOGIC(ARG(conditions)))
             return R_VOID;
 
-        fail (Error(RE_VERIFY_FAILED, FALSE_VALUE));
+        fail (Error_Verify_Failed_Raw(FALSE_VALUE));
     }
 
     REBFRM f;
@@ -134,9 +134,9 @@ REBNATIVE(verify)
         );
 
         if (IS_VOID(D_OUT))
-            fail (Error(RE_VERIFY_VOID, temp));
+            fail (Error_Verify_Void_Raw(temp));
 
-        fail (Error(RE_VERIFY_FAILED, temp));
+        fail (Error_Verify_Failed_Raw(temp));
     }
 
     Drop_Frame(&f);
@@ -171,7 +171,7 @@ inline static REB_R Do_Test_For_Maybe(
             return R_OUT_IS_THROWN;
 
         if (IS_VOID(out))
-            fail (Error(RE_NO_RETURN));
+            fail (Error_No_Return_Raw());
 
         if (IS_CONDITIONAL_FALSE(out))
             return R_BLANK;
@@ -180,7 +180,7 @@ inline static REB_R Do_Test_For_Maybe(
         return R_OUT;
     }
 
-    fail (Error(RE_INVALID_TYPE, Type_Of(test)));
+    fail (Error_Invalid_Type(VAL_TYPE(test)));
 }
 
 
@@ -337,7 +337,7 @@ REBNATIVE(bind)
         //
         assert(ANY_WORD(target));
         if (IS_WORD_UNBOUND(target))
-            fail (Error(RE_NOT_BOUND, target));
+            fail (Error_Not_Bound_Raw(target));
 
         // The word in hand may be a relatively bound one.  To return a
         // specific frame, this needs to ensure that the Reb_Frame's data
@@ -363,7 +363,7 @@ REBNATIVE(bind)
             return R_OUT;
         }
 
-        fail (Error(RE_NOT_IN_CONTEXT, ARG(value)));
+        fail (Error_Not_In_Context_Raw(ARG(value)));
     }
 
     // Copy block if necessary (/copy)
@@ -597,7 +597,7 @@ REBNATIVE(get)
         // give back a BLANK! or other placeholder.  For now, error.
         //
         if (REF(opt))
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
 
         source = VAL_ARRAY_AT(ARG(source));
         specifier = VAL_SPECIFIER(ARG(source));
@@ -855,11 +855,11 @@ REBNATIVE(set)
     INCLUDE_PARAMS_OF_SET;
 
     if (NOT(REF(opt)) && IS_VOID(ARG(value)))
-        fail (Error(RE_NEED_VALUE, ARG(target)));
+        fail (Error_Need_Value_Raw( ARG(target)));
 
     if (REF(lookback)) {
         if (!IS_FUNCTION(ARG(value)))
-            fail (Error(RE_MISC));
+            fail (Error_Misc_Raw());
 
         // SET-INFIX checks for properties of the function to ensure it is
         // actually infix, and INFIX? tests specifically for that.  The only
@@ -889,7 +889,7 @@ REBNATIVE(set)
     // a word in a context to one.
     //
     if (REF(lookback))
-        fail (Error(RE_MISC));
+        fail (Error_Misc_Raw());
 
     if (ANY_PATH(ARG(target))) {
         DECLARE_LOCAL (dummy);
@@ -982,7 +982,7 @@ REBNATIVE(set)
                 DECLARE_LOCAL (key_name);
                 Init_Word(key_name, VAL_KEY_SPELLING(key));
 
-                fail (Error(RE_NEED_VALUE, key_name));
+                fail (Error_Need_Value_Raw( key_name));
             }
 
             // We knew it wasn't an end from the earlier check, but when we
@@ -1047,7 +1047,7 @@ REBNATIVE(set)
 
             if (IS_BAR(value))
                 if (!IS_BAR(target))
-                    fail (Error(RE_MISC));
+                    fail (Error_Misc_Raw());
 
             switch (VAL_TYPE(target)) {
             case REB_BLANK:
@@ -1067,7 +1067,7 @@ REBNATIVE(set)
                 //
                 if (IS_WORD(value)) // !!! why just WORD!, and not ANY-WORD!
                     if (IS_VOID(Get_Opt_Var_May_Fail(value, value_specifier)))
-                        fail (Error(RE_NEED_VALUE, target));
+                        fail (Error_Need_Value_Raw( target));
                 break;
 
             case REB_BAR:
@@ -1076,7 +1076,7 @@ REBNATIVE(set)
                 // legal but `set [a | b] [1 2 3]` is not.
                 //
                 if (!IS_BAR(value))
-                    fail (Error(RE_MISC));
+                    fail (Error_Misc_Raw());
                 break;
 
             default:
@@ -1250,7 +1250,7 @@ REBNATIVE(lookback_q)
 
         // Not implemented yet...
 
-        fail (Error(RE_MISC));
+        fail (Error_Misc_Raw());
     }
 }
 

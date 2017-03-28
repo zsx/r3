@@ -121,14 +121,14 @@ REBNATIVE(load_extension_helper)
             for (; NOT_END(item); ++item) {
                 // do some sanity checking, just to avoid crashing if system/extensions was messed up
                 if (!IS_OBJECT(item))
-                    fail(Error(RE_BAD_EXTENSION, item));
+                    fail(Error_Bad_Extension_Raw(item));
 
                 REBCTX *item_ctx = VAL_CONTEXT(item);
                 if ((CTX_LEN(item_ctx) <= STD_EXTENSION_LIB_BASE)
                     || CTX_KEY_SPELLING(item_ctx, STD_EXTENSION_LIB_BASE)
                     != CTX_KEY_SPELLING(std_ext_ctx, STD_EXTENSION_LIB_BASE)
                     ) {
-                    fail(Error(RE_BAD_EXTENSION, item));
+                    fail(Error_Bad_Extension_Raw(item));
                 }
                 else {
                     if (IS_BLANK(CTX_VAR(item_ctx, STD_EXTENSION_LIB_BASE))) {//builtin extension
@@ -154,27 +154,27 @@ REBNATIVE(load_extension_helper)
         CFUNC *RX_Init = OS_FIND_FUNCTION(VAL_LIBRARY_FD(lib), "RX_Init");
         if (!RX_Init) {
             OS_CLOSE_LIBRARY(VAL_LIBRARY_FD(lib));
-            fail(Error(RE_BAD_EXTENSION, path));
+            fail(Error_Bad_Extension_Raw(path));
         }
 
         // Call its RX_Init function for header and code body:
         if (cast(INIT_FUNC, RX_Init)(CTX_VAR(context, STD_EXTENSION_SCRIPT),
             CTX_VAR(context, STD_EXTENSION_MODULES)) < 0) {
             OS_CLOSE_LIBRARY(VAL_LIBRARY_FD(lib));
-            fail(Error(RE_EXTENSION_INIT, path));
+            fail(Error_Extension_Init_Raw(path));
         }
     }
     else {
         assert(IS_HANDLE(ARG(path_or_handle)));
         REBVAL *handle = ARG(path_or_handle);
         if (VAL_HANDLE_CLEANER(handle) != cleanup_extension_init_handler) {
-            fail(Error(RE_BAD_EXTENSION, handle));
+            fail(Error_Bad_Extension_Raw(handle));
         }
         INIT_FUNC RX_Init = cast(INIT_FUNC, VAL_HANDLE_POINTER(handle));
         context = Copy_Context_Shallow(std_ext_ctx);
         if (RX_Init(CTX_VAR(context, STD_EXTENSION_SCRIPT),
             CTX_VAR(context, STD_EXTENSION_MODULES)) < 0) {
-            fail(Error(RE_EXTENSION_INIT, handle));
+            fail(Error_Extension_Init_Raw(handle));
         }
     }
 
@@ -210,17 +210,17 @@ REBNATIVE(unload_extension_helper)
             != CTX_KEY_CANON(std, STD_EXTENSION_LIB_BASE)
         )
     ){
-        fail (Error(RE_INVALID_ARG, ARG(ext)));
+        fail (Error_Invalid_Arg(ARG(ext)));
     }
 
     int ret;
     if (!REF(cleanup)) {
         REBVAL *lib = CTX_VAR(context, STD_EXTENSION_LIB_BASE);
         if (!IS_LIBRARY(lib))
-            fail (Error(RE_INVALID_ARG, ARG(ext)));
+            fail (Error_Invalid_Arg(ARG(ext)));
 
         if (IS_LIB_CLOSED(VAL_LIBRARY(lib)))
-            fail (Error(RE_BAD_LIBRARY));
+            fail (Error_Bad_Library_Raw());
 
         QUIT_FUNC quitter = cast(
             QUIT_FUNC, OS_FIND_FUNCTION(VAL_LIBRARY_FD(lib), "RX_Quit")
@@ -235,7 +235,7 @@ REBNATIVE(unload_extension_helper)
     }
     else {
         if (VAL_HANDLE_CLEANER(ARG(cleaner)) != cleanup_extension_quit_handler)
-            fail (Error(RE_INVALID_ARG, ARG(cleaner)));
+            fail (Error_Invalid_Arg(ARG(cleaner)));
 
         QUIT_FUNC quitter = cast(QUIT_FUNC, VAL_HANDLE_POINTER(ARG(cleaner)));
         assert(quitter != NULL);
@@ -246,7 +246,7 @@ REBNATIVE(unload_extension_helper)
     if (ret < 0) {
         DECLARE_LOCAL (i);
         SET_INTEGER(i, ret);
-        fail (Error(RE_FAIL_TO_QUIT_EXTENSION, i));
+        fail (Error_Fail_To_Quit_Extension_Raw(i));
     }
 
     return R_VOID;
@@ -353,7 +353,7 @@ REBNATIVE(load_native)
     if (VAL_HANDLE_CLEANER(ARG(impl)) != cleanup_module_handler
         || VAL_INT64(ARG(index)) < 0
         || cast(REBUPT, VAL_INT64(ARG(index))) >= VAL_HANDLE_LEN(ARG(impl)))
-        fail (Error(RE_MISC));
+        fail (Error_Misc_Raw());
 
     REBFUN *fun = Make_Function(
         Make_Paramlist_Managed_May_Fail(ARG(spec), MKF_KEYWORDS | MKF_FAKE_RETURN),
@@ -382,7 +382,7 @@ REBNATIVE(load_native)
 static REB_R Unloaded_Dispatcher(REBFRM *f)
 {
     assert(f != NULL); // unused argument warning otherwise
-    fail (Error(RE_NATIVE_UNLOADED, FUNC_VALUE(f->func)));
+    fail (Error_Native_Unloaded_Raw(FUNC_VALUE(f->func)));
 }
 
 
@@ -401,7 +401,7 @@ REBNATIVE(unload_native)
 
     REBFUN *fun = VAL_FUNC(ARG(nat));
     if (NOT_VAL_FLAG(FUNC_VALUE(fun), FUNC_FLAG_UNLOADABLE_NATIVE))
-        fail (Error(RE_NON_UNLOADABLE_NATIVE, ARG(nat)));
+        fail (Error_Non_Unloadable_Native_Raw(ARG(nat)));
 
     FUNC_DISPATCHER(VAL_FUNC(ARG(nat))) = Unloaded_Dispatcher;
 

@@ -62,7 +62,7 @@ void MAKE_Port(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 
     // !!! Shouldn't this be testing for !IS_PORT( ) ?
     if (IS_BLANK(out))
-        fail (Error(RE_INVALID_SPEC, arg));
+        fail (Error_Invalid_Spec_Raw(arg));
 }
 
 

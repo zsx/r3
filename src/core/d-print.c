@@ -57,7 +57,7 @@ void Init_StdIO(void)
     //OS_CALL_DEVICE(RDI_STDIO, RDC_INIT);
     Req_SIO = OS_MAKE_DEVREQ(RDI_STDIO);
     if (!Req_SIO)
-        fail (Error(RE_IO_ERROR));
+        fail (Error_Io_Error_Raw());
 
     // The device is already open, so this call will just setup
     // the request fields properly.
@@ -116,7 +116,7 @@ void Prin_OS_String(const void *p, REBCNT len, REBFLGS opts)
     const REBUNI *up = unicode ? cast(const REBUNI *, p) : NULL;
 
     if (p == NULL)
-        fail (Error(RE_NO_PRINT_PTR));
+        fail (Error_No_Print_Ptr_Raw());
 
     // Determine length if not provided:
     if (len == UNKNOWN) len = unicode ? Strlen_Uni(up) : LEN_BYTES(bp);
@@ -138,7 +138,7 @@ void Prin_OS_String(const void *p, REBCNT len, REBFLGS opts)
         if (Do_Signals_Throws(result))
             fail (Error_No_Catch_For_Throw(result));
         if (IS_ANY_VALUE(result))
-            fail (Error(RE_MISC));
+            fail (Error_Misc_Raw());
 
         // Used by verbatim terminal output, e.g. print of a BINARY!
         assert(!unicode);
@@ -150,7 +150,7 @@ void Prin_OS_String(const void *p, REBCNT len, REBFLGS opts)
 
         OS_DO_DEVICE(Req_SIO, RDC_WRITE);
         if (Req_SIO->error)
-            fail (Error(RE_IO_ERROR));
+            fail (Error_Io_Error_Raw());
     }
     else {
         DECLARE_LOCAL (result);
@@ -164,7 +164,7 @@ void Prin_OS_String(const void *p, REBCNT len, REBFLGS opts)
             if (Do_Signals_Throws(result))
                 fail (Error_No_Catch_For_Throw(result));
             if (IS_ANY_VALUE(result))
-                fail (Error(RE_MISC));
+                fail (Error_Misc_Raw());
 
             Req_SIO->length = Encode_UTF8(
                 buf,
@@ -179,7 +179,7 @@ void Prin_OS_String(const void *p, REBCNT len, REBFLGS opts)
 
             OS_DO_DEVICE(Req_SIO, RDC_WRITE);
             if (Req_SIO->error)
-                fail (Error(RE_IO_ERROR));
+                fail (Error_Io_Error_Raw());
         }
     }
 }

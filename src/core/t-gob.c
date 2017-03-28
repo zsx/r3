@@ -245,7 +245,7 @@ static void Insert_Gobs(
         }
         if (IS_GOB(val)) {
             // !!! Temporary error of some kind (supposed to trap, not panic?)
-            if (GOB_PARENT(VAL_GOB(val))) fail (Error(RE_MISC));
+            if (GOB_PARENT(VAL_GOB(val))) fail (Error_Misc_Raw());
             *ptr++ = VAL_GOB(val);
             GOB_PARENT(VAL_GOB(val)) = gob;
             SET_GOB_STATE(VAL_GOB(val), GOBS_NEW);
@@ -625,19 +625,19 @@ static void Set_GOB_Vars(REBGOB *gob, const RELVAL *blk, REBSPC *specifier)
         ++blk;
 
         if (!IS_SET_WORD(var))
-            fail (Error(RE_EXPECT_VAL, Get_Type(REB_SET_WORD), Type_Of(var)));
+            fail (Error_Unexpected_Type(REB_SET_WORD, VAL_TYPE(var)));
 
         if (IS_END(blk))
-            fail (Error(RE_NEED_VALUE, var));
+            fail (Error_Need_Value_Raw(var));
 
         Derelativize(val, blk, specifier);
         ++blk;
 
         if (IS_SET_WORD(val))
-            fail (Error(RE_NEED_VALUE, var));
+            fail (Error_Need_Value_Raw(var));
 
         if (!Set_GOB_Var(gob, var, val))
-            fail (Error(RE_BAD_FIELD_SET, var, Type_Of(val)));
+            fail (Error_Bad_Field_Set_Raw(var, Type_Of(val)));
     }
 }
 
@@ -1020,14 +1020,14 @@ REBTYPE(Gob)
         if (!IS_GOB(arg))
             goto is_arg_error;
         if (!GOB_PANE(gob) || index >= tail)
-            fail (Error(RE_PAST_END));
+            fail (Error_Past_End_Raw());
         if (
             action == SYM_CHANGE
             && (REF(part) || REF(only) || REF(dup))
         ){
             UNUSED(PAR(limit));
             UNUSED(PAR(count));
-            fail (Error(RE_NOT_DONE));
+            fail (Error_Not_Done_Raw());
         }
 
         Insert_Gobs(gob, arg, index, 1, FALSE);
@@ -1049,7 +1049,7 @@ REBTYPE(Gob)
         if (REF(part) || REF(only) || REF(dup)) {
             UNUSED(PAR(limit));
             UNUSED(PAR(count));
-            fail (Error(RE_NOT_DONE));
+            fail (Error_Not_Done_Raw());
         }
 
         if (IS_GOB(arg)) {
@@ -1076,7 +1076,7 @@ REBTYPE(Gob)
 
         if (REF(map)) {
             assert(!IS_VOID(ARG(key)));
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         }
 
         len = REF(part) ? Get_Num_From_Arg(ARG(limit)) : 1;
@@ -1090,9 +1090,9 @@ REBTYPE(Gob)
         UNUSED(PAR(series));
 
         if (REF(deep))
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         if (REF(last))
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
 
         len = REF(part) ? Get_Num_From_Arg(ARG(limit)) : 1;
         if (index + len > tail) len = tail - index;

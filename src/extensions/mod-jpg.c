@@ -89,7 +89,7 @@ REBNATIVE(decode_jpeg)
 
     // Handle JPEG error throw:
     if (setjmp(jpeg_state)) {
-        fail (Error(RE_BAD_MEDIA)); // generic
+        fail (Error_Bad_Media_Raw()); // generic
     }
 
     int w, h;

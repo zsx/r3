@@ -195,7 +195,7 @@ static void Append_To_Context(REBCTX *context, REBVAL *arg)
             fail (Error_Protected_Key(key));
 
         if (GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN))
-            fail (Error(RE_HIDDEN));
+            fail (Error_Hidden_Raw());
 
         if (IS_END(word + 1)) {
             SET_BLANK(var);
@@ -473,13 +473,13 @@ REBINT PD_Context(REBPVS *pvs)
     }
 
     if (CTX_VARS_UNAVAILABLE(c))
-        fail (Error(RE_NO_RELATIVE, pvs->selector));
+        fail (Error_No_Relative_Raw(pvs->selector));
 
     if (pvs->opt_setval && IS_END(pvs->item + 1)) {
         FAIL_IF_READ_ONLY_CONTEXT(c);
 
         if (GET_VAL_FLAG(CTX_VAR(c, n), VALUE_FLAG_PROTECTED))
-            fail (Error(RE_PROTECTED_WORD, pvs->selector));
+            fail (Error_Protected_Word_Raw(pvs->selector));
     }
 
     pvs->value = CTX_VAR(c, n);
@@ -644,7 +644,7 @@ REBTYPE(Context)
 
         if (REF(part)) {
             assert(!IS_VOID(ARG(limit)));
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         }
 
         REBU64 types;
@@ -711,12 +711,12 @@ REBTYPE(Context)
             REF(head) || REF(tail)
             || REF(auto) || REF(all) || REF(lines)
         ){
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         }
 
         if (REF(with)) {
             assert(!IS_VOID(ARG(str)));
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         }
 
         Init_Any_Context(
@@ -841,7 +841,7 @@ REBNATIVE(construct)
         // instance), and making an ERROR! from scratch is currently dangerous
         // as well though you can derive them.
         //
-        fail (Error(RE_MISC));
+        fail (Error_Misc_Raw());
     }
     else {
         assert(IS_BLOCK(spec));
@@ -925,5 +925,5 @@ REBNATIVE(construct)
         return R_OUT;
     }
 
-    fail (Error(RE_MISC));
+    fail (Error_Misc_Raw());
 }

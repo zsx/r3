@@ -218,7 +218,7 @@ REBNATIVE(checksum)
     if (REF(method) || REF(secure) || REF(key)) {
         if (sym == SYM_CRC32) {
             if (REF(secure) || REF(key))
-                fail (Error(RE_BAD_REFINES));
+                fail (Error_Bad_Refines_Raw());
 
             // The CRC32() routine returns an unsigned 32-bit number and uses
             // the full range of values.  Yet Rebol chose to export this as
@@ -233,7 +233,7 @@ REBNATIVE(checksum)
 
         if (sym == SYM_ADLER32) {
             if (REF(secure) || REF(key))
-                fail (Error(RE_BAD_REFINES));
+                fail (Error_Bad_Refines_Raw());
 
             // adler32() is a Saphirion addition since 64-bit INTEGER! was
             // available in Rebol3, and did not convert the unsigned result
@@ -447,7 +447,7 @@ REBNATIVE(debase)
         base = 64;
 
     if (!Decode_Binary(D_OUT, BIN_AT(ser, index), len, base, 0))
-        fail (Error(RE_INVALID_DATA, ARG(value)));
+        fail (Error_Invalid_Data_Raw(ARG(value)));
 
     return R_OUT;
 }

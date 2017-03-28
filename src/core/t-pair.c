@@ -296,7 +296,7 @@ REBTYPE(Pair)
     case SYM_DIVIDE:
     case SYM_REMAINDER:
         Get_Math_Arg_For_Pair(&x2, &y2, D_ARG(2), action);
-        if (x2 == 0 || y2 == 0) fail (Error(RE_ZERO_DIVIDE));
+        if (x2 == 0 || y2 == 0) fail (Error_Zero_Divide_Raw());
         if (action == SYM_DIVIDE) {
             x1 /= x2;
             y1 /= y2;
@@ -354,9 +354,9 @@ REBTYPE(Pair)
         UNUSED(PAR(value));
 
         if (REF(only))
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         if (REF(seed))
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
 
         x1 = cast(REBDEC, Random_Range(cast(REBINT, x1), REF(secure)));
         y1 = cast(REBDEC, Random_Range(cast(REBINT, y1), REF(secure)));

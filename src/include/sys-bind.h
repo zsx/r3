@@ -267,7 +267,7 @@ inline static REBVAL *Get_Var_Core(
     else {
         // UNBOUND: No variable location to retrieve.
 
-        fail (Error(RE_NOT_BOUND, any_word));
+        fail (Error_Not_Bound_Raw(any_word));
     }
 
     REBCNT index = VAL_WORD_INDEX(any_word);
@@ -293,7 +293,7 @@ inline static REBVAL *Get_Var_Core(
             VAL_WORD_SPELLING(any_word)
         );
 
-        fail (Error(RE_NO_RELATIVE, unbound));
+        fail (Error_No_Relative_Raw(unbound));
     }
 
     REBVAL *var = CTX_VAR(context, index);
@@ -313,7 +313,7 @@ inline static REBVAL *Get_Var_Core(
         // not just contexts, but individual fields as protected.
         //
         if (GET_VAL_FLAG(var, VALUE_FLAG_PROTECTED))
-            fail (Error(RE_PROTECTED_WORD, any_word));
+            fail (Error_Protected_Word_Raw(any_word));
 
     }
 

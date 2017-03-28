@@ -486,13 +486,13 @@ inline static REBOOL Is_Series_Read_Only(REBSER *s) { // may be temporary...
 inline static void FAIL_IF_READ_ONLY_SERIES(REBSER *s) {
     if (Is_Series_Read_Only(s)) {
         if (GET_SER_INFO(s, SERIES_INFO_RUNNING))
-            fail (Error(RE_SERIES_RUNNING));
+            fail (Error_Series_Running_Raw());
 
         if (GET_SER_INFO(s, SERIES_INFO_FROZEN))
-            fail (Error(RE_SERIES_FROZEN));
+            fail (Error_Series_Frozen_Raw());
 
         assert(GET_SER_INFO(s, SERIES_INFO_PROTECTED));
-        fail (Error(RE_SERIES_PROTECTED));
+        fail (Error_Series_Protected_Raw());
     }
 }
 

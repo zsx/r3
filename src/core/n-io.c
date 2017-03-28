@@ -64,7 +64,7 @@ REBNATIVE(echo)
         if (error) {
             DECLARE_LOCAL(i);
             SET_INTEGER(i, error);
-            fail(Error(RE_CANNOT_OPEN, val, i));
+            fail(Error_Cannot_Open_Raw(val, i));
         }
 
         // !!! It appears Echo_File makes a device request which should not
@@ -671,7 +671,7 @@ REBNATIVE(browse)
 
     if (r != 0) {
         Make_OS_Error(D_OUT, r);
-        fail (Error(RE_CALL_FAIL, D_OUT));
+        fail (Error_Call_Fail_Raw(D_OUT));
     }
 
     return R_VOID;
@@ -924,7 +924,7 @@ REBNATIVE(call)
         cmd = NULL;
         argc = VAL_LEN_AT(arg);
 
-        if (argc <= 0) fail (Error(RE_TOO_SHORT));
+        if (argc <= 0) fail (Error_Too_Short_Raw());
 
         argv_ser = Make_Series(argc + 1, sizeof(REBCHR*), MKS_NONE);
         argv_saved_sers = Make_Series(argc, sizeof(REBSER*), MKS_NONE);
@@ -1054,7 +1054,7 @@ REBNATIVE(call)
 
     if (r != 0) {
         Make_OS_Error(D_OUT, r);
-        fail (Error(RE_CALL_FAIL, D_OUT));
+        fail (Error_Call_Fail_Raw(D_OUT));
     }
 
     // We may have waited even if they didn't ask us to explicitly, but
@@ -1418,7 +1418,7 @@ REBNATIVE(access_os)
                                 return R_BLANK;
 
                             case OS_EPERM:
-                                fail (Error(RE_PERMISSION_DENIED));
+                                fail (Error_Permission_Denied_Raw());
 
                             case OS_EINVAL:
                                 fail (Error_Invalid_Arg(val));
@@ -1454,7 +1454,7 @@ REBNATIVE(access_os)
                                 return R_BLANK;
 
                             case OS_EPERM:
-                                fail (Error(RE_PERMISSION_DENIED));
+                                fail (Error_Permission_Denied_Raw());
 
                             case OS_EINVAL:
                                 fail (Error_Invalid_Arg(val));
@@ -1490,7 +1490,7 @@ REBNATIVE(access_os)
                                 return R_BLANK;
 
                             case OS_EPERM:
-                                fail (Error(RE_PERMISSION_DENIED));
+                                fail (Error_Permission_Denied_Raw());
 
                             case OS_EINVAL:
                                 fail (Error_Invalid_Arg(val));
@@ -1526,7 +1526,7 @@ REBNATIVE(access_os)
                                 return R_BLANK;
 
                             case OS_EPERM:
-                                fail (Error(RE_PERMISSION_DENIED));
+                                fail (Error_Permission_Denied_Raw());
 
                             case OS_EINVAL:
                                 fail (Error_Invalid_Arg(val));
@@ -1585,13 +1585,13 @@ REBNATIVE(access_os)
                             return R_BLANK;
 
                         case OS_EPERM:
-                            fail (Error(RE_PERMISSION_DENIED));
+                            fail (Error_Permission_Denied_Raw());
 
                         case OS_EINVAL:
                             fail (Error_Invalid_Arg(KNOWN(arg)));
 
                         case OS_ESRCH:
-                            fail (Error(RE_PROCESS_NOT_FOUND, pid));
+                            fail (Error_Process_Not_Found_Raw(pid));
 
                         default:
                             fail (Error_Invalid_Arg(val));

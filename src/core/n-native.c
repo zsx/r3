@@ -80,7 +80,7 @@ static void tcc_error_report(void *ignored, const char *msg)
     REBSER *ser = Make_Binary(strlen(msg) + 2);
     Append_Series(ser, cb_cast(msg), strlen(msg));
     Init_String(err, ser);
-    fail (Error(RE_TCC_ERROR_WARN, err));
+    fail (Error_Tcc_Error_Warn_Raw(err));
 }
 
 
@@ -233,12 +233,12 @@ REBNATIVE(make_native)
     INCLUDE_PARAMS_OF_MAKE_NATIVE;
 
 #if !defined(WITH_TCC)
-    fail (Error(RE_NOT_TCC_BUILD));
+    fail (Error_Not_Tcc_Build_Raw());
 #else
     REBVAL *source = ARG(source);
 
     if (VAL_LEN_AT(source) == 0)
-        fail (Error(RE_TCC_EMPTY_SOURCE));
+        fail (Error_Tcc_Empty_Source_Raw());
 
     REBFUN *fun = Make_Function(
         Make_Paramlist_Managed_May_Fail(ARG(spec), MKF_NONE),
@@ -350,14 +350,14 @@ REBNATIVE(compile)
     INCLUDE_PARAMS_OF_COMPILE;
 
 #if !defined(WITH_TCC)
-    fail (Error(RE_NOT_TCC_BUILD));
+    fail (Error_Not_Tcc_Build_Raw());
 #else
     REBVAL *natives = ARG(natives);
 
     REBOOL debug = FALSE; // !!! not implemented yet
 
     if (VAL_LEN_AT(ARG(natives)) == 0)
-        fail (Error(RE_TCC_EMPTY_SPEC));
+        fail (Error_Tcc_Empty_Spec_Raw());
 
     RELVAL *inc = NULL;
     RELVAL *lib = NULL;
@@ -370,13 +370,13 @@ REBNATIVE(compile)
 
         for (; NOT_END(val); ++val) {
             if (!IS_WORD(val))
-                fail (Error(RE_TCC_EXPECT_WORD, val));
+                fail (Error_Tcc_Expect_Word_Raw(val));
 
             switch (VAL_WORD_SYM(val)) {
             case SYM_INCLUDE:
                 ++val;
                 if (!(IS_BLOCK(val) || IS_FILE(val) || ANY_STRING(val)))
-                    fail (Error(RE_TCC_INVALID_INCLUDE, val));
+                    fail (Error_Tcc_Invalid_Include_Raw(val));
                 inc = val;
                 break;
 
@@ -387,39 +387,39 @@ REBNATIVE(compile)
             case SYM_OPTIONS:
                 ++val;
                 if (!ANY_STRING(val) || !VAL_BYTE_SIZE(val))
-                    fail (Error(RE_TCC_INVALID_OPTIONS, val));
+                    fail (Error_Tcc_Invalid_Options_Raw(val));
                 options = val;
                 break;
 
             case SYM_RUNTIME_PATH:
                 ++val;
                 if (!(IS_FILE(val) || IS_STRING(val)))
-                    fail (Error(RE_TCC_INVALID_LIBRARY_PATH, val));
+                    fail (Error_Tcc_Invalid_Library_Path_Raw(val));
                 rundir = val;
                 break;
 
             case SYM_LIBRARY_PATH:
                 ++val;
                 if (!(IS_BLOCK(val) || IS_FILE(val) || ANY_STRING(val)))
-                    fail (Error(RE_TCC_INVALID_LIBRARY_PATH, val));
+                    fail (Error_Tcc_Invalid_Library_Path_Raw(val));
                 libdir = val;
                 break;
 
             case SYM_LIBRARY:
                 ++val;
                 if (!(IS_BLOCK(val) || IS_FILE(val) || ANY_STRING(val)))
-                    fail (Error(RE_TCC_INVALID_LIBRARY, val));
+                    fail (Error_Tcc_Invalid_Library_Raw(val));
                 lib = val;
                 break;
 
             default:
-                fail (Error(RE_TCC_NOT_SUPPORTED_OPT, val));
+                fail (Error_Tcc_Not_Supported_Opt_Raw(val));
             }
         }
     }
 
     if (debug)
-        fail (Error(RE_MISC)); // !!! not implemented yet
+        fail (Error_Misc_Raw()); // !!! not implemented yet
 
     // Using the "hot" mold buffer allows us to build the combined source in
     // memory that is generally preallocated.  This makes it not necessary
@@ -547,13 +547,13 @@ REBNATIVE(compile)
 
     TCCState *state = tcc_new();
     if (!state)
-        fail (Error(RE_TCC_CONSTRUCTION));
+        fail (Error_Tcc_Construction_Raw());
 
     tcc_set_error_func(state, NULL, tcc_error_report);
 
     if (options) {
         if (tcc_set_options(state, CHAR_HEAD(VAL_SERIES(options))) < 0)
-            fail (Error(RE_TCC_SET_OPTIONS));
+            fail (Error_Tcc_Set_Options_Raw());
     }
 
     REBCTX *err = NULL;
@@ -562,10 +562,10 @@ REBNATIVE(compile)
         fail (err);
 
     if (tcc_set_output_type(state, TCC_OUTPUT_MEMORY) < 0)
-        fail (Error(RE_TCC_OUTPUT_TYPE));
+        fail (Error_Tcc_Output_Type_Raw());
 
     if (tcc_compile_string(state, CHAR_HEAD(combined_src)) < 0)
-        fail (Error(RE_TCC_COMPILE, natives));
+        fail (Error_Tcc_Compile_Raw(natives));
 
     Free_Series(combined_src);
 
@@ -578,14 +578,14 @@ REBNATIVE(compile)
     const void **sym = &rebol_symbols[0];
     for (; *sym != NULL; sym += 2) {
         if (tcc_add_symbol(state, cast(const char*, *sym), *(sym + 1)) < 0)
-            fail (Error(RE_TCC_RELOCATE));
+            fail (Error_Tcc_Relocate_Raw());
     }
 
     // Add symbols in libtcc1, to avoid bundling with libtcc1.a
     sym = &r3_libtcc1_symbols[0];
     for (; *sym != NULL; sym += 2) {
         if (tcc_add_symbol(state, cast(const char*, *sym), *(sym + 1)) < 0)
-            fail (Error(RE_TCC_RELOCATE));
+            fail (Error_Tcc_Relocate_Raw());
     }
 
     if ((err = add_path(
@@ -601,7 +601,7 @@ REBNATIVE(compile)
         do_set_path(state, rundir, tcc_set_lib_path);
 
     if (tcc_relocate(state, TCC_RELOCATE_AUTO) < 0)
-        fail (Error(RE_TCC_RELOCATE));
+        fail (Error_Tcc_Relocate_Raw());
 
     DECLARE_LOCAL (handle);
     Init_Handle_Managed(
@@ -633,7 +633,7 @@ REBNATIVE(compile)
         );
 
         if (!c_func)
-            fail (Error(RE_TCC_SYM_NOT_FOUND, name));
+            fail (Error_Tcc_Sym_Not_Found_Raw(name));
 
         FUNC_DISPATCHER(VAL_FUNC(var)) = c_func;
         Move_Value(stored_state, handle);

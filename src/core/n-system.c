@@ -159,7 +159,7 @@ REBNATIVE(recycle)
 
     if (REF(verbose)) {
     #if defined(NDEBUG)
-        fail (Error(RE_DEBUG_ONLY));
+        fail (Error_Debug_Only_Raw());
     #else
         REBSER *sweeplist = Make_Series(100, sizeof(REBNOD*), MKS_NONE);
         count = Recycle_Core(FALSE, sweeplist);
@@ -222,7 +222,7 @@ REBNATIVE(stats)
     }
 
 #ifdef NDEBUG
-    fail (Error(RE_DEBUG_ONLY));
+    fail (Error_Debug_Only_Raw());
 #else
     if (REF(profile)) {
         Move_Value(D_OUT, Get_System(SYS_STANDARD, STD_STATS));
@@ -291,7 +291,7 @@ REBNATIVE(evoke)
     INCLUDE_PARAMS_OF_EVOKE;
 
 #ifdef NDEBUG
-    fail (Error(RE_DEBUG_ONLY));
+    fail (Error_Debug_Only_Raw());
 #else
     RELVAL *arg = ARG(chant);
     REBCNT len;
@@ -397,7 +397,7 @@ REBNATIVE(check)
     INCLUDE_PARAMS_OF_CHECK;
 
 #ifdef NDEBUG
-    fail (Error(RE_DEBUG_ONLY));
+    fail (Error_Debug_Only_Raw());
 #else
     REBVAL *value = ARG(value);
 

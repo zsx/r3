@@ -126,7 +126,7 @@ static REB_R Transport_Actor(
 
     REBVAL *spec = CTX_VAR(port, STD_PORT_SPEC);
     if (!IS_OBJECT(spec))
-        fail (Error(RE_INVALID_PORT));
+        fail (Error_Invalid_Port_Raw());
 
     // sock->timeout = 4000; // where does this go? !!!
 
@@ -224,11 +224,11 @@ static REB_R Transport_Actor(
 
         if (REF(part)) {
             assert(!IS_VOID(ARG(limit)));
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         }
         if (REF(seek)) {
             assert(!IS_VOID(ARG(index)));
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         }
         UNUSED(PAR(string)); // handled in dispatcher
         UNUSED(PAR(lines)); // handled in dispatcher
@@ -278,16 +278,16 @@ static REB_R Transport_Actor(
 
         if (REF(seek)) {
             assert(!IS_VOID(ARG(index)));
-            fail (Error(RE_MISC));
+            fail (Error_Misc_Raw());
         }
         if (REF(append))
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         if (REF(allow)) {
             assert(!IS_VOID(ARG(access)));
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         }
         if (REF(lines))
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
 
         // Write the entire argument string to the network.
         // The lower level write code continues until done.
@@ -503,7 +503,7 @@ REBNATIVE(set_udp_multicast)
 
     REBINT result = OS_DO_DEVICE(sock, RDC_MODIFY);
     if (result < 0)
-        fail (Error(RE_MISC)); // should device layer just fail()?
+        fail (Error_Misc_Raw()); // should device layer just fail()?
 
     return R_VOID;
 }
@@ -540,7 +540,7 @@ REBNATIVE(set_udp_ttl)
 
     REBINT result = OS_DO_DEVICE(sock, RDC_MODIFY);
     if (result < 0)
-        fail (Error(RE_MISC)); // should device layer just fail()?
+        fail (Error_Misc_Raw()); // should device layer just fail()?
 
     return R_VOID;
 }

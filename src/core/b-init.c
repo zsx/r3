@@ -1121,7 +1121,7 @@ void Init_Core(void)
 #if defined(TEST_EARLY_BOOT_PANIC)
     panic ("early panic test");
 #elif defined(TEST_EARLY_BOOT_FAIL)
-    fail (Error(RE_NO_VALUE, BLANK_VALUE));
+    fail (Error_No_Value_Raw(BLANK_VALUE));
 #endif
 
 //==//////////////////////////////////////////////////////////////////////==//
@@ -1332,12 +1332,12 @@ void Init_Core(void)
     // With no PUSH_TRAP yet, fail should give a localized assert in a debug
     // build, and panic the release build.
     //
-    fail (Error(RE_NO_VALUE, BLANK_VALUE));
+    fail (Error_No_Value_Raw(BLANK_VALUE));
 #endif
 
     // Special pre-made errors:
-    Init_Error(TASK_STACK_ERROR, Error(RE_STACK_OVERFLOW));
-    Init_Error(TASK_HALT_ERROR, Error(RE_HALT));
+    Init_Error(TASK_STACK_ERROR, Error_Stack_Overflow_Raw());
+    Init_Error(TASK_HALT_ERROR, Error_Halt_Raw());
 
 //==//////////////////////////////////////////////////////////////////////==//
 //

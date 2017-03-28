@@ -245,7 +245,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
                 );
             }
             else
-                fail (Error(RE_MISC)); // should not be possible.
+                fail (Error_Misc_Raw()); // should not be possible.
 
             if (DS_TOP == DS_AT(dsp_orig + 3))
                 has_description = TRUE;
@@ -350,7 +350,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
                 );
             }
             else
-                fail (Error(RE_MISC)); // shouldn't be possible
+                fail (Error_Misc_Raw()); // shouldn't be possible
 
             // Turn block into typeset for parameter at current index.
             // Leaves VAL_TYPESET_SYM as-is.
@@ -368,7 +368,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             //
             if (refinement_seen) {
                 if (TYPE_CHECK(typeset, REB_MAX_VOID))
-                    fail (Error(RE_REFINEMENT_ARG_OPT));
+                    fail (Error_Refinement_Arg_Opt_Raw());
             }
 
 
@@ -379,7 +379,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
                 if (TYPE_CHECK(typeset, REB_MAX_VOID)) {
                     DECLARE_LOCAL (param_name);
                     Init_Word(param_name, VAL_PARAM_SPELLING(typeset));
-                    fail (Error(RE_HARD_QUOTE_VOID, param_name));
+                    fail (Error_Hard_Quote_Void_Raw(param_name));
                 }
             }
 
@@ -718,7 +718,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         if (duplicate != NULL) {
             DECLARE_LOCAL (word);
             Init_Word(word, duplicate);
-            fail (Error(RE_DUP_VARS, word));
+            fail (Error_Dup_Vars_Raw(word));
         }
 
         TERM_ARRAY_LEN(paramlist, num_slots);
@@ -1651,7 +1651,7 @@ void Clonify_Function(REBVAL *value)
 //
 REBTYPE(Fail)
 {
-    fail (Error(RE_MISC));
+    fail (Error_Misc_Raw());
 }
 
 
@@ -1846,7 +1846,7 @@ REB_R Hijacker_Dispatcher(REBFRM *f)
     RELVAL *hook = FUNC_BODY(f->func);
 
     if (IS_BLANK(hook)) // blank hijacking allows capture, but nothing to run
-        fail (Error(RE_HIJACK_BLANK));
+        fail (Error_Hijack_Blank_Raw());
 
     assert(IS_FUNCTION(hook));
 

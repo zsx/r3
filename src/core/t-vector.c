@@ -242,7 +242,7 @@ REBINT Compare_Vector(const RELVAL *v1, const RELVAL *v2)
     REBCNT b2 = VECT_TYPE(VAL_SERIES(v2));
 
     if ((b1 >= VTSF08 && b2 < VTSF08) || (b2 >= VTSF08 && b1 < VTSF08))
-        fail (Error(RE_NOT_SAME_TYPE));
+        fail (Error_Not_Same_Type_Raw());
 
     for (n = 0; n < len; n++) {
         i1 = get_vect(b1, d1, n + VAL_INDEX(v1));
@@ -634,13 +634,13 @@ REBTYPE(Vector)
         UNUSED(PAR(value));
         if (REF(part)) {
             assert(!IS_VOID(ARG(limit)));
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         }
         if (REF(deep))
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         if (REF(types)) {
             assert(!IS_VOID(ARG(kinds)));
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         }
 
         ser = Copy_Sequence(vect);
@@ -655,7 +655,7 @@ REBTYPE(Vector)
         FAIL_IF_READ_ONLY_SERIES(vect);
 
         if (REF(seed) || REF(only))
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
 
         Shuffle_Vector(value, REF(secure));
         Move_Value(D_OUT, D_ARG(1));

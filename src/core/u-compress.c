@@ -127,7 +127,7 @@ static REBCTX *Error_Compression(const z_stream *strm, int ret)
     else
         SET_INTEGER(arg, ret);
 
-    return Error(RE_BAD_COMPRESSION, arg);
+    return Error_Bad_Compression_Raw(arg);
 }
 
 
@@ -260,7 +260,7 @@ REBSER *Decompress(
         assert(sizeof(REBCNT) == 4);
         if (len <= sizeof(REBCNT)) {
             // !!! Better error message needed
-            fail (Error(RE_PAST_END));
+            fail (Error_Past_End_Raw());
         }
         buf_size = Bytes_To_REBCNT(input + len - sizeof(REBCNT));
 
@@ -274,7 +274,7 @@ REBSER *Decompress(
             // NOTE: You can hit this if you 'make prep' without doing a full
             // rebuild.  'make clean' and build again, it should go away.
             //
-            fail (Error(RE_SIZE_LIMIT, temp));
+            fail (Error_Size_Limit_Raw(temp));
         }
     }
     else {
@@ -378,7 +378,7 @@ REBSER *Decompress(
             // NOTE: You can hit this on 'make prep' without doing a full
             // rebuild.  'make clean' and build again, it should go away.
             //
-            fail (Error(RE_SIZE_LIMIT, temp));
+            fail (Error_Size_Limit_Raw(temp));
         }
 
         buf_size = buf_size + strm.avail_in * 3;

@@ -97,7 +97,7 @@ REBIXO Do_Vararg_Op_May_Throw(
         // where the VARARGS! originated is still on the stack.
         //
         if (param_frame == NULL)
-            fail (Error(RE_VARARGS_NO_STACK));
+            fail (Error_Varargs_No_Stack_Raw());
 
         param = FUNC_FACADE_HEAD(param_frame->func)
             + vararg->payload.varargs.param_offset;
@@ -109,7 +109,7 @@ REBIXO Do_Vararg_Op_May_Throw(
     }
 
     if (op == VARARG_OP_FIRST && pclass != PARAM_CLASS_HARD_QUOTE)
-        fail (Error(RE_VARARGS_NO_LOOK)); // lookahead needs hard quote
+        fail (Error_Varargs_No_Look_Raw()); // lookahead needs hard quote
 
     REBVAL *shared;
 
@@ -167,7 +167,7 @@ REBIXO Do_Vararg_Op_May_Throw(
         //
         f = CTX_FRAME_IF_ON_STACK(context);
         if (f == NULL)
-            fail (Error(RE_VARARGS_NO_STACK));
+            fail (Error_Varargs_No_Stack_Raw());
 
         // "Ordinary" case... use the original frame implied by the VARARGS!
         // The Reb_Frame isn't a bad pointer, we checked FRAME! is stack-live.
@@ -380,7 +380,7 @@ REBTYPE(Varargs)
             fail (Error_Invalid_Arg(arg));
 
         if (VAL_INT32(arg) != 1)
-            fail (Error(RE_VARARGS_NO_LOOK));
+            fail (Error_Varargs_No_Look_Raw());
 
         indexor = Do_Vararg_Op_May_Throw(D_OUT, value, VARARG_OP_FIRST);
         assert(indexor == VA_LIST_FLAG || indexor == END_FLAG); // no throw
@@ -404,9 +404,9 @@ REBTYPE(Varargs)
 
         UNUSED(PAR(series));
         if (REF(deep))
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         if (REF(last))
-            fail (Error(RE_VARARGS_TAKE_LAST));
+            fail (Error_Varargs_Take_Last_Raw());
 
         if (NOT(REF(part))) {
             indexor = Do_Vararg_Op_May_Throw(D_OUT, value, VARARG_OP_TAKE);

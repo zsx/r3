@@ -226,7 +226,7 @@ static REBSER *MAKE_TO_String_Common(const REBVAL *arg)
             len -= 3;
             break;
         default:
-            fail (Error(RE_BAD_UTF8));
+            fail (Error_Bad_Utf8_Raw());
         }
         ser = Decode_UTF_String(bp, len, 8); // UTF-8
     }
@@ -538,13 +538,10 @@ static void Sort_String(
     REBVAL *skipv,
     REBVAL *compv,
     REBVAL *part,
-    REBOOL all,
     REBOOL rev
 ) {
     if (!IS_VOID(compv))
-        fail (Error(RE_BAD_REFINE)); // !!! didn't seem to be supported (?)
-    if (all)
-        fail (Error(RE_BAD_REFINE)); // neither did this
+        fail (Error_Bad_Refine_Raw(compv)); // !!! didn't seem to be supported (?)
 
     REBCNT len;
     REBCNT skip = 1;
@@ -830,7 +827,7 @@ REBTYPE(String)
             flags |= AM_FIND_CASE;
 
             if (!IS_BINARY(arg) && !IS_INTEGER(arg) && !IS_BITSET(arg))
-                fail (Error(RE_NOT_SAME_TYPE));
+                fail (Error_Not_Same_Type_Raw());
 
             if (IS_INTEGER(arg)) {
                 if (VAL_INT64(arg) < 0 || VAL_INT64(arg) > 255)
@@ -948,7 +945,7 @@ REBTYPE(String)
         UNUSED(PAR(series));
 
         if (REF(deep))
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
 
         REBINT len;
         if (REF(part)) {
@@ -1009,10 +1006,10 @@ REBTYPE(String)
         UNUSED(PAR(value));
 
         if (REF(deep))
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         if (REF(types)) {
             assert(!IS_VOID(ARG(kinds)));
-            fail (Error(RE_BAD_REFINES));
+            fail (Error_Bad_Refines_Raw());
         }
 
         UNUSED(REF(part));
@@ -1086,7 +1083,7 @@ REBTYPE(String)
             return R_OUT;
         }
         else if (VAL_LEN_AT(value) == 0) // add/subtract to #{} otherwise
-            fail (Error(RE_OVERFLOW));
+            fail (Error_Overflow_Raw());
 
         while (amount != 0) {
             REBCNT wheel = VAL_LEN_HEAD(value) - 1;
@@ -1095,7 +1092,7 @@ REBTYPE(String)
                 if (amount > 0) {
                     if (*b == 255) {
                         if (wheel == VAL_INDEX(value))
-                            fail (Error(RE_OVERFLOW));
+                            fail (Error_Overflow_Raw());
 
                         *b = 0;
                         --wheel;
@@ -1108,7 +1105,7 @@ REBTYPE(String)
                 else {
                     if (*b == 0) {
                         if (wheel == VAL_INDEX(value))
-                            fail (Error(RE_OVERFLOW));
+                            fail (Error_Overflow_Raw());
 
                         *b = 255;
                         --wheel;
@@ -1135,13 +1132,13 @@ REBTYPE(String)
 
         if (REF(all) || REF(with)) {
             if (REF(head) || REF(tail) || REF(lines) || REF(auto))
-                fail (Error(RE_BAD_REFINES));
+                fail (Error_Bad_Refines_Raw());
 
             Whitespace_Replace_With(ser, index, tail, ARG(str));
         }
         else if (REF(auto)) {
             if (REF(head) || REF(tail) || REF(lines) || REF(all) || REF(with))
-                fail (Error(RE_BAD_REFINES));
+                fail (Error_Bad_Refines_Raw());
 
             Trim_String_Auto(ser, index, tail);
         }
@@ -1163,7 +1160,7 @@ REBTYPE(String)
         FAIL_IF_READ_ONLY_SERIES(VAL_SERIES(value));
 
         if (VAL_TYPE(value) != VAL_TYPE(arg))
-            fail (Error(RE_NOT_SAME_TYPE));
+            fail (Error_Not_Same_Type_Raw());
 
         FAIL_IF_READ_ONLY_SERIES(VAL_SERIES(arg));
 
@@ -1189,13 +1186,16 @@ REBTYPE(String)
         UNUSED(REF(compare));
         UNUSED(REF(part));
 
+        if (REF(all)) {// Not Supported
+            fail (Error_Bad_Refine_Raw(ARG(all)));
+        }
+
         Sort_String(
             value,
             REF(case),
             ARG(size), // skip size (void if not /SKIP)
             ARG(comparator), // (void if not /COMPARE)
             ARG(limit),   // (void if not /PART)
-            REF(all),
             REF(reverse)
         );
         break; }

@@ -737,7 +737,7 @@ REBNATIVE(encode_png)
     // Error hook in the PNG encoder from R3-Alpha is done via longjmp.
     //
     if (setjmp(png_state)) {
-        fail (Error(RE_BAD_MEDIA)); // can the error be more specific?
+        fail (Error_Bad_Media_Raw()); // can the error be more specific?
     }
 
     REBINT w = VAL_IMAGE_WIDE(ARG(image));
@@ -850,7 +850,7 @@ cleanup:
     }
 
     if (IS_END(D_OUT))
-        fail (Error(RE_BAD_MEDIA)); // better error?
+        fail (Error_Bad_Media_Raw()); // better error?
 
     assert(IS_BINARY(D_OUT));
     return R_OUT;
@@ -910,7 +910,7 @@ REBNATIVE(decode_png)
     // Error hook in the PNG decoder from R3-Alpha is done via longjmp.
     //
     if (setjmp(png_state)) {
-        fail (Error(RE_BAD_MEDIA)); // can the error be more specific?
+        fail (Error_Bad_Media_Raw()); // can the error be more specific?
     }
 
     int w, h;

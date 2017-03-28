@@ -150,7 +150,7 @@ REBNATIVE(set_where_of_error)
 
     REBFRM *where = CTX_FRAME_IF_ON_STACK(context);
     if (where == NULL)
-        fail (Error(RE_FRAME_NOT_ON_STACK));
+        fail (Error_Frame_Not_On_Stack_Raw());
 
     REBCTX *error = VAL_CONTEXT(ARG(error));
     Set_Where_And_Near_Of_Error(error, where);

@@ -158,7 +158,7 @@ static REBSER *Make_Set_Operation_Series(
                 // shaky to deal with, so an error is reported if it does
                 // not work out evenly to the skip size.
                 //
-                fail (Error(RE_BLOCK_SKIP_WRONG));
+                fail (Error_Block_Skip_Wrong_Raw());
             }
 
             if (flags & SOP_FLAG_CHECK)

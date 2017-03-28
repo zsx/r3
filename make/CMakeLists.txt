@@ -532,6 +532,7 @@ set (BOOT_HEADER
     ${TOP_GENERATED_SRC_DIR}/include/tmp-sysobj.h
     ${TOP_GENERATED_SRC_DIR}/include/reb-evtypes.h
     ${TOP_GENERATED_SRC_DIR}/include/tmp-errnums.h
+    ${TOP_GENERATED_SRC_DIR}/include/tmp-error-funcs.h
     ${TOP_GENERATED_SRC_DIR}/include/tmp-portmodes.h
     ${TOP_GENERATED_SRC_DIR}/include/tmp-sysctx.h
     ${TOP_GENERATED_SRC_DIR}/include/tmp-boot.h

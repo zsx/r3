@@ -1800,7 +1800,7 @@ static REBARR *Scan_Array(
             if (ARR_LEN(array) == 0 || !IS_WORD(ARR_HEAD(array))) {
                 DECLARE_LOCAL (temp);
                 Init_Block(temp, array);
-                fail (Error(RE_MALCONSTRUCT, temp));
+                fail (Error_Malconstruct_Raw(temp));
             }
 
             REBSYM sym = VAL_WORD_SYM(ARR_HEAD(array));
@@ -1812,7 +1812,7 @@ static REBARR *Scan_Array(
                 if (dispatcher == NULL || ARR_LEN(array) != 2) {
                     DECLARE_LOCAL (temp);
                     Init_Block(temp, array);
-                    fail (Error(RE_MALCONSTRUCT, temp));
+                    fail (Error_Malconstruct_Raw(temp));
                 }
 
                 // !!! As written today, MAKE may call into the evaluator, and
@@ -1838,7 +1838,7 @@ static REBARR *Scan_Array(
                 if (ARR_LEN(array) != 1) {
                     DECLARE_LOCAL (temp);
                     Init_Block(temp, array);
-                    fail (Error(RE_MALCONSTRUCT, temp));
+                    fail (Error_Malconstruct_Raw(temp));
                 }
 
                 // !!! Construction syntax allows the "type" slot to be one of
@@ -1868,7 +1868,7 @@ static REBARR *Scan_Array(
                 default: {
                     DECLARE_LOCAL (temp);
                     Init_Block(temp, array);
-                    fail (Error(RE_MALCONSTRUCT, temp)); }
+                    fail (Error_Malconstruct_Raw(temp)); }
                 }
             }
 
