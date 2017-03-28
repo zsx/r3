@@ -928,6 +928,9 @@ REBARR *Context_To_Array(REBCTX *context, REBINT mode)
     assert(!(mode & 4));
     block = Make_Array(CTX_LEN(context) * (mode == 3 ? 2 : 1));
 
+    //Context might have voids, which denote the value have not been set
+    SET_SER_FLAG(block, ARRAY_FLAG_VOIDS_LEGAL);
+
     n = 1;
     for (; NOT_END(key); n++, key++, var++) {
         if (NOT_VAL_FLAG(key, TYPESET_FLAG_HIDDEN)) {
