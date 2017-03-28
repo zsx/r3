@@ -774,10 +774,11 @@ static void Propagate_All_GC_Marks(void)
             // reified C va_lists as Do_Core() sources can have them.
             //
             if (NOT(IS_BLANK_RAW(v)) && IS_VOID(v)) {
-                assert(
-                    GET_SER_FLAG(a, ARRAY_FLAG_VARLIST)
-                    || GET_SER_FLAG(a, ARRAY_FLAG_VOIDS_LEGAL)
-                );
+                if(
+                    !GET_SER_FLAG(a, ARRAY_FLAG_VARLIST)
+                    && !GET_SER_FLAG(a, ARRAY_FLAG_VOIDS_LEGAL)
+                )
+                    panic(a);
             }
         #endif
         }

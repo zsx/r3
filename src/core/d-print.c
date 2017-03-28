@@ -503,10 +503,14 @@ void Debug_Fmt(const char *fmt, ...)
 //
 //  Echo_File: C
 //
-REBOOL Echo_File(REBCHR *file)
+REBINT Echo_File(REBCHR *file)
 {
     DEVREQ_ECHO_FILE(Req_SIO)->path = file;
-    return LOGICAL(DR_ERROR != OS_DO_DEVICE(Req_SIO, RDC_CREATE));
+    if (DR_DONE != OS_DO_DEVICE(Req_SIO, RDC_CREATE)) {
+        assert(Req_SIO->error != 0);
+        return Req_SIO->error;
+    }
+    return 0;
 }
 
 
