@@ -281,6 +281,7 @@ help: procedure [
                 "=" "-eq"
                 "<" "-lt"
                 ">" "-gt"
+                "|" "-bar"
             ][replace/all item a b]
             tmp: http://www.rebol.com/r3/docs/functions/
         ][
