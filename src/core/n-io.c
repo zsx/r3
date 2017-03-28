@@ -60,8 +60,12 @@ REBNATIVE(echo)
         ser = NULL;
 
     if (ser) {
-        if (!Echo_File(SER_HEAD(REBCHR, ser)))
-            fail (Error(RE_CANNOT_OPEN, val));
+        REBINT error = Echo_File(SER_HEAD(REBCHR, ser));
+        if (error) {
+            DECLARE_LOCAL(i);
+            SET_INTEGER(i, error);
+            fail(Error(RE_CANNOT_OPEN, val, i));
+        }
 
         // !!! It appears Echo_File makes a device request which should not
         // hold the filename string live (or copy if it wants to?)
