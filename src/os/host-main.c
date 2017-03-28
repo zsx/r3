@@ -877,7 +877,11 @@ int main(int argc, char **argv_ansi)
         // every word in lib that it uses, but that mechanic hasn't been
         // fully generalized--and might not be the right answer anyway.
         //
-        Bind_Values_All_Deep(ARR_HEAD(array), Lib_Context);
+        // Only add top-level words to the `lib' context
+        Bind_Values_Set_Midstream_Shallow(ARR_HEAD(array), Lib_Context);
+
+        // Bind all words to the `lib' context, but not adding any new words
+        Bind_Values_Deep(ARR_HEAD(array), Lib_Context);
 
         // The new policy for source code in Ren-C is that it loads read only.
         // This didn't go through the LOAD Rebol function (should it?  it
