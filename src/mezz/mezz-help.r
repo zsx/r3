@@ -271,6 +271,7 @@ help: procedure [
         any [function? get :word datatype? get :word]
     ][
         item: form :word
+        browse join-of 
         either function? get :word [
             for-each [a b] [ ; need a better method !
                 "!" "-ex"
@@ -283,12 +284,14 @@ help: procedure [
                 ">" "-gt"
                 "|" "-bar"
             ][replace/all item a b]
-            tmp: http://www.rebol.com/r3/docs/functions/
+            tmp: %.MD
+            https://github.com/gchiu/reboldocs/blob/master/
         ][
-            tmp: http://www.rebol.com/r3/docs/datatypes/
             remove back tail item ; the !
+            tmp: %.html
+            http://www.rebol.com/r3/docs/datatypes/
         ]
-        browse join-of tmp [item ".html"]
+        [item tmp]
     ]
 
     ; If arg is a string or datatype! word, search the system:
