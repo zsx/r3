@@ -310,7 +310,7 @@ newline
 newline
 
 case [
-    args/WITH_FFI = "yes" [
+    args/WITH_FFI = "static" [
         unspaced [
             {FFI_FLAGS=`pkg-config --cflags libffi` -DHAVE_LIBFFI_AVAILABLE}
                 newline
@@ -321,6 +321,15 @@ case [
                 newline
          ]
     ]
+    args/WITH_FFI = "dynamic" [
+        unspaced [
+            {FFI_FLAGS=`pkg-config --cflags libffi` -DHAVE_LIBFFI_AVAILABLE}
+                newline
+            {FFI_LIBS=`pkg-config --libs libffi`}
+                space {-lpthread}
+                newline
+         ]
+    ]
     any [blank? args/WITH_FFI | args/WITH_FFI = "no"] [
         unspaced [
             {FFI_FLAGS=} newline
@@ -328,7 +337,7 @@ case [
         ]
     ]
     true [
-        fail ["WITH_FFI must be yes or no, not" (args/WITH_FFI)]
+        fail ["WITH_FFI must be static, dynamic or no, not" (args/WITH_FFI)]
     ]
 ]
 
@@ -675,9 +684,9 @@ emit-file-deps: function [
             %objs/ obj ":" space src
             newline spaced-tab
             "$(CC) "
-            src space
             ;flags space
             pick ["$(RFLAGS)" "$(HFLAGS)"] not dir
+            space src
             space "-o" space %objs/ obj ; space src
             newline
             newline

@@ -70,7 +70,9 @@ OS_ID?= detect
 DEBUG?= yes
 GIT_COMMIT?= unknown
 SANITIZE?= no
-STANDARD?= c # LANGUAGE is some kind of reserved variable in make
+
+# LANGUAGE is some kind of reserved variable in make
+STANDARD?= c
 RIGOROUS?= no
 WITH_FFI?= no
 STATIC?= yes
