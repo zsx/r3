@@ -279,7 +279,7 @@ REBARR *Make_Extension_Module_Array(
 ) {
     // the array will be like [spec C_func error_base/none]
     REBARR *arr = Make_Array(3);
-  
+
     Init_Binary(ARR_AT(arr, 0), Copy_Bytes(spec, len));
 
     Init_Handle_Managed_Cfunc(

@@ -145,6 +145,8 @@ emit-header "Evaluation Maps" %evaltypes.h
 
 emit {
 
+#include "sys-core.h"
+
 /***********************************************************************
 **
 */  const REBACT Value_Dispatch[REB_MAX] =
@@ -208,7 +210,7 @@ for-each-record type boot-types [
 ]
 emit-end
 
-write-emitted inc/tmp-evaltypes.inc
+write-emitted src/tmp-evaltypes.c
 
 
 ;----------------------------------------------------------------------------
@@ -235,6 +237,8 @@ for-each-record type boot-types [
 ]
 
 emit {
+
+#include "sys-core.h"
 
 /***********************************************************************
 **
@@ -280,7 +284,7 @@ for-each-record type boot-types [
 ]
 emit-end
 
-write-emitted inc/tmp-maketypes.inc
+write-emitted src/tmp-maketypes.c
 
 
 ;----------------------------------------------------------------------------
@@ -306,6 +310,9 @@ for-each-record type boot-types [
 ]
 
 emit {
+
+#include "sys-core.h"
+
 /***********************************************************************
 **
 */  const REBCTF Compare_Types[REB_MAX] =
@@ -333,7 +340,7 @@ for-each-record type boot-types [
 ]
 emit-end
 
-write-emitted inc/tmp-comptypes.inc
+write-emitted src/tmp-comptypes.c
 
 
 ;----------------------------------------------------------------------------

@@ -31,7 +31,6 @@
 //
 
 #include "sys-core.h"
-#include "tmp-comptypes.inc"
 #include "sys-deci-funcs.h"
 
 #include <math.h>

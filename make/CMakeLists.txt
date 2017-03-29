@@ -516,16 +516,7 @@ add_custom_command(OUTPUT
     ${HEADER_DEPENDS}
     )
 
-set_source_files_properties(
-    ${TOP_GENERATED_SRC_DIR}/include/tmp-evaltypes.inc
-    PROPERTIES
-    HEADER_FILE_ONLY TRUE
-    )
-
 set (BOOT_HEADER
-    ${TOP_GENERATED_SRC_DIR}/include/tmp-evaltypes.inc
-    ${TOP_GENERATED_SRC_DIR}/include/tmp-maketypes.inc
-    ${TOP_GENERATED_SRC_DIR}/include/tmp-comptypes.inc
     ${TOP_GENERATED_SRC_DIR}/include/reb-types.h
     ${TOP_GENERATED_SRC_DIR}/include/tmp-bootdefs.h
     ${TOP_GENERATED_SRC_DIR}/include/tmp-sysobj.h
@@ -539,6 +530,9 @@ set (BOOT_HEADER
 set(BOOT_OUTPUT
     ${BOOT_HEADER}
     ${CORE_GENERATED_DIR}/tmp-boot-block.c
+    ${CORE_GENERATED_DIR}/tmp-evaltypes.c
+    ${CORE_GENERATED_DIR}/tmp-maketypes.c
+    ${CORE_GENERATED_DIR}/tmp-comptypes.c
     )
 set(BOOT_DEPENDS
     # all of the files loaded by make-boot.r
@@ -624,6 +618,9 @@ add_custom_command(OUTPUT
 
 set (GENERATED_CORE_SOURCE
     ${CORE_GENERATED_DIR}/tmp-boot-block.c
+    ${CORE_GENERATED_DIR}/tmp-evaltypes.c
+    ${CORE_GENERATED_DIR}/tmp-maketypes.c
+    ${CORE_GENERATED_DIR}/tmp-comptypes.c
     ${CORE_GENERATED_DIR}/tmp-symbols.c
     )
 

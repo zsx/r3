@@ -152,8 +152,11 @@ core: [
     u-sha1.c
     u-zlib.c
 
-    ; Generated file, created by the make boot process
+    ; Generated files, created by the make boot process
     + tmp-boot-block.c
+    + tmp-evaltypes.c
+    + tmp-maketypes.c
+    + tmp-comptypes.c
 ]
 
 modules: [
