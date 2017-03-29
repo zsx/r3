@@ -36,14 +36,14 @@
 //
 static void Protect_Key(REBCTX *context, REBCNT index, REBFLGS flags)
 {
-    // It is only necessary to make sure the keylist is unique if the key's
-    // state is actually changed, but for simplicity always ensure unique.
-    //
-    Ensure_Keylist_Unique_Invalidated(context);
-
-    REBVAL *key = CTX_KEY(context, index);
     REBVAL *var = CTX_VAR(context, index);
 
+    // Due to the fact that not all the bits in a value header are copied when
+    // Move_Value is done, it's possible to set the protection status of a
+    // variable on the value vs. the key.  This means the keylist does not
+    // have to be modified, and hence it doesn't have to be made unique
+    // from any objects that were sharing it.
+    //
     if (GET_FLAG(flags, PROT_WORD)) {
         if (GET_FLAG(flags, PROT_SET))
             SET_VAL_FLAG(var, VALUE_FLAG_PROTECTED);
@@ -52,6 +52,16 @@ static void Protect_Key(REBCTX *context, REBCNT index, REBFLGS flags)
     }
 
     if (GET_FLAG(flags, PROT_HIDE)) {
+        //
+        // !!! For the moment, hiding is still implemented via typeset flags.
+        // Since PROTECT/HIDE is something of an esoteric feature, keep it
+        // that way for now, even though it means the keylist has to be
+        // made unique.
+        //
+        Ensure_Keylist_Unique_Invalidated(context);
+
+        REBVAL *key = CTX_KEY(context, index);
+
         if (GET_FLAG(flags, PROT_SET))
             SET_VAL_FLAGS(key, TYPESET_FLAG_HIDDEN | TYPESET_FLAG_UNBINDABLE);
         else
