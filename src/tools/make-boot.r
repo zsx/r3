@@ -822,7 +822,7 @@ for-each [id val] id-list [
         emit-line [ {static inline REBCTX *Error_} f-name {_Raw(} ]
         i: 0
         while [i < n-args] [
-            emit-line compose [ {const REBVAL *arg} (i + 1)
+            emit-line compose [ {const RELVAL *arg} (i + 1)
                 either i < (n-args - 1) [","] [""]
             ]
             ++ i
