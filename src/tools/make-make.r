@@ -99,9 +99,17 @@ BIN_SUFFIX=
 RAPI_FLAGS=
 HOST_FLAGS= -DREB_EXE
 RLIB_FLAGS=
+ifeq ($(WITH_FFI),1)
+    FFI_FLAGS=`pkg-config --cflags libffi` -DHAVE_LIBFFI_AVAILABLE
+    #only statically link ffi
+    FFI_LIBS=-Wl,-Bstatic `pkg-config --libs libffi` -Wl,-Bdynamic -lpthread
+else
+    FFI_FLAGS=
+    FFI_LIBS=
+endif
 
 # Flags for core and for host:
-RFLAGS= -c -D$(TO_OS_BASE) -D$(TO_OS_NAME) -DREB_API  $(RAPI_FLAGS) $I
+RFLAGS= -c -D$(TO_OS_BASE) -D$(TO_OS_NAME) -DREB_API  $(RAPI_FLAGS) $(FFI_FLAGS) $I
 HFLAGS= -c -D$(TO_OS_BASE) -D$(TO_OS_NAME) -DREB_CORE $(HOST_FLAGS) $I
 CLIB=
 
@@ -206,7 +214,7 @@ check:
 makefile-link: {
 # Directly linked r3 executable:
 $(R3_TARGET): tmps objs $(OBJS) $(HOST)
-    $(CC) -o $(R3_TARGET) $(OBJS) $(HOST) $(CLIB)
+    $(CC) -o $(R3_TARGET) $(OBJS) $(HOST) $(CLIB) $(FFI_LIBS)
     $(STRIP) $(R3_TARGET)
     -$(NM) -a $(R3_TARGET)
     $(LS) $(R3_TARGET)
@@ -221,7 +229,7 @@ lib: libr3.so
 # PUBLIC: Shared library:
 # NOTE: Did not use "-Wl,-soname,libr3.so" because won't find .so in local dir.
 libr3.so: $(OBJS)
-    $(CC) -o libr3.so -shared $(OBJS) $(CLIB)
+    $(CC) -o libr3.so -shared $(OBJS) $(CLIB) $(FFI_LIBS)
     $(STRIP) libr3.so
     -$(NM) -D libr3.so
     -$(NM) -a libr3.so | grep "Do_"
