@@ -36,12 +36,16 @@ first-rebol-commit: "19d4f969b4f5c1536f24b023991ec11ee6d5adfb"
 
 either args/GIT_COMMIT = "unknown" [
     ;
-    ; If we used blank here, then R3-Alpha would render it as the word "none"
-    ; which is not defined during the execution of %sysobj.r, so by using '_
-    ; it will act as a WORD! in R3-Alpha, and render as _.  If Ren-C is used
-    ; for the bootstrap it will be a proper blank.
+    ; !!! If we used blank here, then R3-Alpha would render it as the word
+    ; "none" which is not defined during the execution of %sysobj.r, so by
+    ; using '_ it will act as a WORD! in R3-Alpha, and render as _.
     ;
-    git-commit: '_
+    ; 
+    git-commit: either word? first [_] [
+        '_ ;-- R3-Alpha is being used for bootstrap
+    ][
+        _ ;-- Ren-C is being used for bootstrap
+    ]
 ][
     git-commit: args/GIT_COMMIT
     if (length git-commit) != (length first-rebol-commit) [

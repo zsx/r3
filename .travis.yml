@@ -19,76 +19,89 @@ matrix:
         - os: linux
           sudo: false #Force new container-based infrastructure.
           language: c
-          env: OS_ID=0.4.4 REL=1 CC=gcc
+          env: OS_ID=0.4.4 DEBUG=no STANDARD=c RIGOROUS=yes STATIC=yes
 
         # Linux x64, debug, gcc
         #
         - os: linux
           sudo: false #Force new container-based infrastructure.
           language: c
-          env: OS_ID=0.4.40 CC=gcc
+          env: OS_ID=0.4.40 DEBUG=yes STANDARD=c RIGOROUS=yes STATIC=yes
 
         # Linux x64, debug, g++
+        #
+        # !!! Note this binary does not support c++11 completely, it's an old
+        # gcc 4.6
         #
         - os: linux
           sudo: false #Force new container-based infrastructure.
           language: cpp
-          env: OS_ID=0.4.40 CC=g++
+          env: OS_ID=0.4.40 DEBUG=yes STANDARD=c++0x RIGOROUS=yes STATIC=yes
 
         # Linux x64, release, gcc
         #
         - os: linux
           sudo: false #Force new container-based infrastructure.
           language: c
-          env: OS_ID=0.4.40 REL=1 CC=gcc
+          env: OS_ID=0.4.40 DEBUG=no STANDARD=gnu99 RIGOROUS=yes STATIC=yes
 
         # Windows x86, release, gcc
         #
         - os: linux
           sudo: false #Force new container-based infrastructure.
           language: c
-          env: OS_ID=0.3.1 REL=1 TOOLS=i686-w64-mingw32- CC=gcc
+          env: OS_ID=0.3.1 DEBUG=no TOOLS=i686-w64-mingw32- STANDARD=c RIGOROUS=yes STATIC=yes
         
         # Windows x64, debug, gcc
         #
         - os: linux
           sudo: false #Force new container-based infrastructure.
           language: c
-          env: OS_ID=0.3.40 TOOLS=x86_64-w64-mingw32- CC=gcc
+          env: OS_ID=0.3.40 DEBUG=yes TOOLS=x86_64-w64-mingw32- STANDARD=c RIGOROUS=yes STATIC=yes
 
         # Windows x64, debug, g++
+        #
+        # !!! Note this binary does not support c++11 or above
         #
         - os: linux
           sudo: false #Force new container-based infrastructure.
           language: cpp
-          env: OS_ID=0.3.40 TOOLS=x86_64-w64-mingw32- CC=g++
+          env: OS_ID=0.3.40 DEBUG=yes TOOLS=x86_64-w64-mingw32- STANDARD=c++ RIGOROUS=yes STATIC=yes
         
         # Windows x64, release, gcc
         #
         - os: linux
           sudo: false #Force new container-based infrastructure.
           language: cpp
-          env: OS_ID=0.3.40 TOOLS=x86_64-w64-mingw32- REL=1 CC=gcc
+          env: OS_ID=0.3.40 DEBUG=no TOOLS=x86_64-w64-mingw32- STANDARD=c RIGOROUS=yes STATIC=yes
 
         # OSX x64, debug, gcc
+        #
+        # !!! Also, does not honor GCC's static linking flag for libc.
         #
         - os: osx
           osx_image: xcode8.2
           language: c
-          env: OS_ID=0.2.40 CC=gcc
+          env: OS_ID=0.2.40 DEBUG=yes STANDARD=c RIGOROUS=yes STATIC=no
 
         # OSX x64, debug, g++
+        #
+        # !!! Can't do all warnings as errors, because the switch for
+        # files that end in .c as c++ ("-x c++") is deprecated for some overly
+        # prescriptive and annoying reason.
         #
         - os: osx
           osx_image: xcode8.2
           language: cpp
-          env: OS_ID=0.2.40 CC=g++
+          env: OS_ID=0.2.40 DEBUG=yes STANDARD=c++14 RIGOROUS=no STATIC=no
 
         # OSX x64, release, gcc
         #
+        # !!! Again, does not honor static linking switch.
+        #
         - os: osx
           language: c
-          env: OS_ID=0.2.40 REL=1 CC=gcc
+          env: OS_ID=0.2.40 DEBUG=no STANDARD=c RIGOROUS=yes STATIC=no
 
 env:
     global:
@@ -140,6 +153,9 @@ install:
     - chmod +x make/r3-make
 
 script:
+    # Nice to know what version of gcc this is
+    - gcc --version
+
     - cd make/
 
     # Grab the abbreviated and full git commit ID into environment variables.
@@ -153,62 +169,39 @@ script:
     - GIT_COMMIT_SHORT="$(git show --format="%h" --no-patch)" 
     - echo ${GIT_COMMIT_SHORT}
 
-    # Keep track of whether the incoming compilation tool was C++ or not,
-    # before changing the definition of CC to suit the makefile
-    #
-    - |
-      if [[ "${CC}" = "g++" ]]; then
-          CPLUSPLUS=1;
-          LIBC_FLAG="-static-libgcc -static-libstdc++ --std=c++11"
-      else
-          unset CPLUSPLUS;
-          LIBC_FLAG=""
-      fi
-
-    # If REL is defined and not empty, we do a release build by compiling with
-    # NDEBUG defined. (`${parameter+alt_value}` is a Bash-ism documented as:
-    # "if parameter set, use alt_value, else use null string.")
-    #
-    # We also raise the level to where all warnings are errors.  Since a
-    # particular compiler can add warnings at any time, this is probably not
-    # the best option for a general distribution...but on Travis where builds
-    # are constantly being checked and the code fixed, it's worth doing.
-    #
-    - export CC="${TOOLS}${CC}${REL+ -DNDEBUG} -Werror ${LIBC_FLAG}"
-
     # We have to set REBOL_TOOL explicitly to circumvent the automatic r3-make
     # filename inference, as we always use Linux "r3-make" (not "r3-make.exe")
     # even when doing windows builds, since this is a cross-compilation.
     #
     # As an extra step to test bootstrap ability, we make the 64-bit debug
     # build go even further by doing another full build, but using the 
-    # just built r3 as its own r3-make.  For good measure, delete the old
-    # r3-make and give it a unique name, just to be sure there isn't some
-    # part accidentally using r3-make if you want to override it.
+    # just built r3 as its own r3-make.
     #
     - |
-      if [[ ("${OS_ID}" = "0.4.40" || "${OS_ID}" = "0.2.40") && -z "${REL}" ]]; then
+      if [[ ("${OS_ID}" = "0.4.40" || "${OS_ID}" = "0.2.40") && "${DEBUG}" = "yes" ]]; then
           #
           # If building twice, don't specify GIT_COMMIT for the first build.
           # This means there's a test of the build process when one is not
           # specified, in case something is broken about that.  (This is how
           # most people will build locally, so good to test it.)
           #
-          make -f makefile.boot REBOL_TOOL=r3-make OS_ID="${OS_ID}" CC="${CC}"
+          # Also request address sanitizer to be used for the first build.  It
+          # is very heavyweight and makes the executable *huge* and slow, so
+          # we do not apply it to any of the binaries which are uploaded to s3
+          # -- not even debug ones.
+          #
+          make -f makefile.boot REBOL_TOOL=r3-make STANDARD="${STANDARD}" OS_ID="${OS_ID}" RIGOROUS="${RIGOROUS}" SANITIZE=no DEBUG=yes STATIC=no
 
-          mv r3 r3-boot;
-          make clean;
           rm r3-make;
-
-          # On the second build, include the GIT_COMMIT
-          #
-          make -f makefile.boot REBOL_TOOL=r3-boot OS_ID="${OS_ID}" GIT_COMMIT="${GIT_COMMIT}" CC="${CC}";
-      else
-          # If just building once, specify the GIT_COMMIT.
-          #
-          make -f makefile.boot REBOL_TOOL=r3-make OS_ID="${OS_ID}" GIT_COMMIT="${GIT_COMMIT}" CC="${CC}"
+          mv r3 r3-make;
+          make clean;
       fi
-      
+
+    # On the second build of building twice, or just building once, include
+    # the GIT_COMMIT
+    #
+    - make -f makefile.boot REBOL_TOOL=r3-make STANDARD="${STANDARD}" OS_ID="${OS_ID}" DEBUG="${DEBUG}" GIT_COMMIT="${GIT_COMMIT}" RIGOROUS="${RIGOROUS}" STATIC="${STATIC}"
+
     # Run once but don't pipe output, in case it prints out useful crash msg
     # that we want to see in the Travis log (especially helpful for failures
     # only happening in the Travis builds that aren't reproducing locally)
@@ -221,7 +214,7 @@ script:
     # a fair amount of code.
     #
     - |
-      if [[ "${OS_ID}" = "0.4.40" || "${OS_ID}" = "0.4.4" || "${OS_ID}" = "0.2.40" ]]; then 
+      if [[ "${OS_ID}" = "0.4.40" || "${OS_ID}" = "0.4.4" || "${OS_ID}" = "0.2.40" ]]; then
           ./r3 --do "print {Testing...} quit/with either find to-string read https://example.com {<h1>Example Domain</h1>} [0] [1]";
           R3_EXIT_STATUS=$?;
       else
@@ -244,8 +237,11 @@ script:
     # Note: -z tests if a variable is undefined
     #
     - NEW_NAME=${OS_ID}/r3-${GIT_COMMIT_SHORT}
-    - if [[ -z "${REL}" ]]; then NEW_NAME+="-debug"; fi 
-    - if [[ ! -z "${CPLUSPLUS}" ]]; then NEW_NAME+="-cpp"; fi
+    - if [[ "${DEBUG}" = "yes" ]]; then NEW_NAME+="-debug"; fi 
+    - |
+      if [[ "${STANDARD}" = "c++" || "${STANDARD}" = "c++0x" || "${STANDARD}" = "c++11" || "${STANDARD}" = "c++14" || "${STANDARD}" = "c++17" ]]; then
+          NEW_NAME+="-cpp";
+      fi
     - echo ${NEW_NAME}
 
     # Move the executable into a directory based on its OS_ID platform.
@@ -281,4 +277,3 @@ deploy:
     bucket: $AWS_S3_BUCKET_NAME
     skip_cleanup: true
     upload-dir: travis-builds
-

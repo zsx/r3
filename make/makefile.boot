@@ -28,7 +28,7 @@
 # wrong.)  In which case you should check the %src/tools/systems.r file, and
 # provide an OS_ID from the table.  For example, Linux with clib 2.5:
 #
-#    make -f makefile.boot make OS_ID=0.4.3
+#    make -f makefile.boot OS_ID=0.4.3
 #
 # (Note: These numbers are what appear at the tail of a full Rebol version
 # number.  So you might find the ones above in a tuple like `2.101.0.4.3`,
@@ -61,8 +61,19 @@
 #	http://rebolsource.net/go/chat-faq
 #
 
+# PARAMETERS %MAKE-MAKE.R WILL ACCEPT
+#
+# Note: variables assigned with ?= will only take the value if the variable
+# is not already defined (e.g. not passed as a parameter to `make`)
+#
 OS_ID?= detect
+DEBUG?= yes
 GIT_COMMIT?= unknown
+SANITIZE?= no
+STANDARD?= c # LANGUAGE is some kind of reserved variable in make
+RIGOROUS?= no
+WITH_FFI?= no
+STATIC?= yes
 
 # UP - some systems do not use ../
 UP= ..
@@ -94,7 +105,10 @@ top: makefile
 .FORCE:
 
 makefile: $(REBOL_TOOL) .FORCE
-	$(REBOL) $T/make-make.r OS_ID=$(OS_ID) GIT_COMMIT=$(GIT_COMMIT)
+	$(REBOL) $T/make-make.r OS_ID="$(OS_ID)" DEBUG="$(DEBUG)" \
+		GIT_COMMIT="$(GIT_COMMIT)" SANITIZE="$(SANITIZE)" \
+		STANDARD="$(STANDARD)" RIGOROUS="$(RIGOROUS)" WITH_FFI="$(WITH_FFI)" \
+		STATIC="$(STATIC)"
 
 # Synonym for `make -f makefile.boot makefile` which can also be used in the
 # generated makefile (without causing repeated regenerations)

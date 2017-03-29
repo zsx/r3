@@ -25,7 +25,9 @@ REBOL [
 buf-emit: make string! 100000
 
 
-emit: proc [data] [adjoin buf-emit data]
+emit: proc [data] [
+    adjoin buf-emit data
+]
 
 
 unemit: proc [
@@ -112,10 +114,21 @@ emit-end: proc [] [
 ]
 
 
-write-emitted: proc [file] [
+write-emitted: proc [
+    file
+    /tabbed
+][
     if newline != last buf-emit [
         probe skip (tail buf-emit) -100
         fail "WRITE-EMITTED must have a NEWLINE as last character in buffer"
+    ]
+
+    if find buf-emit tab-char [
+        fail "tab character passed to emit"
+    ]
+
+    if tabbed [
+        replace/all buf-emit spaced-tab tab-char
     ]
 
     ; Would be nice to write something here, but preferable if the begin
