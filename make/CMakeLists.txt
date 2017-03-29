@@ -421,7 +421,6 @@ set (CORE_HEADER
     ${TOP_SRC_DIR}/include/sys-deci.h
     ${TOP_SRC_DIR}/include/sys-dec-to-char.h
     ${TOP_SRC_DIR}/include/sys-do.h
-    ${TOP_SRC_DIR}/include/sys-error.h
     ${TOP_SRC_DIR}/include/sys-ext.h
     ${TOP_SRC_DIR}/include/sys-frame.h
     ${TOP_SRC_DIR}/include/sys-function.h
