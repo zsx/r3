@@ -295,7 +295,8 @@ void Set_Vector_Value(REBVAL *var, REBSER *series, REBCNT index)
 
     if (bits >= VTSF08) {
         VAL_RESET_HEADER(var, REB_DECIMAL);
-        Init_Decimal_Bits(var, cast(REBYTE*, get_vect(bits, data, index)));
+        REBU64 u =  get_vect(bits, data, index);
+        Init_Decimal_Bits(var, cast(REBYTE*, &u));
     }
     else {
         VAL_RESET_HEADER(var, REB_INTEGER);
