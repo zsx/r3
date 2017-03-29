@@ -662,10 +662,18 @@ typedef u16 REBUNI;
 #ifdef NDEBUG
     #define TRASH_POINTER_IF_DEBUG(p) \
         NOOP
+
+    #define TRASH_CFUNC_IF_DEBUG(p) \
+        NOOP
 #else
     #if defined(__cplusplus)
         template<class T>
         inline static void TRASH_POINTER_IF_DEBUG(T* &p) {
+            p = reinterpret_cast<T*>(static_cast<REBUPT>(0xDECAFBAD));
+        }
+
+        template<class T>
+        inline static void TRASH_CFUNC_IF_DEBUG(T* &p) {
             p = reinterpret_cast<T*>(static_cast<REBUPT>(0xDECAFBAD));
         }
 
@@ -675,12 +683,25 @@ typedef u16 REBUNI;
                 p == reinterpret_cast<T*>(static_cast<REBUPT>(0xDECAFBAD))
             );
         }
+
+        template<class T>
+        inline static REBOOL IS_CFUNC_TRASH_DEBUG(T* p) {
+            return LOGICAL(
+                p == reinterpret_cast<T*>(static_cast<REBUPT>(0xDECAFBAD))
+            );
+        }
     #else
         #define TRASH_POINTER_IF_DEBUG(p) \
             ((p) = cast(void*, cast(REBUPT, 0xDECAFBAD)))
 
+        #define TRASH_CFUNC_IF_DEBUG(p) \
+            ((p) = cast(CFUNC*, cast(REBUPT, 0xDECAFBAD)))
+            
         #define IS_POINTER_TRASH_DEBUG(p) \
             LOGICAL((p) == cast(void*, cast(REBUPT, 0xDECAFBAD)))
+
+        #define IS_CFUNC_TRASH_DEBUG(p) \
+            LOGICAL((p) == cast(CFUNC*, cast(REBUPT, 0xDECAFBAD)))
     #endif
 #endif
 

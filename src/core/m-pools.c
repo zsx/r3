@@ -161,6 +161,7 @@ void Free_Mem(void *mem, size_t size)
 #ifdef NDEBUG
     free(mem);
 #else
+    assert(mem != NULL);
     char *ptr = cast(char *, mem) - sizeof(REBI64);
     if (*cast(REBI64 *, ptr) == cast(REBI64, -1020))
         panic ("** FREE() used on OS_Alloc_Mem() memory instead of FREE()");

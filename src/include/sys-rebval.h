@@ -516,18 +516,21 @@ struct Reb_Pickup {
 };
 
 
+// Handles hold a pointer and a size...which allows them to stand-in for
+// a binary REBSER.
+//
+// Since a function pointer and a data pointer aren't necessarily the same
+// size, the data has to be a union.
+//
 // Note that the ->extra field of the REBVAL may contain a singular REBARR
 // that is leveraged for its GC-awareness.
 //
-// Since a function pointer and a data pointer aren't necessarily the same
-// size, the initial two elements of the payload were a code pointer and
-// a data pointer, so that handles could hold both independently.  However,
-// it's more generically useful for handles to hold a pointer and a size...
-// as well as letting handles serve as a stand-in for a binary REBSER.  So
-// function pointers need to be cast to void*.
-//
 struct Reb_Handle {
-    void *pointer;
+    union {
+        void *pointer;
+        CFUNC *cfunc;
+    } data;
+
     REBUPT length;
 };
 

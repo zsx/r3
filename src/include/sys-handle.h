@@ -45,11 +45,22 @@
 // handle however is such that each REBVAL copied instance is independent,
 // and changing one won't change the others.
 //
+
+#ifdef NDEBUG
+    #define HANDLE_FLAG(n) \
+        FLAGIT_LEFT(TYPE_SPECIFIC_BIT + (n))
+#else
+    #define HANDLE_FLAG(n) \
+        (FLAGIT_LEFT(TYPE_SPECIFIC_BIT + (n)) | HEADERIZE_KIND(REB_HANDLE))
+#endif
+
 // Note: In the C language, sizeof(void*) may not be the same size as a
 // function pointer; hence they can't necessarily be cast between each other.
 // In practice, a void* is generally big enough to hold a CFUNC*, and many
 // APIs do assume this.
 //
+#define HANDLE_FLAG_CFUNC HANDLE_FLAG(0)
+
 
 inline static REBUPT VAL_HANDLE_LEN(const RELVAL *v) {
     assert(IS_HANDLE(v));
@@ -61,10 +72,20 @@ inline static REBUPT VAL_HANDLE_LEN(const RELVAL *v) {
 
 inline static void *VAL_HANDLE_POINTER(const RELVAL *v) {
     assert(IS_HANDLE(v));
+    assert(NOT_VAL_FLAG(v, HANDLE_FLAG_CFUNC));
     if (v->extra.singular)
-        return ARR_HEAD(v->extra.singular)->payload.handle.pointer;
+        return ARR_HEAD(v->extra.singular)->payload.handle.data.pointer;
     else
-        return v->payload.handle.pointer;
+        return v->payload.handle.data.pointer;
+}
+
+inline static CFUNC *VAL_HANDLE_CFUNC(const RELVAL *v) {
+    assert(IS_HANDLE(v));
+    assert(GET_VAL_FLAG(v, HANDLE_FLAG_CFUNC));
+    if (v->extra.singular)
+        return ARR_HEAD(v->extra.singular)->payload.handle.data.cfunc;
+    else
+        return v->payload.handle.data.cfunc;
 }
 
 inline static CLEANUP_FUNC VAL_HANDLE_CLEANER(const RELVAL *v) {
@@ -83,10 +104,20 @@ inline static void SET_HANDLE_LEN(RELVAL *v, REBUPT length) {
 
 inline static void SET_HANDLE_POINTER(RELVAL *v, void *pointer) {
     assert(IS_HANDLE(v));
+    assert(NOT_VAL_FLAG(v, HANDLE_FLAG_CFUNC));
     if (v->extra.singular)
-        ARR_HEAD(v->extra.singular)->payload.handle.pointer = pointer;
+        ARR_HEAD(v->extra.singular)->payload.handle.data.pointer = pointer;
     else
-        v->payload.handle.pointer = pointer;
+        v->payload.handle.data.pointer = pointer;
+}
+
+inline static void SET_HANDLE_CFUNC(RELVAL *v, CFUNC *cfunc) {
+    assert(IS_HANDLE(v));
+    assert(GET_VAL_FLAG(v, HANDLE_FLAG_CFUNC));
+    if (v->extra.singular)
+        ARR_HEAD(v->extra.singular)->payload.handle.data.cfunc = cfunc;
+    else
+        v->payload.handle.data.cfunc = cfunc;
 }
 
 inline static void Init_Handle_Simple(
@@ -96,13 +127,23 @@ inline static void Init_Handle_Simple(
 ){
     VAL_RESET_HEADER(out, REB_HANDLE);
     out->extra.singular = NULL;
-    out->payload.handle.pointer = pointer;
+    out->payload.handle.data.pointer = pointer;
     out->payload.handle.length = length;
 }
 
-inline static void Init_Handle_Managed(
+inline static void Init_Handle_Cfunc(
     RELVAL *out,
-    void *pointer,
+    CFUNC *cfunc,
+    REBUPT length
+){
+    VAL_RESET_HEADER_EXTRA(out, REB_HANDLE, HANDLE_FLAG_CFUNC);
+    out->extra.singular = NULL;
+    out->payload.handle.data.cfunc = cfunc;
+    out->payload.handle.length = length;
+}
+
+inline static void Init_Handle_Managed_Common(
+    RELVAL *out,
     REBUPT length,
     CLEANUP_FUNC cleaner
 ){
@@ -110,10 +151,15 @@ inline static void Init_Handle_Managed(
     AS_SERIES(singular)->misc.cleaner = cleaner;
 
     RELVAL *v = ARR_HEAD(singular);
-    VAL_RESET_HEADER(v, REB_HANDLE);
-    v->extra.singular = singular;
-    v->payload.handle.pointer = pointer;
+    v->extra.singular = singular; 
     v->payload.handle.length = length;
+
+    // Caller will fill in whichever field is needed.  Note these are both
+    // the same union member, so trashing them both is semi-superfluous, but
+    // serves a commentary purpose here.
+    //
+    TRASH_POINTER_IF_DEBUG(v->payload.handle.data.pointer);
+    TRASH_CFUNC_IF_DEBUG(v->payload.handle.data.cfunc);
 
     MANAGE_ARRAY(singular);
 
@@ -125,5 +171,41 @@ inline static void Init_Handle_Managed(
     SET_TRASH_IF_DEBUG(out);
     VAL_RESET_HEADER(out, REB_HANDLE);
     out->extra.singular = singular;
-    TRASH_POINTER_IF_DEBUG(out->payload.handle.pointer);
+    TRASH_POINTER_IF_DEBUG(out->payload.handle.data.pointer);
+}
+
+inline static void Init_Handle_Managed(
+    RELVAL *out,
+    void *pointer,
+    REBUPT length,
+    CLEANUP_FUNC cleaner
+){
+    Init_Handle_Managed_Common(out, length, cleaner);
+
+    // Leave the non-singular cfunc as trash; clients should not be using
+    //
+    VAL_RESET_HEADER(out, REB_HANDLE);
+
+    VAL_RESET_HEADER(ARR_HEAD(out->extra.singular), REB_HANDLE);
+    ARR_HEAD(out->extra.singular)->payload.handle.data.pointer = pointer;
+}
+
+inline static void Init_Handle_Managed_Cfunc(
+    RELVAL *out,
+    CFUNC *cfunc,
+    REBUPT length,
+    CLEANUP_FUNC cleaner
+){
+    Init_Handle_Managed_Common(out, length, cleaner);
+
+    // Leave the non-singular cfunc as trash; clients should not be using
+    //
+    VAL_RESET_HEADER_EXTRA(out, REB_HANDLE, HANDLE_FLAG_CFUNC);
+    
+    VAL_RESET_HEADER_EXTRA(
+        ARR_HEAD(out->extra.singular),
+        REB_HANDLE,
+        HANDLE_FLAG_CFUNC
+    );
+    ARR_HEAD(out->extra.singular)->payload.handle.data.cfunc = cfunc;
 }

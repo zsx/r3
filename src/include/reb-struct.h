@@ -548,7 +548,7 @@ enum {
 #define RIN_AT(a, n) SER_AT(REBVAL, AS_SERIES(a), (n)) // locate index access
 
 inline static CFUNC *RIN_CFUNC(REBRIN *r)
-    { return cast(CFUNC*, VAL_HANDLE_POINTER(RIN_AT(r, IDX_ROUTINE_CFUNC))); }
+    { return VAL_HANDLE_CFUNC(RIN_AT(r, IDX_ROUTINE_CFUNC)); }
 
 inline static ffi_abi RIN_ABI(REBRIN *r)
     { return cast(ffi_abi, VAL_INT32(RIN_AT(r, IDX_ROUTINE_ABI))); }

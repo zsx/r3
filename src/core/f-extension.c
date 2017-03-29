@@ -152,7 +152,7 @@ REBNATIVE(load_extension_helper)
         Move_Value(CTX_VAR(context, STD_EXTENSION_LIB_FILE), path);
 
         CFUNC *RX_Init = OS_FIND_FUNCTION(VAL_LIBRARY_FD(lib), "RX_Init");
-        if (!RX_Init) {
+        if (RX_Init == NULL) {
             OS_CLOSE_LIBRARY(VAL_LIBRARY_FD(lib));
             fail(Error_Bad_Extension_Raw(path));
         }
@@ -167,13 +167,17 @@ REBNATIVE(load_extension_helper)
     else {
         assert(IS_HANDLE(ARG(path_or_handle)));
         REBVAL *handle = ARG(path_or_handle);
-        if (VAL_HANDLE_CLEANER(handle) != cleanup_extension_init_handler) {
+        if (VAL_HANDLE_CLEANER(handle) != cleanup_extension_init_handler)
             fail(Error_Bad_Extension_Raw(handle));
-        }
-        INIT_FUNC RX_Init = cast(INIT_FUNC, VAL_HANDLE_POINTER(handle));
+
+        INIT_FUNC RX_Init = cast(INIT_FUNC, VAL_HANDLE_CFUNC(handle));
         context = Copy_Context_Shallow(std_ext_ctx);
-        if (RX_Init(CTX_VAR(context, STD_EXTENSION_SCRIPT),
-            CTX_VAR(context, STD_EXTENSION_MODULES)) < 0) {
+        if (
+            RX_Init(
+                CTX_VAR(context, STD_EXTENSION_SCRIPT),
+                CTX_VAR(context, STD_EXTENSION_MODULES)
+            ) < 0
+        ){
             fail(Error_Extension_Init_Raw(handle));
         }
     }
@@ -237,7 +241,7 @@ REBNATIVE(unload_extension_helper)
         if (VAL_HANDLE_CLEANER(ARG(cleaner)) != cleanup_extension_quit_handler)
             fail (Error_Invalid_Arg(ARG(cleaner)));
 
-        QUIT_FUNC quitter = cast(QUIT_FUNC, VAL_HANDLE_POINTER(ARG(cleaner)));
+        QUIT_FUNC quitter = cast(QUIT_FUNC, VAL_HANDLE_CFUNC(ARG(cleaner)));
         assert(quitter != NULL);
 
         ret = quitter();
@@ -267,20 +271,30 @@ static void cleanup_module_handler(const REBVAL *val)
 // Make an extension module array for being loaded later
 //
 REBARR *Make_Extension_Module_Array(
-    const REBYTE spec[], REBCNT len,
-    REBNAT impl[], REBCNT n,
-    REBCNT error_base)
-{
+    const REBYTE spec[],
+    REBCNT len,
+    REBNAT impl[],
+    REBCNT n,
+    REBCNT error_base
+) {
     // the array will be like [spec C_func error_base/none]
     REBARR *arr = Make_Array(3);
-    TERM_ARRAY_LEN(arr, 3);
+  
     Init_Binary(ARR_AT(arr, 0), Copy_Bytes(spec, len));
-    Init_Handle_Managed(ARR_AT(arr,1), cast(void *, impl), n, &cleanup_module_handler);
-    if (error_base == 0) {
+
+    Init_Handle_Managed_Cfunc(
+        ARR_AT(arr,1),
+        cast(CFUNC*, impl),
+        n,
+        &cleanup_module_handler
+    );
+
+    if (error_base == 0)
         SET_BLANK(ARR_AT(arr, 2));
-    } else {
+    else
         SET_INTEGER(ARR_AT(arr, 2), error_base);
-    }
+
+    TERM_ARRAY_LEN(arr, 3);
     return arr;
 }
 
@@ -295,12 +309,19 @@ void Prepare_Boot_Extensions(REBVAL *exts, CFUNC **funcs, REBCNT n)
     REBARR *arr = Make_Array(n);
     REBCNT i;
     for (i = 0; i < n; i += 2) {
-        RELVAL *val = Alloc_Tail_Array(arr);
-        Init_Handle_Managed(val, cast(void *, funcs[i]),
-            0, &cleanup_extension_init_handler);
-        val = Alloc_Tail_Array(arr);
-        Init_Handle_Managed(val, cast(void *, funcs[i + 1]),
-            0, &cleanup_extension_quit_handler);
+        Init_Handle_Managed_Cfunc(
+            Alloc_Tail_Array(arr),
+            funcs[i],
+            0, // length, currently unused
+            &cleanup_extension_init_handler
+        );
+
+        Init_Handle_Managed_Cfunc(
+            Alloc_Tail_Array(arr),
+            funcs[i + 1],
+            0, // length, currently unused
+            &cleanup_extension_quit_handler
+        );
     }
     Init_Block(exts, arr);
 }
@@ -357,7 +378,7 @@ REBNATIVE(load_native)
 
     REBFUN *fun = Make_Function(
         Make_Paramlist_Managed_May_Fail(ARG(spec), MKF_KEYWORDS | MKF_FAKE_RETURN),
-        cast(REBNAT*, VAL_HANDLE_POINTER(ARG(impl)))[VAL_INT64(ARG(index))], // unique
+        cast(REBNAT*, VAL_HANDLE_CFUNC(ARG(impl)))[VAL_INT64(ARG(index))], // unique
         NULL, // no underlying function, this is fundamental
         NULL // not providing a specialization
     );

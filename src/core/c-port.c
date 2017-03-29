@@ -483,7 +483,7 @@ REB_R Do_Port_Action(REBFRM *frame_, REBCTX *port, REBSYM action)
     // it's some other kind of handle value this could crash.
     //
     if (Is_Native_Port_Actor(actor)) {
-        r = cast(REBPAF, VAL_HANDLE_POINTER(actor))(frame_, port, action);
+        r = cast(REBPAF, VAL_HANDLE_CFUNC(actor))(frame_, port, action);
         goto post_process_output;
     }
 
@@ -605,6 +605,5 @@ void Secure_Port(REBSYM sym_kind, REBREQ *req, REBVAL *name, REBSER *path)
 //
 void Make_Port_Actor_Handle(REBVAL *out, REBPAF paf)
 {
-    static_assert_c(sizeof(REBPAF) == sizeof(void*)); // may not be true!
-    Init_Handle_Simple(out, cast(void*, paf), 0);
+    Init_Handle_Cfunc(out, cast(CFUNC*, paf), 0);
 }

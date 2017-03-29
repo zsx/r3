@@ -99,10 +99,9 @@ void Shutdown_Crypto(void)
 // has "managed handles" which will clean themselves up when they are no
 // longer referenced.
 //
-static void cleanup_rc4_ctx(const REBVAL *val)
+static void cleanup_rc4_ctx(const REBVAL *v)
 {
-    assert(IS_HANDLE(val));
-    RC4_CTX *rc4_ctx = cast(RC4_CTX*, val->payload.handle.pointer);
+    RC4_CTX *rc4_ctx = cast(RC4_CTX*, VAL_HANDLE_POINTER(v));
     FREE(RC4_CTX, rc4_ctx);
 }
 
@@ -495,12 +494,11 @@ static REBNATIVE(dh_compute_key)
 // has "managed handles" which will clean themselves up when they are no
 // longer referenced.
 //
-static void cleanup_aes_ctx(const REBVAL *val)
+static void cleanup_aes_ctx(const REBVAL *v)
 {
-    assert(IS_HANDLE(val));
-    assert(val->payload.handle.pointer != NULL);
+    assert(VAL_HANDLE_POINTER(v) != NULL);
 
-    AES_CTX *aes_ctx = cast(AES_CTX*, val->payload.handle.pointer);
+    AES_CTX *aes_ctx = cast(AES_CTX*, VAL_HANDLE_POINTER(v));
     FREE(AES_CTX, aes_ctx);
 }
 

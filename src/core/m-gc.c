@@ -423,7 +423,14 @@ static void Queue_Mark_Opt_Value_Deep(const RELVAL *v)
                 // references at once), the data pointers in all but the
                 // shared singular value are NULL.
                 //
-                assert(IS_POINTER_TRASH_DEBUG(v->payload.handle.pointer));
+                if (GET_VAL_FLAG(v, HANDLE_FLAG_CFUNC))
+                    assert(
+                        IS_CFUNC_TRASH_DEBUG(v->payload.handle.data.cfunc)
+                    );
+                else
+                    assert(
+                        IS_POINTER_TRASH_DEBUG(v->payload.handle.data.pointer)
+                    );
             }
         #endif
         }

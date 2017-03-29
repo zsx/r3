@@ -990,21 +990,18 @@ REB_R Routine_Dispatcher(REBFRM *f)
 // how the GC gets hooked in Ren-C)
 //
 static void cleanup_ffi_closure(const REBVAL *v) {
-    assert(IS_HANDLE(v));
-    ffi_closure_free(cast(ffi_closure*, v->payload.handle.pointer));
+    ffi_closure_free(cast(ffi_closure*, VAL_HANDLE_POINTER(v)));
 }
 
 static void cleanup_cif(const REBVAL *v) {
-    assert(IS_HANDLE(v));
-    FREE(ffi_cif, cast(ffi_cif*, v->payload.handle.pointer));
+    FREE(ffi_cif, cast(ffi_cif*, VAL_HANDLE_POINTER(v)));
 }
 
 static void cleanup_args_fftypes(const REBVAL *v) {
-    assert(IS_HANDLE(v));
     FREE_N(
         ffi_type*,
-        v->payload.handle.length,
-        cast(ffi_type**, v->payload.handle.pointer)
+        VAL_HANDLE_LEN(v),
+        cast(ffi_type**, VAL_HANDLE_POINTER(v))
     );
 }
 
@@ -1387,7 +1384,7 @@ REBNATIVE(make_routine)
     REBFUN *fun = Alloc_Ffi_Function_For_Spec(ARG(ffi_spec), abi);
     REBRIN *r = FUNC_ROUTINE(fun);
 
-    Init_Handle_Simple(RIN_AT(r, IDX_ROUTINE_CFUNC), cast(void*, cfunc), 0);
+    Init_Handle_Cfunc(RIN_AT(r, IDX_ROUTINE_CFUNC), cfunc, 0);
     Move_Value(RIN_AT(r, IDX_ROUTINE_ORIGIN), ARG(lib));
 
     Move_Value(D_OUT, FUNC_VALUE(fun));
@@ -1435,7 +1432,7 @@ REBNATIVE(make_routine_raw)
     REBFUN *fun = Alloc_Ffi_Function_For_Spec(ARG(ffi_spec), abi);
     REBRIN *r = FUNC_ROUTINE(fun);
 
-    Init_Handle_Simple(RIN_AT(r, IDX_ROUTINE_CFUNC), cast(void*, cfunc), 0);
+    Init_Handle_Cfunc(RIN_AT(r, IDX_ROUTINE_CFUNC), cfunc, 0);
     SET_BLANK(RIN_AT(r, IDX_ROUTINE_ORIGIN)); // no LIBRARY! in this case.
 
     Move_Value(D_OUT, FUNC_VALUE(fun));
@@ -1491,7 +1488,17 @@ REBNATIVE(make_callback)
     if (status != FFI_OK)
         fail (Error_Misc_Raw()); // couldn't prep closure
 
-    Init_Handle_Simple(RIN_AT(r, IDX_ROUTINE_CFUNC), thunk, 0);
+    // This may not be true, but blame the FFI for using voids to pass CFUNC
+    // Use a memcpy in order to get around strict checks that absolutely
+    // refuse to let you do a cast.
+    //
+    if (sizeof(void*) != sizeof(CFUNC*))
+        fail (Error(RE_MISC));
+
+    CFUNC *cfunc_thunk;
+    memcpy(&cfunc_thunk, &thunk, sizeof(cfunc_thunk));
+
+    Init_Handle_Cfunc(RIN_AT(r, IDX_ROUTINE_CFUNC), cfunc_thunk, 0);
     Init_Handle_Managed(
         RIN_AT(r, IDX_ROUTINE_CLOSURE),
         closure,

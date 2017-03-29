@@ -37,8 +37,7 @@
 // register this cleanup hook.
 //
 static void cleanup_ffi_type(const REBVAL *v) {
-    assert(IS_HANDLE(v));
-    ffi_type *fftype = cast(ffi_type*, v->payload.handle.pointer);
+    ffi_type *fftype = cast(ffi_type*, VAL_HANDLE_POINTER(v));
     if (fftype->type == FFI_TYPE_STRUCT)
         OS_FREE(fftype->elements);
     OS_FREE(fftype);
