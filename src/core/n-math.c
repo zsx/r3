@@ -697,8 +697,14 @@ REBNATIVE(same_q)
         // The tolerance on strict-equal? for decimals is apparently not
         // a requirement of exactly the same bits.
         //
-        if (VAL_DECIMAL_BITS(value1) == VAL_DECIMAL_BITS(value2))
+        if (
+            memcmp(
+                &VAL_DECIMAL(value1), &VAL_DECIMAL(value2), sizeof(REBDEC)
+            ) == 0
+        ){
             return R_TRUE;
+        }
+
         return R_FALSE;
     }
 

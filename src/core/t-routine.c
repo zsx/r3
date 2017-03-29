@@ -514,14 +514,16 @@ static REBUPT arg_to_ffi(
 
     case SYM_UINT64:
     case SYM_INT64:{
+        REBI64 i;
         if (!dest)
-            dest = Expand_And_Align(&offset, store, sizeof(REBI64));
+            dest = Expand_And_Align(&offset, store, sizeof(i));
         if (!arg) break;
 
         if (!IS_INTEGER(arg))
             fail (Error_Arg_Type(D_LABEL_SYM, param, VAL_TYPE(arg)));
 
-        memcpy(dest, &VAL_INT64(arg), sizeof(REBI64));
+        i = VAL_INT64(arg);
+        memcpy(dest, &i, sizeof(REBI64));
         break;}
 
     case SYM_POINTER:{
@@ -591,14 +593,16 @@ static REBUPT arg_to_ffi(
         break;}
 
     case SYM_DOUBLE:{
+        double d;
         if (!dest)
-            dest = Expand_And_Align(&offset, store, sizeof(double));
+            dest = Expand_And_Align(&offset, store, sizeof(d));
         if (!arg) break;
 
         if (!IS_DECIMAL(arg))
             fail (Error_Arg_Type(D_LABEL_SYM, param, VAL_TYPE(arg)));
 
-        memcpy(dest, &VAL_DECIMAL(arg), sizeof(double));
+        d = VAL_DECIMAL(arg);
+        memcpy(dest, &d, sizeof(double));
         break;}
 
     case SYM_STRUCT_X:

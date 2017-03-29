@@ -779,17 +779,20 @@ inline static void SET_CHAR(RELVAL *v, REBUNI uni) {
 // for these cases.
 //
 
-#ifdef NDEBUG
+#if defined(NDEBUG) || !defined(__cplusplus) 
     #define VAL_INT64(v) \
         ((v)->payload.integer)
 #else
-    inline static REBI64 *VAL_INT64_Ptr_Debug(const RELVAL *value) {
-        assert(IS_INTEGER(value));
-        return &m_cast(REBVAL*, const_KNOWN(value))->payload.integer;
+    // allows an assert, but also lvalue: `VAL_INT64(v) = xxx`
+    //
+    inline static REBI64 & VAL_INT64(RELVAL *v) { // C++ reference type
+        assert(IS_INTEGER(v));
+        return v->payload.integer;
     }
-
-    #define VAL_INT64(v) \
-        (*VAL_INT64_Ptr_Debug(v)) // allows lvalue: `VAL_INT64(x) = xxx`
+    inline static REBI64 VAL_INT64(const RELVAL *v) {
+        assert(IS_INTEGER(v));
+        return v->payload.integer;
+    }
 #endif
 
 inline static void SET_INTEGER(RELVAL *v, REBI64 i64) {
@@ -821,16 +824,20 @@ inline static void SET_INTEGER(RELVAL *v, REBI64 i64) {
 // FLOAT! which may be a good idea.
 //
 
-#ifdef NDEBUG
+#if defined(NDEBUG) || !defined(__cplusplus)
     #define VAL_DECIMAL(v) \
         ((v)->payload.decimal)
 #else
-    inline static REBDEC *VAL_DECIMAL_Ptr_Debug(const RELVAL *value) {
-        assert(IS_DECIMAL(value) || IS_PERCENT(value));
-        return &m_cast(REBVAL*, const_KNOWN(value))->payload.decimal;
+    // allows an assert, but also lvalue: `VAL_DECIMAL(v) = xxx`
+    //
+    inline static REBDEC & VAL_DECIMAL(RELVAL *v) { // C++ reference type
+        assert(IS_DECIMAL(v) || IS_PERCENT(v));
+        return v->payload.decimal;
     }
-    #define VAL_DECIMAL(v) \
-        (*VAL_DECIMAL_Ptr_Debug(v)) // allows lvalue: `VAL_DECIMAL(v) = xxx`
+    inline static REBDEC VAL_DECIMAL(const RELVAL *v) {
+        assert(IS_DECIMAL(v) || IS_PERCENT(v));
+        return v->payload.decimal;
+    }
 #endif
 
 inline static void SET_DECIMAL(RELVAL *v, REBDEC d) {
@@ -841,33 +848,6 @@ inline static void SET_DECIMAL(RELVAL *v, REBDEC d) {
 inline static void SET_PERCENT(RELVAL *v, REBDEC d) {
     VAL_RESET_HEADER(v, REB_PERCENT);
     v->payload.decimal = d;
-}
-
-#if defined(__cplusplus) && __cplusplus >= 201103L
-    //
-    // There is a difference between SET_DECIMAL_BITS and SET_DECIMAL when
-    // interpreting a 64-bit integer.  These overloads with no bodies make it
-    // so that the C++ build will catch attempts to pass integers to the
-    // decimal initialization, which could be confused with bit initialization
-    //
-    inline static void SET_DECIMAL(RELVAL *v, REBI64 bits) = delete;
-    inline static void SET_PERCENT(RELVAL *v, REBI64 bits) = delete;
-#endif
-
-// !!! Several parts of the code wanted to access the decimal as "bits" through
-// reinterpreting the bits as a 64-bit integer.  In the general case this is
-// undefined behavior, and should be changed!  (It's better than it was,
-// because it used to use the disengaged integer state of the payload union...
-// calling VAL_INT64() on a MONEY! or a DECIMAL!  At least this documents it.
-
-inline static REBI64 VAL_DECIMAL_BITS(const RELVAL *v) {
-    assert(IS_DECIMAL(v) || IS_PERCENT(v));
-    return *cast(const REBI64*, &v->payload.decimal);
-}
-
-inline static void INIT_DECIMAL_BITS(REBVAL *v, REBI64 bits) {
-    assert(IS_DECIMAL(v) || IS_PERCENT(v));
-    *cast(REBI64*, &v->payload.decimal) = bits;
 }
 
 

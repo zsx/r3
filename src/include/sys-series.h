@@ -613,8 +613,21 @@ inline static void INIT_VAL_SERIES(RELVAL *v, REBSER *s) {
     v->payload.any_series.series = s;
 }
 
-#define VAL_INDEX(v) \
-    ((v)->payload.any_series.index)
+#if defined(NDEBUG) || !defined(__cplusplus)
+    #define VAL_INDEX(v) \
+        ((v)->payload.any_series.index)
+#else
+    // allows an assert, but also lvalue: `VAL_INDEX(v) = xxx`
+    //
+    inline static REBCNT & VAL_INDEX(RELVAL *v) { // C++ reference type
+        assert(ANY_SERIES(v));
+        return v->payload.any_series.index;
+    }
+    inline static REBCNT VAL_INDEX(const RELVAL *v) {
+        assert(ANY_SERIES(v));
+        return v->payload.any_series.index;
+    }
+#endif
 
 #define VAL_LEN_HEAD(v) \
     SER_LEN(VAL_SERIES(v))

@@ -295,7 +295,7 @@ void Set_Vector_Value(REBVAL *var, REBSER *series, REBCNT index)
 
     if (bits >= VTSF08) {
         VAL_RESET_HEADER(var, REB_DECIMAL);
-        INIT_DECIMAL_BITS(var, get_vect(bits, data, index));
+        Init_Decimal_Bits(var, cast(REBYTE*, get_vect(bits, data, index)));
     }
     else {
         VAL_RESET_HEADER(var, REB_INTEGER);
@@ -521,7 +521,8 @@ void Pick_Vector(REBVAL *out, const REBVAL *value, const REBVAL *picker) {
         SET_INTEGER(out, get_vect(bits, vp, n - 1)); // 64-bit
     else {
         VAL_RESET_HEADER(out, REB_DECIMAL);
-        INIT_DECIMAL_BITS(out, get_vect(bits, vp, n - 1)); // 64-bit
+        REBI64 i = get_vect(bits, vp, n - 1);
+        Init_Decimal_Bits(out, cast(REBYTE*, &i));
     }
 }
 

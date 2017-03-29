@@ -113,21 +113,23 @@ REBOOL almost_equal(REBDEC a, REBDEC b, REBCNT max_diff) {
 
 
 //
-//  Binary_To_Decimal: C
+//  Init_Decimal_Bits: C
 //
-static void Binary_To_Decimal(const REBVAL *bin, REBVAL *out)
+void Init_Decimal_Bits(REBVAL *out, const REBYTE *bp)
 {
-    REBI64 n = 0;
-    REBSER *ser = VAL_SERIES(bin);
-    REBCNT idx = VAL_INDEX(bin);
-    REBCNT len = VAL_LEN_AT(bin);
-
-    if (len > 8) len = 8;
-
-    for (; len; len--, idx++) n = (n << 8) | (REBI64)(GET_ANY_CHAR(ser, idx));
-
     VAL_RESET_HEADER(out, REB_DECIMAL);
-    INIT_DECIMAL_BITS(out, n);
+
+    REBYTE *dp = cast(REBYTE*, &VAL_DECIMAL(out));
+
+#ifdef BIG_ENDIAN
+    REBCNT n;
+    for (n = 0; n < 8; ++n)
+        dp[n] = bp[7 - n];
+#else
+    REBCNT n;
+    for (n = 0; n < 8; ++n)
+        dp[n] = bp[n];
+#endif
 }
 
 
@@ -181,7 +183,10 @@ void MAKE_Decimal(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
         }
 
     case REB_BINARY:
-        Binary_To_Decimal(arg, out);
+        if (VAL_LEN_AT(arg) < 8)
+            fail (Error(RE_MISC));
+
+        Init_Decimal_Bits(out, VAL_BIN_AT(arg));
         VAL_RESET_HEADER(out, kind);
         d = VAL_DECIMAL(out);
         break;

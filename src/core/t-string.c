@@ -252,26 +252,35 @@ static REBSER *MAKE_TO_String_Common(const REBVAL *arg)
 
 static REBSER *Make_Binary_BE64(const REBVAL *arg)
 {
-    REBSER *ser = Make_Binary(9);
-    REBI64 n;
-    REBINT count;
+    REBSER *ser = Make_Binary(8);
+
     REBYTE *bp = BIN_HEAD(ser);
 
+    REBI64 i;
+    REBDEC d;
+    const REBYTE *cp;
     if (IS_INTEGER(arg)) {
-        n = VAL_INT64(arg);
+        assert(sizeof(REBI64) == 8);
+        i = VAL_INT64(arg);
+        cp = cast(const REBYTE*, &i);
     }
     else {
-        assert(IS_DECIMAL(arg));
-        n = VAL_DECIMAL_BITS(arg);
+        assert(sizeof(REBDEC) == 8);
+        d = VAL_DECIMAL(arg);
+        cp = cast(const REBYTE*, &d);
     }
 
-    for (count = 7; count >= 0; count--) {
-        bp[count] = (REBYTE)(n & 0xff);
-        n >>= 8;
-    }
-    bp[8] = 0;
-    SET_SERIES_LEN(ser, 8);
+#ifdef BIG_ENDIAN
+    REBCNT n;
+    for (n = 0; n < 8; ++n)
+        bp[n] = cp[7 - n];
+#else
+    REBCNT n;
+    for (n = 0; n < 8; ++n)
+        bp[n] = cp[n];
+#endif
 
+    TERM_BIN_LEN(ser, 8);
     return ser;
 }
 
