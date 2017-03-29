@@ -796,6 +796,7 @@ static void Init_Root_Context(void)
     //
     Init_Endlike_Header(&PG_End_Node.header, 0); // read-only end
     assert(IS_END(END)); // sanity check that it took
+    assert(VAL_TYPE_RAW(END) == REB_0); // this implicit END marker has this
 
     // The EMPTY_BLOCK provides EMPTY_ARRAY.  It is locked for protection.
     //

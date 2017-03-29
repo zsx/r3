@@ -207,7 +207,8 @@ enum {
 
 enum {
     GETVAR_READ_ONLY = 0,
-    GETVAR_MUTABLE = 1 << 0
+    GETVAR_MUTABLE = 1 << 0,
+    GETVAR_END_IF_UNAVAILABLE = 1 << 1
 };
 
 
@@ -267,6 +268,9 @@ inline static REBVAL *Get_Var_Core(
     else {
         // UNBOUND: No variable location to retrieve.
 
+        if (flags & GETVAR_END_IF_UNAVAILABLE)
+            return m_cast(REBVAL*, END); // only const callers should use
+
         fail (Error_Not_Bound_Raw(any_word));
     }
 
@@ -285,6 +289,9 @@ inline static REBVAL *Get_Var_Core(
         // series.  Hybrid approaches which have "some stack and some
         // durable" will be possible in the future, as a context can
         // mechanically have both stackvars and a dynamic data pointer.
+
+        if (flags & GETVAR_END_IF_UNAVAILABLE)
+            return m_cast(REBVAL*, END); // only const callers should use
 
         DECLARE_LOCAL (unbound);
         Init_Any_Word(
@@ -326,6 +333,15 @@ static inline const REBVAL *Get_Opt_Var_May_Fail(
     REBSPC *specifier
 ) {
     return Get_Var_Core(any_word, specifier, GETVAR_READ_ONLY);
+}
+
+static inline const REBVAL *Get_Opt_Var_Else_End(
+    const RELVAL *any_word,
+    REBSPC *specifier
+) {
+    return Get_Var_Core(
+        any_word, specifier, GETVAR_READ_ONLY | GETVAR_END_IF_UNAVAILABLE
+    );
 }
 
 inline static void Copy_Opt_Var_May_Fail(

@@ -155,7 +155,7 @@ REBIXO Do_Vararg_Op_May_Throw(
         temp_frame.index = VAL_INDEX(shared) + 1;
         temp_frame.out = out;
         temp_frame.pending = NULL;
-        temp_frame.gotten = NULL;
+        temp_frame.gotten = END;
 
         f = &temp_frame;
     }

@@ -193,7 +193,7 @@ inline static void Push_Frame_At(
 
     Init_Endlike_Header(&f->flags, 0);
 
-    f->gotten = NULL; // tells ET_WORD and ET_GET_WORD they must do a get
+    f->gotten = END; // tells ET_WORD and ET_GET_WORD they must do a get
     f->index = index + 1;
     f->specifier = specifier;
     f->pending = NULL;
@@ -249,7 +249,7 @@ inline static void Fetch_Next_In_Frame(REBFRM *f) {
     //
     assert(NOT_END(f->value) || f->value == &f->cell);
 
-    assert(f->gotten == NULL); // we'd be invalidating it!
+    assert(f->gotten == END); // we'd be invalidating it!
 
     if (f->pending == NULL) {
         SET_FRAME_VALUE(f, ARR_AT(f->source.array, f->index));
@@ -421,7 +421,7 @@ inline static REBOOL Do_Next_In_Subframe_Throws(
 inline static void Quote_Next_In_Frame(REBVAL *dest, REBFRM *f) {
     Derelativize(dest, f->value, f->specifier);
     SET_VAL_FLAG(dest, VALUE_FLAG_UNEVALUATED);
-    f->gotten = NULL;
+    f->gotten = END;
     Fetch_Next_In_Frame(f);
 }
 
@@ -477,7 +477,7 @@ inline static REBIXO DO_NEXT_MAY_THROW(
     Init_Endlike_Header(&f->flags, DO_FLAG_NORMAL);
 
     f->pending = NULL;
-    f->gotten = NULL;
+    f->gotten = END;
 
     SET_END(out);
     f->out = out;
@@ -537,7 +537,7 @@ inline static REBIXO Do_Array_At_Core(
 
     Init_Endlike_Header(&f.flags, flags); // see notes on definition
 
-    f.gotten = NULL; // so ET_WORD and ET_GET_WORD do their own Get_Var
+    f.gotten = END; // so ET_WORD and ET_GET_WORD do their own Get_Var
     f.pending = NULL;
 
     Push_Frame_Core(&f);
@@ -735,7 +735,7 @@ inline static REBIXO Do_Va_Core(
     f.index = TRASHED_INDEX;
 #endif
     f.source.vaptr = vaptr;
-    f.gotten = NULL; // so ET_WORD and ET_GET_WORD do their own Get_Var
+    f.gotten = END; // so ET_WORD and ET_GET_WORD do their own Get_Var
     f.specifier = SPECIFIED; // va_list values MUST be full REBVAL* already
     f.pending = VA_LIST_PENDING;
 
@@ -820,7 +820,7 @@ inline static REBOOL Apply_Only_Throws(
         out,
         applicand, // opt_first
         &va,
-        DO_FLAG_NO_ARGS_EVALUATE
+        DO_FLAG_NO_ARGS_EVALUATE | DO_FLAG_NO_LOOKAHEAD
     );
 
     if (fully && indexor == VA_LIST_FLAG) {

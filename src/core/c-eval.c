@@ -366,12 +366,18 @@ reevaluate:;
 
     current = f->value; // <-- DO_COUNT_BREAKPOINT landing spot
     current_gotten = f->gotten;
-    f->gotten = NULL;
+    f->gotten = END;
     Fetch_Next_In_Frame(f);
 
     // VAL_TYPE_RAW is used to avoid a separate check for IS_END().
     //
-    if (VAL_TYPE_RAW(f->value) == REB_WORD && IS_WORD_BOUND(f->value)) {
+    // !!! We never want to do infix processing if the args aren't evaluating
+    // (e.g. arguments in a va_list from a C function calling into Rebol)
+    // But this is distinct from DO_FLAG_NO_LOOKAHEAD (which Apply_Only also
+    // sets), which really controls the after lookahead step.  Consider this
+    // edge case.
+    //
+    if (VAL_TYPE_RAW(f->value) == REB_WORD && args_evaluate) {
         //
         // While the next item may be a WORD! that looks up to an enfixed
         // function, and it may want to quote what's on its left...there
@@ -379,17 +385,17 @@ reevaluate:;
         // a WORD!, but one that looks up to a prefix function that wants
         // to quote what's on its right!
         //
-        if (f->eval_type == REB_WORD && IS_WORD_BOUND(current)) {
-            if (current_gotten == NULL)
-                current_gotten = Get_Opt_Var_May_Fail(current, f->specifier);
+        if (f->eval_type == REB_WORD) {
+            if (current_gotten == END)
+                current_gotten = Get_Opt_Var_Else_End(current, f->specifier);
             else
                 assert(
                     current_gotten
-                    == Get_Opt_Var_May_Fail(current, f->specifier)
+                    == Get_Opt_Var_Else_End(current, f->specifier)
                 );
 
             if (
-                IS_FUNCTION(current_gotten)
+                VAL_TYPE_RAW(current_gotten) == REB_FUNCTION // fast w/out END
                 && NOT_VAL_FLAG(current_gotten, VALUE_FLAG_ENFIXED)
                 && GET_VAL_FLAG(current_gotten, FUNC_FLAG_QUOTES_FIRST_ARG)
             ){
@@ -417,10 +423,10 @@ reevaluate:;
             }
         }
 
-        f->gotten = Get_Opt_Var_May_Fail(f->value, f->specifier);
+        f->gotten = Get_Opt_Var_Else_End(f->value, f->specifier);
 
         if (
-            IS_FUNCTION(f->gotten)
+            VAL_TYPE_RAW(f->gotten) == REB_FUNCTION // faster w/o END check
             && ALL_VAL_FLAGS(
                 f->gotten, VALUE_FLAG_ENFIXED | FUNC_FLAG_QUOTES_FIRST_ARG
             )
@@ -453,7 +459,7 @@ reevaluate:;
             // We don't want the WORD! that invoked the function to act like
             // an argument, so we have to advance the frame once more.
             //
-            f->gotten = NULL;
+            f->gotten = END;
             Fetch_Next_In_Frame(f);
 
             goto do_function_in_current_gotten;
@@ -1236,7 +1242,7 @@ reevaluate:;
         // fetches that were done for lookahead are potentially invalidated
         // by every function call.
         //
-        f->gotten = NULL;
+        f->gotten = END;
 
         // Cases should be in enum order for jump-table optimization
         // (R_FALSE first, R_TRUE second, etc.)
@@ -1517,7 +1523,7 @@ reevaluate:;
 //==//////////////////////////////////////////////////////////////////////==//
 
     case REB_WORD:
-        if (current_gotten == NULL) {
+        if (current_gotten == END) {
             current_gotten = Get_Opt_Var_May_Fail(current, f->specifier);
             goto do_word_in_current_unchecked;
         }
@@ -1863,18 +1869,23 @@ reevaluate:;
         //
         assert(NOT(f->flags.bits & DO_FLAG_TO_END));
     }
-    else if (f->eval_type == REB_WORD && IS_WORD_BOUND(f->value)) {
+    else if (f->eval_type == REB_WORD) {
 
-        if (f->gotten == NULL)
-            f->gotten = Get_Opt_Var_May_Fail(f->value, f->specifier);
+        if (f->gotten == END)
+            f->gotten = Get_Opt_Var_Else_End(f->value, f->specifier);
         else
-            assert(f->gotten == Get_Opt_Var_May_Fail(f->value, f->specifier));
+            assert(
+                f->gotten == Get_Opt_Var_Else_End(f->value, f->specifier)
+            );
 
     //=//// DO/NEXT WON'T RUN MORE CODE UNLESS IT'S AN INFIX FUNCTION /////=//
 
         if (
-            NOT_VAL_FLAG(f->gotten, VALUE_FLAG_ENFIXED)
-            && NOT(f->flags.bits & DO_FLAG_TO_END)
+            NOT(f->flags.bits & DO_FLAG_TO_END)
+            && (
+                f->gotten == END // could fold the END check in with masking
+                || NOT_VAL_FLAG(f->gotten, VALUE_FLAG_ENFIXED)
+            )
         ){
             goto finished;
         }
@@ -1884,10 +1895,10 @@ reevaluate:;
         START_NEW_EXPRESSION_MAY_THROW(f, goto finished);
         // ^-- sets args_evaluate, do_count, Ctrl-C may abort
 
-        if (NOT(IS_FUNCTION(f->gotten))) {
+        if (VAL_TYPE_RAW(f->gotten) != REB_FUNCTION) { // faster w/o END check
             current = f->value;
-            current_gotten = f->gotten;
-            f->gotten = NULL;
+            current_gotten = f->gotten; // if END, the word will error
+            f->gotten = END;
             Fetch_Next_In_Frame(f);
             goto do_word_in_current;
         }
@@ -1931,7 +1942,7 @@ reevaluate:;
                 f->refine = LOOKBACK_ARG;
                 current = f->value;
                 current_gotten = f->gotten;
-                f->gotten = NULL;
+                f->gotten = END;
                 Fetch_Next_In_Frame(f);
                 goto do_function_in_current_gotten;
             }
@@ -1942,7 +1953,7 @@ reevaluate:;
             f->refine = ORDINARY_ARG;
             current = f->value;
             current_gotten = f->gotten;
-            f->gotten = NULL;
+            f->gotten = END;
             Fetch_Next_In_Frame(f);
             goto do_function_in_current_gotten;
         }

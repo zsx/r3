@@ -191,7 +191,7 @@ static REBOOL Subparse_Throws(
     f->index = VAL_INDEX(rules) + 1;
 
     f->pending = NULL;
-    f->gotten = NULL;
+    f->gotten = END;
 
 #if defined(NDEBUG)
     f->args_head = Push_Value_Chunk_Of_Length(2);

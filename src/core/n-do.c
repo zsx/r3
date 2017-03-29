@@ -78,7 +78,7 @@ REBNATIVE(eval)
     // but an eval can do anything...so the f->gotten might wind
     // up being completely different after the eval.  So forget it.
     //
-    f->gotten = NULL;
+    f->gotten = END;
 
     return REF(only) ? R_REEVALUATE_ONLY : R_REEVALUATE;
 }
