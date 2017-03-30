@@ -121,14 +121,16 @@ void Init_Decimal_Bits(REBVAL *out, const REBYTE *bp)
 
     REBYTE *dp = cast(REBYTE*, &VAL_DECIMAL(out));
 
-#ifdef BIG_ENDIAN
+#ifdef ENDIAN_LITTLE
     REBCNT n;
     for (n = 0; n < 8; ++n)
         dp[n] = bp[7 - n];
-#else
+#elif ENDIAN_BIG
     REBCNT n;
     for (n = 0; n < 8; ++n)
         dp[n] = bp[n];
+#else
+    #error "Unsupported CPU endian"
 #endif
 }
 

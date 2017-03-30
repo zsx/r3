@@ -270,14 +270,16 @@ static REBSER *Make_Binary_BE64(const REBVAL *arg)
         cp = cast(const REBYTE*, &d);
     }
 
-#ifdef BIG_ENDIAN
+#ifdef ENDIAN_LITTLE
     REBCNT n;
     for (n = 0; n < 8; ++n)
         bp[n] = cp[7 - n];
-#else
+#elif ENDIAN_BIG
     REBCNT n;
     for (n = 0; n < 8; ++n)
         bp[n] = cp[n];
+#else
+    #error "Unsupported CPU endian"
 #endif
 
     TERM_BIN_LEN(ser, 8);
