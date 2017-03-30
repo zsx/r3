@@ -732,6 +732,8 @@ int main(int argc, char **argv_ansi)
     REBARR *argv = Make_Array(argc);
 
 #ifdef TO_WINDOWS
+    UNUSED(argv_ansi);
+
     //
     // Were we using WinMain we'd be getting our arguments in Unicode, but
     // since we're using an ordinary main() we do not.  However, this call
@@ -832,7 +834,8 @@ int main(int argc, char **argv_ansi)
 // `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
 
     int exit_status;
-    REBOOL finished;
+
+    volatile REBOOL finished; // without volatile, gets "clobbered" warning
 
     Prep_Global_Cell(&HG_Host_Repl);
     SET_BLANK(&HG_Host_Repl);

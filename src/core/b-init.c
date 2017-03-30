@@ -105,10 +105,10 @@ static void Assert_Basics(void)
 
     flags = FLAGIT_LEFT(0) | FLAGIT_LEFT(1) | FLAGBYTE_RIGHT(13);
 
-    REBCNT left = LEFT_N_BITS(flags, 3); // == 6 (binary `110`)
-    REBCNT right = RIGHT_N_BITS(flags, 3); // == 5 (binary `101`)
+    unsigned int left = LEFT_N_BITS(flags, 3); // == 6 (binary `110`)
+    unsigned int right = RIGHT_N_BITS(flags, 3); // == 5 (binary `101`)
     if (left != 6 || right != 5) {
-        printf("Expected 6 and 5, got %d and %d\n", left, right);
+        printf("Expected 6 and 5, got %u and %u\n", left, right);
         panic ("Bad composed integer assignment for byte-ordering macro.");
     }
 #endif
@@ -794,7 +794,10 @@ static void Init_Root_Context(void)
     // this one into a program global.  It is not legal to bit-copy an
     // END (you always use SET_END), so we can make it unwritable.
     //
-    Init_Endlike_Header(&PG_End_Node.header, 0); // read-only end
+    Init_Endlike_Header(&PG_End_Node.header, 0); // mutate to read-only end
+#if !defined(NDEBUG)
+    Set_Track_Payload_Debug(&PG_End_Node, __FILE__, __LINE__);
+#endif
     assert(IS_END(END)); // sanity check that it took
     assert(VAL_TYPE_RAW(END) == REB_0); // this implicit END marker has this
 

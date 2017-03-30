@@ -285,9 +285,9 @@ REBARR *Make_Extension_Module_Array(
 
     Init_Binary(ARR_AT(arr, 0), Copy_Bytes(spec, len));
 
-    Init_Handle_Managed_Cfunc(
-        ARR_AT(arr,1),
-        cast(CFUNC*, impl),
+    Init_Handle_Managed(
+        ARR_AT(arr, 1),
+        impl, // It's a *pointer to function pointer*, not a function pointer
         n,
         &cleanup_module_handler
     );
@@ -381,7 +381,7 @@ REBNATIVE(load_native)
 
     REBFUN *fun = Make_Function(
         Make_Paramlist_Managed_May_Fail(ARG(spec), MKF_KEYWORDS | MKF_FAKE_RETURN),
-        cast(REBNAT*, VAL_HANDLE_CFUNC(ARG(impl)))[VAL_INT64(ARG(index))], // unique
+        cast(REBNAT*, VAL_HANDLE_POINTER(ARG(impl)))[VAL_INT64(ARG(index))], // unique
         NULL, // no underlying function, this is fundamental
         NULL // not providing a specialization
     );
@@ -405,7 +405,8 @@ REBNATIVE(load_native)
 //
 static REB_R Unloaded_Dispatcher(REBFRM *f)
 {
-    assert(f != NULL); // unused argument warning otherwise
+    UNUSED(f);
+
     fail (Error_Native_Unloaded_Raw(FUNC_VALUE(f->func)));
 }
 

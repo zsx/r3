@@ -274,7 +274,7 @@ static REBSER *Make_Binary_BE64(const REBVAL *arg)
     REBCNT n;
     for (n = 0; n < 8; ++n)
         bp[n] = cp[7 - n];
-#elif ENDIAN_BIG
+#elif defined(ENDIAN_BIG)
     REBCNT n;
     for (n = 0; n < 8; ++n)
         bp[n] = cp[n];
@@ -686,12 +686,14 @@ REBSER *File_Or_Url_Path_Dispatch(REBPVS *pvs)
     //     >> (x)/("bar")
     //     == %foo/bar
     //
-    REBUNI ch_last;
     REBCNT len = SER_LEN(ser);
-    if (len > 0)
-        ch_last = GET_ANY_CHAR(ser, len - 1);
-    if (len == 0 || ch_last != '/')
+    if (len == 0)
         Append_Codepoint_Raw(ser, '/');
+    else {
+        REBUNI ch_last = GET_ANY_CHAR(ser, len - 1);
+        if (ch_last != '/')
+            Append_Codepoint_Raw(ser, '/');
+    }
 
     REB_MOLD mo;
     CLEARS(&mo);
