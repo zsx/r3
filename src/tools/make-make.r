@@ -73,6 +73,46 @@ flag?: function [
 
 
 ;
+; DECODE DEBUG OPTION INTO FLAGS
+;
+; DEBUG can be "none", "asserts", "symbols", "sanitize"...each a level of
+; assumed greater debugging.  Adding symbols makes the executable much
+; larger, and Address Sanitization makes the executable much slower.  To
+; try and get casual builders to bear a modest useful burden, the default
+; is set to just including the asserts.
+;
+
+case [
+    args/DEBUG = "none" [
+        asserts: false
+        symbols: false
+        sanitize: false
+    ]
+    any [blank? args/DEBUG | args/DEBUG = "asserts"] [
+        asserts: true
+        symbols: false
+        sanitize: false
+    ]
+    args/DEBUG = "symbols" [
+        asserts: true
+        symbols: true
+        sanitize: false
+    ]
+    args/DEBUG = "sanitize" [
+        asserts: true
+        symbols: true
+        sanitize: true
+    ]
+    true [
+        fail [
+            "DEBUG must be [none | asserts | symbols | sanitize], not"
+            (args/DEBUG)
+        ]
+    ]
+]
+
+
+;
 ; PROCESS LIST OF INPUT C AND HEADER FILES FROM %FILE-BASE.R
 ;
 
@@ -87,11 +127,6 @@ unless os-specific-objs [
         "Nothing was provided for" unspaced ["os-" config/os-base]
     ]
 ]
-
-; The + sign is used to tell the make-header.r script that the file is
-; generated.  We don't care about that here
-;
-remove-each item file-base/core [item = '+]
 
 ; The + sign is used to tell the make-os-ext.r script to scan a host kit file
 ; for headers (the way make-headers.r does).  But we don't care about that
@@ -146,42 +181,33 @@ newline
 newline
 
 {DEBUG_FLAGS?=} space (
-    case [
-        any [blank? args/DEBUG | args/DEBUG = "yes"] [
-            debug: true
+    either asserts [
+        either symbols [
             "-g -O0"
+        ][
+            "-O0"
         ]
-        args/DEBUG = "no" [
-            debug: false
-            ; http://stackoverflow.com/questions/9229978/
-
-            "-DNDEBUG -O2"
-        ]
-        true [
-            fail ["DEBUG must be yes or no, not" (args/DEBUG)]
-        ]
+    ][
+        ; http://stackoverflow.com/questions/9229978/
+        ;
+        print "WTF mate"
+        "-DNDEBUG -O2"
     ]
 ) newline
 
 newline
 
 (
-    case [
-        args/SANITIZE = "yes" [
-            unspaced [
-                {SANITIZE_FLAGS= -fno-omit-frame-pointer -fsanitize=address}
-                    space {-L/usr/local/lib -I/usr/local/include} newline
-                {SANITIZE_LINK_FLAGS= -lasan -fsanitize=address} newline
-            ]
+    either sanitize [
+        unspaced [
+            {SANITIZE_FLAGS= -fno-omit-frame-pointer -fsanitize=address}
+                space {-L/usr/local/lib -I/usr/local/include} newline
+            {SANITIZE_LINK_FLAGS= -lasan -fsanitize=address} newline
         ]
-        any [blank? args/SANITIZE | args/SANITIZE = "no"] [
-            unspaced [
-                {SANITIZE_FLAGS=} newline
-                {SANITIZE_LINK_FLAGS=} newline
-            ]
-        ]
-        true [
-            fail ["SANITIZE must be yes or no, not" (args/SANITIZE)]
+    ][
+        unspaced [
+            {SANITIZE_FLAGS=} newline
+            {SANITIZE_LINK_FLAGS=} newline
         ]
     ]
 ) newline
@@ -233,6 +259,7 @@ newline
 {RIGOROUS_FLAGS?=} space (
     case [
         args/RIGOROUS = "yes" [
+            rigorous: true
             spaced [
                 "-Werror" ;-- convert warnings to errors
 
@@ -248,6 +275,7 @@ newline
 
         ]
         any [blank? args/RIGOROUS | args/RIGOROUS = "no"] [
+            rigorous: false
             {}
         ]
         true [
@@ -279,12 +307,17 @@ CD?=} space (either flag? -SP [""] ["./"]) newline
 
 newline
 
-either debug [
-    ; Need something that can take a filename, directory listing will do
-    {STRIP= $(LS)}
-][
-    {STRIP= $(TOOLS)strip}
-] newline
+{STRIP?=} space (
+    either symbols [
+        ;
+        ; Easier in the rules below to have something that just takes a
+        ; filename than to actually conditionally use the strip commands.
+        ;
+        {STRIP= $(LS)}
+    ][
+        {STRIP= $(TOOLS)strip}
+    ]
+) newline
 
 newline
 
@@ -565,19 +598,21 @@ to-obj: function [
 
 emit-obj-files: procedure [
     "Output a line-wrapped list of object files."
-    files [block!]
+    file-list [block!]
 ][
     num-on-line: 0
     pending: _
-    for-each file files [
+    for-each item file-list [
         if pending [
             emit pending
             pending: _
         ]
 
+        file: either block? item [first item] [item]
+
         emit [%objs/ to-obj file space]
         
-        if (num-on-line == 4) [
+        if num-on-line = 4 [
             pending: unspaced ["\" newline spaced-tab]
             num-on-line: 0
         ]
@@ -587,10 +622,14 @@ emit-obj-files: procedure [
 ]
 
 emit ["OBJS =" space]
-emit-obj-files append copy file-base/core boot-extension-src
+emit-obj-files compose [
+    (file-base/core) (file-base/generated) (boot-extension-src)
+]
 
 emit ["HOST =" space]
-emit-obj-files append copy file-base/os os-specific-objs
+emit-obj-files compose [
+    (file-base/os) (os-specific-objs)
+]
 
 emit {
 # Directly linked r3 executable:
@@ -674,23 +713,43 @@ either config/id/2 = 2 [
 
 emit-file-deps: function [
     "Emit compiler and file dependency lines."
-    files
+    file-list
     /dir path  ; from path
 ][
-    for-each src files [
-        obj: to-obj src
-        src: unspaced pick [["$R/" src]["$S/" path src]] not dir
-        emit [
-            %objs/ obj ":" space src
-            newline spaced-tab
-            "$(CC) "
-            ;flags space
-            pick ["$(RFLAGS)" "$(HFLAGS)"] not dir
-            space src
-            space "-o" space %objs/ obj ; space src
-            newline
-            newline
+    for-each item file-list [
+        unless block? item [item: reduce [item]]
+        file: first item
+
+        obj: unspaced [%objs/ (to-obj file)]
+
+        src: either not dir [
+            unspaced ["$R/" file]
+        ][
+            unspaced ["$S/" path file]
         ]
+
+        emit-line [obj ":" space src]
+
+        file-specific-flags: copy ""
+        case/all [
+            all [rigorous | find item <no-uninitialized>] [
+                if not empty? file-specific-flags [
+                    append file-specific-flags space
+                ]
+                append file-specific-flags "-Wno-uninitialized"
+            ]
+        ]
+
+        emit-line/indent spaced [
+            "$(CC)"
+            pick ["$(RFLAGS)" "$(HFLAGS)"] not dir
+            file-specific-flags
+            src
+            "-o"
+            obj
+        ]
+
+        emit newline
     ]
 ]
 
@@ -702,6 +761,7 @@ tmp-boot-block.c: $(SRC)/boot/tmp-boot-block.r
 emit newline
 
 emit-file-deps file-base/core
+emit-file-deps file-base/generated
 emit-file-deps boot-extension-src
 
 emit-file-deps/dir file-base/os %os/

@@ -35,11 +35,6 @@
 # where the first numbers are referring to the version of the actual Rebol
 # codebase itself.  This tuple can be retrieved as `system/version`.)
 #
-# Once the auto-generated makefile has been produced, it retains the ability
-# to regenerate itself.  So you should be able to invoke `make make` or
-# `make make OS_ID=##.##.##` without needing to use the bootstrap makefile.
-# It also contains additional directions for other options.
-#
 # Rebol's bootstrapping scripts are supposed to be kept stable, even in the
 # presence of language changes.  So you *should* even be able to use an old
 # executable from the pre-open-source Rebol3 downloads on rebol.com:
@@ -66,12 +61,17 @@
 # Note: variables assigned with ?= will only take the value if the variable
 # is not already defined (e.g. not passed as a parameter to `make`)
 #
+# Note: LANGUAGE is some kind of reserved variable in make, so use STANDARD
+#
+# DEBUG can be "none", "asserts", "symbols", "sanitize"...each a level of
+# assumed greater debugging.  Adding symbols makes the executable much
+# larger, and Address Sanitization makes the executable much slower.  To
+# try and get casual builders to bear a modest useful burden, the default
+# is set to just including the asserts.
+#
 OS_ID?= detect
-DEBUG?= yes
+DEBUG?= asserts
 GIT_COMMIT?= unknown
-SANITIZE?= no
-
-# LANGUAGE is some kind of reserved variable in make
 STANDARD?= c
 RIGOROUS?= no
 WITH_FFI?= no
@@ -110,7 +110,7 @@ makefile: $(REBOL_TOOL) .FORCE
 	$(REBOL) $T/make-make.r OS_ID="$(OS_ID)" DEBUG="$(DEBUG)" \
 		GIT_COMMIT="$(GIT_COMMIT)" SANITIZE="$(SANITIZE)" \
 		STANDARD="$(STANDARD)" RIGOROUS="$(RIGOROUS)" WITH_FFI="$(WITH_FFI)" \
-		STATIC="$(STATIC)"
+		STATIC="$(STATIC)" SYMBOLS="$(SYMBOLS)"
 
 # Synonym for `make -f makefile.boot makefile` which can also be used in the
 # generated makefile (without causing repeated regenerations)

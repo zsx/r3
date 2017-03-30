@@ -38,73 +38,73 @@ systems: [
             [BEN LLC HID NPS +SC CMT COP -SP -LM F64]
     ;-------------------------------------------------------------------------
     0.2.04      osx-ppc         osx
-            [BEN LLC +OS NCM -LM NSO F64]
+            [BEN LLC NCM -LM NSO F64]
 
     0.2.05      osx-x86         osx
-            [ARC LEN LLC +O1 NPS PIC NCM HID STX -LM F64]
+            [ARC LEN LLC NPS PIC NCM HID STX -LM F64]
 
     0.2.40      osx-x64         osx
-            [LP64 LEN LLC +O1 NPS PIC NCM HID STX -LM F64]
+            [LP64 LEN LLC NPS PIC NCM HID STX -LM F64]
     ;-------------------------------------------------------------------------
     0.3.01      windows-x86     windows
-            [LEN LL? +O2 UNI W32 CON S4M EXE DIR -LM F64]
+            [LEN LL? UNI W32 CON S4M EXE DIR -LM F64]
 
     0.3.40      windows-x64     windows
-            [LLP64 LEN LL? +O2 UNI W32 CON S4M EXE DIR -LM F64]
+            [LLP64 LEN LL? UNI W32 CON S4M EXE DIR -LM F64]
     ;-------------------------------------------------------------------------
     0.4.02      linux-x86       linux
-            [M32 LEN LLC +O2 LDL ST1 -LM LC23 UFS NSP NSER F64]
+            [M32 LEN LLC LDL ST1 -LM LC23 UFS NSP NSER F64]
 
     0.4.03      linux-x86       linux
-            [M32 LEN LLC +O2 LDL ST1 -LM LC25 UFS HID F64]
+            [M32 LEN LLC LDL ST1 -LM LC25 UFS HID F64]
 
     0.4.04      linux-x86       linux
-            [M32 LEN LLC +O2 LDL ST1 -LM LC211 HID PIP2 F64]
+            [M32 LEN LLC LDL ST1 -LM LC211 HID PIP2 F64]
 
     0.4.10      linux-ppc       linux
-            [BEN LLC +O1 HID LDL ST1 -LM PIP2 F64]
+            [BEN LLC HID LDL ST1 -LM PIP2 F64]
 
     0.4.11      linux-ppc64     linux
-            [LP64 BEN LLC +O1 HID LDL ST1 -LM PIP2 F64]
+            [LP64 BEN LLC HID LDL ST1 -LM PIP2 F64]
 
     0.4.20      linux-arm       linux
-            [LEN LLC +O2 HID LDL ST1 -LM PIP2 F64]
+            [LEN LLC HID LDL ST1 -LM PIP2 F64]
 
     0.4.21      linux-arm       linux
-            [LEN LLC +O2 HID LDL ST1 -LM PIE LCB PIP2 F64]
+            [LEN LLC HID LDL ST1 -LM PIE LCB PIP2 F64]
 
     0.4.22      linux-aarch64       linux
-            [LP64 LEN LLC +O2 HID LDL ST1 -LM PIP2 F64]
+            [LP64 LEN LLC HID LDL ST1 -LM PIP2 F64]
 
     0.4.30      linux-mips      linux
-            [LEN LLC +O2 HID LDL ST1 -LM PIP2 F64]
+            [LEN LLC HID LDL ST1 -LM PIP2 F64]
 
     0.4.31      linux-mips32be  linux
-            [BEN LLC +O2 HID LDL ST1 -LM PIP2 F64]
+            [BEN LLC HID LDL ST1 -LM PIP2 F64]
 
     0.4.40      linux-x64       linux
-            [LP64 LEN LLC +O2 HID LDL ST1 -LM PIP2 F64]
+            [LP64 LEN LLC HID LDL ST1 -LM PIP2 F64]
 
     0.4.60      linux-axp       linux
-            [LP64 LEN LLC +O2 HID LDL ST1 -LM PIP2 F64]
+            [LP64 LEN LLC HID LDL ST1 -LM PIP2 F64]
 
     0.4.61      linux-ia64      linux
-            [LP64 LEN LLC +O2 HID LDL ST1 -LM PIP2 F64]
+            [LP64 LEN LLC HID LDL ST1 -LM PIP2 F64]
     ;-------------------------------------------------------------------------
     0.5.75      haiku           posix
-            [LEN LLC +O2 ST1 NWK F64]
+            [LEN LLC ST1 NWK F64]
     ;-------------------------------------------------------------------------
     0.7.02      freebsd-x86     posix
-            [LEN LLC +O1 ST1 -LM F64]
+            [LEN LLC ST1 -LM F64]
 
     0.7.40      freebsd-x64     posix
-            [LP64 LEN LLC +O1 ST1 -LM F64]
+            [LP64 LEN LLC ST1 -LM F64]
     ;-------------------------------------------------------------------------
     0.9.04      openbsd         posix
-            [LEN LLC +O1 ST1 -LM F64]
+            [LEN LLC ST1 -LM F64]
 
     0.9.40      openbsd         posix
-            [LP64 LEN LLC +O1 ST1 -LM F64]
+            [LP64 LEN LLC ST1 -LM F64]
     ;-------------------------------------------------------------------------
     0.13.01     android-arm     android
             [LEN LLC HID F64 LDL LLOG -LM F64]
@@ -113,10 +113,10 @@ systems: [
             [LEN LLC HID F64 LDL LLOG -LM PIE PIC F64]
     ;-------------------------------------------------------------------------
     0.14.01     syllable-dtp    posix
-            [LEN LLC +O2 HID LDL ST1 -LM LC25 F64]
+            [LEN LLC HID LDL ST1 -LM LC25 F64]
 
     0.14.02     syllable-svr    linux
-            [M32 LEN LLC +O2 HID LDL ST1 -LM LC211 F64]
+            [M32 LEN LLC HID LDL ST1 -LM LC211 F64]
 ]
 
 compiler-flags: context [
@@ -131,10 +131,6 @@ compiler-flags: context [
 
     LLC: "-DHAS_LL_CONSTS"          ; supports e.g. 0xffffffffffffffffLL
     LL?: _                          ; might have LL consts, reb-config.h checks
-
-    +OS: "-Os"                      ; size optimize
-    +O1: "-O1"                      ; optimize for minimal size
-    +O2: "-O2"                      ; optimize for maximum speed
 
     UNI: "-DUNICODE"                ; win32 wants it
     HID: "-fvisibility=hidden"      ; all syms are hidden

@@ -199,37 +199,26 @@ emit newline
 
 file-base: has load %../tools/file-base.r
 
-;prefix the generated file paths with output-dir/core
-parse file-base/core [
-    any [
-        to '+ mark: (
-            poke mark 2 join-of output-dir/core [%/ mark/2]
-            remove mark ;remove '+
-        )
+for-each item file-base/core [
+    ;
+    ; Items can be blocks if there's special flags for the file (none paid
+    ; attention to here)
+    ;
+    file: either block? item [first item] [item]
+
+    ; Prefix the generated file paths with output-dir/core
+    ;
+    file: to file! unspaced [output-dir/core %/ file]
+
+    assert [
+        | %.c = suffix? file
+        | not find/match file "host-"
+        | not find/match file "os-"
     ]
+
+    process file
 ]
 
-files: map-each file file-base/core [
-    if find/match form file {../} [
-        continue ;-- to work in Ren-C and R3-Alpha, no EITHER* or IF/void
-    ]
-    to file! form file
-]
-
-;do
-[
-    remove find files %a-lib2.c
-    print "Non-extended reb-lib version"
-    wait 5
-]
-
-for-each file files [
-    if all [
-        %.c = suffix? file
-        not find/match file "host-"
-        not find/match file "os-"
-    ][process file]
-]
 
 emit newline
 emit-line "#ifdef __cplusplus"

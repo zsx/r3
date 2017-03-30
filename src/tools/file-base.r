@@ -52,7 +52,7 @@ core: [
     ; (F)???
     f-blocks.c
     f-deci.c
-    f-dtoa.c
+    [f-dtoa.c <no-uninitialized>]
     f-enbase.c
     f-extension.c
     f-int.c
@@ -70,13 +70,12 @@ core: [
 
     ; (M)emory
     m-gc.c
-    m-pools.c
+    [m-pools.c <no-uninitialized>]
     m-series.c
     m-stacks.c
 
     ; (N)atives
     n-control.c
-    ;n-crypt.c ;moved to extensions
     n-data.c
     n-do.c
     n-error.c
@@ -126,7 +125,7 @@ core: [
     t-event.c
     t-function.c
     t-gob.c
-    t-image.c
+    [t-image.c <no-uninitialized>]
     t-integer.c
     t-library.c
     t-logic.c
@@ -151,12 +150,15 @@ core: [
     u-parse.c
     u-sha1.c
     u-zlib.c
+]
 
-    ; Generated files, created by the make boot process
-    + tmp-boot-block.c
-    + tmp-evaltypes.c
-    + tmp-maketypes.c
-    + tmp-comptypes.c
+; Files created by the make-boot process
+;
+generated: [
+    tmp-boot-block.c
+    tmp-evaltypes.c
+    tmp-maketypes.c
+    tmp-comptypes.c
 ]
 
 modules: [

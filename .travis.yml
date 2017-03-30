@@ -19,14 +19,14 @@ matrix:
         - os: linux
           sudo: false #Force new container-based infrastructure.
           language: c
-          env: OS_ID=0.4.4 DEBUG=no STANDARD=c RIGOROUS=yes STATIC=yes
+          env: OS_ID=0.4.4 DEBUG=none STANDARD=c RIGOROUS=yes STATIC=yes
 
         # Linux x64, debug, gcc
         #
         - os: linux
           sudo: false #Force new container-based infrastructure.
           language: c
-          env: OS_ID=0.4.40 DEBUG=yes STANDARD=c RIGOROUS=yes STATIC=yes
+          env: OS_ID=0.4.40 DEBUG=asserts STANDARD=c RIGOROUS=yes STATIC=yes
 
         # Linux x64, debug, g++
         #
@@ -36,28 +36,28 @@ matrix:
         - os: linux
           sudo: false #Force new container-based infrastructure.
           language: cpp
-          env: OS_ID=0.4.40 DEBUG=yes STANDARD=c++0x RIGOROUS=yes STATIC=yes
+          env: OS_ID=0.4.40 DEBUG=asserts STANDARD=c++0x RIGOROUS=yes STATIC=yes
 
         # Linux x64, release, gcc
         #
         - os: linux
           sudo: false #Force new container-based infrastructure.
           language: c
-          env: OS_ID=0.4.40 DEBUG=no STANDARD=gnu99 RIGOROUS=yes STATIC=yes
+          env: OS_ID=0.4.40 DEBUG=none STANDARD=gnu99 RIGOROUS=yes STATIC=yes
 
         # Windows x86, release, gcc
         #
         - os: linux
           sudo: false #Force new container-based infrastructure.
           language: c
-          env: OS_ID=0.3.1 DEBUG=no TOOLS=i686-w64-mingw32- STANDARD=c RIGOROUS=yes STATIC=yes
+          env: OS_ID=0.3.1 DEBUG=none TOOLS=i686-w64-mingw32- STANDARD=c RIGOROUS=yes STATIC=yes
         
         # Windows x64, debug, gcc
         #
         - os: linux
           sudo: false #Force new container-based infrastructure.
           language: c
-          env: OS_ID=0.3.40 DEBUG=yes TOOLS=x86_64-w64-mingw32- STANDARD=c RIGOROUS=yes STATIC=yes
+          env: OS_ID=0.3.40 DEBUG=asserts TOOLS=x86_64-w64-mingw32- STANDARD=c RIGOROUS=yes STATIC=yes
 
         # Windows x64, debug, g++
         #
@@ -66,14 +66,14 @@ matrix:
         - os: linux
           sudo: false #Force new container-based infrastructure.
           language: cpp
-          env: OS_ID=0.3.40 DEBUG=yes TOOLS=x86_64-w64-mingw32- STANDARD=c++ RIGOROUS=yes STATIC=yes
+          env: OS_ID=0.3.40 DEBUG=asserts TOOLS=x86_64-w64-mingw32- STANDARD=c++ RIGOROUS=yes STATIC=yes
         
         # Windows x64, release, gcc
         #
         - os: linux
           sudo: false #Force new container-based infrastructure.
           language: cpp
-          env: OS_ID=0.3.40 DEBUG=no TOOLS=x86_64-w64-mingw32- STANDARD=c RIGOROUS=yes STATIC=yes
+          env: OS_ID=0.3.40 DEBUG=none TOOLS=x86_64-w64-mingw32- STANDARD=c RIGOROUS=yes STATIC=yes
 
         # OSX x64, debug, gcc
         #
@@ -82,7 +82,7 @@ matrix:
         - os: osx
           osx_image: xcode8.2
           language: c
-          env: OS_ID=0.2.40 DEBUG=yes STANDARD=c RIGOROUS=yes STATIC=no
+          env: OS_ID=0.2.40 DEBUG=asserts STANDARD=c RIGOROUS=yes STATIC=no
 
         # OSX x64, debug, g++
         #
@@ -93,7 +93,7 @@ matrix:
         - os: osx
           osx_image: xcode8.2
           language: cpp
-          env: OS_ID=0.2.40 DEBUG=yes STANDARD=c++14 RIGOROUS=no STATIC=no
+          env: OS_ID=0.2.40 DEBUG=asserts STANDARD=c++14 RIGOROUS=no STATIC=no
 
         # OSX x64, release, gcc
         #
@@ -101,7 +101,7 @@ matrix:
         #
         - os: osx
           language: c
-          env: OS_ID=0.2.40 DEBUG=no STANDARD=c RIGOROUS=yes STATIC=no
+          env: OS_ID=0.2.40 DEBUG=none STANDARD=c RIGOROUS=yes STATIC=no
 
 env:
     global:
@@ -190,7 +190,7 @@ script:
           # we do not apply it to any of the binaries which are uploaded to s3
           # -- not even debug ones.
           #
-          make -f makefile.boot REBOL_TOOL=r3-make STANDARD="${STANDARD}" OS_ID="${OS_ID}" RIGOROUS="${RIGOROUS}" SANITIZE=no DEBUG=yes STATIC=no
+          make -f makefile.boot REBOL_TOOL=r3-make STANDARD="${STANDARD}" OS_ID="${OS_ID}" RIGOROUS="${RIGOROUS}" DEBUG=sanitize STATIC=no
 
           rm r3-make;
           mv r3 r3-make;
