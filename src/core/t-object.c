@@ -376,8 +376,7 @@ void MAKE_Context(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
     // `make object! 10` - currently not prohibited for any context type
     //
     if (ANY_NUMBER(arg)) {
-        REBINT n = Int32s(arg, 0);
-
+        //
         // !!! Temporary!  Ultimately SELF will be a user protocol.
         // We use Make_Selfish_Context while MAKE is filling in for
         // what will be responsibility of the generators, just to
@@ -393,7 +392,9 @@ void MAKE_Context(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
         // !!! Allocation when SELF is not the responsibility of MAKE
         // will be more basic and look like this.
         //
-        /* context = Alloc_Context(n);
+        /*
+        REBINT n = Int32s(arg, 0); 
+        context = Alloc_Context(n);
         VAL_RESET_HEADER(CTX_VALUE(context), target);
         CTX_SPEC(context) = NULL;
         CTX_BODY(context) = NULL; */

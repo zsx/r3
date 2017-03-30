@@ -343,6 +343,7 @@ REBNATIVE(decode_gif)
 
         if(transparency_index >= 0) {
             REBYTE *p=colormap+3*transparency_index;
+            UNUSED(p);
             ///Chroma_Key_Alpha(Temp_Value, (REBCNT)(p[2]|(p[1]<<8)|(p[0]<<16)), BLIT_MODE_COLOR);
         }
 

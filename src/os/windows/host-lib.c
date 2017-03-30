@@ -1264,6 +1264,7 @@ REBOOL OS_Request_Dir(REBCHR* title, REBCHR** folder, REBCHR* path)
 REBVAL *OS_GOB_To_Image(REBGOB *gob)
 {
 #if (defined REB_CORE)
+    UNUSED(gob);
     return 0;
 #else
     return Gob_To_Image(gob);

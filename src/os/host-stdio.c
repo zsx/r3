@@ -48,55 +48,6 @@ REBREQ Std_IO_Req;
 static REBYTE *inbuf;
 static REBCNT inbuf_len = 32*1024;
 
-static REBYTE *Get_Next_Line()
-{
-    REBYTE *bp;
-    REBYTE *out;
-    REBCNT len;
-
-    // Scan for line terminator or end:
-    for (bp = inbuf; *bp != CR && *bp != LF && *bp != 0; bp++);
-
-    // If found, copy the line and remove it from buffer:
-    if (*bp) {
-        if (*bp == CR && bp[1] == LF) bp++;
-        len = bp - inbuf;
-        out = OS_ALLOC_N(REBYTE, len + 2);
-        COPY_BYTES(out, inbuf, len+1);
-        out[len+1] = 0;
-        memmove(inbuf, bp + 1, 1 + LEN_BYTES(bp + 1));
-        return out;
-    }
-
-    return 0; // more input needed
-}
-
-static REBOOL Fetch_Buf()
-{
-    REBCNT len = LEN_BYTES(inbuf);
-
-    Std_IO_Req.common.data = inbuf + len;
-    Std_IO_Req.length = inbuf_len - len - 1;
-    Std_IO_Req.actual = 0;
-
-    OS_Do_Device(&Std_IO_Req, RDC_READ);
-
-    // If error, don't crash, just ignore it:
-    if (Std_IO_Req.error) return FALSE; //Host_Crash("stdio read");
-
-    // Terminate (LF) last line?
-    if (len > 0 && Std_IO_Req.actual == 0) {
-        inbuf[len++] = LF;
-        inbuf[len] = 0;
-        return TRUE;
-    }
-
-    // Null terminate buffer:
-    len = Std_IO_Req.actual;
-    Std_IO_Req.common.data[len] = 0;
-    return LOGICAL(len > 0);
-}
-
 
 //
 //  Open_StdIO: C

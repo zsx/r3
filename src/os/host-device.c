@@ -462,13 +462,13 @@ int OS_Poll_Devices(void)
 //
 int OS_Quit_Devices(int flags)
 {
-    int d;
-    REBDEV *dev;
+    UNUSED(flags);
 
-    for (d = RDI_MAX-1; d >= 0; d--) {
-        dev = Devices[d];
+    int d;
+    for (d = RDI_MAX - 1; d >= 0; d--) {
+        REBDEV *dev = Devices[d];
         if (dev && GET_FLAG(dev->flags, RDF_INIT) && dev->commands[RDC_QUIT]) {
-            dev->commands[RDC_QUIT]((REBREQ*)dev);
+            dev->commands[RDC_QUIT](cast(REBREQ*, dev));
         }
     }
 

@@ -97,7 +97,6 @@
 #include "tmp-boot-extensions.h"
 
 EXTERN_C void RL_Version(REBYTE vers[]);
-EXTERN_C void RL_Init(void *lib);
 EXTERN_C void RL_Shutdown(REBOOL clean);
 EXTERN_C void RL_Escape();
 
@@ -644,6 +643,7 @@ BOOL WINAPI Handle_Break(DWORD dwCtrlType)
 //
 static void Handle_Signal(int sig)
 {
+    UNUSED(sig);
     RL_Escape();
 }
 

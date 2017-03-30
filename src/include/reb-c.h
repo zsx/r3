@@ -202,23 +202,6 @@
 
 
 //
-// MARK UNUSED VARIABLES
-//
-// Used in coordination with the `-Wunused-variable` setting of the compiler.
-// While a simple cast to void is what people usually use for this purpose,
-// there's some potential for side-effects with volatiles:
-//
-// http://stackoverflow.com/a/4030983/211160
-//
-// The tricks suggested there for avoiding it seem to still trigger warnings
-// as compilers get new ones, so assume that won't be an issue and use the
-// standard fare.
-//
-#define UNUSED(x) \
-    ((void)(x))
-
-
-//
 // NOOP a.k.a. VOID GENERATOR
 //
 // Creating a void value conveniently is useful for a few reasons.  One is
@@ -703,6 +686,110 @@ typedef u16 REBUNI;
         #define IS_CFUNC_TRASH_DEBUG(p) \
             LOGICAL((p) == cast(CFUNC*, cast(REBUPT, 0xDECAFBAD)))
     #endif
+#endif
+
+
+//
+// MARK UNUSED VARIABLES
+//
+// Used in coordination with the `-Wunused-variable` setting of the compiler.
+// While a simple cast to void is what people usually use for this purpose,
+// there's some potential for side-effects with volatiles:
+//
+// http://stackoverflow.com/a/4030983/211160
+//
+// The tricks suggested there for avoiding it seem to still trigger warnings
+// as compilers get new ones, so assume that won't be an issue.
+//
+#if defined(NDEBUG) || !defined(__cplusplus) || __cplusplus < 199711L
+    #define UNUSED(x) \
+        ((void)(x))
+#else
+    // In C++11 or later, we can help give UNUSED() teeth by deliberately
+    // trashing the data, after sensing what kind of data it is.
+    //
+    // Of course that's not possible if it's not an lvalue.  So for the basic
+    // SFINAE overload, just cast void.  Do this also for cases that are
+    // lvalues, but we don't really know how to "trash" them.
+    //
+    template<
+        typename T,
+        typename TRR = typename std::remove_reference<T>::type,
+        typename std::enable_if<
+            !std::is_lvalue_reference<T &&>::value
+            || std::is_const<TRR>::value
+            || (
+                !std::is_pointer<TRR>::value
+                && !std::is_arithmetic<TRR>::value
+                && !std::is_pod<TRR>::value
+            )
+        >::type* = nullptr
+    >
+    void UNUSED(T && v) {
+        ((void)(v));
+    }
+
+    // For example: if you have an lvalue reference to a pointer, you can
+    // set it to DECAFBAD...which will likely be caught if it's a lie and it
+    // is getting used in the debug build.
+    //
+    template<
+        typename T,
+        typename TRR = typename std::remove_reference<T>::type,
+        typename std::enable_if<
+            std::is_lvalue_reference<T &&>::value
+            && !std::is_const<TRR>::value
+            && std::is_pointer<TRR>::value
+        >::type* = nullptr
+    >
+    void UNUSED(T && v) {
+        TRASH_POINTER_IF_DEBUG(v);
+    }
+
+    // Any integral or floating type, set to a spam number.  Use 123 just to
+    // avoid having to write separate handlers for all arithmetic types, as
+    // it fits in a signed char (but not 127), and looks a bit unnatural.
+    //
+    template<
+        typename T,
+        typename TRR = typename std::remove_reference<T>::type,
+        typename std::enable_if<
+            std::is_lvalue_reference<T &&>::value
+            && !std::is_const<TRR>::value
+            && std::is_arithmetic<TRR>::value
+        >::type* = nullptr
+    >
+    void UNUSED(T && v) {
+        v = 123;
+    }
+
+    // It's unsafe to memory fill an arbitrary C++ class by value with
+    // garbage bytes, because of all the "extra" stuff in them.  You can
+    // crash the destructor.  But this is a C codebase which only occasionally
+    // uses C++ features in the C++ build.  Most will be "Plain Old Data",
+    // so fill those with garbage as well.
+    //
+    // (Note: this one methodology could be applied to all pod types,
+    // including arithmetic and pointers, but this shows how to do it
+    // with custom ways and avoids function calls to memset in non-optimized
+    // debug builds for most cases.)
+    //
+    template<
+        typename T,
+        typename TRR = typename std::remove_reference<T>::type,
+        typename std::enable_if<
+            std::is_lvalue_reference<T &&>::value
+            && !std::is_const<TRR>::value
+            && std::is_pod<TRR>::value
+            && (
+                !std::is_pointer<TRR>::value
+                && !std::is_arithmetic<TRR>::value
+            )
+        >::type* = nullptr
+    >
+    void UNUSED(T && v) {
+        memset(&v, 123, sizeof(TRR));
+    }
 #endif
 
 

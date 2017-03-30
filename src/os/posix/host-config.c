@@ -47,6 +47,8 @@ extern char **environ;
 //
 REBINT OS_Config(int id, REBYTE *result)
 {
+    UNUSED(result);
+
 #define OCID_STACK_SIZE 1  // needs to move to .h file
 
     switch (id) {
@@ -67,6 +69,7 @@ REBINT OS_Config(int id, REBYTE *result)
 //
 REBOOL OS_Get_Boot_Path(REBCHR *name)
 {
+    UNUSED(name);
     return FALSE; // not yet used
 }
 

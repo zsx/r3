@@ -66,6 +66,12 @@
         ffi_type *rtype,
         ffi_type **atypes
     ){
+        UNUSED(cif);
+        UNUSED(abi);
+        UNUSED(nargs);
+        UNUSED(rtype);
+        UNUSED(atypes);
+
         fail (Error_Not_Ffi_Build_Raw());
     }
 
@@ -77,6 +83,13 @@
         ffi_type *rtype,
         ffi_type **atypes
     ){
+        UNUSED(cif);
+        UNUSED(abi);
+        UNUSED(nfixedargs);
+        UNUSED(ntotalargs);
+        UNUSED(rtype);
+        UNUSED(atypes);
+
         fail (Error_Not_Ffi_Build_Raw());
     }
 
@@ -86,10 +99,18 @@
         void *rvalue,
         void **avalue
     ){
+        UNUSED(cif);
+        UNUSED(fn);
+        UNUSED(rvalue);
+        UNUSED(avalue);
+
         fail (Error_Not_Ffi_Build_Raw());
     }
 
     void *ffi_closure_alloc(size_t size, void **code) {
+        UNUSED(size);
+        UNUSED(code);
+
         fail (Error_Not_Ffi_Build_Raw());
     }
 
@@ -100,10 +121,18 @@
         void *user_data,
         void *codeloc
     ){
+        UNUSED(closure);
+        UNUSED(cif);
+        UNUSED(fun);
+        UNUSED(user_data);
+        UNUSED(codeloc);
+
         fail (Error_Not_Ffi_Build_Raw());
     }
 
     void ffi_closure_free(void *closure) {
+        UNUSED(closure);
+
         fail (Error_Not_Ffi_Build_Raw());
     }
 #endif

@@ -105,7 +105,6 @@ REBOOL OS_Set_Current_Dir(REBCHR *path)
 //
 REBOOL OS_Request_File(REBRFR *fr)
 {
-    REBOOL ret = FALSE;
 #ifdef USE_GTK_FILECHOOSER
     REBINT error;
     const char * libs [] = {
@@ -131,6 +130,8 @@ REBOOL OS_Request_File(REBRFR *fr)
         OS_Close_Library(libgtk);
         return FALSE;
     }
+
+    REBOOL ret = FALSE;
     if (os_create_file_selection(libgtk,
                                  fr->files,
                                  fr->len,
@@ -144,7 +145,8 @@ REBOOL OS_Request_File(REBRFR *fr)
     OS_Close_Library(libgtk);
     return ret;
 #else
-    return ret;
+    UNUSED(fr);
+    return FALSE;
 #endif
 }
 
@@ -157,6 +159,10 @@ REBOOL OS_Request_File(REBRFR *fr)
 //
 REBOOL OS_Request_Dir(REBCHR* title, REBCHR** folder, REBCHR* path)
 {
+    UNUSED(title);
+    UNUSED(folder);
+    UNUSED(path);
+
     return FALSE;
 }
 
@@ -197,5 +203,7 @@ static int Try_Browser(const char *browser, const REBCHR *url)
 //
 int OS_Browse(const REBCHR *url, int reserved)
 {
+    UNUSED(reserved);
+
     return Try_Browser("xdg-open", url) && Try_Browser("x-www-browser", url);
 }

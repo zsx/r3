@@ -68,6 +68,8 @@
 //
 static int Get_Timezone(struct tm *local_tm)
 {
+    UNUSED(local_tm);
+
 #ifdef HAS_SMART_TIMEZONE
     time_t rightnow;
     time(&rightnow);
@@ -135,14 +137,14 @@ void OS_Get_Time(REBVAL *out)
 //
 i64 OS_Delta_Time(i64 base, int flags)
 {
-    struct timeval tv;
-    i64 time;
+    UNUSED(flags);
 
+    struct timeval tv;
     gettimeofday(&tv,0);
 
-    time = cast(i64, tv.tv_sec * 1000000) + tv.tv_usec;
-
-    if (base == 0) return time;
+    i64 time = cast(i64, tv.tv_sec * 1000000) + tv.tv_usec;
+    if (base == 0)
+        return time;
 
     return time - base;
 }

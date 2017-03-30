@@ -158,6 +158,10 @@ REBSER *Compress(
     strm.zfree = Z_NULL;
     strm.opaque = Z_NULL;
 
+    // Should there be detection?  (This suppresses unused const warning.)
+    //
+    UNUSED(window_bits_detect_zlib_gzip);
+
     ret = deflateInit2(
         &strm,
         Z_DEFAULT_COMPRESSION,

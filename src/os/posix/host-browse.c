@@ -93,6 +93,7 @@ REBOOL OS_Set_Current_Dir(REBCHR *path)
 //
 REBOOL OS_Request_File(REBRFR *fr)
 {
+    UNUSED(fr);
     return FALSE;
 }
 
@@ -105,6 +106,10 @@ REBOOL OS_Request_File(REBRFR *fr)
 //
 REBOOL OS_Request_Dir(REBCHR* title, REBCHR** folder, REBCHR* path)
 {
+    UNUSED(title);
+    UNUSED(folder);
+    UNUSED(path);
+
     return FALSE;
 }
 

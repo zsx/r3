@@ -50,6 +50,10 @@
 //
 void MAKE_Fail(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 {
+    UNUSED(out);
+    UNUSED(kind);
+    UNUSED(arg);
+
     fail (Error_Misc_Raw());
 }
 
@@ -164,6 +168,10 @@ REBNATIVE(make)
 //
 void TO_Fail(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 {
+    UNUSED(out);
+    UNUSED(kind);
+    UNUSED(arg);
+
     fail (Error_Misc_Raw());
 }
 

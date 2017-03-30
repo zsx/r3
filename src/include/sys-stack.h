@@ -429,7 +429,11 @@ inline static void Drop_Chunk_Of_Values(REBVAL *opt_head)
     // when dropping chunks to try and restore the top chunk to a previous
     // state, this information isn't available.)
     //
+#if defined(NDEBUG)
+    UNUSED(opt_head);
+#else
     assert(!opt_head || CHUNK_FROM_VALUES(opt_head) == chunk);
+#endif
 
     // Drop to the prior top chunk
     TG_Top_Chunk = chunk->prev;

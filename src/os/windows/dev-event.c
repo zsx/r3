@@ -122,6 +122,8 @@ DEVICE_CMD Init_Events(REBREQ *dr)
 //
 DEVICE_CMD Poll_Events(REBREQ *req)
 {
+    UNUSED(req);
+
     MSG msg;
     int flag = DR_DONE;
 
@@ -182,6 +184,8 @@ DEVICE_CMD Query_Events(REBREQ *req)
 //
 DEVICE_CMD Connect_Events(REBREQ *req)
 {
+    UNUSED(req);
+
     return DR_PEND; // keep pending
 }
 

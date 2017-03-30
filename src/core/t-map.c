@@ -705,12 +705,23 @@ REBTYPE(Map)
         return R_OUT; }
 
     case SYM_POKE: { // CHECK all pokes!!! to be sure they check args now !!!
+        INCLUDE_PARAMS_OF_POKE;
+
+        UNUSED(ARG(series)); // map
+        UNUSED(ARG(index)); // arg
+
         FAIL_IF_READ_ONLY_ARRAY(MAP_PAIRLIST(map));
 
-        REBINT n = Find_Map_Entry(
-            map, arg, SPECIFIED, D_ARG(3), SPECIFIED, TRUE
+        const REBOOL cased = TRUE;
+        Find_Map_Entry(
+            map,
+            arg, // key
+            SPECIFIED,
+            ARG(value), // value... since non-void, inserted if not there
+            SPECIFIED,
+            cased
         );
-        Move_Value(D_OUT, D_ARG(3));
+        Move_Value(D_OUT, ARG(value));
         return R_OUT; }
 
     case SYM_LENGTH:

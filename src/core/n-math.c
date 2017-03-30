@@ -417,6 +417,10 @@ REBNATIVE(shift)
 //
 REBINT CT_Fail(const RELVAL *a, const RELVAL *b, REBINT mode)
 {
+    UNUSED(a);
+    UNUSED(b);
+    UNUSED(mode);
+
     fail (Error_Misc_Raw());
 }
 

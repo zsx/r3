@@ -1651,6 +1651,9 @@ void Clonify_Function(REBVAL *value)
 //
 REBTYPE(Fail)
 {
+    UNUSED(frame_);
+    UNUSED(action);
+
     fail (Error_Misc_Raw());
 }
 
@@ -1688,7 +1691,7 @@ REB_R Action_Dispatcher(REBFRM *f)
 //
 REB_R Noop_Dispatcher(REBFRM *f)
 {
-    assert(f != NULL); // unused argument warning otherwise
+    UNUSED(f);
     return R_VOID;
 }
 

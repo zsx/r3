@@ -334,6 +334,8 @@ int OS_Create_Process(
     char **err,
     u32 *err_len
 ) {
+    UNUSED(call);
+
     int status = 0;
     int ret = 0;
     char *info = NULL;
@@ -549,7 +551,6 @@ child_error:
         off_t input_size = 0;
         off_t output_size = 0;
         off_t err_size = 0;
-        int exited = 0;
         int valid_nfds;
 
         // initialize outputs
@@ -845,6 +846,8 @@ info_pipe_err:
     if (stderr_pipe[W] > 0) {
         close(stderr_pipe[W]);
     }
+
+    goto stderr_pipe_err; // no jumps here yet, avoid warning
 
 stderr_pipe_err:
     if (stdout_pipe[R] > 0) {

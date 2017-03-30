@@ -1316,7 +1316,7 @@ REBNATIVE(subparse)
     // the value payloads so they can be seen more easily.
     //
     const REBCNT *pos_debug = &P_POS;
-    cast(const void*, pos_debug);
+    (void)pos_debug; // UNUSED() forces corruption in C++11 debug builds
 
     REBUPT do_count = TG_Do_Count; // helpful to cache for visibility also
 #endif

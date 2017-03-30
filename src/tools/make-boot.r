@@ -182,8 +182,6 @@ emit-end
 
 emit {
 
-extern const REBPEF Path_Dispatch[REB_MAX];
-
 /***********************************************************************
 **
 */  const REBPEF Path_Dispatch[REB_MAX] =

@@ -57,6 +57,7 @@
 //
 void OS_Init_Graphics(REBGOB *gob)
 {
+    UNUSED(gob);
 }
 
 
@@ -67,6 +68,7 @@ void OS_Init_Graphics(REBGOB *gob)
 //
 void OS_GUI_Metrics(REBOL_OS_METRICS *met)
 {
+    UNUSED(met);
 }
 
 
@@ -85,6 +87,8 @@ void OS_GUI_Metrics(REBOL_OS_METRICS *met)
 //
 REBINT OS_Show_Gob(REBGOB *gob)
 {
+    UNUSED(gob);
+
     return 0;
 }
 
@@ -96,6 +100,9 @@ REBINT OS_Show_Gob(REBGOB *gob)
 //
 void OS_Map_Gob(REBGOB **gob, REBPAR *xy, REBOOL inner)
 {
+    UNUSED(gob);
+    UNUSED(xy);
+    UNUSED(inner);
 }
 
 
@@ -106,6 +113,9 @@ void OS_Map_Gob(REBGOB **gob, REBPAR *xy, REBOOL inner)
 //
 REBINT OS_Size_Text(REBGOB *gob, REBPAR *size)
 {
+    UNUSED(gob);
+    UNUSED(size);
+
     return 0;
 }
 
@@ -117,6 +127,11 @@ REBINT OS_Size_Text(REBGOB *gob, REBPAR *size)
 //
 REBINT OS_Offset_To_Caret(REBGOB *gob, REBPAR xy, REBINT *element, REBINT *position)
 {
+    UNUSED(gob);
+    UNUSED(xy);
+    UNUSED(element);
+    UNUSED(position);
+
     return 0;
 }
 
@@ -128,6 +143,11 @@ REBINT OS_Offset_To_Caret(REBGOB *gob, REBPAR xy, REBINT *element, REBINT *posit
 //
 REBINT OS_Caret_To_Offset(REBGOB *gob, REBPAR *xy, REBINT element, REBINT position)
 {
+    UNUSED(gob);
+    UNUSED(xy);
+    UNUSED(element);
+    UNUSED(position);
+
     return 0;
 }
 
@@ -140,6 +160,9 @@ REBINT OS_Caret_To_Offset(REBGOB *gob, REBPAR *xy, REBINT element, REBINT positi
 //
 REBINT OS_Gob_To_Image(REBSER *image, REBGOB *gob)
 {
+    UNUSED(image);
+    UNUSED(gob);
+
     return 0;
 }
 
@@ -152,6 +175,9 @@ REBINT OS_Gob_To_Image(REBSER *image, REBGOB *gob)
 //
 REBINT OS_Draw_Image(REBSER *image, REBARR *block)
 {
+    UNUSED(image);
+    UNUSED(block);
+
     return 0;
 }
 
@@ -164,6 +190,9 @@ REBINT OS_Draw_Image(REBSER *image, REBARR *block)
 //
 REBINT OS_Effect_Image(REBSER *image, REBARR *block)
 {
+    UNUSED(image);
+    UNUSED(block);
+
     return 0;
 }
 
@@ -172,4 +201,6 @@ REBINT OS_Effect_Image(REBSER *image, REBARR *block)
 //
 void OS_Cursor_Image(REBINT n, REBSER *image)
 {
+    UNUSED(n);
+    UNUSED(image);
 }

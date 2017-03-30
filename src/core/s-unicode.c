@@ -195,10 +195,6 @@ Boolean isLegalUTF8Sequence(const UTF8 *source, const UTF8 *sourceEnd);
 // #include <stdio.h> // !!! No <stdio.h> in Ren-C release builds
 #endif
 
-static const int halfShift  = 10; /* used for shifting by 10 bits */
-
-static const UTF32 halfBase = 0x0010000UL;
-static const UTF32 halfMask = 0x3FFUL;
 
 #define UNI_SUR_HIGH_START  (UTF32)0xD800
 #define UNI_SUR_HIGH_END    (UTF32)0xDBFF
@@ -247,6 +243,11 @@ static const UTF8 firstByteMark[7] = { 0x00, 0x00, 0xC0, 0xE0, 0xF0, 0xF8, 0xFC 
 /* --------------------------------------------------------------------- */
 
 #ifdef USE_ARCHIVED_UTF8_SOURCE
+
+static const int halfShift  = 10; /* used for shifting by 10 bits */
+
+static const UTF32 halfBase = 0x0010000UL;
+static const UTF32 halfMask = 0x3FFUL;
 
 ConversionResult ConvertUTF32toUTF16 (
     const UTF32** sourceStart, const UTF32* sourceEnd,

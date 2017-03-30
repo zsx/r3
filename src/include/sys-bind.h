@@ -75,7 +75,11 @@ inline static void INIT_BINDER(struct Reb_Binder *binder) {
 
 
 inline static void SHUTDOWN_BINDER(struct Reb_Binder *binder) {
+#ifdef NDEBUG
+    UNUSED(binder);
+#else
     assert(binder->count == 0);
+#endif
 }
 
 
@@ -112,7 +116,12 @@ inline static void Add_Binder_Index(
     REBINT index
 ){
     REBOOL success = Try_Add_Binder_Index(binder, canon, index);
+
+#ifdef NDEBUG
+    UNUSED(success);
+#else
     assert(success);
+#endif
 }
 
 
@@ -161,7 +170,12 @@ inline static void Remove_Binder_Index(
     REBSTR *canon
 ){
     REBINT old_index = Try_Remove_Binder_Index(binder, canon);
+
+#if defined(NDEBUG)
+    UNUSED(old_index);
+#else
     assert(old_index != 0);
+#endif
 }
 
 
@@ -278,7 +292,11 @@ inline static REBVAL *Get_Var_Core(
     assert(index != 0);
 
     REBVAL *key = CTX_KEY(context, index);
+#ifdef NDEBUG
+    UNUSED(key);
+#else
     assert(VAL_WORD_CANON(any_word) == VAL_KEY_CANON(key));
+#endif
 
     if (CTX_VARS_UNAVAILABLE(context)) {
         //

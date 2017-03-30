@@ -233,6 +233,11 @@ REBNATIVE(make_native)
     INCLUDE_PARAMS_OF_MAKE_NATIVE;
 
 #if !defined(WITH_TCC)
+    UNUSED(ARG(spec));
+    UNUSED(ARG(source));
+    UNUSED(REF(linkname));
+    UNUSED(ARG(name));
+
     fail (Error_Not_Tcc_Build_Raw());
 #else
     REBVAL *source = ARG(source);
@@ -350,6 +355,10 @@ REBNATIVE(compile)
     INCLUDE_PARAMS_OF_COMPILE;
 
 #if !defined(WITH_TCC)
+    UNUSED(ARG(natives));
+    UNUSED(REF(options));
+    UNUSED(ARG(flags));
+
     fail (Error_Not_Tcc_Build_Raw());
 #else
     REBVAL *natives = ARG(natives);

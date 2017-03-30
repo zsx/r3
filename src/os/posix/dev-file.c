@@ -218,7 +218,6 @@ static int Get_File_Info(struct devreq_file *file)
 //
 static int Read_Directory(struct devreq_file *dir, struct devreq_file *file)
 {
-    struct stat info;
     struct dirent *d;
     char *cp;
     DIR *h;
@@ -537,6 +536,7 @@ DEVICE_CMD Rename_File(REBREQ *req)
 //
 DEVICE_CMD Poll_File(REBREQ *req)
 {
+    UNUSED(req);
     return DR_DONE;     // files are synchronous (currently)
 }
 

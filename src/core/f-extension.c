@@ -72,10 +72,12 @@ typedef REBYTE *(INFO_FUNC)(REBINT opts, void *lib);
 //
 static void cleanup_extension_init_handler(const REBVAL *val)
 {
+    UNUSED(val);
 }
 
 static void cleanup_extension_quit_handler(const REBVAL *val)
 {
+    UNUSED(val);
 }
 
 //
@@ -262,6 +264,7 @@ REBNATIVE(unload_extension_helper)
 //
 static void cleanup_module_handler(const REBVAL *val)
 {
+    UNUSED(val);
 }
 
 

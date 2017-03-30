@@ -45,15 +45,15 @@ extern void Signal_Device(REBREQ *req, REBINT type);
 //
 DEVICE_CMD Open_Signal(REBREQ *req)
 {
-    sigset_t mask;
-    sigset_t overlap;
-
     struct devreq_posix_signal *signal = DEVREQ_POSIX_SIGNAL(req);
 
 #ifdef CHECK_MASK_OVERLAP //doesn't work yet
+    sigset_t mask;
     if (sigprocmask(SIG_BLOCK, NULL, &mask) < 0) {
         goto error;
     }
+
+    sigset_t overlap;
     if (sigandset(&overlap, &mask, &signal->mask) < 0) {
         goto error;
     }

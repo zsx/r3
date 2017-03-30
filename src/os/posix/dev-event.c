@@ -67,6 +67,8 @@ DEVICE_CMD Init_Events(REBREQ *dr)
 //
 DEVICE_CMD Poll_Events(REBREQ *req)
 {
+    UNUSED(req);
+
     int flag = DR_DONE;
     return flag;    // different meaning compared to most commands
 }
@@ -115,6 +117,7 @@ DEVICE_CMD Query_Events(REBREQ *req)
 //
 DEVICE_CMD Connect_Events(REBREQ *req)
 {
+    UNUSED(req);
     return DR_PEND; // keep pending
 }
 

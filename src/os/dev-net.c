@@ -83,7 +83,6 @@ static void Get_Local_IP(struct devreq_net *sock)
     // This code should be fast and never fail.
     struct sockaddr_in sa;
     socklen_t len = sizeof(sa);
-    REBREQ *req = AS_REBREQ(sock);
 
     getsockname(AS_REBREQ(sock)->requestee.socket, cast(struct sockaddr *, &sa), &len);
     sock->local_ip = sa.sin_addr.s_addr; //htonl(ip); NOTE: REBOL stays in network byte order
@@ -566,6 +565,8 @@ DEVICE_CMD Modify_Socket(REBREQ *sock)
     case 3171: {
         INCLUDE_PARAMS_OF_SET_UDP_MULTICAST;
 
+        UNUSED(ARG(port)); // implicit from sock, which caller extracted
+
         if (!GET_FLAG(sock->modes, RST_UDP)) { // !!! other checks?
             sock->error = -18;
             return DR_ERROR;
@@ -587,6 +588,8 @@ DEVICE_CMD Modify_Socket(REBREQ *sock)
 
     case 2365: {
         INCLUDE_PARAMS_OF_SET_UDP_TTL;
+
+        UNUSED(ARG(port)); // implicit from sock, which caller extracted
 
         if (!GET_FLAG(sock->modes, RST_UDP)) { // !!! other checks?
             sock->error = -18;

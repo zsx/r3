@@ -340,6 +340,8 @@ DEVICE_CMD Query_Serial(REBREQ *req)
         pfd.events = POLLIN;
         n = poll(&pfd, 1, 0);
     }
+#else
+    UNUSED(req);
 #endif
     return DR_DONE;
 }
