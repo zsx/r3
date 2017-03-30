@@ -75,6 +75,6 @@ array: make vector! [integer! 32 5 [10 8 2 9 5]]
 print ["array:" mold array]
 probe (reflect :cb 'addr)
 qsort_r array 5 4 :cb <A Tunneled Tag>
-print ["array:" mold array] ; [2 5 8 9 10]
+assert [array = make vector! [integer! 32 5 [2 5 8 9 10]]]
 
 close libc

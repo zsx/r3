@@ -329,6 +329,7 @@ R= $S/core
 
 INCL ?= .
 I= -I$(INCL) -I$S/include/ -I$S/codecs/
+PKGCONFIG ?= pkg-config
 }
 
 newline
@@ -345,21 +346,20 @@ newline
 case [
     args/WITH_FFI = "static" [
         unspaced [
-            {FFI_FLAGS=`pkg-config --cflags libffi` -DHAVE_LIBFFI_AVAILABLE}
+            {FFI_FLAGS=`${PKGCONFIG} --cflags libffi` -DHAVE_LIBFFI_AVAILABLE}
                 newline
             {#only statically link ffi}
                 newline
-            {FFI_LIBS=-Wl,-Bstatic `pkg-config --libs libffi`}
-                space {-Wl,-Bdynamic -lpthread}
+            {FFI_LIBS=-Wl,-Bstatic `${PKGCONFIG} --libs libffi`}
+                space {-Wl,-Bdynamic}
                 newline
          ]
     ]
     args/WITH_FFI = "dynamic" [
         unspaced [
-            {FFI_FLAGS=`pkg-config --cflags libffi` -DHAVE_LIBFFI_AVAILABLE}
+            {FFI_FLAGS=`${PKGCONFIG} --cflags libffi` -DHAVE_LIBFFI_AVAILABLE}
                 newline
-            {FFI_LIBS=`pkg-config --libs libffi`}
-                space {-lpthread}
+            {FFI_LIBS=`${PKGCONFIG} --libs libffi`}
                 newline
          ]
     ]

@@ -19,7 +19,7 @@ matrix:
         - os: linux
           sudo: false #Force new container-based infrastructure.
           language: c
-          env: OS_ID=0.4.4 DEBUG=none STANDARD=c RIGOROUS=yes STATIC=yes
+          env: OS_ID=0.4.4 DEBUG=none STANDARD=c RIGOROUS=yes STATIC=yes BUILD_FFI_CFLAGS=-m32
 
         # Linux x64, debug, gcc
         #
@@ -50,14 +50,14 @@ matrix:
         - os: linux
           sudo: false #Force new container-based infrastructure.
           language: c
-          env: OS_ID=0.3.1 DEBUG=none TOOLS=i686-w64-mingw32- STANDARD=c RIGOROUS=yes STATIC=yes
+          env: OS_ID=0.3.1 DEBUG=none TOOLS=i686-w64-mingw32- STANDARD=c RIGOROUS=yes STATIC=yes HOST=i686-w64-mingw32 BUILD_FFI_CFLAGS=-m32
         
         # Windows x64, debug, gcc
         #
         - os: linux
           sudo: false #Force new container-based infrastructure.
           language: c
-          env: OS_ID=0.3.40 DEBUG=asserts TOOLS=x86_64-w64-mingw32- STANDARD=c RIGOROUS=yes STATIC=yes
+          env: OS_ID=0.3.40 DEBUG=asserts TOOLS=x86_64-w64-mingw32- STANDARD=c RIGOROUS=yes STATIC=yes HOST=x86_64-w64-mingw32
 
         # Windows x64, debug, g++
         #
@@ -66,7 +66,7 @@ matrix:
         - os: linux
           sudo: false #Force new container-based infrastructure.
           language: cpp
-          env: OS_ID=0.3.40 DEBUG=asserts TOOLS=x86_64-w64-mingw32- STANDARD=c++ RIGOROUS=yes STATIC=yes
+          env: OS_ID=0.3.40 DEBUG=asserts TOOLS=x86_64-w64-mingw32- STANDARD=c++ RIGOROUS=yes STATIC=yes HOST=x86_64-w64-mingw32
         
         # Windows x64, release, gcc
         #
@@ -127,10 +127,6 @@ addons:
             - gcc-multilib
             - g++-multilib
 
-            # For running the 32b bootstrap rebol ("r3-make") on a 64b host:
-            #
-            - libc6:i386
-
             # For cross-compiling to Windows.
             #
             - binutils-mingw-w64-i686
@@ -140,6 +136,9 @@ addons:
             - g++-mingw-w64-i686
             - g++-mingw-w64-x86-64
             - mingw-w64
+
+            # for makeinfo, required to build FFI
+            - texinfo
 
 
 install:
@@ -154,9 +153,49 @@ install:
 
 script:
     # Nice to know what version of gcc this is
-    - gcc --version
+    - ${TOOLS}gcc --version
 
-    - cd make/
+    - TOP_DIR=${PWD}
+    - |
+      if [[ ${OS_ID} = "0.3.40" || ${OS_ID} = "0.3.1" ]]; then
+          # Use prebuilt binaries
+          if [[ ${OS_ID} = "0.3.40" ]]; then
+              export PKG_CONFIG_PATH=${TOP_DIR}/external/ffi-prebuilt/lib64/pkgconfig
+          else
+              export PKG_CONFIG_PATH=${TOP_DIR}/external/ffi-prebuilt/lib32/pkgconfig
+          fi
+          # --define-prefix would be better, but it is not recognized
+          export PKGCONFIG="pkg-config --define-variable=prefix=${TOP_DIR}/external/ffi-prebuilt"
+          # check cflags and libs
+          ${PKGCONFIG} --cflags libffi
+          ${PKGCONFIG} --libs libffi
+      else
+          # Build libffi
+          mkdir build
+          cd external/libffi
+          ./autogen.sh
+          cd ${TOP_DIR}/build
+          if [[ -z ${HOST} ]]; then
+              ${TOP_DIR}/external/libffi/configure --prefix=$PWD/fakeroot CFLAGS=${BUILD_FFI_CFLAGS}
+          else #cross-compiling
+              ${TOP_DIR}/external/libffi/configure --prefix=$PWD/fakeroot --host=${HOST}
+          fi
+          make
+          make install
+          export PKG_CONFIG_PATH=$PWD/fakeroot/lib/pkgconfig
+          # check cflags and libs
+          pkg-config --cflags libffi
+          pkg-config --libs libffi
+
+          ls `pkg-config --variable=toolexeclibdir libffi`
+          #remove dynamic libraries to force it to link with static libraries
+          rm -f `pkg-config --variable=toolexeclibdir libffi`/*.so*
+          rm -f `pkg-config --variable=toolexeclibdir libffi`/*.dylib*
+          rm -f `pkg-config --variable=toolexeclibdir libffi`/*.dll*
+          ls `pkg-config --variable=toolexeclibdir libffi`
+      fi
+
+    - cd ${TOP_DIR}/make/
 
     # Grab the abbreviated and full git commit ID into environment variables.
     # The full commit is passed to make to build into the binary, and the
@@ -200,7 +239,16 @@ script:
     # On the second build of building twice, or just building once, include
     # the GIT_COMMIT
     #
-    - make -f makefile.boot REBOL_TOOL=r3-make STANDARD="${STANDARD}" OS_ID="${OS_ID}" DEBUG="${DEBUG}" GIT_COMMIT="${GIT_COMMIT}" RIGOROUS="${RIGOROUS}" STATIC="${STATIC}"
+    - make -f makefile.boot REBOL_TOOL=r3-make STANDARD="${STANDARD}" OS_ID="${OS_ID}" DEBUG="${DEBUG}" GIT_COMMIT="${GIT_COMMIT}" RIGOROUS="${RIGOROUS}" STATIC="${STATIC}" WITH_FFI="dynamic"
+
+    # output the needed libraries
+    - |
+      if [[ "${OS_ID}" = "0.4.40" || "${OS_ID}" = "0.4.4" ]]; then
+          ldd ./r3
+      elif [[ "${OS_ID}" = "0.2.40" ]]; then
+          otool -L ./r3
+      fi
+
 
     # Run once but don't pipe output, in case it prints out useful crash msg
     # that we want to see in the Travis log (especially helpful for failures
@@ -222,6 +270,16 @@ script:
       fi
     - echo ${R3_EXIT_STATUS}
     
+    # Run basic testing with FFI, this is a linux-only script
+    - |
+      if [[ "${OS_ID}" = "0.4.40" || "${OS_ID}" = "0.4.4" ]]; then
+          ./r3 ../tests/misc/qsort_r.r
+          R3_EXIT_STATUS=$?;
+      else
+          R3_EXIT_STATUS=0;
+      fi
+    - echo ${R3_EXIT_STATUS}
+
     # Delete the obj file directory so we don't upload those to S3
     #
     - rm -rf objs
