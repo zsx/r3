@@ -204,11 +204,7 @@ for-each item file-base/core [
     ; Items can be blocks if there's special flags for the file (none paid
     ; attention to here)
     ;
-    file: either block? item [first item] [item]
-
-    ; Prefix the generated file paths with output-dir/core
-    ;
-    file: to file! unspaced [output-dir/core %/ file]
+    file: to file! either block? item [first item] [item]
 
     assert [
         | %.c = suffix? file
