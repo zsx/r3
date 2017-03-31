@@ -79,9 +79,9 @@
 #define DBG_STR(t,s) //printf("\r\ndbg[%s]: %s\r\n", t, (s));
 
 typedef struct term_data {
-    char *buffer;
-    char *residue;
-    char *out;
+    REBYTE *buffer;
+    REBYTE *residue;
+    REBYTE *out;
     int pos;
     int end;
     int hist;
@@ -89,7 +89,7 @@ typedef struct term_data {
 
 // Globals:
 static REBOOL Term_Initialized = FALSE;     // Terminal init was successful
-static char **Line_History;                 // Prior input lines
+static REBYTE **Line_History;                 // Prior input lines
 static int Line_Count;                      // Number of prior lines
 
 #ifndef NO_TTY_ATTRIBUTES
@@ -107,9 +107,6 @@ extern STD_TERM *Init_Terminal(void);
 //
 STD_TERM *Init_Terminal(void)
 {
-    STD_TERM *term;
-    const char empty_line[] = "";
-
 #ifndef NO_TTY_ATTRIBUTES
     struct termios attrs;
 
@@ -134,15 +131,17 @@ STD_TERM *Init_Terminal(void)
 #endif
 
     // Setup variables:
-    Line_History = OS_ALLOC_N(char*, MAX_HISTORY + 2);
-    Line_History[0] = OS_ALLOC_N(char, strlen(empty_line) + 1);
-    strcpy(Line_History[0], empty_line);
+    Line_History = OS_ALLOC_N(REBYTE*, MAX_HISTORY + 2);
+
+    char empty_line[] = "";
+    Line_History[0] = OS_ALLOC_N(REBYTE, LEN_BYTES(empty_line) + 1);
+    strcpy(s_cast(Line_History[0]), empty_line);
     Line_Count = 1;
 
-    term = OS_ALLOC_ZEROFILL(STD_TERM);
-    term->buffer = OS_ALLOC_N(char, TERM_BUF_LEN);
+    STD_TERM *term = OS_ALLOC_ZEROFILL(STD_TERM);
+    term->buffer = OS_ALLOC_N(REBYTE, TERM_BUF_LEN);
     term->buffer[0] = 0;
-    term->residue = OS_ALLOC_N(char, TERM_BUF_LEN);
+    term->residue = OS_ALLOC_N(REBYTE, TERM_BUF_LEN);
     term->residue[0] = 0;
 
     Term_Initialized = TRUE;
@@ -184,12 +183,13 @@ void Quit_Terminal(STD_TERM *term)
 // Write out repeated number of chars.
 // Unicode: not used
 //
-static void Write_Char(char c, int n)
+static void Write_Char(REBYTE c, int n)
 {
-    char buf[4];
+    REBYTE buf[4];
 
     buf[0] = c;
-    for (; n > 0; n--) WRITE_CHAR(buf);
+    for (; n > 0; n--)
+        WRITE_CHAR(buf);
 }
 
 
@@ -202,17 +202,22 @@ static void Write_Char(char c, int n)
 static void Store_Line(STD_TERM *term)
 {
     term->buffer[term->end] = 0;
-    term->out = OS_ALLOC_N(char, term->end + 1);
-    strcpy(term->out, term->buffer);
+    term->out = OS_ALLOC_N(REBYTE, term->end + 1);
+    strcpy(s_cast(term->out), s_cast(term->buffer));
 
     // If max history, drop older lines (but not [0] empty line):
     if (Line_Count >= MAX_HISTORY) {
         OS_FREE(Line_History[1]);
-        memmove(Line_History+1, Line_History+2, (MAX_HISTORY-2)*sizeof(char*));
-        Line_Count = MAX_HISTORY-1;
+        memmove(
+            Line_History + 1,
+            Line_History + 2,
+            (MAX_HISTORY - 2) * sizeof(REBYTE*)
+        );
+        Line_Count = MAX_HISTORY - 1;
     }
 
-    Line_History[Line_Count++] = term->out;
+    Line_History[Line_Count] = term->out;
+    ++Line_Count;
 }
 
 
@@ -239,8 +244,8 @@ static void Recall_Line(STD_TERM *term)
     }
     else {
         // Fetch prior line:
-        strcpy(term->buffer, Line_History[term->hist]);
-        term->pos = term->end = strlen(term->buffer);
+        strcpy(s_cast(term->buffer), s_cast(Line_History[term->hist]));
+        term->pos = term->end = LEN_BYTES(term->buffer);
     }
 }
 
@@ -330,7 +335,7 @@ static void Show_Line(STD_TERM *term, int blanks)
 // Redisplay the line.
 // Unicode: not yet supported!
 //
-static char *Insert_Char(STD_TERM *term, char *cp)
+static REBYTE *Insert_Char(STD_TERM *term, REBYTE *cp)
 {
     //printf("\r\nins pos: %d end: %d ==", term->pos, term->end);
     if (term->end < TERM_BUF_LEN-1) { // avoid buffer overrun
@@ -545,15 +550,15 @@ static REBYTE *Process_Key(STD_TERM *term, REBYTE *cp)
 //
 // Read the next "chunk" of data into the terminal buffer.
 //
-static int Read_Bytes(STD_TERM *term, char *buf, int len)
+static int Read_Bytes(STD_TERM *term, REBYTE *buf, int len)
 {
     int end;
 
     // If we have leftovers:
     if (term->residue[0]) {
-        end = strlen(term->residue);
+        end = LEN_BYTES(term->residue);
         if (end < len) len = end;
-        strncpy(buf, term->residue, len); // terminated below
+        strncpy(s_cast(buf), s_cast(term->residue), len); // terminated below
         memmove(term->residue, term->residue+len, end-len); // remove
         term->residue[end-len] = 0;
     }
@@ -578,7 +583,7 @@ static int Read_Bytes(STD_TERM *term, char *buf, int len)
 }
 
 
-extern int Read_Line(STD_TERM *term, char *result, int limit);
+extern int Read_Line(STD_TERM *term, REBYTE *result, int limit);
 
 //
 //  Read_Line: C
@@ -587,7 +592,7 @@ extern int Read_Line(STD_TERM *term, char *result, int limit);
 // Handles line editing and line history recall.
 // Returns number of bytes in line.
 //
-int Read_Line(STD_TERM *term, char *result, int limit)
+int Read_Line(STD_TERM *term, REBYTE *result, int limit)
 {
     REBYTE buf[READ_BUF_LEN];
     REBYTE *cp;
@@ -607,18 +612,18 @@ int Read_Line(STD_TERM *term, char *result, int limit)
 
     // Not at end of input? Save any unprocessed chars:
     if (*cp) {
-        if (strlen(term->residue) + strlen(cp) >= TERM_BUF_LEN - 1) {
+        if (LEN_BYTES(term->residue) + LEN_BYTES(cp) >= TERM_BUF_LEN - 1) {
             //
             // avoid overrun
         }
         else
-            strcat(term->residue, cp);
+            strcat(s_cast(term->residue), s_cast(cp));
     }
 
     // Fill the output buffer:
-    len = strlen(term->out);
+    len = LEN_BYTES(term->out);
     if (len >= limit-1) len = limit-2;
-    strncpy(result, term->out, limit);
+    strncpy(s_cast(result), s_cast(term->out), limit);
     result[len++] = LF;
     result[len] = 0;
 

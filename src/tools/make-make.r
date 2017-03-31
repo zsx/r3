@@ -228,7 +228,19 @@ newline
     ]
     find ["c++98" "c++0x" "c++11" "c++14" "c++17"] args/STANDARD [
         cplusplus: true
-        unspaced ["-x c++" space "--std=" args/STANDARD]
+
+        ; Note: The C and C++ standards do not dictate if `char` is signed
+        ; or unsigned.  Lest anyone think all environments have settled on
+        ; them being signed, they're not... Android NDK uses unsigned:
+        ;
+        ; http://stackoverflow.com/questions/7414355/
+        ;
+        ; In order to give the option some exercise, make the C++11 builds
+        ; and above use unsigned chars.
+        ;
+        unspaced [
+            "-x c++" space "--std=" args/STANDARD space "-funsigned-char"
+        ]
     ]
     true [
         fail [

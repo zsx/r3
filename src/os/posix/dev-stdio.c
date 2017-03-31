@@ -60,7 +60,7 @@ typedef struct term_data {
 
 extern STD_TERM *Init_Terminal();
 extern void Quit_Terminal(STD_TERM*);
-extern int Read_Line(STD_TERM*, char*, int);
+extern int Read_Line(STD_TERM*, REBYTE*, int);
 
 STD_TERM *Term_IO;
 #endif
@@ -218,7 +218,7 @@ DEVICE_CMD Read_IO(REBREQ *req)
         // Perform a processed read or a raw read?
 #ifndef HAS_SMART_CONSOLE
         if (Term_IO)
-            total = Read_Line(Term_IO, s_cast(req->common.data), len);
+            total = Read_Line(Term_IO, req->common.data, len);
         else
 #endif
             total = read(Std_Inp, req->common.data, len); /* will be restarted in case of signal */
