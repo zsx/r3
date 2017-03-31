@@ -161,7 +161,7 @@ void Legacy_Convert_Function_Args(REBFRM *f)
 //
 REBCTX *Make_Guarded_Arg123_Error(void)
 {
-    REBCTX *root_error = VAL_CONTEXT(ROOT_ERROBJ);
+    REBCTX *root_error = VAL_CONTEXT(Get_System(SYS_STANDARD, STD_ERROR));
     REBCTX *error = Copy_Context_Shallow_Extra(root_error, 3);
 
     REBCNT root_len = ARR_LEN(CTX_VARLIST(root_error));

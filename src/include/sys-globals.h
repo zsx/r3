@@ -64,8 +64,8 @@ PVAR REBCNT PG_Num_Canon_Slots_In_Use; // Total canon hash slots (+ deleteds)
 #endif
 
 //-- Main contexts:
-PVAR REBCTX *PG_Root_Context; // Frame that holds Root_Vars
-PVAR ROOT_VARS *Root_Vars; // VARLIST of PG_Root_Context as a C structure
+PVAR REBARR *PG_Root_Array; // Frame that holds Root_Vars
+PVAR ROOT_VARS *Root_Vars; // PG_Root_Array's values as a C structure
 
 PVAR REBCTX *Lib_Context;
 PVAR REBCTX *Sys_Context;
@@ -121,8 +121,8 @@ PVAR REBBRK PG_Breakpoint_Quitting_Hook;
 **
 ***********************************************************************/
 
-TVAR REBCTX *TG_Task_Context; // Frame that holds Task_Vars
-TVAR TASK_VARS *Task_Vars; // VARLIST of Task_Vars as a C structure
+TVAR REBARR *TG_Task_Array; // Array that holds Task_Vars
+TVAR TASK_VARS *Task_Vars; // TG_Task_Array's values as a C structure
 
 TVAR REBVAL TG_Thrown_Arg;  // Non-GC protected argument to THROW
 

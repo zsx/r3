@@ -18,8 +18,6 @@ REBOL [
 ]
 
 system          ; system object
-errobj          ; error object template
-strings         ; low-level strings accessed via Boot_Strs[] (GC protection)
 typesets        ; block of TYPESETs used by system; expandable
 empty-block     ; a value that is an empty BLOCK!
 empty-string    ; a value that is an empty STRING!

@@ -857,7 +857,7 @@ REB_R Routine_Dispatcher(REBFRM *f)
         // Shouldn't be used (assigned to NULL later) but avoid maybe
         // uninitialized warning.
         //
-        ret_offset = cast(void*, cast(REBUPT, 0xDECAFBAD)); 
+        ret_offset = cast(void*, cast(REBUPT, 0xDECAFBAD));
     }
 
     REBSER *arg_offsets;

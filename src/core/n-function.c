@@ -185,7 +185,7 @@ REBNATIVE(exit)
 {
     INCLUDE_PARAMS_OF_EXIT;
 
-    UNUSED(REF(with)); // implied by non-void value 
+    UNUSED(REF(with)); // implied by non-void value
 
     if (NOT(REF(from)))
         SET_INTEGER(ARG(level), 1); // default--exit one function stack level

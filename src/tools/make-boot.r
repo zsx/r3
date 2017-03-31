@@ -1067,12 +1067,10 @@ emit "} BOOT_BLK;"
 
 emit [newline newline]
 
-emit-line {//**** ROOT Context (Root Module):}
+emit-line {//**** ROOT Vars (GC protected special values):}
 emit newline
 
 emit-line "typedef struct REBOL_Root_Vars {"
-emit-line/indent "REBVAL rootvar;"
-emit-annotation {[0] reserved for the context itself}
 
 for-each word boot-root [
     emit-line/indent ["REBVAL" space (to-c-name word) ";"]
@@ -1080,7 +1078,7 @@ for-each word boot-root [
 emit-line ["} ROOT_VARS;"]
 emit newline
 
-n: 1
+n: 0
 for-each word boot-root [
     emit-line [
         "#define" space (uppercase to-c-name ["ROOT_" word]) space
@@ -1094,12 +1092,10 @@ emit-line ["#define ROOT_MAX" space n]
 
 emit [newline newline]
 
-emit-line {//**** TASK Context:}
+emit-line {//**** TASK Vars (GC protected special values)}
 emit newline
 
-emit-line "typedef struct REBOL_Task_Context {"
-emit-line/indent "REBVAL rootvar;"
-emit-annotation {[0] reserved for the context itself}
+emit-line "typedef struct REBOL_Task_Vars {"
 
 for-each word boot-task [
     emit-line/indent ["REBVAL" space (to-c-name word) ";"]
@@ -1107,7 +1103,7 @@ for-each word boot-task [
 emit-line ["} TASK_VARS;"]
 emit newline
 
-n: 1
+n: 0
 for-each word boot-task [
     emit-line [
         "#define" space (uppercase to-c-name ["TASK_" word]) space

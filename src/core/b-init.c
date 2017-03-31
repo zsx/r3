@@ -706,48 +706,24 @@ static REBARR *Init_Actions(REBARR *boot_actions)
 
 
 //
-//  Init_Root_Context: C
+//  Init_Root_Vars: C
 //
-// Hand-build the root context where special REBOL values are
-// stored. Called early, so it cannot depend on any other
-// system structures or values.
+// Hand-build the root array where special REBOL values are stored, and can
+// be garbage collected.
 //
-// Note that the Root_Vars's word table is unset!
-// None of its values are exported.
+// This is called early, so it cannot depend on any other system structures
+// or values.
 //
-static void Init_Root_Context(void)
+// !!! Efficiency note: does not need to be a heap allocated array, which
+// causes double dereferencing to access its values.  Could just be global.
+//
+static void Init_Root_Vars(void)
 {
-    REBCTX *root = Alloc_Context(ROOT_MAX - 1);
-    PG_Root_Context = root;
+    REBARR *root = Make_Array(ROOT_MAX);
+    SET_SER_FLAG(root, SERIES_FLAG_FIXED_SIZE);
 
-    SET_SER_FLAG(CTX_VARLIST(root), SERIES_FLAG_FIXED_SIZE);
-    Root_Vars = cast(ROOT_VARS*, ARR_HEAD(CTX_VARLIST(root)));
-
-    // Get rid of the keylist, we will make another one later in the boot.
-    // (You can't ASSERT_CONTEXT(PG_Root_Context) until that happens.)  The
-    // new keylist will be managed so we manage the varlist to match.
-    //
-    // !!! We let it get GC'd, which is a bit wasteful, but the interface
-    // for Alloc_Context() wants to manage the keylist in general.  This
-    // is done for convenience.
-    //
-    /*Free_Array(CTX_KEYLIST(root));*/
-    /*INIT_CTX_KEYLIST_UNIQUE(root, NULL);*/ // can't use with NULL
-    AS_SERIES(CTX_VARLIST(root))->link.keylist = NULL;
-    MANAGE_ARRAY(CTX_VARLIST(root));
-
-    // !!! Also no `stackvars` (or `spec`, not yet implemented); revisit
-    //
-    VAL_RESET_HEADER(CTX_VALUE(root), REB_OBJECT);
-    CTX_VALUE(root)->extra.binding = NULL;
-
-    // Set all other values to blank
-    {
-        REBINT n = 1;
-        REBVAL *var = CTX_VARS_HEAD(root);
-        for (; n < ROOT_MAX; n++, var++) SET_BLANK(var);
-        TERM_ARRAY_LEN(CTX_VARLIST(root), ROOT_MAX);
-    }
+    PG_Root_Array = root;
+    Root_Vars = cast(ROOT_VARS*, ARR_HEAD(root));
 
     // These values are simple isolated VOID, NONE, TRUE, and FALSE values
     // that can be used in lieu of initializing them.  They are initialized
@@ -790,6 +766,8 @@ static void Init_Root_Context(void)
     SET_TRUE(&PG_True_Value[0]);
     SET_TRASH_IF_DEBUG(&PG_True_Value[1]);
 
+    Prep_Global_Cell(&PG_Va_List_Pending);
+
     // We can't actually put an end value in the middle of a block, so we poke
     // this one into a program global.  It is not legal to bit-copy an
     // END (you always use SET_END), so we can make it unwritable.
@@ -814,63 +792,34 @@ static void Init_Root_Context(void)
     SET_CHAR(ROOT_SPACE_CHAR, ' ');
     SET_CHAR(ROOT_NEWLINE_CHAR, '\n');
 
-    // Can't ASSERT_CONTEXT here; no keylist yet...
-}
-
-
-//
-//  Init_Task_Context: C
-//
-// See above notes (same as root context, except for tasks)
-//
-static void Init_Task_Context(void)
-{
-    REBCTX *task = Alloc_Context(TASK_MAX - 1);
-    TG_Task_Context = task;
-
-    SET_SER_FLAG(CTX_VARLIST(task), SERIES_FLAG_FIXED_SIZE);
-    Task_Vars = cast(TASK_VARS*, ARR_HEAD(CTX_VARLIST(task)));
-
-    // Get rid of the keylist, we will make another one later in the boot.
-    // (You can't ASSERT_CONTEXT(TG_Task_Context) until that happens.)  The
-    // new keylist will be managed so we manage the varlist to match.
+    // BUF_UTF8 not initialized, can't init function tags yet
+    //(at least not how Init_Function_Tags() is written)
     //
-    // !!! We let it get GC'd, which is a bit wasteful, but the interface
-    // for Alloc_Context() wants to manage the keylist in general.  This
-    // is done for convenience.
+    SET_UNREADABLE_BLANK(ROOT_WITH_TAG);
+    SET_UNREADABLE_BLANK(ROOT_ELLIPSIS_TAG);
+    SET_UNREADABLE_BLANK(ROOT_OPT_TAG);
+    SET_UNREADABLE_BLANK(ROOT_END_TAG);
+    SET_UNREADABLE_BLANK(ROOT_LOCAL_TAG);
+    SET_UNREADABLE_BLANK(ROOT_DURABLE_TAG);
+
+    // Evaluator not initialized, can't do system construction yet
     //
-    /*Free_Array(CTX_KEYLIST(task));*/
-    /*INIT_CTX_KEYLIST_UNIQUE(task, NULL);*/ // can't use with NULL
-    AS_SERIES(CTX_VARLIST(task))->link.keylist = NULL;
+    SET_UNREADABLE_BLANK(ROOT_SYSTEM);
 
-    MANAGE_ARRAY(CTX_VARLIST(task));
-
-    // !!! Also no `body` (or `spec`, not yet implemented); revisit
+    // Data stack not initialized, can't do typeset construction yet
+    // (at least not how Init_Typesets() is written)
     //
-    VAL_RESET_HEADER(CTX_VALUE(task), REB_OBJECT);
-    CTX_VALUE(task)->extra.binding = NULL;
+    SET_UNREADABLE_BLANK(ROOT_TYPESETS);
 
-    // Set all other values to NONE:
-    {
-        REBINT n = 1;
-        REBVAL *var = CTX_VARS_HEAD(task);
-        for (; n < TASK_MAX; n++, var++) SET_BLANK(var);
-        TERM_ARRAY_LEN(CTX_VARLIST(task), TASK_MAX);
-    }
-
-    // Initialize a few fields:
-    SET_INTEGER(TASK_BALLAST, MEM_BALLAST);
-    SET_INTEGER(TASK_MAX_BALLAST, MEM_BALLAST);
-
-    // The thrown arg is not intended to ever be around long enough to be
-    // seen by the GC.
+    // Symbols system not initialized, can't init the function meta shim yet
     //
-    Prep_Global_Cell(&TG_Thrown_Arg);
-    SET_UNREADABLE_BLANK(&TG_Thrown_Arg);
+    SET_UNREADABLE_BLANK(ROOT_FUNCTION_META);
 
-    Prep_Global_Cell(&PG_Va_List_Pending);
+    TERM_ARRAY_LEN(root, ROOT_MAX);
+    ASSERT_ARRAY(root);
 
-    // Can't ASSERT_CONTEXT here; no keylist yet...
+    SET_SER_FLAG(root, NODE_FLAG_ROOT);
+    MANAGE_ARRAY(root);
 }
 
 
@@ -989,9 +938,26 @@ static void Init_Contexts_Object(void)
 //
 //  Init_Task: C
 //
+// !!! Prior to the release of R3-Alpha, there had apparently been some amount
+// of effort to take single-threaded assumptions and globals, and move to a
+// concept where thread-local storage was used for some previously assumed
+// globals.  This would be a prerequisite for concurrency but not enough: the
+// memory pools would need protection from one thread to share any series with
+// others, due to contention between reading and writing.
+//
+// Ren-C kept the separation, but if threading were to be a priority it would
+// likely be approached a different way.  A nearer short-term feature would be
+// "isolates", where independent interpreters can be loaded in the same
+// process, just not sharing objects with each other.
+//
 void Init_Task(void)
 {
-    // Thread locals:
+    REBARR *task = Make_Array(TASK_MAX);
+    SET_SER_FLAG(task, SERIES_FLAG_FIXED_SIZE);
+
+    TG_Task_Array = task;
+    Task_Vars = cast(TASK_VARS*, ARR_HEAD(task));
+
     Trace_Level = 0;
     Saved_State = 0;
 
@@ -1000,18 +966,35 @@ void Init_Task(void)
     Eval_Count = Eval_Dose;
     Eval_Signals = 0;
     Eval_Sigmask = ALL_BITS;
+    Eval_Limit = 0;
 
-    // errors? problem with PG_Boot_Phase shared?
+    Init_Stacks(STACK_MIN/4);
 
-    Init_Pools(-4);
-    Init_GC();
-    Init_Task_Context();    // Special REBOL values per task
+    // Initialize a few fields:
+    SET_INTEGER(TASK_BALLAST, MEM_BALLAST);
+    SET_INTEGER(TASK_MAX_BALLAST, MEM_BALLAST);
+
+    // The thrown arg is not intended to ever be around long enough to be
+    // seen by the GC.
+    //
+    Prep_Global_Cell(&TG_Thrown_Arg);
+    SET_UNREADABLE_BLANK(&TG_Thrown_Arg);
 
     Init_Raw_Print();
-    Init_Stacks(STACK_MIN/4);
     Init_Scanner();
     Init_Mold(MIN_COMMON/4);
     Init_Collector();
+
+    // Symbols system not initialized, can't init the errors just yet
+    //
+    SET_UNREADABLE_BLANK(TASK_HALT_ERROR);
+    SET_UNREADABLE_BLANK(TASK_STACK_ERROR);
+
+    TERM_ARRAY_LEN(task, TASK_MAX);
+    ASSERT_ARRAY(task);
+
+    SET_SER_FLAG(task, NODE_FLAG_ROOT);
+    MANAGE_ARRAY(task);
 }
 
 
@@ -1147,18 +1130,6 @@ void Init_Core(void)
     CLEAR(Reb_Opts, sizeof(REB_OPTS));
     Saved_State = NULL;
 
-    // Thread locals.
-    //
-    // !!! This code duplicates work done in Init_Task
-    //
-    Trace_Level = 0;
-    Saved_State = 0;
-    Eval_Dose = EVAL_DOSE;
-    Eval_Count = Eval_Dose;
-    Eval_Limit = 0;
-    Eval_Signals = 0;
-    Eval_Sigmask = ALL_BITS;
-
     Init_StdIO();
 
     Assert_Basics();
@@ -1172,10 +1143,6 @@ void Init_Core(void)
 
     Init_Pools(0);          // Memory allocator
     Init_GC();
-    Init_Root_Context();    // Special REBOL values per program
-    Init_Task_Context();    // Special REBOL values per task
-
-    Init_Raw_Print();       // Low level output (Print)
 
 //==//////////////////////////////////////////////////////////////////////==//
 //
@@ -1183,14 +1150,24 @@ void Init_Core(void)
 //
 //==//////////////////////////////////////////////////////////////////////==//
 
+    Init_Root_Vars();    // Special REBOL values per program
     Init_Char_Cases();
     Init_CRC();             // For word hashing
     Set_Random(0);
     Init_Words();
-    Init_Stacks(STACK_MIN * 4);
-    Init_Scanner();
-    Init_Mold(MIN_COMMON);  // Output buffer
-    Init_Collector();
+
+//==//////////////////////////////////////////////////////////////////////==//
+//
+// INITIALIZE (SINGULAR) TASK
+//
+//==//////////////////////////////////////////////////////////////////////==//
+
+    Init_Task();
+
+    // !!! REVIEW: Init_Function_Tags() uses BUF_UTF8, not
+    // available untilthis point in time.
+    //
+    Init_Function_Tags();
 
 //==//////////////////////////////////////////////////////////////////////==//
 //
@@ -1225,34 +1202,6 @@ void Init_Core(void)
 
     PG_Boot_Phase = BOOT_LOADED;
 
-    // Get the words of the ROOT context (to avoid it being an exception case)
-    //
-    REBARR *root_keylist = Collect_Keylist_Managed(
-        NULL,
-        VAL_ARRAY_HEAD(&boot->root),
-        NULL,
-        COLLECT_ANY_WORD
-    );
-    INIT_CTX_KEYLIST_UNIQUE(PG_Root_Context, root_keylist);
-    ASSERT_CONTEXT(PG_Root_Context);
-
-    AS_SERIES(CTX_VARLIST(PG_Root_Context))->header.bits
-        |= NODE_FLAG_ROOT;
-
-    // Get the words of the TASK context (to avoid it being an exception case)
-    //
-    REBARR *task_keylist = Collect_Keylist_Managed(
-        NULL,
-        VAL_ARRAY_HEAD(&boot->task),
-        NULL,
-        COLLECT_ANY_WORD
-    );
-    INIT_CTX_KEYLIST_UNIQUE(TG_Task_Context, task_keylist);
-    ASSERT_CONTEXT(TG_Task_Context);
-
-    AS_SERIES(CTX_VARLIST(TG_Task_Context))->header.bits
-        |= NODE_FLAG_ROOT;
-
 //==//////////////////////////////////////////////////////////////////////==//
 //
 // CREATE BASIC VALUES
@@ -1283,9 +1232,13 @@ void Init_Core(void)
     REBARR *datatypes_catalog = Init_Datatypes(
         VAL_ARRAY(&boot->types), VAL_ARRAY(&boot->typespecs)
     );
+
+    // !!! REVIEW: Init_Typesets() uses symbols, data stack, and
+    // adds words to lib--not available untilthis point in time.
+    //
     Init_Typesets();
+
     Init_True_And_False();
-    Init_Function_Tags();
     Add_Lib_Keys_R3Alpha_Cant_Make();
 
     Prep_Global_Cell(&Callback_Error);
@@ -1320,8 +1273,6 @@ void Init_Core(void)
 
     Init_Contexts_Object();
     Init_Locale();
-
-    Move_Value(ROOT_ERROBJ, Get_System(SYS_STANDARD, STD_ERROR));
 
     PG_Boot_Phase = BOOT_ERRORS;
 
@@ -1511,10 +1462,9 @@ void Shutdown_Core(void)
     // -however- there may be other roots.  But by this point, the roots
     // created by Alloc_Pairing() with an owning context should be freed.
     //
-    AS_SERIES(CTX_VARLIST(PG_Root_Context))->header.bits
-        &= (~NODE_FLAG_ROOT);
-    AS_SERIES(CTX_VARLIST(TG_Task_Context))->header.bits
-        &= (~NODE_FLAG_ROOT);
+    CLEAR_SER_FLAG(PG_Root_Array, NODE_FLAG_ROOT);
+    CLEAR_SER_FLAG(TG_Task_Array, NODE_FLAG_ROOT);
+
     Recycle_Core(TRUE, NULL);
 
     Shutdown_Event_Scheme();

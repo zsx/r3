@@ -159,7 +159,7 @@ void Expand_Data_Stack_May_Fail(REBCNT amount)
     REBVAL *end_top = DS_AT(DSP); // DS_TOP would assert on END
     assert(IS_END(end_top));
     assert(end_top == KNOWN(ARR_TAIL(DS_Array))); // can't push RELVALs
-    assert(end_top - KNOWN(ARR_HEAD(DS_Array)) == len_old);
+    assert(end_top - KNOWN(ARR_HEAD(DS_Array)) == cast(int, len_old));
 #endif
 
     // If adding in the requested amount would overflow the stack limit, then

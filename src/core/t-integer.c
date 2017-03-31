@@ -365,7 +365,7 @@ REBTYPE(Integer)
 {
     REBVAL *val = D_ARG(1);
     REBVAL *val2 = D_ARGC > 1 ? D_ARG(2) : NULL;
-    
+
     REBI64 arg;
 
     REBI64 num = VAL_INT64(val);

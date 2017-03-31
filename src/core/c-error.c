@@ -532,7 +532,7 @@ REBOOL Make_Error_Object_Throws(
 ) {
     // Frame from the error object template defined in %sysobj.r
     //
-    REBCTX *root_error = VAL_CONTEXT(ROOT_ERROBJ); // !!! actually an OBJECT!
+    REBCTX *root_error = VAL_CONTEXT(Get_System(SYS_STANDARD, STD_ERROR));
 
     REBCTX *error;
     ERROR_VARS *vars; // C struct mirroring fixed portion of error fields
@@ -849,7 +849,7 @@ REBCTX *Make_Error_Managed_Core(REBCNT code, va_list *vaptr)
 
     // Safe to initialize the root error now...
 
-    REBCTX *root_error = VAL_CONTEXT(ROOT_ERROBJ);
+    REBCTX *root_error = VAL_CONTEXT(Get_System(SYS_STANDARD, STD_ERROR));
 
     DECLARE_LOCAL (id);
     DECLARE_LOCAL (type);

@@ -11,19 +11,20 @@ REBOL [
     }
     Purpose: {
         Globals used for each task. Prevents GC of these values.
-        See also the Root Context (program-wide globals)
+        See also the Root Vars (program-wide globals)
     }
 ]
 
 ballast         ; current memory ballast (used for GC)
 max-ballast     ; ballast reset value
+
 stack-error     ; special stack overlow error object
 halt-error      ; special halt error object
-this-context    ; current context
+
 buf-collect     ; temporary cache for collecting object keys or words
 buf-utf8        ; UTF8 reused buffer
-buf-print       ; temporary print output - used by raw print
 byte-buf        ; temporary byte buffer - used mainly by raw print
 uni-buf         ; temporary unicode buffer - used mainly by mold 
+
 mold-stack      ; mold loop detection
 
