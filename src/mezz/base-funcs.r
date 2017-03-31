@@ -273,7 +273,6 @@ dig-function-meta-fields: function [value [function!]] [
     underlying: maybe function! any [
         :meta/specializee
         :meta/adaptee
-        :meta/hijackee
         all [block? :meta/chainees | first meta/chainees]
     ]
 

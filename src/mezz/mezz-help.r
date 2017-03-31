@@ -417,7 +417,6 @@ help: procedure [
             any [
                 select meta 'specializee-name
                 select meta 'adaptee-name
-                select meta 'hijackee-name
             ]
         )
         original-name: uppercase mold original-name
@@ -426,7 +425,6 @@ help: procedure [
     specializee: maybe function! select meta 'specializee
     adaptee: maybe function! select meta 'adaptee
     chainees: maybe block! select meta 'chainees
-    hijackee: maybe function! select meta 'hijackee
 
     classification: case [
         :specializee [
@@ -447,14 +445,6 @@ help: procedure [
 
         :chainees [
             {a chained function}
-        ]
-
-        :hijackee [
-            either original-name [
-                spaced [{a hijacking of} original-name]
-            ][
-                {a hijacked function}
-            ]
         ]
     ] else {a function}
 

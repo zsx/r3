@@ -260,13 +260,6 @@ standard: construct [] [
             _
     ]
 
-    hijacked-meta: construct [] [
-        description:
-        hijackee:
-        hijackee-name:
-            _
-    ]
-
     error: construct [] [ ; Template used for all errors:
         code: _
         type: 'user

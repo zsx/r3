@@ -1838,32 +1838,6 @@ REB_R Specializer_Dispatcher(REBFRM *f)
 
 
 //
-//  Hijacker_Dispatcher: C
-//
-// A hijacker keeps the parameter list and layout, plus identity, of another
-// function.  But instead of running that function's body, it maps the
-// parameters into its own body.  It does this by actually mutating the
-// contents of the shared body series that is held by all the instances
-// of the function--so it contains the original function.
-//
-REB_R Hijacker_Dispatcher(REBFRM *f)
-{
-    // Whatever was initially in the body of the function
-    RELVAL *hook = FUNC_BODY(f->func);
-
-    if (IS_BLANK(hook)) // blank hijacking allows capture, but nothing to run
-        fail (Error_Hijack_Blank_Raw());
-
-    assert(IS_FUNCTION(hook));
-
-    if (Redo_Func_Throws(f, VAL_FUNC(hook)))
-        return R_OUT_IS_THROWN;
-
-    return R_OUT;
-}
-
-
-//
 //  Adapter_Dispatcher: C
 //
 // Dispatcher used by ADAPT.

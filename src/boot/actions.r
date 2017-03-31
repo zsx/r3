@@ -234,6 +234,9 @@ reflect: action [
 
 copy: action [
     {Copies a series, object, or other value.}
+
+    return: [any-value!]
+        {Return type will match the input type.}
     value [any-value!]
         {If an ANY-SERIES!, it is only copied from its current position}
     /part

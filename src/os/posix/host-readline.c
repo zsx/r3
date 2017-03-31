@@ -442,12 +442,12 @@ static REBYTE *Process_Key(STD_TERM *term, REBYTE *cp)
 
                 Home_Line(term);
                 Recall_Line(term);
-                
+
                 if (len <= term->end)
                     len = 0;
                 else
                     len = term->end - len;
-                
+
                 Show_Line(term, len - 1); // len < 0 (stay at end)
                 break; }
 

@@ -158,11 +158,43 @@ REBTYPE(Function)
 
         // !!! The R3-Alpha theory was that functions could modify "their
         // bodies" while running, effectively accruing state that one might
-        // want to snapshot.  See notes on Clonify_Function about why this
-        // idea may be incorrect.
+        // want to snapshot.  See notes on Clonify_Function about why that
+        // idea is a bad one.
         //
-        Move_Value(D_OUT, value);
-        Clonify_Function(D_OUT);
+        // Instead we create another handle which executes the same function
+        // code, yet has a distinct identity.  This means it would not be
+        // HIJACK'd if the function that it was copied from was.
+
+        REBFUN *underlying = FUNC_UNDERLYING(VAL_FUNC(value));
+
+        REBARR *proxy_paramlist = Copy_Array_Deep_Managed(
+            VAL_FUNC_PARAMLIST(value),
+            SPECIFIED // !!! Note: not actually "deep", just typesets
+        );
+        ARR_HEAD(proxy_paramlist)->payload.function.paramlist
+            = proxy_paramlist;
+        AS_SERIES(proxy_paramlist)->link.meta = VAL_FUNC_META(value);
+        SET_SER_FLAG(proxy_paramlist, ARRAY_FLAG_PARAMLIST);
+
+        // If the function had code, then that code will be bound relative
+        // to the original paramlist that's getting hijacked.  So when the
+        // proxy is called, we want the frame pushed to be relative to
+        // whatever underlied the function...even if it was foundational
+        // so `underlying = VAL_FUNC(value)`
+
+        REBFUN *proxy = Make_Function(
+            proxy_paramlist,
+            FUNC_DISPATCHER(VAL_FUNC(value)),
+            underlying,
+            NULL // not changing the specialization
+        );
+
+        // A new body_holder was created inside Make_Function().
+        //
+        *FUNC_BODY(proxy) = *VAL_FUNC_BODY(value);
+
+        Move_Value(D_OUT, FUNC_VALUE(proxy));
+        D_OUT->extra.binding = VAL_BINDING(value);
         return R_OUT; }
 
     case SYM_REFLECT: {
@@ -187,9 +219,6 @@ REBTYPE(Function)
             return R_OUT;
 
         case SYM_BODY:
-            if (IS_FUNCTION_HIJACKER(value))
-                fail (Error_Misc_Raw()); // body corrupt, need to recurse
-
             if (IS_FUNCTION_INTERPRETED(value)) {
                 //
                 // BODY-OF is an example of user-facing code that needs to be

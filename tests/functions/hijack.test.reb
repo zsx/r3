@@ -4,12 +4,12 @@
     foo: func [x] [x + 1]
     another-foo: :foo
 
-    old-foo: hijack 'foo _
+    old-foo: copy :foo
 
     all? [
         (old-foo 10) = 11
-        error? try [foo 10] ;-- hijacked function captured but no body
-        blank? hijack 'foo func [x] [(old-foo x) + 20]
+        hijack 'foo func [x] [(old-foo x) + 20]
+        (old-foo 10) = 11
         (foo 10) = 31
         (another-foo 10) = 31
     ]
