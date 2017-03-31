@@ -1340,78 +1340,49 @@ void Init_Core(void)
     Init_Error(TASK_STACK_ERROR, Error_Stack_Overflow_Raw());
     Init_Error(TASK_HALT_ERROR, Error_Halt_Raw());
 
+
 //==//////////////////////////////////////////////////////////////////////==//
 //
 // RUN MEZZANINE CODE NOW THAT ERROR HANDLING IS INITIALIZED
 //
 //==//////////////////////////////////////////////////////////////////////==//
 
-    REBCTX *error;
-    struct Reb_State state;
-
-    // With error trapping enabled, set up to catch them if they happen.
-    PUSH_UNHALTABLE_TRAP(&error, &state);
-
-// The first time through the following code 'error' will be NULL, but...
-// `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
-
-    if (error) {
-        //
-        // You shouldn't be able to halt during Init_Core() startup.
-        // The only way you should be able to stop Init_Core() is by raising
-        // an error, at which point the system will Panic out.
-        //
-        // !!! TBD: Enforce not being *able* to trigger HALT
-        //
-        assert(ERR_NUM(error) != RE_HALT);
-        panic (error);
-    }
-
-    Init_Base(VAL_ARRAY(&boot->base));
-
-    Init_Sys(VAL_ARRAY(&boot->sys));
-
     PG_Boot_Phase = BOOT_MEZZ;
 
     assert(DSP == 0 && FS_TOP == NULL);
 
-    // The FINISH-INIT-CORE function should likely do very little.  But right
-    // now it is where the user context is created from the lib context (a
-    // copy with some omissions), and where the mezzanine definitions are
-    // bound to the lib context and DO'd.
-    //
-    DECLARE_LOCAL (result);
-    if (Apply_Only_Throws(
-        result,
-        TRUE, // generate error if all arguments aren't consumed
-        Sys_Func(SYS_CTX_FINISH_INIT_CORE), // %sys-start.r function to call
-        &boot->mezz, // boot-mezz argument
-        END
-    )) {
-        // You shouldn't be able to throw any uncaught values during
-        // Init_Core() startup, including throws implementing QUIT or EXIT.
-        // A fail() would just jump up to the error delivery above, so a
-        // panic here more clearly indicates the moment of the problem.
+    REBCTX *error = Finalize_Mezzanine(&boot->base, &boot->sys, &boot->mezz);
+    if (error != NULL) {
         //
-        panic (result);
-    }
+        // There is theoretically some level of error recovery that could
+        // be done here.  e.g. the evaluator works, it just doesn't have
+        // many functions you would expect.  How bad it is depends on
+        // whether base and sys ran, so perhaps only errors running "mezz"
+        // should be returned.
+        //
+        // For now, assume any failure to declare the functions in those
+        // sections is a critical one.  It may be desirable to tell the
+        // caller that the user halted (quitting may not be appropriate if
+        // the app is more than just the interpreter)
+        //
+        // !!! If halt cannot be handled cleanly, it should be set up so
+        // that the user isn't even *able* to request a halt at this boot
+        // phase.
 
-    if (!IS_VOID(result)) {
-        //
-        // !!! `finish-init-core` Rebol code should return void, but it may be
-        // that more graceful error delivery than a panic should be given if
-        // it does not.  It may be that fairly legitimate circumstances which
-        // the user could fix would cause a more ordinary message delivery.
-        // For the moment, though, we panic on any non-void return result.
-        //
-        panic (result);
-    }
+    #ifdef RETURN_ERRORS_FROM_INIT_CORE
+        REBCNT err_num = ERR_NUM(error);
+        Shutdown_Core(); // In good enough state to shutdown cleanly by now
+        return err_num;
+    #endif
 
-    DROP_GUARD_ARRAY(boot_array);
+        assert(ERR_NUM(error) != RE_HALT);
+
+        panic (error);
+    }
 
     assert(DSP == 0 && FS_TOP == NULL);
 
-    DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
+    DROP_GUARD_ARRAY(boot_array);
 
     PG_Boot_Phase = BOOT_DONE;
 
@@ -1430,6 +1401,72 @@ void Init_Core(void)
 #endif
 
     Recycle(); // necessary?
+}
+
+
+//
+//  Finalize_Mezzanine: C
+//
+// For boring technical reasons, the `boot` variable might be "clobbered"
+// by a longjmp in Init_Core().  The easiest way to work around this is
+// by taking the code that setjmp/longjmps (e.g. PUSH_TRAP, fail()) and
+// putting it into a separate function.
+//
+// http://stackoverflow.com/a/2105840/211160
+//
+// Returns error from finalizing or NULL.
+//
+REBCTX *Finalize_Mezzanine(
+    REBVAL *base_block,
+    REBVAL *sys_block,
+    REBVAL *mezz_block
+) {
+    REBCTX *error;
+    struct Reb_State state;
+
+    // With error trapping enabled, set up to catch them if they happen.
+    PUSH_UNHALTABLE_TRAP(&error, &state);
+
+// The first time through the following code 'error' will be NULL, but...
+// `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
+
+    if (error)
+        return error;
+
+    Init_Base(VAL_ARRAY(base_block));
+
+    Init_Sys(VAL_ARRAY(sys_block));
+
+    // The FINISH-INIT-CORE function should likely do very little.  But right
+    // now it is where the user context is created from the lib context (a
+    // copy with some omissions), and where the mezzanine definitions are
+    // bound to the lib context and DO'd.
+    //
+    DECLARE_LOCAL (result);
+    if (Apply_Only_Throws(
+        result,
+        TRUE, // generate error if all arguments aren't consumed
+        Sys_Func(SYS_CTX_FINISH_INIT_CORE), // %sys-start.r function to call
+        mezz_block, // boot-mezz argument
+        END
+    )) {
+        return Error_No_Catch_For_Throw(result);
+    }
+
+    if (!IS_VOID(result)) {
+        //
+        // !!! `finish-init-core` Rebol code should return void, but it may be
+        // that more graceful error delivery than a panic should be given if
+        // it does not.  It may be that fairly legitimate circumstances which
+        // the user could fix would cause a more ordinary message delivery.
+        // For the moment, though, we panic on any non-void return result.
+        //
+        panic (result);
+    }
+
+    DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
+
+    return NULL;
 }
 
 
