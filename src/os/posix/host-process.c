@@ -526,8 +526,16 @@ int OS_Create_Process(
             execvp(argv[0], argv_hack);
         }
 
-child_error:
-        if (write(info_pipe[W], &errno, sizeof(errno)) == -1) {
+child_error: ;
+        //
+        // The original implementation of this code would write errno to the
+        // info pipe.  However, errno may be volatile (and it is on Android).
+        // write() does not accept volatile pointers, so copy it to a
+        // temporary value first.
+        //
+        int nonvolatile_errno = errno;
+
+        if (write(info_pipe[W], &nonvolatile_errno, sizeof(int)) == -1) {
             //
             // Nothing we can do, but need to stop compiler warning
             // (cast to void is insufficient for warn_unused_result)

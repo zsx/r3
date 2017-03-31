@@ -410,14 +410,14 @@ static void Move_Cursor(STD_TERM *term, int count)
 // necessary editing action. Return position of next char.
 // Unicode: not yet supported!
 //
-static char *Process_Key(STD_TERM *term, char *cp)
+static REBYTE *Process_Key(STD_TERM *term, REBYTE *cp)
 {
-    int len;
-
-    if (*cp == 0) return cp;
+    if (*cp == 0)
+        return cp;
 
     // No UTF-8 yet
-    if (*cp < 0) *cp = '?';
+    if (*cp > 127)
+        *cp = '?';
 
     if (*cp == ESC) {
         // Escape sequence:
@@ -430,15 +430,21 @@ static char *Process_Key(STD_TERM *term, char *cp)
             // Arrow keys:
             case 'A':   // up arrow
                 term->hist -= 2;
-            case 'B':   // down arrow
-                term->hist++;
-                len = term->end;
+            case 'B': {  // down arrow
+                int len = term->end;
+
+                ++term->hist;
+
                 Home_Line(term);
                 Recall_Line(term);
-                if (len <= term->end) len = 0;
-                else len = term->end - len;
-                Show_Line(term, len-1); // len < 0 (stay at end)
-                break;
+                
+                if (len <= term->end)
+                    len = 0;
+                else
+                    len = term->end - len;
+                
+                Show_Line(term, len - 1); // len < 0 (stay at end)
+                break; }
 
             case 'D':   // left arrow
                 Move_Cursor(term, -1);
@@ -583,8 +589,8 @@ extern int Read_Line(STD_TERM *term, char *result, int limit);
 //
 int Read_Line(STD_TERM *term, char *result, int limit)
 {
-    char buf[READ_BUF_LEN];
-    char *cp;
+    REBYTE buf[READ_BUF_LEN];
+    REBYTE *cp;
     int len;        // length of IO read
 
     term->pos = term->end = 0;
