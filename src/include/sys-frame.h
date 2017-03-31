@@ -108,13 +108,6 @@ static inline void CATCH_THROWN(REBVAL *arg_out, REBVAL *thrown) {
 //  LOW-LEVEL FRAME ACCESSORS
 //
 //=////////////////////////////////////////////////////////////////////////=//
-//
-// !!! To be documented and reviewed.  Legacy naming conventions when the
-// arguments to functions lived in the data stack gave the name "FS_TOP" for
-// "(D)ata (S)tack (F)rame" which is no longer accurate, as well as the
-// convention of prefix with a D_.  The new PARAM()/REFINE()/ARG()/REF()
-// scheme has replaced most of these.
-//
 
 #define FS_TOP (TG_Frame_Stack + 0) // avoid assignment to FS_TOP via + 0
 
@@ -130,7 +123,7 @@ inline static REBARR *FRM_ARRAY(REBFRM *f) {
 // in a valist.  Also, if `opt_head` values are used to prefetch before an
 // array, those will be lost too.  A true debugging mode would need to
 // convert these cases to ordinary arrays before running them, in order
-// to accurately present the errors.
+// to accurately present any errors.
 //
 inline static REBCNT FRM_INDEX(REBFRM *f) {
     assert(!FRM_IS_VALIST(f));

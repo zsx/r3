@@ -444,14 +444,17 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         // ...although `return:` is explicitly tolerated ATM for compatibility
         // (despite violating the "pure locals are NULL" premise)
         //
-        if (STR_SYMBOL(canon) == SYM_RETURN) {
+        if (STR_SYMBOL(canon) == SYM_RETURN && NOT(flags & MKF_LEAVE)) {
             assert(definitional_return_dsp == 0);
             if (IS_SET_WORD(item))
                 definitional_return_dsp = DSP; // RETURN: explicitly tolerated
             else
                 flags &= ~(MKF_RETURN | MKF_FAKE_RETURN);
         }
-        else if (STR_SYMBOL(canon) == SYM_LEAVE) {
+        else if (
+            STR_SYMBOL(canon) == SYM_LEAVE
+            && NOT(flags & (MKF_RETURN | MKF_FAKE_RETURN))
+        ) {
             assert(definitional_leave_dsp == 0);
             if (IS_SET_WORD(item))
                 definitional_leave_dsp = DSP; // LEAVE: explicitly tolerated
@@ -560,7 +563,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     // in the ordinary arity of calling.
 
     if (flags & MKF_LEAVE) {
-        if (definitional_return_dsp == 0) { // no LEAVE: pure local explicit
+        if (definitional_leave_dsp == 0) { // no LEAVE: pure local explicit
             REBSTR *canon_leave = Canon(SYM_LEAVE);
 
             DS_PUSH_TRASH;

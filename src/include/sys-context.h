@@ -223,8 +223,7 @@ inline static void FREE_CONTEXT(REBCTX *c) {
 inline static REBOOL CTX_VARS_UNAVAILABLE(REBCTX *c) {
     //
     // Mechanically any array can become inaccessible, but really the varlist
-    // of a stack context is the only case that should happen today (outside
-    // FFI, which should probably do what it does another way.)
+    // of a stack context is the only case that should happen today.
     //
     if (GET_SER_INFO(CTX_VARLIST(c), SERIES_INFO_INACCESSIBLE)) {
         assert(GET_SER_FLAG(CTX_VARLIST(c), CONTEXT_FLAG_STACK));
