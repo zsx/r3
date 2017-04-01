@@ -878,7 +878,7 @@ import: function [
     ; See also: sys/make-module*, sys/load-module, sys/do-needs
 
     "Imports a module; locate, load, make, and setup its bindings."
-    module [word! file! url! string! binary! module! block!]
+     module [word! file! url! string! binary! module! block! tag!]
     /version ver [tuple!]
         "Module must be this version or greater"
     /check sum [binary!]
@@ -890,6 +890,9 @@ import: function [
     /no-user
         "Don't export to the user context"
 ][
+    if tag? module [
+        module: first select load https://raw.githubusercontent.com/r3n/renclib/master/usermodules.reb module
+    ]
     ; If it's a needs dialect block, call DO-NEEDS/block:
     if block? module [
         assert [not version not check] ; these can only apply to one module
