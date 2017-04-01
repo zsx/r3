@@ -559,8 +559,8 @@ REBNATIVE(adapt)
 //
 //  {Cause all existing references to a function to invoke another function.}
 //
-//      return: [function!]
-//          {The hijacked function value (equivalent to the input).}
+//      return: [function! blank!]
+//          {The hijacked function value, blank if self-hijack (no-op).}
 //      victim [function! any-word! any-path!]
 //          {Function value whose references are to be affected.}
 //      hijacker [function! any-word! any-path!]
@@ -594,19 +594,19 @@ REBNATIVE(hijack)
     if (!IS_FUNCTION(hijacker))
         fail (Error_Misc_Raw());
 
-    // !!! Should hijacking a function with itself be a no-op?  One could make
-    // an argument from semantics that the effect of replacing something with
-    // itself is not to change anything, but erroring may give a sanity check.
-    //
-    if (VAL_FUNC(victim) == VAL_FUNC(hijacker))
-        fail (Error_Misc_Raw());
+    if (VAL_FUNC(victim) == VAL_FUNC(hijacker)) {
+        //
+        // Permitting a no-op hijack has some applications...but offer a
+        // distinguished result for those who want to detect the condition.
+        //
+        return R_BLANK;
+    }
 
     REBARR *victim_paramlist = VAL_FUNC_PARAMLIST(victim);
     REBARR *hijacker_paramlist = VAL_FUNC_PARAMLIST(hijacker);
 
     if (
-        NOT(IS_FUNCTION_HIJACKER(victim))
-        && LOGICAL(
+        LOGICAL(
             FUNC_UNDERLYING(VAL_FUNC(hijacker))
             == FUNC_UNDERLYING(VAL_FUNC(victim))
         )

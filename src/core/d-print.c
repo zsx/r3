@@ -501,20 +501,6 @@ void Debug_Fmt(const char *fmt, ...)
 
 
 //
-//  Echo_File: C
-//
-REBINT Echo_File(REBCHR *file)
-{
-    DEVREQ_ECHO_FILE(Req_SIO)->path = file;
-    if (DR_DONE != OS_DO_DEVICE(Req_SIO, RDC_CREATE)) {
-        assert(Req_SIO->error != 0);
-        return Req_SIO->error;
-    }
-    return 0;
-}
-
-
-//
 //  Form_Hex_Pad: C
 //
 // Form an integer hex string in the given buffer with a

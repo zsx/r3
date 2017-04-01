@@ -46,7 +46,6 @@
 // Temporary globals: (either move or remove?!)
 static int Std_Inp = STDIN_FILENO;
 static int Std_Out = STDOUT_FILENO;
-static FILE *Std_Echo = NULL;
 
 #ifndef HAS_SMART_CONSOLE   // console line-editing and recall needed
 typedef struct term_data {
@@ -77,10 +76,6 @@ static void Close_Stdio(void)
         Term_IO = 0;
     }
 #endif
-    if (Std_Echo) {
-        fclose(Std_Echo);
-        Std_Echo = 0;
-    }
 }
 
 
@@ -183,11 +178,6 @@ DEVICE_CMD Write_IO(REBREQ *req)
         req->actual = total;
     }
 
-    if (Std_Echo) {
-        fwrite(req->common.data, req->length, 1, Std_Echo);
-        //fflush(Std_Echo); //slow!
-    }
-
     return DR_DONE;
 }
 
@@ -236,31 +226,6 @@ DEVICE_CMD Read_IO(REBREQ *req)
 
 
 //
-//  Open_Echo: C
-//
-// Open a file for low-level console echo (output).
-//
-DEVICE_CMD Open_Echo(REBREQ *req)
-{
-    if (Std_Echo) {
-        fclose(Std_Echo);
-        Std_Echo = 0;
-    }
-
-    struct devreq_file *file = DEVREQ_ECHO_FILE(req);
-    if (file->path) {
-        Std_Echo = fopen(file->path, "w");  // null on error
-        if (!Std_Echo) {
-            req->error = errno;
-            return DR_ERROR;
-        }
-    }
-
-    return DR_DONE;
-}
-
-
-//
 //  Request_Size_IO: C
 //
 static i32 Request_Size_IO(REBREQ *req)
@@ -288,7 +253,7 @@ static DEVICE_CMD_FUNC Dev_Cmds[RDC_MAX] =
     0,  // connect
     0,  // query
     0,  // modify
-    Open_Echo,  // CREATE used for opening echo file
+    0,  // CREATE previously used for opening echo file
 };
 
 DEFINE_DEV(Dev_StdIO, "Standard IO", 1, Dev_Cmds, RDC_MAX);

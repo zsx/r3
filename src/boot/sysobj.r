@@ -85,7 +85,6 @@ ports: construct [] [
     wait-list: []   ; List of ports to add to 'wait
     input:          ; Port for user input.
     output:         ; Port for user output
-    echo:           ; Port for echoing output
     system:         ; Port for system events
     callback: _     ; Port for callback events
 ;   serial: _       ; serial device name block

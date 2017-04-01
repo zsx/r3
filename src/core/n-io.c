@@ -35,49 +35,6 @@
 
 
 //
-//  echo: native [
-//
-//  "Copies console output to a file."
-//
-//      return: [<opt>]
-//      target [file! blank! logic!]
-//  ]
-//
-REBNATIVE(echo)
-{
-    INCLUDE_PARAMS_OF_ECHO;
-
-    REBVAL *val = ARG(target);
-
-    Echo_File(NULL);
-
-    REBSER *ser = NULL;
-    if (IS_FILE(val))
-        ser = Value_To_OS_Path(val, TRUE);
-    else if (IS_LOGIC(val) && VAL_LOGIC(val))
-        ser = To_Local_Path("output.txt", 10, FALSE, TRUE);
-    else
-        ser = NULL;
-
-    if (ser) {
-        REBINT error = Echo_File(SER_HEAD(REBCHR, ser));
-        if (error) {
-            DECLARE_LOCAL(i);
-            SET_INTEGER(i, error);
-            fail(Error_Cannot_Open_Raw(val, i));
-        }
-
-        // !!! It appears Echo_File makes a device request which should not
-        // hold the filename string live (or copy if it wants to?)
-        //
-        Free_Series(ser);
-    }
-
-    return R_VOID;
-}
-
-
-//
 //  form: native [
 //
 //  "Converts a value to a human-readable string."

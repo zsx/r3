@@ -50,7 +50,6 @@
 
 static HANDLE Std_Out = NULL;
 static HANDLE Std_Inp = NULL;
-static HANDLE Std_Echo = NULL;
 static wchar_t *Std_Buf = NULL; // Used for UTF-8 conversion of stdin/stdout.
 
 static BOOL Redir_Out = 0;
@@ -67,10 +66,6 @@ static void Close_Stdio(void)
         OS_FREE(Std_Buf);
         Std_Buf = 0;
         //FreeConsole();  // problem: causes a delay
-    }
-    if (Std_Echo) {
-        CloseHandle(Std_Echo);
-        Std_Echo = 0;
     }
 }
 
@@ -112,7 +107,6 @@ DEVICE_CMD Open_IO(REBREQ *req)
         Std_Out = GetStdHandle(STD_OUTPUT_HANDLE);
         Std_Inp = GetStdHandle(STD_INPUT_HANDLE);
         //Std_Err = GetStdHandle(STD_ERROR_HANDLE);
-        Std_Echo = 0;
 
         Redir_Out = (GetFileType(Std_Out) != 0);
         Redir_Inp = (GetFileType(Std_Inp) != 0);
@@ -201,11 +195,6 @@ DEVICE_CMD Write_IO(REBREQ *req)
         //}
     }
 
-    if (Std_Echo) { // always UTF-8
-        WriteFile(Std_Echo, req->common.data, req->length, &total, 0);
-        //FlushFileBuffers(Std_Echo);
-    }
-
     return DR_DONE;
 }
 
@@ -259,33 +248,6 @@ DEVICE_CMD Read_IO(REBREQ *req)
 
 
 //
-//  Open_Echo: C
-//
-// Open a file for low-level console echo (output).
-//
-DEVICE_CMD Open_Echo(REBREQ *req)
-{
-    if (Std_Echo) {
-        CloseHandle(Std_Echo);
-        Std_Echo = 0;
-    }
-
-    struct devreq_file *file = DEVREQ_ECHO_FILE(req);
-
-    if (file->path) {
-        Std_Echo = CreateFile(file->path, GENERIC_WRITE, FILE_SHARE_READ|FILE_SHARE_WRITE, 0, CREATE_ALWAYS, 0, 0);
-        if (Std_Echo == INVALID_HANDLE_VALUE) {
-            Std_Echo = 0;
-            req->error = GetLastError();
-            return DR_ERROR;
-        }
-    }
-
-    return DR_DONE;
-}
-
-
-//
 //  Request_Size_IO: C
 //
 static i32 Request_Size_IO(REBREQ *req)
@@ -313,7 +275,7 @@ static DEVICE_CMD_FUNC Dev_Cmds[RDC_MAX] =
     0,  // connect
     0,  // query
     0,  // modify
-    Open_Echo,  // CREATE used for opening echo file
+    0,  // CREATE was once used for opening echo file
 };
 
 DEFINE_DEV(Dev_StdIO, "Standard IO", 1, Dev_Cmds, RDC_MAX);

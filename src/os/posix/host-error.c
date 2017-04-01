@@ -76,9 +76,10 @@ void OS_Exit(int code)
 //
 void OS_Crash(const REBYTE *title, const REBYTE *content)
 {
-    // Echo crash message if echo file is open:
-    ///PUTE(content);
-    OS_Call_Device(RDI_STDIO, RDC_CLOSE); // close echo
+    // !!! This said "close echo", but file echoing is no longer in core.
+    // Is it still needed?
+    //
+    OS_Call_Device(RDI_STDIO, RDC_CLOSE);
 
     // A title tells us we should alert the user:
     if (title) {

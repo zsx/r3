@@ -248,23 +248,6 @@ newline
             "not" (args/STANDARD)
         ]
     ]
-] space case [
-    any [blank? args/STATIC | args/STATIC = "no"] [
-        ;
-        ; !!! Is there a way to explicitly request dynamic linking?
-        ;
-        {}
-    ]
-    args/STATIC = "yes" [
-        either cplusplus [
-            "-static-libgcc -static-libstdc++"
-        ][
-            "-static-libgcc"
-        ]
-    ]
-    true [
-        fail ["STATIC needs to be yes or no, not" (args/STATIC)]
-    ]
 ] newline
 
 {RIGOROUS_FLAGS?=} space (
@@ -494,6 +477,25 @@ newline newline
 ;
 
 emit ["CLIB= $(SANITIZE_LINK_FLAGS)" space]
+
+emit case [
+    any [blank? args/STATIC | args/STATIC = "no"] [
+        ;
+        ; !!! Is there a way to explicitly request dynamic linking?
+        ;
+        {}
+    ]
+    args/STATIC = "yes" [
+        either cplusplus [
+            unspaced ["-static-libgcc -static-libstdc++" space]
+        ][
+            unspaced ["-static-libgcc" space]
+        ]
+    ]
+    true [
+        fail ["STATIC needs to be yes or no, not" (args/STATIC)]
+    ]
+] 
 
 for-each [flag switches] linker-flags [
     if all [flag? (flag) | switches] [
