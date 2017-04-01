@@ -113,7 +113,7 @@ enum Reb_Result {
     R_OUT_VOID_IF_UNWRITTEN_BLANK_IF_VOID,
 
     // If Do_Core gets back an R_REDO from a dispatcher, it will re-execute
-    // the f->func in the frame.  This function may be changed by the
+    // the f->phase in the frame.  This function may be changed by the
     // dispatcher from what was originally called.
     //
     R_REDO_CHECKED, // check the types again, fill in exits

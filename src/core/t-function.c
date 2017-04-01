@@ -219,6 +219,9 @@ REBTYPE(Function)
             return R_OUT;
 
         case SYM_BODY:
+            if (IS_FUNCTION_HIJACKER(value))
+                fail (Error_Misc_Raw()); // body corrupt, need to recurse
+
             if (IS_FUNCTION_INTERPRETED(value)) {
                 //
                 // BODY-OF is an example of user-facing code that needs to be

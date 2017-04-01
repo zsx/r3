@@ -150,7 +150,7 @@ inline static REBCNT FRM_EXPR_INDEX(REBFRM *f) {
 // ID ran.  Consider when reviewing the future of ACTION!.
 //
 #define FRM_NUM_ARGS(f) \
-    FUNC_FACADE_NUM_PARAMS((f)->func)
+    FUNC_FACADE_NUM_PARAMS((f)->phase)
 
 inline static REBVAL *FRM_CELL(REBFRM *f) {
     //
@@ -169,8 +169,10 @@ inline static REBVAL *FRM_CELL(REBFRM *f) {
 #define FRM_LABEL(f) \
     ((f)->label)
 
-#define FRM_FUNC(f) \
-    ((f)->func)
+inline static REBFUN *FRM_UNDERLYING(REBFRM *f) {
+    assert(FUNC_UNDERLYING(f->phase) == FUNC_UNDERLYING(f->original));
+    return FUNC_UNDERLYING(f->phase);
+}
 
 #define FRM_DSP_ORIG(f) \
     ((f)->dsp_orig + 0) // Lvalue
@@ -328,7 +330,7 @@ inline static void SET_FRAME_VALUE(REBFRM *f, const RELVAL *value) {
         FRM_ARG(frame_, (p_##name))
 
     #define PAR(name) \
-        FUNC_PARAM(frame_->func, (p_##name)) /* a TYPESET! */
+        FUNC_PARAM(frame_->phase, (p_##name)) /* a TYPESET! */
 
     #define REF(name) \
         IS_CONDITIONAL_TRUE(ARG(name))
@@ -363,7 +365,7 @@ inline static void SET_FRAME_VALUE(REBFRM *f, const RELVAL *value) {
         FRM_ARG(frame_, (p_##name).num)
 
     #define PAR(name) \
-        FUNC_PARAM(frame_->func, (p_##name).num) /* a TYPESET! */
+        FUNC_PARAM(frame_->phase, (p_##name).num) /* a TYPESET! */
 
     #define REF(name) \
         ((p_##name).used_cache /* used_cache use stops REF() on PARAM()s */ \
@@ -425,7 +427,7 @@ inline static void Push_Or_Alloc_Args_For_Underlying_Func(
     // pointer with FUNC_VALUE().  That archetype--as with RETURN and LEAVE--
     // will not carry the specific `binding` information of a value.
     //
-    f->func = VAL_FUNC(gotten);
+    f->original = f->phase = VAL_FUNC(gotten);
     f->binding = VAL_BINDING(gotten);
 
     // The underlying function is whose parameter list must be enumerated.
@@ -439,7 +441,7 @@ inline static void Push_Or_Alloc_Args_For_Underlying_Func(
     // function.  At this point in time a facade might be a paramlist, but
     // it could also just be an array with an unreadable blank in slot 0.
     //
-    REBCNT num_args = FUNC_FACADE_NUM_PARAMS(f->func);
+    REBCNT num_args = FUNC_FACADE_NUM_PARAMS(f->phase);
 
     // Note: A previous optimization would use the frame's evaluation cell
     // for the argument in the case of an arity-1 function.  While this
@@ -487,7 +489,7 @@ inline static void Push_Or_Alloc_Args_For_Underlying_Func(
         assert(CHUNK_LEN_FROM_VALUES(f->args_head) == num_args);
     }
 
-    REBCTX *exemplar = FUNC_EXEMPLAR(f->func);
+    REBCTX *exemplar = FUNC_EXEMPLAR(f->phase);
     if (exemplar)
         f->special = CTX_VARS_HEAD(exemplar);
     else

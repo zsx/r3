@@ -182,8 +182,8 @@ REBOOL Do_Breakpoint_Throws(
                 if (
                     frame != FS_TOP
                     && (
-                        FUNC_DISPATCHER(frame->func) == &N_pause
-                        || FUNC_DISPATCHER(frame->func) == &N_breakpoint
+                        FUNC_DISPATCHER(frame->phase) == &N_pause
+                        || FUNC_DISPATCHER(frame->phase) == &N_breakpoint
                     )
                 ) {
                     // We hit a breakpoint (that wasn't this call to
@@ -457,8 +457,8 @@ REBNATIVE(resume)
             if (Is_Function_Frame_Fulfilling(frame)) continue;
 
             if (
-                FUNC_DISPATCHER(frame->func) == &N_pause
-                || FUNC_DISPATCHER(frame->func) == &N_breakpoint
+                FUNC_DISPATCHER(frame->phase) == &N_pause
+                || FUNC_DISPATCHER(frame->phase) == &N_breakpoint
             ) {
                 break;
             }

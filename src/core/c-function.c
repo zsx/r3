@@ -1674,7 +1674,7 @@ REB_R Action_Dispatcher(REBFRM *f)
 {
     enum Reb_Kind type = VAL_TYPE(FRM_ARG(f, 1));
     assert(type < REB_MAX); // actions should not allow void first arguments
-    REBSYM sym = STR_SYMBOL(VAL_WORD_SPELLING(FUNC_BODY(f->func)));
+    REBSYM sym = STR_SYMBOL(VAL_WORD_SPELLING(FUNC_BODY(f->phase)));
     assert(sym != SYM_0);
 
     REBACT subdispatch = Value_Dispatch[type];
@@ -1706,7 +1706,7 @@ REB_R Noop_Dispatcher(REBFRM *f)
 //
 REB_R Datatype_Checker_Dispatcher(REBFRM *f)
 {
-    RELVAL *datatype = FUNC_BODY(f->func);
+    RELVAL *datatype = FUNC_BODY(f->phase);
     assert(IS_DATATYPE(datatype));
     if (VAL_TYPE(FRM_ARG(f, 1)) == VAL_TYPE_KIND(datatype))
         return R_TRUE;
@@ -1721,7 +1721,7 @@ REB_R Datatype_Checker_Dispatcher(REBFRM *f)
 //
 REB_R Typeset_Checker_Dispatcher(REBFRM *f)
 {
-    RELVAL *typeset = FUNC_BODY(f->func);
+    RELVAL *typeset = FUNC_BODY(f->phase);
     assert(IS_TYPESET(typeset));
     if (TYPE_CHECK(typeset, VAL_TYPE(FRM_ARG(f, 1))))
         return R_TRUE;
@@ -1738,7 +1738,7 @@ REB_R Typeset_Checker_Dispatcher(REBFRM *f)
 //
 REB_R Unchecked_Dispatcher(REBFRM *f)
 {
-    RELVAL *body = FUNC_BODY(f->func);
+    RELVAL *body = FUNC_BODY(f->phase);
     assert(IS_BLOCK(body) && IS_RELATIVE(body) && VAL_INDEX(body) == 0);
 
     if (Do_At_Throws(
@@ -1763,7 +1763,7 @@ REB_R Unchecked_Dispatcher(REBFRM *f)
 //
 REB_R Voider_Dispatcher(REBFRM *f)
 {
-    RELVAL *body = FUNC_BODY(f->func);
+    RELVAL *body = FUNC_BODY(f->phase);
     assert(IS_BLOCK(body) && IS_RELATIVE(body) && VAL_INDEX(body) == 0);
 
     if (Do_At_Throws(
@@ -1788,7 +1788,7 @@ REB_R Voider_Dispatcher(REBFRM *f)
 //
 REB_R Returner_Dispatcher(REBFRM *f)
 {
-    RELVAL *body = FUNC_BODY(f->func);
+    RELVAL *body = FUNC_BODY(f->phase);
     assert(IS_BLOCK(body) && IS_RELATIVE(body) && VAL_INDEX(body) == 0);
 
     if (Do_At_Throws(
@@ -1800,7 +1800,7 @@ REB_R Returner_Dispatcher(REBFRM *f)
         return R_OUT_IS_THROWN;
     }
 
-    REBVAL *typeset = FUNC_PARAM(f->func, FUNC_NUM_PARAMS(f->func));
+    REBVAL *typeset = FUNC_PARAM(f->phase, FUNC_NUM_PARAMS(f->phase));
     assert(VAL_PARAM_SYM(typeset) == SYM_RETURN);
 
     // The type bits of the definitional return are not applicable
@@ -1829,11 +1829,38 @@ REB_R Returner_Dispatcher(REBFRM *f)
 //
 REB_R Specializer_Dispatcher(REBFRM *f)
 {
-    REBVAL *exemplar = KNOWN(FUNC_BODY(f->func));
-    f->func = VAL_FUNC(CTX_FRAME_FUNC_VALUE(VAL_CONTEXT(exemplar)));
+    REBVAL *exemplar = KNOWN(FUNC_BODY(f->phase));
+    f->phase = VAL_FUNC(CTX_FRAME_FUNC_VALUE(VAL_CONTEXT(exemplar)));
     f->binding = VAL_BINDING(exemplar);
 
     return R_REDO_UNCHECKED;
+}
+
+
+//
+//  Hijacker_Dispatcher: C
+//
+// A hijacker takes over another function's identity, replacing it with its
+// own implementation, injecting directly into the paramlist and body_holder
+// nodes held onto by all the victim's references.
+//
+// Sometimes the hijacking function has the same underlying function
+// as the victim, in which case there's no need to insert a new dispatcher.
+// The hijacker just takes over the identity.  But otherwise it cannot,
+// and a "shim" is needed...since something like an ADAPT or SPECIALIZE
+// or a MAKE FRAME! might depend on the existing paramlist shape.
+//
+REB_R Hijacker_Dispatcher(REBFRM *f)
+{
+    RELVAL *hijacker = FUNC_BODY(f->phase);
+
+    // We need to build a new frame compatible with the hijacker, and
+    // transform the parameters we've gathered to be compatible with it.
+    //
+    if (Redo_Func_Throws(f, VAL_FUNC(hijacker)))
+        return R_OUT_IS_THROWN;
+
+    return R_OUT;
 }
 
 
@@ -1844,7 +1871,7 @@ REB_R Specializer_Dispatcher(REBFRM *f)
 //
 REB_R Adapter_Dispatcher(REBFRM *f)
 {
-    RELVAL *adaptation = FUNC_BODY(f->func);
+    RELVAL *adaptation = FUNC_BODY(f->phase);
     assert(ARR_LEN(VAL_ARRAY(adaptation)) == 2);
 
     RELVAL* prelude = VAL_ARRAY_AT_HEAD(adaptation, 0);
@@ -1867,9 +1894,9 @@ REB_R Adapter_Dispatcher(REBFRM *f)
         return R_OUT_IS_THROWN;
     }
 
-    f->func = VAL_FUNC(adaptee);
+    f->phase = VAL_FUNC(adaptee);
     f->binding = VAL_BINDING(adaptee);
-    return R_REDO_CHECKED; // Have Do_Core run the adaptee updated into f->func
+    return R_REDO_CHECKED; // Have Do_Core run the adaptee updated into f->phase
 }
 
 
@@ -1880,7 +1907,7 @@ REB_R Adapter_Dispatcher(REBFRM *f)
 //
 REB_R Chainer_Dispatcher(REBFRM *f)
 {
-    REBVAL *pipeline = KNOWN(FUNC_BODY(f->func)); // array of functions
+    REBVAL *pipeline = KNOWN(FUNC_BODY(f->phase)); // array of functions
 
     // Before skipping off to find the underlying non-chained function
     // to kick off the execution, the post-processing pipeline has to
@@ -1896,7 +1923,7 @@ REB_R Chainer_Dispatcher(REBFRM *f)
 
     // Extract the first function, itself which might be a chain.
     //
-    f->func = VAL_FUNC(value);
+    f->phase = VAL_FUNC(value);
     f->binding = VAL_BINDING(value);
 
     return R_REDO_UNCHECKED; // signatures should match
@@ -1959,7 +1986,7 @@ void Get_If_Word_Or_Path_Arg(
 // Expects the following Reb_Frame fields to be preloaded:
 //
 //    f->out (just valid pointer, pointed-to value can be garbage)
-//    f->func
+//    f->phase
 //    f->binding
 //
 // If opt_def is NULL, then f->varlist.context must be set
@@ -2019,7 +2046,7 @@ REB_R Apply_Frame_Core(REBFRM *f, REBSTR *label, REBVAL *opt_def)
 
         f->args_head = CTX_VARS_HEAD(AS_CONTEXT(f->varlist));
 
-        REBCTX *exemplar = FUNC_EXEMPLAR(f->func);
+        REBCTX *exemplar = FUNC_EXEMPLAR(f->phase);
         if (exemplar)
             f->special = CTX_VARS_HEAD(exemplar);
         else
@@ -2039,7 +2066,7 @@ REB_R Apply_Frame_Core(REBFRM *f, REBSTR *label, REBVAL *opt_def)
     // know if the user writes them or not...so making them "write-only"
     // isn't an option either.  One has to
     //
-    f->param = FUNC_FACADE_HEAD(f->func);
+    f->param = FUNC_FACADE_HEAD(f->phase);
     f->arg = f->args_head;
     while (NOT_END(f->param)) {
         if (f->special != END && !IS_VOID(f->special)) {

@@ -211,7 +211,7 @@ static REBOOL Subparse_Throws(
 
     f->label = Canon(SYM_SUBPARSE);
     f->eval_type = REB_FUNCTION;
-    f->func = NAT_FUNC(subparse);
+    f->original = f->phase = NAT_FUNC(subparse);
 
     Init_Endlike_Header(&f->flags, 0); // implicitly terminate f->cell
 

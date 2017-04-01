@@ -180,7 +180,7 @@ probe: func [
 
 dump: proc [
     {Show the name of a value (or block of expressions) with the value itself}
-    'value
+    :value
     <local>
         dump-one item
 ][

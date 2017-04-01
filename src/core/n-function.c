@@ -129,7 +129,7 @@ void Make_Thrown_Exit_Value(
 
         #if !defined(NDEBUG)
             if (LEGACY(OPTIONS_DONT_EXIT_NATIVES))
-                if (NOT(IS_FUNCTION_INTERPRETED(FUNC_VALUE(f->func))))
+                if (NOT(IS_FUNCTION_INTERPRETED(FUNC_VALUE(f->phase))))
                     continue; // R3-Alpha would exit the first user function
         #endif
 
@@ -570,13 +570,14 @@ REBNATIVE(adapt)
 REBNATIVE(hijack)
 //
 // The HIJACK operation replaces one function completely with another, such
-// that references to the old function value will now call a new one.  Once
-// a hijack has happened, there is no trace of the original function...hence
-// no "Hijacker_Dispatcher" is necessary, it dispatches as the hijacker does.
+// that references to the old function value will now call a new one.
 //
-// There's no requirement that the parameters of the hijacker or the victim
-// line up at all...though it is possible to hijack with an adaptation or
-// chain that is very similar.
+// Hijacking a function does not change its interface--and cannot.  While
+// it may seem tempting to use low-level tricks to keep the same paramlist
+// but add or remove parameters, parameter lists can be referenced many
+// places in the system (frames, specializations, adaptations) and can't
+// be corrupted...or the places that rely on their properties (number and
+// types of parameters) would get out of sync.
 //
 {
     INCLUDE_PARAMS_OF_HIJACK;
@@ -603,50 +604,43 @@ REBNATIVE(hijack)
     REBARR *victim_paramlist = VAL_FUNC_PARAMLIST(victim);
     REBARR *hijacker_paramlist = VAL_FUNC_PARAMLIST(hijacker);
 
-    // We are using the paramlist series *node* of the hijacker, but
-    // in order to get the proper parameters gathered to run the hijacker's
-    // body we have to change its array data, e.g. the paramlist content to
-    // mirror that of the Hijacker, while leaving the canon function value
-    // in [0] the same.
-    //
-    REBARR *copy = Copy_Array_Shallow(hijacker_paramlist, SPECIFIED);
-    Move_Value(KNOWN(ARR_HEAD(copy)), KNOWN(ARR_HEAD(victim_paramlist)));
+    if (
+        NOT(IS_FUNCTION_HIJACKER(victim))
+        && LOGICAL(
+            FUNC_UNDERLYING(VAL_FUNC(hijacker))
+            == FUNC_UNDERLYING(VAL_FUNC(victim))
+        )
+    ){
+        // Should the underlying functions of the hijacker and victim match,
+        // that means any ADAPT or CHAIN or SPECIALIZE of the victim can
+        // work equally well if we just use the hijacker's dispatcher
+        // directly.  This is a reasonably common case, and especially
+        // common when putting the originally hijacked function back.
 
-    // This voodoo should be standardized as a service from the series level.
-    // We are swapping out the series node contents from what we just
-    // allocated into the victim's node.  We can't just blow that node away
-    // though, because it's in the manual tracking list...so work around it
-    // by converting it into a non-dynamic node and then call Free_Array.
-    //
-    assert(GET_SER_INFO(victim_paramlist, SERIES_INFO_HAS_DYNAMIC));
-    AS_SERIES(victim_paramlist)->content = AS_SERIES(copy)->content;
-    assert(GET_SER_INFO(copy, SERIES_INFO_HAS_DYNAMIC));
-    CLEAR_SER_INFO(copy, SERIES_INFO_HAS_DYNAMIC);
-    INIT_CELL(ARR_HEAD(copy));
-    SET_END(ARR_HEAD(copy));
-    Free_Array(copy);
+        AS_SERIES(victim_paramlist)->misc.facade =
+            AS_SERIES(hijacker_paramlist)->misc.facade;
+        AS_SERIES(victim->payload.function.body_holder)->link.exemplar =
+            AS_SERIES(hijacker->payload.function.body_holder)->link.exemplar;
 
-    // We now want the victim to have the concept of the underlying function
-    // and the facade as perceived by the hijacker, in order to run its
-    // dispatcher without any loss of performance.
-    //
-    AS_SERIES(victim_paramlist)->misc.facade =
-        AS_SERIES(hijacker_paramlist)->misc.facade;
-    AS_SERIES(victim->payload.function.body_holder)->link.exemplar =
-        AS_SERIES(hijacker->payload.function.body_holder)->link.exemplar;
-
-    // Now replace the body and the dispatcher.  This will completely destroy
-    // any memory of what the original hijacked function was (doing otherwise
-    // is possible, e.g. using a hijacker dispatcher which holds onto the
-    // original).  But running anything other than the actual dispatch will
-    // slow down the hijacking.  If remembering what it was originally is
-    // important, that can go in the meta information somewhere.
-    //
-    *VAL_FUNC_BODY(victim) = *VAL_FUNC_BODY(hijacker);
-    AS_SERIES(victim->payload.function.body_holder)->misc.dispatcher
-        = AS_SERIES(hijacker->payload.function.body_holder)->misc.dispatcher;
-
-    assert(ARR_HEAD(victim_paramlist)->extra.binding == NULL);
+        *VAL_FUNC_BODY(victim) = *VAL_FUNC_BODY(hijacker);
+        AS_SERIES(victim->payload.function.body_holder)->misc.dispatcher =
+            AS_SERIES(hijacker->payload.function.body_holder)->misc.dispatcher;
+    }
+    else {
+        // A mismatch means there could be someone out there pointing at this
+        // function who expects it to have a different frame than it does.
+        // In case that someone needs to run the function with that frame,
+        // a proxy "shim" is needed.
+        //
+        // !!! It could be possible to do things here like test to see if
+        // frames were compatible in some way that could accelerate the
+        // process of building a new frame.  But in general one basically
+        // needs to do a new function call.
+        //
+        Move_Value(VAL_FUNC_BODY(victim), hijacker);
+        AS_SERIES(victim->payload.function.body_holder)->misc.dispatcher =
+            &Hijacker_Dispatcher;
+    }
 
     // Proxy the meta information from the hijacker onto the paramlist
     //

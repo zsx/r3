@@ -1397,7 +1397,7 @@ void Assert_Context_Core(REBCTX *c)
         /*REBFRM *f = CTX_FRAME_IF_ON_STACK(c);
         if (f != NULL) {
             REBFUN *rootkey_fun = VAL_FUNC(rootkey);
-            REBFUN *frame_fun = FUNC_UNDERLYING(f->func);
+            REBFUN *frame_fun = FRM_UNDERLYING(f);
 
             if (rootkey_fun != frame_fun) {
                 printf("FRAME! context function doesn't match its REBFRM");

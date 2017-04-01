@@ -432,15 +432,20 @@ struct Reb_Frame {
     //
     const RELVAL *pending;
 
-    // `func`
+    // `phase` and `original`
     //
-    // If a function call is currently in effect, `func` holds a pointer to
+    // If a function call is currently in effect, `phase` holds a pointer to
     // the function being run.  Because functions are identified and passed
     // by a platform pointer as their paramlist REBSER*, you must use
-    // `FUNC_VALUE(c->func)` to get a pointer to a canon REBVAL representing
+    // `FUNC_VALUE(c->phase)` to get a pointer to a canon REBVAL representing
     // that function (to examine its function flags, for instance).
     //
-    REBFUN *func;
+    // Compositions of functions (adaptations, specializations, hijacks, etc)
+    // update `f->phase` in their dispatcher and then signal to resume the
+    // evaluation in that same frame in some way.  The `original` function
+    //
+    REBFUN *original;
+    REBFUN *phase;
 
     // `binding`
     //

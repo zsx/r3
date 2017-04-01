@@ -407,7 +407,7 @@ static REB_R Unloaded_Dispatcher(REBFRM *f)
 {
     UNUSED(f);
 
-    fail (Error_Native_Unloaded_Raw(FUNC_VALUE(f->func)));
+    fail (Error_Native_Unloaded_Raw(FUNC_VALUE(f->phase)));
 }
 
 

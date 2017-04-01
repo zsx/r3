@@ -265,7 +265,7 @@ REBNATIVE(function_of)
         if (!frame)
             fail (Error_Invalid_Arg(level));
 
-        Move_Value(D_OUT, FUNC_VALUE(frame->func));
+        Move_Value(D_OUT, FUNC_VALUE(frame->phase));
     }
 
     return R_OUT;
@@ -378,8 +378,8 @@ REBNATIVE(backtrace)
             if (
                 first
                 && (
-                    FUNC_DISPATCHER(f->func) == &N_pause
-                    || FUNC_DISPATCHER(f->func) == &N_breakpoint
+                    FUNC_DISPATCHER(f->phase) == &N_pause
+                    || FUNC_DISPATCHER(f->phase) == &N_breakpoint
                 )
             ) {
                 // Omitting breakpoints from the list entirely presents a
@@ -431,7 +431,7 @@ REBNATIVE(backtrace)
             }
             else {
                 assert(IS_FUNCTION(level));
-                if (f->func != VAL_FUNC(level))
+                if (f->phase != VAL_FUNC(level))
                     continue;
             }
         }
@@ -600,8 +600,8 @@ REBFRM *Frame_For_Stack_Level(
         if (NOT(pending)) {
             if (first) {
                 if (
-                    FUNC_DISPATCHER(frame->func) == &N_pause
-                    || FUNC_DISPATCHER(frame->func) == N_breakpoint
+                    FUNC_DISPATCHER(frame->phase) == &N_pause
+                    || FUNC_DISPATCHER(frame->phase) == N_breakpoint
                 ) {
                     // this is considered the "0".  Return it only if 0 was requested
                     // specifically (you don't "count down to it");
@@ -644,7 +644,7 @@ REBFRM *Frame_For_Stack_Level(
         }
         else {
             assert(IS_FUNCTION(level));
-            if (VAL_FUNC(level) == frame->func)
+            if (VAL_FUNC(level) == frame->phase)
                 goto return_maybe_set_number_out;
         }
     }

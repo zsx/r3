@@ -270,7 +270,7 @@ REBNATIVE(do)
         //
         f->out = D_OUT;
         f->gotten = CTX_FRAME_FUNC_VALUE(VAL_CONTEXT(source));
-        f->func = VAL_FUNC(f->gotten);
+        f->original = f->phase = VAL_FUNC(f->gotten);
         f->binding = VAL_BINDING(source);
 
         f->varlist = CTX_VARLIST(VAL_CONTEXT(source)); // need w/NULL def

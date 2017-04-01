@@ -365,7 +365,7 @@ REBOOL Redo_Func_Throws(REBFRM *f, REBFUN *func_new)
     // invocation is the total number of parameters to the *old* function's
     // invocation (if it had no refinements or locals).
     //
-    REBARR *code_array = Make_Array(FUNC_NUM_PARAMS(f->func));
+    REBARR *code_array = Make_Array(FUNC_NUM_PARAMS(f->phase));
     RELVAL *code = ARR_HEAD(code_array);
 
     // We'll walk through the original functions param and arglist only, and
@@ -374,7 +374,7 @@ REBOOL Redo_Func_Throws(REBFRM *f, REBFUN *func_new)
     //
     // !!! See note in function description about arity mismatches.
     //
-    f->param = FUNC_FACADE_HEAD(f->func);
+    f->param = FUNC_FACADE_HEAD(f->phase);
     f->arg = f->args_head;
     REBOOL ignoring = FALSE;
 
@@ -383,7 +383,7 @@ REBOOL Redo_Func_Throws(REBFRM *f, REBFUN *func_new)
     // opposite case where it had only refinements and then the function
     // at the head...
     //
-    REBARR *path_array = Make_Array(FUNC_NUM_PARAMS(f->func) + 1);
+    REBARR *path_array = Make_Array(FUNC_NUM_PARAMS(f->phase) + 1);
     RELVAL *path = ARR_HEAD(path_array);
 
     Move_Value(path, FUNC_VALUE(func_new));

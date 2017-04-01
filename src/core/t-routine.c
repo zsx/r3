@@ -757,7 +757,7 @@ static void ffi_to_rebol(
 //
 REB_R Routine_Dispatcher(REBFRM *f)
 {
-    REBRIN *rin = FUNC_ROUTINE(f->func);
+    REBRIN *rin = FUNC_ROUTINE(f->phase);
 
     if (RIN_LIB(rin) == NULL) {
         //
@@ -780,7 +780,7 @@ REB_R Routine_Dispatcher(REBFRM *f)
         // The function specification should have one extra parameter for
         // the variadic source ("...")
         //
-        assert(FUNC_NUM_PARAMS(FRM_FUNC(f)) == num_fixed + 1);
+        assert(FUNC_NUM_PARAMS(f->phase) == num_fixed + 1);
 
         REBVAL *vararg = FRM_ARG(f, num_fixed + 1); // 1-based
         assert(IS_VARARGS(vararg) && f->binding != NULL);
@@ -880,7 +880,7 @@ REB_R Routine_Dispatcher(REBFRM *f)
             NULL, // dest pointer must be NULL if store is non-NULL
             FRM_ARG(f, i + 1), // 1-based
             RIN_ARG_SCHEMA(rin, i), // 0-based
-            FUNC_PARAM(FRM_FUNC(f), i + 1) // 1-based
+            FUNC_PARAM(f->phase, i + 1) // 1-based
         );
         *SER_AT(void*, arg_offsets, i) = cast(void*, offset); // convert later
     }

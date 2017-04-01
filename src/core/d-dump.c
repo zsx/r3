@@ -270,7 +270,7 @@ void Dump_Stack(REBFRM *f, REBCNT level)
 
     REBINT n = 1;
     REBVAL *arg = FRM_ARG(f, 1);
-    REBVAL *param = FUNC_PARAMS_HEAD(f->func);
+    REBVAL *param = FUNC_PARAMS_HEAD(f->phase);
 
     for (; NOT_END(param); ++param, ++arg, ++n) {
         Debug_Fmt(

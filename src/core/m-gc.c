@@ -1085,7 +1085,7 @@ static void Mark_Frame_Stack_Deep(void)
         if (NOT_END(&f->cell))
             Queue_Mark_Opt_Value_Deep(&f->cell);
 
-        Queue_Mark_Function_Deep(f->func); // never NULL
+        Queue_Mark_Function_Deep(f->phase); // never NULL
         Mark_Rebser_Only(f->label); // also never NULL
 
         if (!Is_Function_Frame_Fulfilling(f)) {
@@ -1129,7 +1129,7 @@ static void Mark_Frame_Stack_Deep(void)
         // of if this is the "doing pickups" or not.  If doing pickups
         // then skip the cells for pending refinement arguments.
         //
-        REBVAL *param = FUNC_FACADE_HEAD(f->func);
+        REBVAL *param = FUNC_FACADE_HEAD(f->phase);
         REBVAL *arg = f->args_head; // may be stack or dynamic
         for (; NOT_END(param); ++param, ++arg) {
             if (param == f->param && !f->doing_pickups)

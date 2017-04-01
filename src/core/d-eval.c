@@ -324,7 +324,8 @@ REBUPT Do_Core_Expression_Checks_Debug(REBFRM *f) {
     TRASH_POINTER_IF_DEBUG(f->args_head);
     TRASH_POINTER_IF_DEBUG(f->varlist);
 
-    TRASH_POINTER_IF_DEBUG(f->func);
+    TRASH_POINTER_IF_DEBUG(f->original);
+    TRASH_POINTER_IF_DEBUG(f->phase);
     TRASH_POINTER_IF_DEBUG(f->binding);
 
     // Mutate va_list sources into arrays at fairly random moments in the

@@ -99,7 +99,7 @@ REBIXO Do_Vararg_Op_May_Throw(
         if (param_frame == NULL)
             fail (Error_Varargs_No_Stack_Raw());
 
-        param = FUNC_FACADE_HEAD(param_frame->func)
+        param = FUNC_FACADE_HEAD(param_frame->phase)
             + vararg->payload.varargs.param_offset;
         pclass = VAL_PARAM_CLASS(param);
 
@@ -512,7 +512,7 @@ void Mold_Varargs(const REBVAL *v, REB_MOLD *mold) {
         }
         else {
             const RELVAL *param
-                = FUNC_FACADE_HEAD(param_frame->func)
+                = FUNC_FACADE_HEAD(param_frame->phase)
                     + v->payload.varargs.param_offset;
 
             enum Reb_Param_Class pclass = VAL_PARAM_CLASS(param);

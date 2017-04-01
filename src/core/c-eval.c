@@ -545,7 +545,7 @@ reevaluate:;
 
         Eval_Functions++; // this isn't free...is it worth tracking?
 
-        // Now that we have extracted f->func, we do not have to worry that
+        // Now that we have extracted f->phase, we do not have to worry that
         // f->value might have lived in f->cell.eval.  We can't overwrite
         // f->out during the argument evaluations, in case that is holding the
         // first argument to an infix function, so f->cell gets used for
@@ -554,7 +554,7 @@ reevaluate:;
         assert(f->refine == ORDINARY_ARG || f->refine == LOOKBACK_ARG);
 
         f->arg = f->args_head;
-        f->param = FUNC_FACADE_HEAD(f->func);
+        f->param = FUNC_FACADE_HEAD(f->phase);
         // f->special is END, f->args_head, or first specialized value
 
         // Same as check before switch.  (do_function_arglist_in_progress:
@@ -747,7 +747,7 @@ reevaluate:;
             case PARAM_CLASS_RETURN:
                 assert(VAL_PARAM_SYM(f->param) == SYM_RETURN);
 
-                if (NOT_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_RETURN)) {
+                if (NOT_VAL_FLAG(FUNC_VALUE(f->phase), FUNC_FLAG_RETURN)) {
                     SET_VOID(f->arg);
                     goto continue_arg_loop;
                 }
@@ -757,8 +757,7 @@ reevaluate:;
                 if (f->varlist) // !!! in specific binding, always for Plain
                     f->arg->extra.binding = f->varlist;
                 else
-                    f->arg->extra.binding =
-                        FUNC_PARAMLIST(FUNC_UNDERLYING(f->func));
+                    f->arg->extra.binding = FUNC_PARAMLIST(FRM_UNDERLYING(f));
 
                 if (f->special != END)
                     ++f->special; // specialization being overwritten is right
@@ -767,7 +766,7 @@ reevaluate:;
             case PARAM_CLASS_LEAVE:
                 assert(VAL_PARAM_SYM(f->param) == SYM_LEAVE);
 
-                if (NOT_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_LEAVE)) {
+                if (NOT_VAL_FLAG(FUNC_VALUE(f->phase), FUNC_FLAG_LEAVE)) {
                     SET_VOID(f->arg);
                     goto continue_arg_loop;
                 }
@@ -777,8 +776,7 @@ reevaluate:;
                 if (f->varlist) // !!! in specific binding, always for Plain
                     f->arg->extra.binding = f->varlist;
                 else
-                    f->arg->extra.binding =
-                        FUNC_PARAMLIST(FUNC_UNDERLYING(f->func));
+                    f->arg->extra.binding = FUNC_PARAMLIST(FRM_UNDERLYING(f));
 
                 if (f->special != END)
                     ++f->special; // specialization being overwritten is right
@@ -1205,7 +1203,7 @@ reevaluate:;
         }
 
     #if !defined(NDEBUG)
-        if (GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_LEGACY_DEBUG))
+        if (GET_VAL_FLAG(FUNC_VALUE(f->phase), FUNC_FLAG_LEGACY_DEBUG))
             Legacy_Convert_Function_Args(f); // BLANK!+NONE! vs. FALSE+UNSET!
     #endif
 
@@ -1215,7 +1213,7 @@ reevaluate:;
     //
     //==////////////////////////////////////////////////////////////////==//
 
-    execute_func:
+    redo_unchecked:
         assert(IS_END(f->param));
         // refine can be anything.
         assert(
@@ -1251,7 +1249,7 @@ reevaluate:;
         // used to process the return result after the switch.
         //
         REBNAT dispatcher; // goto would cross initialization
-        dispatcher = FUNC_DISPATCHER(f->func);
+        dispatcher = FUNC_DISPATCHER(f->phase);
         switch (dispatcher(f)) {
         case R_FALSE:
             SET_FALSE(f->out); // no VALUE_FLAG_UNEVALUATED
@@ -1294,7 +1292,7 @@ reevaluate:;
 
             ASSERT_ARRAY(VAL_BINDING(f->out));
 
-            if (VAL_BINDING(f->out) == FUNC_PARAMLIST(f->func)) {
+            if (VAL_BINDING(f->out) == FUNC_PARAMLIST(FRM_UNDERLYING(f))) {
                 //
                 // The most recent instance of a function on the stack (if
                 // any) will catch a FUNCTION! style exit.
@@ -1365,11 +1363,11 @@ reevaluate:;
         case R_REDO_UNCHECKED:
             //
             // This instruction represents the idea that it is desired to
-            // run the f->func again.  The dispatcher may have changed the
-            // value of what f->func is, for instance.
+            // run the f->phase again.  The dispatcher may have changed the
+            // value of what f->phase is, for instance.
             //
             SET_END(f->out);
-            goto execute_func;
+            goto redo_unchecked;
 
         case R_REEVALUATE:
             args_evaluate = TRUE; // unnecessary?
@@ -1407,8 +1405,8 @@ reevaluate:;
     // double checks any function marked with RETURN in the debug build.
 
 #if !defined(NDEBUG)
-    if (GET_VAL_FLAG(FUNC_VALUE(f->func), FUNC_FLAG_RETURN)) {
-        REBVAL *typeset = FUNC_PARAM(f->func, FUNC_NUM_PARAMS(f->func));
+    if (GET_VAL_FLAG(FUNC_VALUE(f->phase), FUNC_FLAG_RETURN)) {
+        REBVAL *typeset = FUNC_PARAM(f->phase, FUNC_NUM_PARAMS(f->phase));
         assert(VAL_PARAM_SYM(typeset) == SYM_RETURN);
         if (!TYPE_CHECK(typeset, VAL_TYPE(f->out)))
             fail (Error_Bad_Return_Type(f->label, VAL_TYPE(f->out)));
