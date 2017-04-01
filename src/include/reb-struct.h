@@ -317,7 +317,7 @@ inline static REBCNT FLD_DIMENSION(REBFLD *f) {
 }
 
 inline static ffi_type *FLD_FFTYPE(REBFLD *f)
-    { return cast(ffi_type*, VAL_HANDLE_POINTER(FLD_AT(f, IDX_FIELD_FFTYPE))); }
+    { return VAL_HANDLE_POINTER(ffi_type, FLD_AT(f, IDX_FIELD_FFTYPE)); }
 
 inline static REBCNT FLD_OFFSET(REBFLD *f)
     { return VAL_UNT32(FLD_AT(f, IDX_FIELD_OFFSET)); }
@@ -404,7 +404,7 @@ inline static REBYTE *VAL_STRUCT_DATA_HEAD(const RELVAL *v) {
 
     RELVAL *handle = ARR_HEAD(AS_ARRAY(data));
     assert(VAL_HANDLE_LEN(handle) != 0);
-    return cast(REBYTE*, VAL_HANDLE_POINTER(handle));
+    return VAL_HANDLE_POINTER(REBYTE, handle);
 }
 
 inline static REBYTE *STU_DATA_HEAD(REBSTU *stu) {
@@ -565,7 +565,7 @@ inline static REBOOL RIN_IS_CALLBACK(REBRIN *r) {
 
 inline static ffi_closure* RIN_CLOSURE(REBRIN *r) {
     assert(RIN_IS_CALLBACK(r)); // only callbacks have ffi_closure
-    return cast(ffi_closure*, VAL_HANDLE_POINTER(RIN_AT(r, IDX_ROUTINE_CLOSURE)));
+    return VAL_HANDLE_POINTER(ffi_closure, RIN_AT(r, IDX_ROUTINE_CLOSURE));
 }
 
 inline static REBLIB *RIN_LIB(REBRIN *r) {
@@ -589,12 +589,10 @@ inline static REBVAL *RIN_ARG_SCHEMA(REBRIN *r, REBCNT n) { // 0-based index
 }
 
 inline static ffi_cif *RIN_CIF(REBRIN *r)
-    { return cast(ffi_cif*, VAL_HANDLE_POINTER(RIN_AT(r, IDX_ROUTINE_CIF))); }
+    { return VAL_HANDLE_POINTER(ffi_cif, RIN_AT(r, IDX_ROUTINE_CIF)); }
 
 inline static ffi_type** RIN_ARG_FFTYPES(REBRIN *r) {
-    return cast(ffi_type**,
-        VAL_HANDLE_POINTER(RIN_AT(r, IDX_ROUTINE_ARG_FFTYPES))
-    );
+    return VAL_HANDLE_POINTER(ffi_type*, RIN_AT(r, IDX_ROUTINE_ARG_FFTYPES));
 }
 
 inline static REBOOL RIN_IS_VARIADIC(REBRIN *r)

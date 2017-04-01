@@ -37,7 +37,7 @@
 // register this cleanup hook.
 //
 static void cleanup_ffi_type(const REBVAL *v) {
-    ffi_type *fftype = cast(ffi_type*, VAL_HANDLE_POINTER(v));
+    ffi_type *fftype = VAL_HANDLE_POINTER(ffi_type, v);
     if (fftype->type == FFI_TYPE_STRUCT)
         OS_FREE(fftype->elements);
     OS_FREE(fftype);
@@ -1593,7 +1593,7 @@ REBNATIVE(destroy_struct_storage)
     RELVAL *handle = ARR_HEAD(AS_ARRAY(data));
 
     DECLARE_LOCAL (pointer);
-    SET_INTEGER(pointer, cast(REBUPT, VAL_HANDLE_POINTER(handle)));
+    SET_INTEGER(pointer, cast(REBUPT, VAL_HANDLE_POINTER(void, handle)));
 
     if (VAL_HANDLE_LEN(handle) == 0)
         fail (Error_Already_Destroyed_Raw(pointer));

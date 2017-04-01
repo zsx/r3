@@ -563,7 +563,7 @@ RL_API void RL_Init_Val_Index(REBVAL *v, REBCNT i) {
 //  RL_Val_Handle_Pointer: C
 //
 RL_API void *RL_Val_Handle_Pointer(const REBVAL *v) {
-    return VAL_HANDLE_POINTER(v);
+    return VAL_HANDLE_POINTER(void, v);
 }
 
 //

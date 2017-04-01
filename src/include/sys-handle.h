@@ -70,7 +70,7 @@ inline static REBUPT VAL_HANDLE_LEN(const RELVAL *v) {
         return v->payload.handle.length;
 }
 
-inline static void *VAL_HANDLE_POINTER(const RELVAL *v) {
+inline static void *VAL_HANDLE_VOID_POINTER(const RELVAL *v) {
     assert(IS_HANDLE(v));
     assert(NOT_VAL_FLAG(v, HANDLE_FLAG_CFUNC));
     if (v->extra.singular)
@@ -78,6 +78,9 @@ inline static void *VAL_HANDLE_POINTER(const RELVAL *v) {
     else
         return v->payload.handle.data.pointer;
 }
+
+#define VAL_HANDLE_POINTER(t, v) \
+    cast(t *, VAL_HANDLE_VOID_POINTER(v))
 
 inline static CFUNC *VAL_HANDLE_CFUNC(const RELVAL *v) {
     assert(IS_HANDLE(v));

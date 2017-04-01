@@ -1029,19 +1029,15 @@ REB_R Routine_Dispatcher(REBFRM *f)
 // how the GC gets hooked in Ren-C)
 //
 static void cleanup_ffi_closure(const REBVAL *v) {
-    ffi_closure_free(cast(ffi_closure*, VAL_HANDLE_POINTER(v)));
+    ffi_closure_free(VAL_HANDLE_POINTER(ffi_closure, v));
 }
 
 static void cleanup_cif(const REBVAL *v) {
-    FREE(ffi_cif, cast(ffi_cif*, VAL_HANDLE_POINTER(v)));
+    FREE(ffi_cif, VAL_HANDLE_POINTER(ffi_cif, v));
 }
 
 static void cleanup_args_fftypes(const REBVAL *v) {
-    FREE_N(
-        ffi_type*,
-        VAL_HANDLE_LEN(v),
-        cast(ffi_type**, VAL_HANDLE_POINTER(v))
-    );
+    FREE_N(ffi_type*, VAL_HANDLE_LEN(v), VAL_HANDLE_POINTER(ffi_type*, v));
 }
 
 

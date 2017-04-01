@@ -94,14 +94,9 @@ void Shutdown_Crypto(void)
 }
 
 
-// The original Saphirion implementation used OS_ALLOC (basically malloc) to
-// leave a potentially dangling memory pointer for the RC4 context.  Ren-C
-// has "managed handles" which will clean themselves up when they are no
-// longer referenced.
-//
 static void cleanup_rc4_ctx(const REBVAL *v)
 {
-    RC4_CTX *rc4_ctx = cast(RC4_CTX*, VAL_HANDLE_POINTER(v));
+    RC4_CTX *rc4_ctx = VAL_HANDLE_POINTER(RC4_CTX, v);
     FREE(RC4_CTX, rc4_ctx);
 }
 
@@ -138,7 +133,7 @@ static REBNATIVE(rc4)
         if (VAL_HANDLE_CLEANER(ARG(ctx)) != cleanup_rc4_ctx)
             fail (Error(RE_EXT_CRYPT_INVALID_RC4_CONTEXT, ARG(ctx)));
 
-        RC4_CTX *rc4_ctx = cast(RC4_CTX*, VAL_HANDLE_POINTER(ARG(ctx)));
+        RC4_CTX *rc4_ctx = VAL_HANDLE_POINTER(RC4_CTX, ARG(ctx));
 
         RC4_crypt(
             rc4_ctx,
@@ -489,16 +484,9 @@ static REBNATIVE(dh_compute_key)
 }
 
 
-// The original Saphirion implementation used OS_ALLOC (basically malloc) to
-// leave a potentially dangling memory pointer for the AES context.  Ren-C
-// has "managed handles" which will clean themselves up when they are no
-// longer referenced.
-//
 static void cleanup_aes_ctx(const REBVAL *v)
 {
-    assert(VAL_HANDLE_POINTER(v) != NULL);
-
-    AES_CTX *aes_ctx = cast(AES_CTX*, VAL_HANDLE_POINTER(v));
+    AES_CTX *aes_ctx = VAL_HANDLE_POINTER(AES_CTX, v);
     FREE(AES_CTX, aes_ctx);
 }
 
@@ -537,7 +525,7 @@ static REBNATIVE(aes)
         if (VAL_HANDLE_CLEANER(ARG(ctx)) != cleanup_aes_ctx)
             fail (Error(RE_EXT_CRYPT_INVALID_AES_CONTEXT, ARG(ctx)));
 
-        AES_CTX *aes_ctx = cast(AES_CTX*, VAL_HANDLE_POINTER(ARG(ctx)));
+        AES_CTX *aes_ctx = VAL_HANDLE_POINTER(AES_CTX, ARG(ctx));
 
         REBYTE *dataBuffer = VAL_BIN_AT(ARG(data));
         REBINT len = VAL_LEN_AT(ARG(data));

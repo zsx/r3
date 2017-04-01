@@ -374,14 +374,20 @@ REBNATIVE(load_native)
 {
     INCLUDE_PARAMS_OF_LOAD_NATIVE;
 
-    if (VAL_HANDLE_CLEANER(ARG(impl)) != cleanup_module_handler
-        || VAL_INT64(ARG(index)) < 0
-        || cast(REBUPT, VAL_INT64(ARG(index))) >= VAL_HANDLE_LEN(ARG(impl)))
+    if (VAL_HANDLE_CLEANER(ARG(impl)) != cleanup_module_handler)
         fail (Error_Misc_Raw());
 
+    REBI64 index = VAL_INT64(ARG(index));
+    if (index < 0 || cast(REBUPT, index) >= VAL_HANDLE_LEN(ARG(impl)))
+        fail (Error_Misc_Raw());
+
+    REBNAT dispatcher = VAL_HANDLE_POINTER(REBNAT, ARG(impl))[index];
     REBFUN *fun = Make_Function(
-        Make_Paramlist_Managed_May_Fail(ARG(spec), MKF_KEYWORDS | MKF_FAKE_RETURN),
-        cast(REBNAT*, VAL_HANDLE_POINTER(ARG(impl)))[VAL_INT64(ARG(index))], // unique
+        Make_Paramlist_Managed_May_Fail(
+            ARG(spec),
+            MKF_KEYWORDS | MKF_FAKE_RETURN
+        ),
+        dispatcher, // unique
         NULL, // no underlying function, this is fundamental
         NULL // not providing a specialization
     );
