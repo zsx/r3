@@ -209,11 +209,8 @@ bad_make:
 //
 void TO_Image(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 {
-#ifdef NDEBUG
-    UNUSED(kind);
-#else
     assert(kind == REB_IMAGE);
-#endif
+    UNUSED(kind);
 
     if (IS_IMAGE(arg)) {
         Copy_Image_Value(out, arg, VAL_IMAGE_LEN(arg));

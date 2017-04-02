@@ -50,11 +50,8 @@ REBINT CT_Tuple(const RELVAL *a, const RELVAL *b, REBINT mode)
 //
 void MAKE_Tuple(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 {
-#ifdef NDEBUG
-    UNUSED(kind);
-#else
     assert(kind == REB_TUPLE);
-#endif
+    UNUSED(kind);
 
     if (IS_TUPLE(arg)) {
         Move_Value(out, arg);

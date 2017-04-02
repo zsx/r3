@@ -56,11 +56,8 @@ REBINT CT_Money(const RELVAL *a, const RELVAL *b, REBINT mode)
 //
 void MAKE_Money(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 {
-#ifdef NDEBUG
-    UNUSED(kind);
-#else
     assert(kind == REB_MONEY);
-#endif
+    UNUSED(kind);
 
     switch (VAL_TYPE(arg)) {
     case REB_INTEGER:

@@ -1049,11 +1049,8 @@ void Init_Struct_Fields(REBVAL *ret, REBVAL *spec)
 //     ]
 //
 void MAKE_Struct(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
-#ifdef NDEBUG
-    UNUSED(kind);
-#else
     assert(kind == REB_STRUCT);
-#endif
+    UNUSED(kind);
 
     if (!IS_BLOCK(arg))
         fail (Error_Invalid_Arg(arg));

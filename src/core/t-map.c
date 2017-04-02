@@ -438,11 +438,8 @@ void MAKE_Map(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 //
 void TO_Map(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 {
-#ifdef NDEBUG
-    UNUSED(kind);
-#else
     assert(kind == REB_MAP);
-#endif
+    UNUSED(kind);
 
     REBARR* array;
     REBCNT len;

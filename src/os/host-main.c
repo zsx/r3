@@ -1023,7 +1023,14 @@ int main(int argc, char **argv_ansi)
             // evaluation error because those have their own traps, it was a
             // halt that happened during output.)
             //
-            assert(ERR_NUM(error) == RE_HALT);
+            if (ERR_NUM(error) != RE_HALT) {
+            #ifdef NDEBUG
+                // do something sensible in release builds here that does not
+                // crash.
+            #else
+                panic(error);
+            #endif
+            }
         }
         else {
             Host_Repl(&exit_status, value, FALSE);

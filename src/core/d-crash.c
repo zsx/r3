@@ -144,6 +144,14 @@ ATTRIBUTE_NO_RETURN void Panic_Core(
             PROBE(s);
         #endif
 
+        if (GET_SER_FLAG(s, ARRAY_FLAG_VARLIST)) {
+            printf("Series VARLIST detected.\n");
+            REBCTX *context = AS_CONTEXT(s);
+            if (CTX_TYPE(context) == REB_ERROR) {
+                printf("...and that VARLIST is of an ERROR!...");
+                PROBE(context);
+            }
+        }
         Panic_Series_Debug(cast(REBSER*, s));
     #else
         UNUSED(s);

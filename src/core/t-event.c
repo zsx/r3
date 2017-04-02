@@ -371,11 +371,8 @@ is_blank:
 //  MAKE_Event: C
 //
 void MAKE_Event(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
-#ifdef NDEBUG
-    UNUSED(kind);
-#else
     assert(kind == REB_EVENT);
-#endif
+    UNUSED(kind);
 
     if (IS_BLOCK(arg)) {
         CLEARS(out);

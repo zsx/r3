@@ -321,6 +321,7 @@ REBIXO Do_Vararg_Op_May_Throw(
 void MAKE_Varargs(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 {
     assert(kind == REB_VARARGS);
+    UNUSED(kind);
 
     // With MAKE VARARGS! on an ANY-ARRAY!, the array is the backing store
     // (shared) that the varargs interface cannot affect, but changes to
@@ -348,7 +349,7 @@ void MAKE_Varargs(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 
     // !!! Permit FRAME! ?
 
-    fail (Error_Bad_Make(kind, arg));
+    fail (Error_Bad_Make(REB_VARARGS, arg));
 }
 
 
@@ -357,11 +358,8 @@ void MAKE_Varargs(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 //
 void TO_Varargs(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 {
-#ifdef NDEBUG
-    UNUSED(kind);
-#else
     assert(kind == REB_VARARGS);
-#endif
+    UNUSED(kind);
 
     UNUSED(out);
 

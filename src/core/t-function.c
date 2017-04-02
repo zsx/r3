@@ -79,6 +79,7 @@ REBINT CT_Function(const RELVAL *a, const RELVAL *b, REBINT mode)
 void MAKE_Function(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 {
     assert(kind == REB_FUNCTION);
+    UNUSED(kind);
 
     if (
         !IS_BLOCK(arg)
@@ -86,7 +87,7 @@ void MAKE_Function(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
         || !IS_BLOCK(VAL_ARRAY_AT(arg))
         || !IS_BLOCK(VAL_ARRAY_AT(arg) + 1)
     ){
-        fail (Error_Bad_Make(kind, arg));
+        fail (Error_Bad_Make(REB_FUNCTION, arg));
     }
 
     DECLARE_LOCAL (spec);
@@ -119,11 +120,8 @@ void MAKE_Function(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 //
 void TO_Function(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 {
-#ifdef NDEBUG
-    UNUSED(kind);
-#else
     assert(kind == REB_FUNCTION);
-#endif
+    UNUSED(kind);
 
     UNUSED(out);
 

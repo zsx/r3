@@ -162,11 +162,8 @@ REBINT CT_Logic(const RELVAL *a, const RELVAL *b, REBINT mode)
 //  MAKE_Logic: C
 //
 void MAKE_Logic(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
-#ifdef NDEBUG
-    UNUSED(kind);
-#else
     assert(kind == REB_LOGIC);
-#endif
+    UNUSED(kind);
 
     // As a construction routine, MAKE takes more liberties in the
     // meaning of its parameters, so it lets zero values be false.
@@ -194,11 +191,8 @@ void MAKE_Logic(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
 //  TO_Logic: C
 //
 void TO_Logic(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
-#ifdef NDEBUG
-    UNUSED(kind);
-#else
     assert(kind == REB_LOGIC);
-#endif
+    UNUSED(kind);
 
     // As a "Rebol conversion", TO falls in line with the rest of the
     // interpreter canon that all non-none non-logic-false values are

@@ -871,11 +871,8 @@ void Extend_Gob_Core(REBGOB *gob, const REBVAL *arg) {
 //
 void MAKE_Gob(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 {
-#ifdef NDEBUG
-    UNUSED(kind);
-#else
     assert(kind == REB_GOB);
-#endif
+    UNUSED(kind);
 
     REBGOB *gob = Make_Gob();
 
@@ -900,11 +897,8 @@ void MAKE_Gob(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 //
 void TO_Gob(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 {
-#ifdef NDEBUG
-    UNUSED(kind);
-#else
     assert(kind == REB_GOB);
-#endif
+    UNUSED(kind);
 
     UNUSED(out);
 
