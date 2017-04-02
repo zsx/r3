@@ -891,7 +891,7 @@ import: function [
         "Don't export to the user context"
 ][
     if tag? module [
-        module: first select load https://raw.githubusercontent.com/r3n/renclib/master/usermodules.reb module
+        module: first select load rebol/locale/library module
     ]
     ; If it's a needs dialect block, call DO-NEEDS/block:
     if block? module [
