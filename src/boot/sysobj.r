@@ -92,7 +92,8 @@ ports: construct [] [
 
 locale: construct [] [
     language:   ; Human language locale
-    language*:
+    language*: _
+    library: https://raw.githubusercontent.com/r3n/renclib/master/usermodules.reb
     locale:
     locale*: _
     months: [
