@@ -84,10 +84,10 @@ do*: function [
         ]
 
         ; Convert value into a URL!
-        source: switch source load https://raw.githubusercontent.com/r3n/renclib/master/usermodules.reb
+        source: switch source load rebol/locale/library
         else [
             fail [
-                {Module} source {not in "https://github.com/r3n/renclib/blob/master/usermodules.reb"}
+                {Module} source {not in rebol/locale/library}
             ]            
         ]
     ]
