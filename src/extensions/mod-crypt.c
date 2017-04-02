@@ -450,20 +450,32 @@ static REBNATIVE(dh_compute_key)
     REBVAL *var = CTX_VARS_HEAD(obj);
 
     for (; NOT_END(key); ++key, ++var) {
-        if (!IS_BINARY(var))
-            continue; // what else would it be?
+        REBSTR* canon = VAL_KEY_CANON(key);
 
-        REBSTR* word = VAL_KEY_CANON(key);
-        if (word == CRYPT_WORD_P) {
+        if (canon == Canon(SYM_SELF)) {
+            NOOP;
+        }
+        else if (canon == CRYPT_WORD_P) {
+            if (NOT(IS_BINARY(var)))
+                fail (Error(RE_EXT_CRYPT_INVALID_KEY, var));
+
             dh_ctx.p = VAL_BIN_AT(var);
             dh_ctx.len = VAL_LEN_AT(var);
         }
-        else if (word == CRYPT_WORD_PRIV_KEY) { 
+        else if (canon == CRYPT_WORD_PRIV_KEY) { 
+            if (NOT(IS_BINARY(var)))
+                fail (Error(RE_EXT_CRYPT_INVALID_KEY, var));
+
             dh_ctx.x = VAL_BIN_AT(var);
         }
-        else {
-            fail (Error(RE_EXT_CRYPT_INVALID_KEY_FIELD, key));
+        else if (canon == CRYPT_WORD_PUB_KEY) {
+            NOOP;
         }
+        else if (canon == CRYPT_WORD_G) {
+            NOOP;
+        }
+        else
+            fail (Error(RE_EXT_CRYPT_INVALID_KEY_FIELD, key));
     }
 
     dh_ctx.gy = VAL_BIN_AT(ARG(public_key));
