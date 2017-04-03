@@ -302,9 +302,6 @@ inline static REBYTE *SER_LAST_RAW(size_t w, REBSER *s) {
 #define SER_FITS(s,n) \
     ((SER_LEN(s) + (n) + 1) <= SER_REST(s))
 
-#define Is_Array_Series(s) \
-    GET_SER_FLAG((s), SERIES_FLAG_ARRAY)
-
 
 //
 // Optimized expand when at tail (but, does not reterminate)
@@ -322,7 +319,7 @@ inline static void EXPAND_SERIES_TAIL(REBSER *s, REBCNT delta) {
 //
 
 inline static void TERM_SEQUENCE(REBSER *s) {
-    assert(!Is_Array_Series(s));
+    assert(NOT_SER_FLAG(s, SERIES_FLAG_ARRAY));
     memset(SER_AT_RAW(SER_WIDE(s), s, SER_LEN(s)), 0, SER_WIDE(s));
 }
 
@@ -457,12 +454,12 @@ static inline void Flip_Series_To_White(REBSER *s) {
 //
 
 inline static void Freeze_Sequence(REBSER *s) { // there is no unfreeze!
-    assert(!Is_Array_Series(s)); // Must use Deep_Freeze_Array()
+    assert(NOT_SER_FLAG(s, SERIES_FLAG_ARRAY)); // use Deep_Freeze_Array
     SET_SER_INFO(s, SERIES_INFO_FROZEN);
 }
 
 inline static REBOOL Is_Series_Frozen(REBSER *s) {
-    assert(!Is_Array_Series(s)); // Must use Is_Array_Deeply_Frozen()
+    assert(NOT_SER_FLAG(s, SERIES_FLAG_ARRAY)); // use Is_Array_Deeply_Frozen
     return GET_SER_INFO(s, SERIES_INFO_FROZEN);
 }
 
@@ -609,7 +606,7 @@ inline static REBSER *VAL_SERIES(const RELVAL *v) {
 }
 
 inline static void INIT_VAL_SERIES(RELVAL *v, REBSER *s) {
-    assert(!Is_Array_Series(s));
+    assert(NOT_SER_FLAG(s, SERIES_FLAG_ARRAY));
     v->payload.any_series.series = s;
 }
 

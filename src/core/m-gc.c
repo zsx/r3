@@ -911,7 +911,7 @@ static void Mark_Root_Series(void)
                 // this is.  So if it's a context, we have to get the
                 // keylist...etc.
                 //
-                if (Is_Array_Series(s))
+                if (GET_SER_FLAG(s, SERIES_FLAG_ARRAY))
                     Queue_Mark_Array_Subclass_Deep(AS_ARRAY(s));
                 else
                     Mark_Rebser_Only(s);
@@ -1022,7 +1022,7 @@ static void Mark_Guarded_Nodes(void)
         }
         else { // a series
             REBSER *s = cast(REBSER*, node);
-            if (Is_Array_Series(s))
+            if (GET_SER_FLAG(s, SERIES_FLAG_ARRAY))
                 Queue_Mark_Array_Subclass_Deep(AS_ARRAY(s));
             else
                 Mark_Rebser_Only(s);
@@ -1625,10 +1625,7 @@ REBARR *Snapshot_All_Functions(void)
                 // of other bits, see Sweep_Series.)
                 //
                 assert(IS_SERIES_MANAGED(s));
-                if (
-                    Is_Array_Series(s)
-                    && GET_SER_FLAG(s, ARRAY_FLAG_PARAMLIST)
-                ){
+                if (GET_SER_FLAG(s, ARRAY_FLAG_PARAMLIST)) {
                     REBVAL *v = KNOWN(ARR_HEAD(AS_ARRAY(s)));
                     assert(IS_FUNCTION(v));
                     DS_PUSH(v);

@@ -645,12 +645,9 @@ static REBOOL Series_Data_Alloc(
     if (flags & MKS_ARRAY) {
         assert(wide == sizeof(REBVAL));
         SET_SER_FLAG(s, SERIES_FLAG_ARRAY);
-        assert(Is_Array_Series(s));
     }
-    else {
+    else
         CLEAR_SER_FLAG(s, SERIES_FLAG_ARRAY);
-        assert(!Is_Array_Series(s));
-    }
 
     // The allocation may have returned more than we requested, so we note
     // that in 'rest' so that the series can expand in and use the space.
@@ -1077,7 +1074,10 @@ void Free_Pairing(REBVAL *paired) {
 void Swap_Underlying_Series_Data(REBSER *s1, REBSER *s2)
 {
     assert(SER_WIDE(s1) == SER_WIDE(s2));
-    assert(Is_Array_Series(s1) == Is_Array_Series(s2));
+    assert(
+        GET_SER_FLAG(s1, SERIES_FLAG_ARRAY)
+        == GET_SER_FLAG(s2, SERIES_FLAG_ARRAY)
+    );
 
     REBSER temp = *s1;
     *s1 = *s2;
@@ -1174,7 +1174,7 @@ void Expand_Series(REBSER *s, REBCNT index, REBCNT delta)
     REBCNT len_old = SER_LEN(s);
 
     REBYTE wide = SER_WIDE(s);
-    const REBOOL is_array = Is_Array_Series(s);
+    const REBOOL is_array = GET_SER_FLAG(s, SERIES_FLAG_ARRAY);
 
     const REBOOL was_dynamic = GET_SER_INFO(s, SERIES_INFO_HAS_DYNAMIC);
 
@@ -1375,7 +1375,7 @@ void Expand_Series(REBSER *s, REBCNT index, REBCNT delta)
 //
 void Remake_Series(REBSER *s, REBCNT units, REBYTE wide, REBCNT flags)
 {
-    REBOOL is_array = Is_Array_Series(s);
+    REBOOL is_array = GET_SER_FLAG(s, SERIES_FLAG_ARRAY);
     REBCNT len_old = SER_LEN(s);
     REBYTE wide_old = SER_WIDE(s);
 
@@ -2103,7 +2103,7 @@ REBU64 Inspect_Series(REBOOL show)
 
             tot_size += SER_TOTAL_IF_DYNAMIC(s); // else 0
 
-            if (Is_Array_Series(s)) {
+            if (GET_SER_FLAG(s, SERIES_FLAG_ARRAY)) {
                 blks++;
                 blk_size += SER_TOTAL_IF_DYNAMIC(s);
             }

@@ -731,7 +731,7 @@ pick:
             // !!! Better approach?  Can the series be passed directly?
             //
             REBSER* temp = va_arg(*vaptr, REBSER*);
-            if (Is_Array_Series(temp)) {
+            if (GET_SER_FLAG(temp, SERIES_FLAG_ARRAY)) {
                 VAL_RESET_HEADER(value, REB_BLOCK);
                 INIT_VAL_ARRAY(value, AS_ARRAY(temp)); // careful, macro!
             }

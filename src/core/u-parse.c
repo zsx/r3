@@ -298,7 +298,7 @@ static void Print_Parse_Index(REBFRM *f) {
         P_TYPE,
         P_INPUT,
         P_POS,
-        Is_Array_Series(P_INPUT)
+        GET_SER_FLAG(P_INPUT, SERIES_FLAG_ARRAY)
             ? P_INPUT_SPECIFIER
             : SPECIFIED
     );
@@ -994,7 +994,7 @@ static REBIXO To_Thru_Non_Block_Rule(
         return SER_LEN(P_INPUT);
     }
 
-    if (Is_Array_Series(P_INPUT)) {
+    if (GET_SER_FLAG(P_INPUT, SERIES_FLAG_ARRAY)) {
         //
         // FOR ARRAY INPUT WITH NON-BLOCK RULES, USE Find_In_Array()
         //
@@ -1164,7 +1164,7 @@ static REBIXO To_Thru_Non_Block_Rule(
 //
 static REBIXO Do_Eval_Rule(REBFRM *f)
 {
-    if (!Is_Array_Series(P_INPUT)) // input can't be an ANY-STRING!
+    if (NOT_SER_FLAG(P_INPUT, SERIES_FLAG_ARRAY)) // can't be an ANY-STRING!
         fail (Error_Parse_Rule());
 
     if (IS_END(P_RULE))
@@ -1814,7 +1814,7 @@ REBNATIVE(subparse)
                     break; }
 
                 case SYM_QUOTE: {
-                    if (!Is_Array_Series(P_INPUT))
+                    if (NOT_SER_FLAG(P_INPUT, SERIES_FLAG_ARRAY))
                         fail (Error_Parse_Rule()); // see #2253
 
                     if (IS_END(P_RULE))
@@ -1948,7 +1948,7 @@ REBNATIVE(subparse)
             else {
                 // Parse according to datatype
 
-                if (Is_Array_Series(P_INPUT))
+                if (GET_SER_FLAG(P_INPUT, SERIES_FLAG_ARRAY))
                     i = Parse_Array_One_Rule(f, rule);
                 else
                     i = Parse_String_One_Rule(f, rule);
@@ -2036,7 +2036,7 @@ REBNATIVE(subparse)
                     Init_Any_Series(
                         temp,
                         P_TYPE,
-                        Is_Array_Series(P_INPUT)
+                        GET_SER_FLAG(P_INPUT, SERIES_FLAG_ARRAY)
                             ? AS_SERIES(Copy_Array_At_Max_Shallow(
                                 AS_ARRAY(P_INPUT),
                                 begin,
@@ -2052,7 +2052,7 @@ REBNATIVE(subparse)
                     );
                 }
                 else if (flags & PF_SET) {
-                    if (Is_Array_Series(P_INPUT)) {
+                    if (GET_SER_FLAG(P_INPUT, SERIES_FLAG_ARRAY)) {
                         if (count != 0)
                             Derelativize(
                                 Sink_Var_May_Fail(
@@ -2088,7 +2088,7 @@ REBNATIVE(subparse)
                     Init_Any_Series(
                         captured,
                         P_TYPE,
-                        Is_Array_Series(P_INPUT)
+                        GET_SER_FLAG(P_INPUT, SERIES_FLAG_ARRAY)
                             ? AS_SERIES(Copy_Array_At_Max_Shallow(
                                 AS_ARRAY(P_INPUT),
                                 begin,
@@ -2137,7 +2137,7 @@ REBNATIVE(subparse)
                     rule = Get_Parse_Value(save, P_RULE, P_RULE_SPECIFIER);
                     FETCH_NEXT_RULE_MAYBE_END(f);
 
-                    if (Is_Array_Series(P_INPUT)) {
+                    if (GET_SER_FLAG(P_INPUT, SERIES_FLAG_ARRAY)) {
                         DECLARE_LOCAL (specified);
                         Derelativize(specified, rule, P_RULE_SPECIFIER);
 

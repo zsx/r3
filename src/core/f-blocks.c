@@ -224,7 +224,7 @@ void Clonify_Values_Len_Managed(
                 series = AS_SERIES(CTX_VARLIST(VAL_CONTEXT(value)));
             }
             else {
-                if (Is_Array_Series(VAL_SERIES(value))) {
+                if (GET_SER_FLAG(VAL_SERIES(value), SERIES_FLAG_ARRAY)) {
                 #if !defined(NDEBUG)
                     legacy = GET_SER_FLAG(VAL_ARRAY(value), SERIES_FLAG_LEGACY);
                 #endif

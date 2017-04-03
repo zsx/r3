@@ -261,7 +261,7 @@ void Probe_Core_Debug(
 
             if (BYTE_SIZE(s))
                 Debug_Str(s_cast(BIN_HEAD(s)));
-            else if (Is_Array_Series(s)) {
+            else if (GET_SER_FLAG(s, SERIES_FLAG_ARRAY)) {
                 //
                 // May not actually be a REB_BLOCK, but we put it in a value
                 // container for now saying it is so we can output it.  May

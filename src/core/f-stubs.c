@@ -357,7 +357,7 @@ void Init_Any_Series_At_Core(
         INIT_SPECIFIC(out, AS_CONTEXT(specifier));
 
 #if !defined(NDEBUG)
-    if (Is_Array_Series(series) && specifier == SPECIFIED) {
+    if (GET_SER_FLAG(series, SERIES_FLAG_ARRAY) && specifier == SPECIFIED) {
         //
         // If a SPECIFIED is used for an array, then that top level of the
         // array cannot have any relative values in it.  Catch it here vs.

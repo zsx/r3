@@ -259,7 +259,7 @@ void Expand_Hash(REBSER *ser)
         fail (Error_Size_Limit_Raw(temp));
     }
 
-    assert(!Is_Array_Series(ser));
+    assert(NOT_SER_FLAG(ser, SERIES_FLAG_ARRAY));
     Remake_Series(ser, pnum + 1, SER_WIDE(ser), MKS_POWER_OF_2);
 
     Clear_Series(ser);

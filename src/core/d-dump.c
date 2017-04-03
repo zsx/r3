@@ -143,7 +143,7 @@ void Dump_Series(REBSER *s, const char *memo)
 
     fflush(stdout);
 
-    if (Is_Array_Series(s))
+    if (GET_SER_FLAG(s, SERIES_FLAG_ARRAY))
         Dump_Values(ARR_HEAD(AS_ARRAY(s)), SER_LEN(s));
     else
         Dump_Bytes(SER_DATA_RAW(s), (SER_LEN(s) + 1) * SER_WIDE(s));

@@ -104,7 +104,7 @@ inline static RELVAL *ARR_LAST(REBARR *a)
 // performance reasons (for better or worse).
 //
 inline static REBCNT ARR_LEN(REBARR *a) {
-    assert(Is_Array_Series(AS_SERIES(a)));
+    assert(GET_SER_FLAG(a, SERIES_FLAG_ARRAY));
     return SER_LEN(AS_SERIES(a));
 }
 
@@ -134,7 +134,7 @@ inline static void RESET_ARRAY(REBARR *a) {
 }
 
 inline static void TERM_SERIES(REBSER *s) {
-    if (Is_Array_Series(s))
+    if (GET_SER_FLAG(s, SERIES_FLAG_ARRAY))
         TERM_ARRAY_LEN(AS_ARRAY(s), SER_LEN(s));
     else
         memset(SER_AT_RAW(SER_WIDE(s), s, SER_LEN(s)), 0, SER_WIDE(s));
@@ -392,7 +392,7 @@ inline static RELVAL *VAL_ARRAY_TAIL(const RELVAL *v) {
         ASSERT_SERIES_MANAGED(AS_SERIES(array))
 
     static inline void ASSERT_SERIES(REBSER *s) {
-        if (Is_Array_Series(s))
+        if (GET_SER_FLAG(s, SERIES_FLAG_ARRAY))
             Assert_Array_Core(AS_ARRAY(s));
         else
             Assert_Series_Core(s);
