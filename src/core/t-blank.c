@@ -103,7 +103,7 @@ REBINT CT_Handle(const RELVAL *a, const RELVAL *b, REBINT mode)
     UNUSED(b);
     UNUSED(mode);
 
-    fail (Error_Misc_Raw());
+    fail ("Currently comparing HANDLE! types is not allowed.");
 }
 
 

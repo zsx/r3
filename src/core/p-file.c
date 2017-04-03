@@ -349,7 +349,7 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
     case SYM_APPEND: {
         if (!(IS_BINARY(D_ARG(2)) || IS_STRING(D_ARG(2)) || IS_BLOCK(D_ARG(2))))
-            fail (Error_Invalid_Arg(D_ARG(2)));
+            fail (D_ARG(2));
         file->index = file->size;
         SET_FLAG(req->modes, RFM_RESEEK); }
         //

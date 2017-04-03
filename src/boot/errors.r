@@ -25,13 +25,6 @@ Internal: [
     code: 1000
     type: "internal"
 
-    ; Because adding an error code has the overhead of modifying this file and
-    ; coming up with a good name, errors for testing or that you don't think
-    ; will happen can use RE_MISC.  A debug build will identify the line
-    ; number and file source of the error, so provides some info already.
-    ;
-    misc:               {RE_MISC error (if actually happens, add to %errors.r)}
-
     ; !!! Should there be a distinction made between different kinds of
     ; stack overflows?  (Call stack, Data stack?)
     ;

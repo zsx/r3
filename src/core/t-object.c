@@ -133,7 +133,8 @@ static void Append_To_Context(REBCTX *context, REBVAL *arg)
         return;
     }
 
-    if (!IS_BLOCK(arg)) fail (Error_Invalid_Arg(arg));
+    if (NOT(IS_BLOCK(arg)))
+        fail (arg);
 
     // Process word/value argument block:
 
@@ -436,7 +437,7 @@ void TO_Context(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
     if (kind == REB_OBJECT) {
         if (IS_ERROR(arg)) {
             if (VAL_ERR_NUM(arg) < 100)
-                fail (Error_Invalid_Arg(arg)); // !!! ???
+                fail (arg);
         }
 
         // !!! Contexts hold canon values now that are typed, this init
@@ -846,7 +847,7 @@ REBNATIVE(construct)
         // instance), and making an ERROR! from scratch is currently dangerous
         // as well though you can derive them.
         //
-        fail (Error_Misc_Raw());
+        fail ("DATATYPE! not supported for SPEC of CONSTRUCT");
     }
     else {
         assert(IS_BLOCK(spec));
@@ -930,5 +931,5 @@ REBNATIVE(construct)
         return R_OUT;
     }
 
-    fail (Error_Misc_Raw());
+    fail ("Unsupported CONSTRUCT arguments");
 }

@@ -980,7 +980,7 @@ REBOOL Decode_UTF8_Maybe_Astral_Throws(
                     break;
 
                 default:
-                    fail (Error_Invalid_Arg(item));
+                    fail (item);
                 }
 
                 continue;

@@ -125,7 +125,7 @@ void TO_Function(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 
     UNUSED(out);
 
-    fail (Error_Invalid_Arg(arg));
+    fail (arg);
 }
 
 
@@ -217,8 +217,13 @@ REBTYPE(Function)
             return R_OUT;
 
         case SYM_BODY:
-            if (IS_FUNCTION_HIJACKER(value))
-                fail (Error_Misc_Raw()); // body corrupt, need to recurse
+            //
+            // A Hijacker may or may not need to splice itself in with a
+            // dispatcher.  So if it does, bypass it to get to the real
+            // function implementation.
+            //
+            while (IS_FUNCTION_HIJACKER(value))
+                value = KNOWN(VAL_FUNC_BODY(value));
 
             if (IS_FUNCTION_INTERPRETED(value)) {
                 //

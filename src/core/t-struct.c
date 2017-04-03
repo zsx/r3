@@ -162,7 +162,7 @@ static void get_scalar(
 
     default:
         assert(FALSE);
-        fail (Error_Misc_Raw());
+        fail ("Unknown FFI type indicator");
     }
 }
 
@@ -351,10 +351,10 @@ static REBOOL assign_scalar_core(
             fail (Error_Invalid_Type(VAL_TYPE(val)));
 
         if (FLD_WIDE(field) != VAL_STRUCT_SIZE(val))
-            fail (Error_Invalid_Arg(val));
+            fail (val);
 
         if (!same_fields(FLD_FIELDLIST(field), VAL_STRUCT_FIELDLIST(val)))
-            fail (Error_Invalid_Arg(val));
+            fail (val);
 
         memcpy(data, VAL_STRUCT_DATA_AT(val), FLD_WIDE(field));
 
@@ -534,83 +534,80 @@ static void parse_attr (REBVAL *blk, REBINT *raw_size, REBUPT *raw_addr)
     *raw_addr = 0;
 
     while (NOT_END(attr)) {
-        if (!IS_SET_WORD(attr))
-            fail (Error_Invalid_Arg(attr));
+        if (NOT(IS_SET_WORD(attr)))
+            fail (attr);
 
         switch (VAL_WORD_SYM(attr)) {
         case SYM_RAW_SIZE:
             ++ attr;
             if (NOT_END(attr) && IS_INTEGER(attr)) {
-                if (*raw_size > 0) /* duplicate raw-size */
-                    fail (Error_Invalid_Arg(attr));
+                if (*raw_size > 0)
+                    fail ("FFI: duplicate raw size");
 
                 *raw_size = VAL_INT64(attr);
                 if (*raw_size <= 0)
-                    fail (Error_Invalid_Arg(attr));
+                    fail ("FFI: raw size cannot be zero");
             }
             else
-                fail (Error_Invalid_Arg(attr));
+                fail (attr);
             break;
 
         case SYM_RAW_MEMORY:
             ++ attr;
             if (NOT_END(attr) && IS_INTEGER(attr)) {
-                if (*raw_addr != 0) /* duplicate raw-memory */
-                    fail (Error_Invalid_Arg(attr));
+                if (*raw_addr != 0)
+                    fail ("FFI: duplicate raw memory");
 
                 *raw_addr = cast(REBU64, VAL_INT64(attr));
                 if (*raw_addr == 0)
-                    fail (Error_Invalid_Arg(attr));
+                    fail ("FFI: void pointer illegal for raw memory");
             }
             else
-                fail (Error_Invalid_Arg(attr));
+                fail (attr);
             break;
 
-        case SYM_EXTERN:
+        case SYM_EXTERN: {
             ++ attr;
 
-            if (*raw_addr != 0) // raw-memory is exclusive with extern
-                fail (Error_Invalid_Arg(attr));
+            if (*raw_addr != 0)
+                fail ("FFI: raw memory is exclusive with extern");
 
-            if (IS_END(attr) || !IS_BLOCK(attr)
-                || VAL_LEN_AT(attr) != 2) {
-                fail (Error_Invalid_Arg(attr));
-            }
-            else {
-                REBVAL *lib = KNOWN(VAL_ARRAY_AT_HEAD(attr, 0));
-                if (!IS_LIBRARY(lib))
-                    fail (Error_Invalid_Arg(attr));
-                if (IS_LIB_CLOSED(VAL_LIBRARY(lib)))
-                    fail (Error_Bad_Library_Raw());
+            if (IS_END(attr) || NOT(IS_BLOCK(attr)) || VAL_LEN_AT(attr) != 2)
+                fail (attr);
 
-                REBVAL *sym = KNOWN(VAL_ARRAY_AT_HEAD(attr, 1));
-                if (!ANY_BINSTR(sym))
-                    fail (Error_Invalid_Arg(sym));
+            REBVAL *lib = KNOWN(VAL_ARRAY_AT_HEAD(attr, 0));
+            if (NOT(IS_LIBRARY(lib)))
+                fail (attr);
+            if (IS_LIB_CLOSED(VAL_LIBRARY(lib)))
+                fail (Error_Bad_Library_Raw());
 
-                CFUNC *addr = OS_FIND_FUNCTION(
-                    VAL_LIBRARY_FD(lib),
-                    s_cast(VAL_RAW_DATA_AT(sym))
-                );
-                if (!addr)
-                    fail (Error_Symbol_Not_Found_Raw(sym));
+            REBVAL *sym = KNOWN(VAL_ARRAY_AT_HEAD(attr, 1));
+            if (NOT(ANY_BINSTR(sym)))
+                fail (sym);
 
-                *raw_addr = cast(REBUPT, addr);
-            }
-            break;
+            CFUNC *addr = OS_FIND_FUNCTION(
+                VAL_LIBRARY_FD(lib),
+                s_cast(VAL_RAW_DATA_AT(sym))
+            );
+            if (addr == NULL)
+                fail (Error_Symbol_Not_Found_Raw(sym));
+
+            *raw_addr = cast(REBUPT, addr);
+            break; }
 
         // !!! This alignment code was commented out for some reason.
         /*
         case SYM_ALIGNMENT:
             ++ attr;
             if (!IS_INTEGER(attr))
-                fail (Error_Invalid_Arg(attr));
+                fail (attr);
                 
             alignment = VAL_INT64(attr);
             break;
         */
 
         default:
-            fail (Error_Invalid_Arg(attr));
+            fail (attr);
         }
 
         ++ attr;
@@ -770,7 +767,7 @@ static void Parse_Field_Type_May_Fail(
     RELVAL *val = VAL_ARRAY_AT(spec);
 
     if (IS_END(val))
-        fail (Error_Misc_Raw()); // !!! better error
+        fail ("Empty field type in FFI");
 
     if (IS_WORD(val)) {
         REBSYM sym = VAL_WORD_SYM(val);
@@ -967,7 +964,7 @@ void Init_Struct_Fields(REBVAL *ret, REBVAL *spec)
 
             // make sure no other field initialization
             if (VAL_LEN_HEAD(spec) != 1)
-                fail (Error_Invalid_Arg(spec));
+                fail (spec);
 
             parse_attr(word, &raw_size, &raw_addr);
             ret->payload.structure.data
@@ -975,8 +972,8 @@ void Init_Struct_Fields(REBVAL *ret, REBVAL *spec)
 
             break;
         }
-        else if (! IS_SET_WORD(word))
-            fail (Error_Invalid_Arg(word));
+        else if (NOT(IS_SET_WORD(word)))
+            fail (word);
 
         if (IS_END(fld_val))
             fail (Error_Need_Value_Raw(fld_val));
@@ -995,7 +992,7 @@ void Init_Struct_Fields(REBVAL *ret, REBVAL *spec)
                     REBCNT dimension = FLD_DIMENSION(field);
 
                     if (VAL_LEN_AT(fld_val) != dimension)
-                        fail (Error_Invalid_Arg(fld_val));
+                        fail (fld_val);
 
                     REBCNT n = 0;
                     for (n = 0; n < dimension; ++n) {
@@ -1005,7 +1002,7 @@ void Init_Struct_Fields(REBVAL *ret, REBVAL *spec)
                             n,
                             KNOWN(VAL_ARRAY_AT_HEAD(fld_val, n))
                         ))) {
-                            fail (Error_Invalid_Arg(fld_val));
+                            fail (fld_val);
                         }
                     }
                 }
@@ -1022,16 +1019,16 @@ void Init_Struct_Fields(REBVAL *ret, REBVAL *spec)
                     );
                 }
                 else
-                    fail (Error_Invalid_Arg(fld_val));
+                    fail (fld_val);
             }
             else {
                 if (NOT(assign_scalar(VAL_STRUCT(ret), field, 0, fld_val)))
-                    fail (Error_Invalid_Arg(fld_val));
+                    fail (fld_val);
             }
             return;
         }
 
-        fail (Error_Invalid_Arg(word)); // field not in the parent struct
+        fail ("FFI: field not in the parent struct");
     }
 }
 
@@ -1052,8 +1049,8 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
     assert(kind == REB_STRUCT);
     UNUSED(kind);
 
-    if (!IS_BLOCK(arg))
-        fail (Error_Invalid_Arg(arg));
+    if (NOT(IS_BLOCK(arg)))
+        fail (arg);
 
     REBINT max_fields = 16;
 
@@ -1171,7 +1168,7 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
 
         if (expect_init) {
             if (IS_END(item))
-               fail (Error_Invalid_Arg(arg));
+               fail (arg);
 
             if (IS_BLOCK(item)) {
                 Derelativize(specified, item, VAL_SPECIFIER(arg));
@@ -1215,7 +1212,7 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
                     REBCNT n = 0;
 
                     if (VAL_LEN_AT(init) != FLD_DIMENSION(field))
-                        fail (Error_Invalid_Arg(init));
+                        fail (init);
 
                     // assign
                     for (n = 0; n < FLD_DIMENSION(field); n ++) {
@@ -1226,8 +1223,7 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
                             n,
                             KNOWN(VAL_ARRAY_AT_HEAD(init, n))
                         )) {
-                            //printf("Failed to assign element value\n");
-                            fail (Error_Misc_Raw());
+                            fail ("FFI: Failed to assign element value");
                         }
                     }
                 }
@@ -1239,8 +1235,7 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
                 if (!assign_scalar_core(
                     BIN_HEAD(data_bin), offset, field, 0, init
                 )) {
-                    //printf("Failed to assign scalar value\n");
-                    fail (Error_Misc_Raw());
+                    fail ("FFI: Failed to assign scalar value");
                 }
             }
         }
@@ -1519,7 +1514,7 @@ REBTYPE(Struct)
             fail (Error_Unexpected_Type(REB_BINARY, VAL_TYPE(arg)));
 
         if (VAL_LEN_AT(arg) != VAL_STRUCT_DATA_LEN(val))
-            fail (Error_Invalid_Arg(arg));
+            fail (arg);
 
         memcpy(
             VAL_STRUCT_DATA_HEAD(val),

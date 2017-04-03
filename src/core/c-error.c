@@ -229,8 +229,54 @@ REBOOL Trapped_Helper_Halted(struct Reb_State *s)
 // the "throw" mechanic, which has to bubble up a THROWN() value through
 // D_OUT (used to implement BREAK, CONTINUE, RETURN, LEAVE...)
 //
-ATTRIBUTE_NO_RETURN void Fail_Core(REBCTX *error)
+// The function will auto-detect if the pointer it is given is an ERROR!'s
+// REBCTX*, a REBVAL*, or a UTF-8 string.  If it's a string, an error will be
+// created from it automatically.  If it's a value, then it is turned into
+// the ubiquitous (and kind of lame) "Invalid Arg" error.
+//
+// Note: Over the long term, one does not want to hard-code error strings in
+// the executable.  That makes them more difficult to hook with translations,
+// or to identify systemically with some kind of "error code".  However,
+// it's a realistic quick-and-dirty way of delivering a more meaningful
+// error than just using a RE_MISC error code, and can be found just as easily
+// to clean up later.
+//
+ATTRIBUTE_NO_RETURN void Fail_Core(const void *p)
 {
+    REBCTX *error;
+
+    switch (Detect_Rebol_Pointer(p)) {
+    case DETECTED_AS_NON_EMPTY_UTF8: {
+        DECLARE_LOCAL (string);
+        Init_String(string, Make_UTF8_May_Fail(cast(const char*, p)));
+        error = Error(RE_USER, string, END);
+        break; }
+
+    case DETECTED_AS_EMPTY_UTF8:
+        panic (p);
+
+    case DETECTED_AS_SERIES: {
+        REBSER *s = m_cast(REBSER*, cast(const REBSER*, p)); // don't mutate
+        if (NOT_SER_FLAG(s, ARRAY_FLAG_VARLIST))
+            panic (s);
+        error = AS_CONTEXT(s);
+        break; }
+
+    case DETECTED_AS_VALUE: {
+        const REBVAL *v = cast(const REBVAL*, p);
+        error = Error(RE_INVALID_ARG, v, END);
+        break; }
+
+    case DETECTED_AS_CELL_END:
+        panic (p);
+
+    case DETECTED_AS_INTERNAL_END:
+        panic (p);
+
+    default:
+        panic (p);
+    }
+
     ASSERT_CONTEXT(error);
     assert(CTX_TYPE(error) == REB_ERROR);
 
@@ -1220,20 +1266,15 @@ REBCTX *Error_No_Memory(REBCNT bytes)
 // becomes a catch all for "unexpected input" when a more
 // specific error would be more useful.
 //
+// Note that just `fail (value)` on REBVAL* will generate this error, this
+// variant is used on RELVAL*.
+//
 REBCTX *Error_Invalid_Arg_Core(const RELVAL *value, REBSPC *specifier)
 {
     DECLARE_LOCAL (specific);
     Derelativize(specific, value, specifier);
 
     return Error_Invalid_Arg_Raw(specific);
-}
-
-
-//
-//  Error_Invalid_Arg: C
-//
-REBCTX *Error_Invalid_Arg(const REBVAL *value) {
-    return Error_Invalid_Arg_Core(value, SPECIFIED);
 }
 
 

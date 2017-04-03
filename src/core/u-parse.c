@@ -1380,18 +1380,12 @@ REBNATIVE(subparse)
 
         assert(Eval_Count >= 0);
         if (--Eval_Count == 0) {
-            //
-            // !!! See notes on other invocations about the questions raised by
-            // calls to Do_Signals_Throws() by places that do not have a clear
-            // path up to return results from an interactive breakpoint.
-            //
-            DECLARE_LOCAL (result);
+            SET_END(P_CELL);
 
-            if (Do_Signals_Throws(result))
-                fail (Error_No_Catch_For_Throw(result));
+            if (Do_Signals_Throws(P_CELL))
+                fail (Error_No_Catch_For_Throw(P_CELL));
 
-            if (IS_ANY_VALUE(result))
-                fail (Error_Misc_Raw());
+            assert(IS_END(P_CELL));
         }
 
     //==////////////////////////////////////////////////////////////////==//
@@ -1902,7 +1896,7 @@ REBNATIVE(subparse)
                         // since the Do_Eval_Rule routine expects to be
                         // able to arbitrarily update P_NEXT_RULE
                         //
-                        fail (Error_Misc_Raw());
+                        fail ("DO rules currently cannot be iterated");
                     }
 
                     subrule = BLANK_VALUE; // cause an error if iterating
@@ -2318,7 +2312,7 @@ REBNATIVE(parse_accept)
 // internal throw used to indicate "accept".
 {
     UNUSED(frame_);
-    fail (Error_Misc_Raw());
+    fail ("PARSE-ACCEPT is for internal PARSE use only");
 }
 
 
@@ -2335,5 +2329,5 @@ REBNATIVE(parse_reject)
 // internal throw used to indicate "reject".
 {
     UNUSED(frame_);
-    fail (Error_Misc_Raw());
+    fail ("PARSE-REJECT is for internal PARSE use only");
 }

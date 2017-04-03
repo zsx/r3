@@ -241,7 +241,7 @@ REBOOL Wait_Ports(REBARR *ports, REBCNT timeout, REBOOL only)
                 // meaning then there must be a way to deliver that result
                 // up the stack.
                 //
-                fail (Error_Misc_Raw());
+                fail ("Cannot deliver non-void result from Wait_Ports()");
             }
         }
 
@@ -452,8 +452,7 @@ REBOOL Redo_Func_Throws(REBFRM *f, REBFUN *func_new)
         // all not getting consumed, but we can raise an error now that it
         // did not.
         //
-        assert(FALSE);
-        fail (Error_Misc_Raw());
+        fail ("Function frame proxying did not consume all arguments");
     }
 
     return LOGICAL(indexor == THROWN_FLAG);
@@ -530,8 +529,8 @@ post_process_output:
         assert(r == R_OUT);
 
         if ((REF(string) || REF(lines)) && !IS_STRING(D_OUT)) {
-            if (!IS_BINARY(D_OUT))
-                fail (Error_Misc_Raw()); // !!! when can this happen?
+            if (NOT(IS_BINARY(D_OUT)))
+                fail ("/STRING or /LINES used on a non-BINARY!/STRING! read");
 
             REBSER *decoded = Decode_UTF_String(
                 VAL_BIN_AT(D_OUT),
@@ -544,8 +543,7 @@ post_process_output:
         }
 
         if (REF(lines)) { // caller wants a BLOCK! of STRING!s, not one string
-            if (!IS_STRING(D_OUT))
-                fail (Error_Misc_Raw()); // !!! when can this happen?
+            assert(IS_STRING(D_OUT));
 
             DECLARE_LOCAL (temp);
             Move_Value(temp, D_OUT);

@@ -86,7 +86,7 @@ static REBOOL Set_Event_Var(REBVAL *event, const REBVAL *word, const REBVAL *val
                     return TRUE;
                 }
             }
-            fail (Error_Invalid_Arg(val));
+            fail (val);
         }
         return FALSE;
 
@@ -394,14 +394,11 @@ void MAKE_Event(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
 //
 void TO_Event(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 {
-#ifdef NDEBUG
-    UNUSED(kind);
-#else
     assert(kind == REB_EVENT);
-#endif
+    UNUSED(kind);
 
     UNUSED(out);
-    fail (Error_Invalid_Arg(arg));
+    fail (arg);
 }
 
 

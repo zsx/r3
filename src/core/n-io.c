@@ -477,7 +477,7 @@ REBNATIVE(to_rebol_file)
 
     REBSER *ser = Value_To_REBOL_Path(arg, FALSE);
     if (ser == NULL)
-        fail (Error_Invalid_Arg(arg));
+        fail (arg);
 
     Init_File(D_OUT, ser);
     return R_OUT;
@@ -502,7 +502,7 @@ REBNATIVE(to_local_file)
 
     REBSER *ser = Value_To_Local_Path(arg, REF(full));
     if (ser == NULL)
-        fail (Error_Invalid_Arg(arg));
+        fail (arg);
 
     Init_String(D_OUT, ser);
     return R_OUT;
@@ -549,7 +549,8 @@ REBNATIVE(what_dir)
     else {
         // Lousy error, but ATM the user can directly edit system/options.
         // They shouldn't be able to (or if they can, it should be validated)
-        fail (Error_Invalid_Arg(current_path));
+        //
+        fail (current_path);
     }
 
     return R_OUT;
@@ -582,15 +583,15 @@ REBNATIVE(change_dir)
         assert(IS_FILE(arg));
 
         REBSER *ser = Value_To_OS_Path(arg, TRUE);
-        if (!ser)
-            fail (Error_Invalid_Arg(arg)); // !!! ERROR MSG
+        if (ser == NULL)
+            fail (arg);
 
         DECLARE_LOCAL (val);
         Init_String(val, ser); // may be unicode or utf-8
         Check_Security(Canon(SYM_FILE), POL_EXEC, val);
 
         if (!OS_SET_CURRENT_DIR(SER_HEAD(REBCHR, ser)))
-            fail (Error_Invalid_Arg(arg)); // !!! ERROR MSG
+            fail (arg);
     }
 
     Move_Value(current_path, arg);
@@ -765,7 +766,7 @@ REBNATIVE(call)
             input_type = NONE_TYPE;
         }
         else
-            fail (Error_Invalid_Arg(param));
+            fail (param);
     }
 
     // Note that os_output is actually treated as an *input* parameter in the
@@ -795,7 +796,7 @@ REBNATIVE(call)
             output_type = NONE_TYPE;
         }
         else
-            fail (Error_Invalid_Arg(param));
+            fail (param);
     }
 
     (void)input; // suppress unused warning but keep variable
@@ -823,7 +824,7 @@ REBNATIVE(call)
             err_type = NONE_TYPE;
         }
         else
-            fail (Error_Invalid_Arg(param));
+            fail (param);
     }
 
     if (
@@ -927,7 +928,7 @@ REBNATIVE(call)
         argv[argc] = NULL;
     }
     else
-        fail (Error_Invalid_Arg(arg));
+        fail (arg);
 
     r = OS_CREATE_PROCESS(
         cmd, argc, argv,
@@ -1378,10 +1379,10 @@ REBNATIVE(access_os)
                                 fail (Error_Permission_Denied_Raw());
 
                             case OS_EINVAL:
-                                fail (Error_Invalid_Arg(val));
+                                fail (val);
 
                             default:
-                                fail (Error_Invalid_Arg(val));
+                                fail (val);
                         }
                     } else {
                         SET_INTEGER(D_OUT, ret);
@@ -1389,7 +1390,7 @@ REBNATIVE(access_os)
                     }
                 }
                 else
-                    fail (Error_Invalid_Arg(val));
+                    fail (val);
             }
             else {
                 REBINT ret = OS_GET_UID();
@@ -1414,10 +1415,10 @@ REBNATIVE(access_os)
                                 fail (Error_Permission_Denied_Raw());
 
                             case OS_EINVAL:
-                                fail (Error_Invalid_Arg(val));
+                                fail (val);
 
                             default:
-                                fail (Error_Invalid_Arg(val));
+                                fail (val);
                         }
                     } else {
                         SET_INTEGER(D_OUT, ret);
@@ -1425,7 +1426,7 @@ REBNATIVE(access_os)
                     }
                 }
                 else
-                    fail (Error_Invalid_Arg(val));
+                    fail (val);
             }
             else {
                 REBINT ret = OS_GET_GID();
@@ -1450,10 +1451,10 @@ REBNATIVE(access_os)
                                 fail (Error_Permission_Denied_Raw());
 
                             case OS_EINVAL:
-                                fail (Error_Invalid_Arg(val));
+                                fail (val);
 
                             default:
-                                fail (Error_Invalid_Arg(val));
+                                fail (val);
                         }
                     } else {
                         SET_INTEGER(D_OUT, ret);
@@ -1461,7 +1462,7 @@ REBNATIVE(access_os)
                     }
                 }
                 else
-                    fail (Error_Invalid_Arg(val));
+                    fail (val);
             }
             else {
                 REBINT ret = OS_GET_EUID();
@@ -1486,10 +1487,10 @@ REBNATIVE(access_os)
                                 fail (Error_Permission_Denied_Raw());
 
                             case OS_EINVAL:
-                                fail (Error_Invalid_Arg(val));
+                                fail (val);
 
                             default:
-                                fail (Error_Invalid_Arg(val));
+                                fail (val);
                         }
                     } else {
                         SET_INTEGER(D_OUT, ret);
@@ -1497,7 +1498,7 @@ REBNATIVE(access_os)
                     }
                 }
                 else
-                    fail (Error_Invalid_Arg(val));
+                    fail (val);
             }
             else {
                 REBINT ret = OS_GET_EGID();
@@ -1520,7 +1521,8 @@ REBNATIVE(access_os)
                 else if (IS_BLOCK(val)) {
                     RELVAL *sig = NULL;
 
-                    if (VAL_LEN_AT(val) != 2) fail (Error_Invalid_Arg(val));
+                    if (VAL_LEN_AT(val) != 2)
+                        fail (val);
 
                     pid = VAL_ARRAY_AT_HEAD(val, 0);
                     if (!IS_INTEGER(pid))
@@ -1534,7 +1536,7 @@ REBNATIVE(access_os)
                     arg = sig;
                 }
                 else
-                    fail (Error_Invalid_Arg(val));
+                    fail (val);
 
                 if (ret < 0) {
                     switch (ret) {
@@ -1545,13 +1547,13 @@ REBNATIVE(access_os)
                             fail (Error_Permission_Denied_Raw());
 
                         case OS_EINVAL:
-                            fail (Error_Invalid_Arg(KNOWN(arg)));
+                            fail (KNOWN(arg));
 
                         case OS_ESRCH:
                             fail (Error_Process_Not_Found_Raw(pid));
 
                         default:
-                            fail (Error_Invalid_Arg(val));
+                            fail (val);
                     }
                 } else {
                     SET_INTEGER(D_OUT, ret);
@@ -1567,8 +1569,9 @@ REBNATIVE(access_os)
                 }
             }
             break;
+
         default:
-            fail (Error_Invalid_Arg(field));
+            fail (field);
     }
 }
 

@@ -108,7 +108,7 @@ void MAKE_Bitset(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
     // path used 0x0FFFFFFF.  Assume A_MAKE was more likely right.
     //
     if (len < 0 || len > 0x0FFFFFFF)
-        fail (Error_Invalid_Arg(arg));
+        fail (arg);
 
     REBSER *ser = Make_Bitset(len);
     Init_Bitset(out, ser);
@@ -616,12 +616,12 @@ REBTYPE(Bitset)
 
     case SYM_POKE:
         if (!IS_LOGIC(D_ARG(3)))
-            fail (Error_Invalid_Arg(D_ARG(3)));
+            fail (D_ARG(3));
         diff = VAL_LOGIC(D_ARG(3));
 set_bits:
         if (BITS_NOT(VAL_SERIES(value))) diff = NOT(diff);
         if (Set_Bits(VAL_SERIES(value), arg, diff)) break;
-        fail (Error_Invalid_Arg(arg));
+        fail (arg);
 
     case SYM_REMOVE: {
         INCLUDE_PARAMS_OF_REMOVE;
@@ -638,7 +638,7 @@ set_bits:
         if (Set_Bits(VAL_SERIES(value), ARG(limit), FALSE))
             break;
 
-        fail (Error_Invalid_Arg(ARG(limit))); }
+        fail (ARG(limit)); }
 
     case SYM_COPY: {
         INCLUDE_PARAMS_OF_COPY;

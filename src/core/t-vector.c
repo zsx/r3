@@ -202,17 +202,16 @@ void Set_Vector_Row(REBSER *ser, REBVAL *blk)
 REBARR *Vector_To_Array(const REBVAL *vect)
 {
     REBCNT len = VAL_LEN_AT(vect);
+    if (len <= 0)
+        fail (vect);
+
+    REBARR *array = Make_Array(len);
+
     REBYTE *data = SER_DATA_RAW(VAL_SERIES(vect));
     REBCNT type = VECT_TYPE(VAL_SERIES(vect));
-    REBARR *array = NULL;
+
+    RELVAL *val = ARR_HEAD(array);
     REBCNT n;
-    RELVAL *val;
-
-    if (len <= 0)
-        fail (Error_Invalid_Arg(vect));
-
-    array = Make_Array(len);
-    val = ARR_HEAD(array);
     for (n = VAL_INDEX(vect); n < VAL_LEN_HEAD(vect); n++, val++) {
         VAL_RESET_HEADER(val, (type >= VTSF08) ? REB_DECIMAL : REB_INTEGER);
         VAL_INT64(val) = get_vect(type, data, n); // can be int or decimal
@@ -506,7 +505,7 @@ void Pick_Vector(REBVAL *out, const REBVAL *value, const REBVAL *picker) {
     if (IS_INTEGER(picker) || IS_DECIMAL(picker))
         n = Int32(picker);
     else
-        fail (Error_Invalid_Arg(picker));
+        fail (picker);
 
     n += VAL_INDEX(value);
 
@@ -543,7 +542,7 @@ void Poke_Vector_Fail_If_Read_Only(
     if (IS_INTEGER(picker) || IS_DECIMAL(picker))
         n = Int32(picker);
     else
-        fail (Error_Invalid_Arg(picker));
+        fail (picker);
 
     n += VAL_INDEX(value);
 
@@ -573,7 +572,8 @@ void Poke_Vector_Fail_If_Read_Only(
         else
             i = 0xDECAFBAD; // not used, but avoid maybe uninitalized warning
     }
-    else fail (Error_Invalid_Arg(poke));
+    else
+        fail (poke);
 
     set_vect(bits, vp, n - 1, i, f);
 }

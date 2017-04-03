@@ -686,7 +686,7 @@ REBVAL *Modify_Image(REBFRM *frame_, REBCNT action)
             } else if (IS_BINARY(len)) {
                 part = (VAL_INDEX(len) - VAL_INDEX(arg)) / 4;
             } else
-                fail (Error_Invalid_Arg(len));
+                fail (len);
             part = MAX(part, 0);
         }
         else if (IS_IMAGE(arg)) {
@@ -695,7 +695,9 @@ REBVAL *Modify_Image(REBFRM *frame_, REBCNT action)
                 part = MAX(part, 0);
             }
             else if (IS_IMAGE(len)) {
-                if (!VAL_IMAGE_WIDE(len)) fail (Error_Invalid_Arg(len));
+                if (VAL_IMAGE_WIDE(len) == 0)
+                    fail (len);
+
                 partx = VAL_INDEX(len) - VAL_INDEX(arg);
                 party = partx / VAL_IMAGE_WIDE(len);
                 party = MAX(party, 1);
@@ -719,7 +721,7 @@ REBVAL *Modify_Image(REBFRM *frame_, REBCNT action)
                 fail (Error_Invalid_Type(VAL_TYPE(len)));
         }
         else
-            fail (Error_Invalid_Arg(arg)); // /part not allowed
+            fail (arg); // /part not allowed
     }
     else {
         if (IS_IMAGE(arg)) { // Use image for /part sizes
@@ -1078,7 +1080,7 @@ REBTYPE(Image)
             else if (IS_CHAR(arg))
                 n = VAL_CHAR(arg);
             else
-                fail (Error_Invalid_Arg(arg));
+                fail (arg);
 
             *dp = (*dp & 0xffffff) | (n << 24);
             Move_Value(D_OUT, arg);
@@ -1115,7 +1117,7 @@ REBTYPE(Image)
             }
             else if (IS_IMAGE(val)) {
                 if (!VAL_IMAGE_WIDE(val))
-                    fail (Error_Invalid_Arg(val));
+                    fail (val);
                 len = VAL_INDEX(val) - VAL_INDEX(value); // not same is ok
             }
             else
@@ -1160,7 +1162,7 @@ REBTYPE(Image)
         arg = ARG(limit); // can be image, integer, pair.
         if (IS_IMAGE(arg)) {
             if (VAL_SERIES(arg) != VAL_SERIES(value))
-                fail (Error_Invalid_Arg(arg));
+                fail (arg);
             len = VAL_INDEX(arg) - VAL_INDEX(value);
             arg = value;
             goto makeCopy2;
@@ -1227,7 +1229,7 @@ inline static REBOOL Adjust_Image_Pick_Index_Is_Valid(
     else if (IS_LOGIC(picker))
         n = VAL_LOGIC(picker) ? 1 : 2;
     else
-        fail (Error_Invalid_Arg(picker));
+        fail (picker);
 
     *index += n;
     if (n > 0)
@@ -1278,7 +1280,7 @@ void Pick_Image(REBVAL *out, const REBVAL *value, const REBVAL *picker)
             break; }
 
         default:
-            fail (Error_Invalid_Arg(picker));
+            fail (picker);
         }
         return;
     }
@@ -1311,7 +1313,7 @@ void Poke_Image_Fail_If_Read_Only(
         switch (VAL_WORD_SYM(picker)) {
         case SYM_SIZE:
             if (!IS_PAIR(poke) || !VAL_PAIR_X(poke))
-                fail (Error_Invalid_Arg(poke));
+                fail (poke);
 
             VAL_IMAGE_WIDE(value) = VAL_PAIR_X_INT(poke);
             VAL_IMAGE_HIGH(value) = MIN(
@@ -1346,7 +1348,7 @@ void Poke_Image_Fail_If_Read_Only(
                 );
             }
             else
-                fail (Error_Invalid_Arg(poke));
+                fail (poke);
             break;
 
         case SYM_ALPHA:
@@ -1366,11 +1368,11 @@ void Poke_Image_Fail_If_Read_Only(
                 );
             }
             else
-                fail (Error_Invalid_Arg(poke));
+                fail (poke);
             break;
 
         default:
-            fail (Error_Invalid_Arg(picker));
+            fail (picker);
         }
         return;
     }

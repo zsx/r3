@@ -438,7 +438,7 @@ REBNATIVE(resume)
         // handle (integers, functions for most recent call, literal FRAME!)
 
         if (!(frame = Frame_For_Stack_Level(NULL, ARG(level), TRUE)))
-            fail (Error_Invalid_Arg(ARG(level)));
+            fail (ARG(level));
 
         // !!! It's possible to specify a context to return at which is
         // "underneath" a breakpoint.  So being at a breakpoint and doing

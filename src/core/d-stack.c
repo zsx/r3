@@ -201,7 +201,7 @@ REBNATIVE(where_of)
 
     REBFRM *frame = Frame_For_Stack_Level(NULL, ARG(level), TRUE);
     if (frame == NULL)
-        fail (Error_Invalid_Arg(ARG(level)));
+        fail (ARG(level));
 
     Init_Block(D_OUT, Make_Where_For_Frame(frame));
     return R_OUT;
@@ -263,7 +263,7 @@ REBNATIVE(function_of)
     else {
         REBFRM *frame = Frame_For_Stack_Level(NULL, level, TRUE);
         if (!frame)
-            fail (Error_Invalid_Arg(level));
+            fail (level);
 
         Move_Value(D_OUT, FUNC_VALUE(frame->phase));
     }
@@ -337,7 +337,7 @@ REBNATIVE(backtrace)
         // See notes on handling of breakpoint below for why 0 is accepted.
         //
         if (IS_INTEGER(level) && VAL_INT32(level) < 0)
-            fail (Error_Invalid_Arg(level));
+            fail (level);
     }
 
     REBCNT max_rows; // The "frames" from /LIMIT, plus one (for ellipsis)
@@ -346,7 +346,7 @@ REBNATIVE(backtrace)
             max_rows = MAX_U32; // NONE is no limit--as many frames as possible
         else {
             if (VAL_INT32(ARG(frames)) < 0)
-                fail (Error_Invalid_Arg(ARG(frames)));
+                fail (ARG(frames));
             max_rows = VAL_INT32(ARG(frames)) + 1; // + 1 for ellipsis
         }
     }

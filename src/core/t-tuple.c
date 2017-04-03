@@ -76,7 +76,7 @@ void MAKE_Tuple(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
         REBYTE *ap = Temp_Byte_Chars_May_Fail(arg, MAX_SCAN_TUPLE, &len, FALSE);
         if (Scan_Tuple(out, ap, len) != NULL)
             return;
-        goto bad_arg;
+        fail (arg);
     }
 
     if (ANY_ARRAY(arg)) {
@@ -86,7 +86,8 @@ void MAKE_Tuple(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
         RELVAL *item = VAL_ARRAY_AT(arg);
 
         for (; NOT_END(item); ++item, ++vp, ++len) {
-            if (len >= MAX_TUPLE) goto bad_make;
+            if (len >= MAX_TUPLE)
+                goto bad_make;
             if (IS_INTEGER(item)) {
                 n = Int32(item);
             }
@@ -96,7 +97,8 @@ void MAKE_Tuple(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
             else
                 goto bad_make;
 
-            if (n > 255 || n < 0) goto bad_make;
+            if (n > 255 || n < 0)
+                goto bad_make;
             *vp = n;
         }
 
@@ -112,13 +114,16 @@ void MAKE_Tuple(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
         REBUNI c;
         const REBYTE *ap = VAL_WORD_HEAD(arg);
         REBCNT len = LEN_BYTES(ap);  // UTF-8 len
-        if (len & 1) goto bad_arg; // must have even # of chars
+        if (len & 1)
+            fail (arg); // must have even # of chars
         len /= 2;
-        if (len > MAX_TUPLE) goto bad_arg; // valid even for UTF-8
+        if (len > MAX_TUPLE)
+            fail (arg); // valid even for UTF-8
         VAL_TUPLE_LEN(out) = len;
         for (alen = 0; alen < len; alen++) {
             const REBOOL unicode = FALSE;
-            if (!Scan_Hex2(ap, &c, unicode)) goto bad_arg;
+            if (!Scan_Hex2(ap, &c, unicode))
+                fail (arg);
             *vp++ = cast(REBYTE, c);
             ap += 2;
         }
@@ -130,13 +135,11 @@ void MAKE_Tuple(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
         VAL_TUPLE_LEN(out) = len;
         for (alen = 0; alen < len; alen++) *vp++ = *ap++;
     }
-    else goto bad_arg;
+    else
+        fail (arg);
 
     for (; alen < MAX_TUPLE; alen++) *vp++ = 0;
     return;
-
-bad_arg:
-    fail (Error_Invalid_Arg(arg));
 
 bad_make:
     fail (Error_Bad_Make(REB_TUPLE, arg));
@@ -226,7 +229,7 @@ void Poke_Tuple_Immediate(
         return;
     }
     else
-        fail (Error_Invalid_Arg(poke));
+        fail (poke);
 
     if (i < 0)
         i = 0;
@@ -479,7 +482,8 @@ REBTYPE(Tuple)
             return R_OUT;
         }
         // Poke:
-        if (!IS_INTEGER(D_ARG(3))) fail (Error_Invalid_Arg(D_ARG(3)));
+        if (NOT(IS_INTEGER(D_ARG(3))))
+            fail (D_ARG(3));
         v = VAL_INT32(D_ARG(3));
         if (v < 0)
             v = 0;

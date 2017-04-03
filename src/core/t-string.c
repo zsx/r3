@@ -427,8 +427,8 @@ void TO_String(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
     else
         ser = MAKE_TO_String_Common(arg);
 
-    if (!ser)
-        fail (Error_Invalid_Arg(arg));
+    if (ser == NULL)
+        fail (arg);
 
     Init_Any_Series(out, kind, ser);
 }
@@ -567,7 +567,7 @@ static void Sort_String(
     if (!IS_VOID(skipv)) {
         skip = Get_Num_From_Arg(skipv);
         if (skip <= 0 || len % skip != 0 || skip > len)
-            fail (Error_Invalid_Arg(skipv));
+            fail (skipv);
     }
 
     // Use fast quicksort library function:
@@ -935,7 +935,7 @@ REBTYPE(String)
                 c = VAL_INT32(arg);
             }
             else
-                fail (Error_Invalid_Arg(arg));
+                fail (arg);
 
             ser = VAL_SERIES(value);
             if (IS_BINARY(value)) {
@@ -1035,7 +1035,8 @@ REBTYPE(String)
     case SYM_AND_T:
     case SYM_OR_T:
     case SYM_XOR_T: {
-        if (!IS_BINARY(arg)) fail (Error_Invalid_Arg(arg));
+        if (NOT(IS_BINARY(arg)))
+            fail (arg);
 
         if (VAL_INDEX(value) > VAL_LEN_HEAD(value))
             VAL_INDEX(value) = VAL_LEN_HEAD(value);
@@ -1047,7 +1048,9 @@ REBTYPE(String)
         goto return_ser; }
 
     case SYM_COMPLEMENT: {
-        if (!IS_BINARY(value)) fail (Error_Invalid_Arg(value));
+        if (NOT(IS_BINARY(value)))
+            fail (value);
+
         ser = Complement_Binary(value);
         goto return_ser; }
 
@@ -1075,8 +1078,8 @@ REBTYPE(String)
 
     case SYM_SUBTRACT:
     case SYM_ADD: {
-        if (!IS_BINARY(value))
-            fail (Error_Invalid_Arg(value));
+        if (NOT(IS_BINARY(value)))
+            fail (value);
 
         FAIL_IF_READ_ONLY_SERIES(VAL_SERIES(value));
 
@@ -1084,9 +1087,9 @@ REBTYPE(String)
         if (IS_INTEGER(arg))
             amount = VAL_INT32(arg);
         else if (IS_BINARY(arg))
-            fail (Error_Invalid_Arg(arg)); // should work
+            fail (arg); // should work
         else
-            fail (Error_Invalid_Arg(arg)); // what about other types?
+            fail (arg); // what about other types?
 
         if (action == SYM_SUBTRACT)
             amount = -amount;

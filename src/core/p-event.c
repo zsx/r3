@@ -163,13 +163,15 @@ static REB_R Event_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
     // Normal block actions done on events:
     case SYM_POKE:
-        if (!IS_EVENT(D_ARG(3))) fail (Error_Invalid_Arg(D_ARG(3)));
+        if (!IS_EVENT(D_ARG(3)))
+            fail (D_ARG(3));
         goto act_blk;
     case SYM_INSERT:
     case SYM_APPEND:
     //case A_PATH:      // not allowed: port/foo is port object field access
     //case A_PATH_SET:  // not allowed: above
-        if (!IS_EVENT(arg)) fail (Error_Invalid_Arg(arg));
+        if (!IS_EVENT(arg))
+            fail (arg);
     case SYM_PICK_P:
 act_blk:
         Move_Value(save_port, D_ARG(1)); // save for return

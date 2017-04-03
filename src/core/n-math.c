@@ -421,7 +421,7 @@ REBINT CT_Fail(const RELVAL *a, const RELVAL *b, REBINT mode)
     UNUSED(b);
     UNUSED(mode);
 
-    fail (Error_Misc_Raw());
+    fail ("Datatype does not have type comparison handler registered");
 }
 
 

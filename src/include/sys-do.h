@@ -576,7 +576,7 @@ inline static REBIXO Do_Array_At_Core(
     const REBVAL values[],
     REBCNT index
 ) {
-    fail (Error_Misc_Raw());
+    fail (Error_Not_Done_Raw());
 }*/
 
 

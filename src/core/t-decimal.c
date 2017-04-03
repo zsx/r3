@@ -186,7 +186,7 @@ void MAKE_Decimal(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
 
     case REB_BINARY:
         if (VAL_LEN_AT(arg) < 8)
-            fail (Error(RE_MISC));
+            fail (arg);
 
         Init_Decimal_Bits(out, VAL_BIN_AT(arg));
         VAL_RESET_HEADER(out, kind);
@@ -204,7 +204,7 @@ void MAKE_Decimal(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
                 DECLARE_LOCAL (specific);
                 Derelativize(specific, item, VAL_SPECIFIER(arg));
 
-                fail (Error_Invalid_Arg(specific));
+                fail (specific);
             }
 
             ++item;
@@ -217,7 +217,7 @@ void MAKE_Decimal(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
             else {
                 DECLARE_LOCAL (specific);
                 Derelativize(specific, item, VAL_SPECIFIER(arg));
-                fail (Error_Invalid_Arg(specific));
+                fail (specific);
             }
 
             while (exp >= 1) {
@@ -473,7 +473,8 @@ REBTYPE(Decimal)
                     ));
                     return R_OUT;
                 }
-                if (IS_TIME(arg)) fail (Error_Invalid_Arg(arg));
+                if (IS_TIME(arg))
+                    fail (arg);
 
                 d1 = Round_Dec(d1, flags, Dec64(arg));
                 if (IS_INTEGER(arg)) {

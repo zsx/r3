@@ -216,14 +216,14 @@ REBNATIVE(unload_extension_helper)
             != CTX_KEY_CANON(std, STD_EXTENSION_LIB_BASE)
         )
     ){
-        fail (Error_Invalid_Arg(ARG(ext)));
+        fail (ARG(ext));
     }
 
     int ret;
     if (!REF(cleanup)) {
         REBVAL *lib = CTX_VAR(context, STD_EXTENSION_LIB_BASE);
         if (!IS_LIBRARY(lib))
-            fail (Error_Invalid_Arg(ARG(ext)));
+            fail (ARG(ext));
 
         if (IS_LIB_CLOSED(VAL_LIBRARY(lib)))
             fail (Error_Bad_Library_Raw());
@@ -241,7 +241,7 @@ REBNATIVE(unload_extension_helper)
     }
     else {
         if (VAL_HANDLE_CLEANER(ARG(cleaner)) != cleanup_extension_quit_handler)
-            fail (Error_Invalid_Arg(ARG(cleaner)));
+            fail (ARG(cleaner));
 
         QUIT_FUNC quitter = cast(QUIT_FUNC, VAL_HANDLE_CFUNC(ARG(cleaner)));
         assert(quitter != NULL);
@@ -356,18 +356,18 @@ void Shutdown_Boot_Extensions(CFUNC **funcs, REBCNT n)
 //  "Load a native from a built-in extension"
 //
 //      return: [function!]
-//      "function value, will be created from the native implementation"
+//          "function value, will be created from the native implementation"
 //      spec [block!]
-//      "spec of the native"
+//          "spec of the native"
 //      impl [handle!]
-//      "a handle returned from RX_Init_ of the extension"
+//          "a handle returned from RX_Init_ of the extension"
 //      index [integer!]
-//      "Index of the native"
+//          "Index of the native"
 //      /body
 //      code [block!]
-//      "User-equivalent body"
+//          "User-equivalent body"
 //      /unloadable
-//      "The native can be unloaded later (when the extension is unloaded)"
+//          "The native can be unloaded later (when extension is unloaded)"
 //  ]
 //
 REBNATIVE(load_native)
@@ -375,11 +375,11 @@ REBNATIVE(load_native)
     INCLUDE_PARAMS_OF_LOAD_NATIVE;
 
     if (VAL_HANDLE_CLEANER(ARG(impl)) != cleanup_module_handler)
-        fail (Error_Misc_Raw());
+        fail ("HANDLE! passed to LOAD-NATIVE did not come from RX_Init");
 
     REBI64 index = VAL_INT64(ARG(index));
     if (index < 0 || cast(REBUPT, index) >= VAL_HANDLE_LEN(ARG(impl)))
-        fail (Error_Misc_Raw());
+        fail ("Index of native is outside range specified by RX_Init");
 
     REBNAT dispatcher = VAL_HANDLE_POINTER(REBNAT, ARG(impl))[index];
     REBFUN *fun = Make_Function(

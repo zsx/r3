@@ -435,12 +435,12 @@ RL_API REBCNT RL_Encode_UTF8(
 
 inline static REBFRM *Extract_Live_Rebfrm_May_Fail(const REBVAL *frame) {
     if (!IS_FRAME(frame))
-        fail(Error_Misc_Raw()); // !!! improve
+        fail ("Not a FRAME!");
 
     REBCTX *frame_ctx = VAL_CONTEXT(frame);
     REBFRM *f = CTX_FRAME_IF_ON_STACK(frame_ctx);
     if (f == NULL)
-        fail (Error_Misc_Raw()); // !!! improve
+        fail ("FRAME! is no longer on stack.");
 
     assert(Is_Any_Function_Frame(f));
     assert(NOT(Is_Function_Frame_Fulfilling(f)));

@@ -89,22 +89,13 @@ static inline REBOOL Start_New_Expression_Throws(REBFRM *f) {
         // it may spawn an entire interactive debugging session via
         // breakpoint before it returns.  It may also FAIL and longjmp out.
         //
+        SET_END(&f->cell);
         if (Do_Signals_Throws(&f->cell)) {
             Move_Value(f->out, &f->cell);
             return TRUE;
         }
 
-        if (!IS_VOID(&f->cell)) {
-            //
-            // !!! What to do with something like a Ctrl-C-based breakpoint
-            // session that does something like `resume/with 10`?  We are
-            // "in-between" evaluations, so that 10 really has no meaning
-            // and is just going to get discarded.  FAIL for now to alert
-            // the user that something is off, but perhaps the failure
-            // should be contained in a sandbox and restart the break?
-            //
-            fail (Error_Misc_Raw());
-        }
+        assert(IS_END(&f->cell));
     }
 
     UPDATE_EXPRESSION_START(f); // !!! See FRM_INDEX() for caveats

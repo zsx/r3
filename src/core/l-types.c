@@ -54,7 +54,7 @@ void MAKE_Fail(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
     UNUSED(kind);
     UNUSED(arg);
 
-    fail (Error_Misc_Raw());
+    fail ("Datatype does not have a MAKE handler registered");
 }
 
 
@@ -172,7 +172,7 @@ void TO_Fail(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
     UNUSED(kind);
     UNUSED(arg);
 
-    fail (Error_Misc_Raw());
+    fail ("Datatype does not have a TO handler registered");
 }
 
 
@@ -212,12 +212,12 @@ REBNATIVE(to)
     if (IS_BLANK(arg)) {
         if (kind == REB_BLANK)
             return R_BLANK;
-        fail (Error_Invalid_Arg(arg));
+        fail (arg);
     }
 
     TO_FUNC dispatcher = To_Dispatch[kind];
     if (dispatcher == NULL)
-        fail (Error_Invalid_Arg(arg));
+        fail (arg);
 
     dispatcher(D_OUT, kind, arg); // may fail();
     return R_OUT;

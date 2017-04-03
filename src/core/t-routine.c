@@ -202,7 +202,7 @@ static ffi_abi Abi_From_Word(const REBVAL *word) {
         break;
     }
 
-    fail (Error_Invalid_Arg(word));
+    fail (word);
 }
 
 
@@ -220,7 +220,7 @@ static void Schema_From_Block_May_Fail(
 
     assert(IS_BLOCK(blk));
     if (VAL_LEN_AT(blk) == 0)
-        fail (Error_Invalid_Arg(blk));
+        fail (blk);
 
     RELVAL *item = VAL_ARRAY_AT(blk);
 
@@ -233,7 +233,7 @@ static void Schema_From_Block_May_Fail(
 
         ++item;
         if (IS_END(item) || !IS_BLOCK(item))
-            fail (Error_Invalid_Arg(blk));
+            fail (blk);
 
         // Use the block spec to build a temporary structure through the same
         // machinery that implements `make struct! [...]`
@@ -260,7 +260,7 @@ static void Schema_From_Block_May_Fail(
     }
 
     if (VAL_LEN_AT(blk) != 1)
-        fail (Error_Invalid_Arg(blk));
+        fail (blk);
 
     if (IS_WORD(item)) {
         //
@@ -331,12 +331,12 @@ static void Schema_From_Block_May_Fail(
             break;
 
         default:
-            fail (Error_Misc_Raw());
+            fail ("Invalid FFI type indicator");
         }
         return;
     }
 
-    fail (Error_Invalid_Arg(blk));
+    fail (blk);
 }
 
 
@@ -591,7 +591,7 @@ static REBUPT arg_to_ffi(
 
             CFUNC* cfunc = RIN_CFUNC(VAL_FUNC_ROUTINE(arg));
             if (sizeof(cfunc) != sizeof(void*)) // not necessarily true
-                fail (Error_Misc_Raw());
+                fail ("Void pointer size not equal to function pointer size");
             memcpy(dest, &cfunc, sizeof(void*));
             break;}
 
@@ -646,7 +646,7 @@ static REBUPT arg_to_ffi(
         //
         assert(FALSE);
     default:
-        fail (Error_Invalid_Arg(arg));
+        fail (arg);
     }
 
     return offset;
@@ -747,7 +747,7 @@ static void ffi_to_rebol(
         //
         // !!! Was reporting Error_Invalid_Arg on uninitialized `out`
         //
-        fail (Error_Misc_Raw());
+        fail ("Unknown FFI type indicator");
     }
 }
 
@@ -823,7 +823,7 @@ REB_R Routine_Dispatcher(REBFRM *f)
         // expressions).
         //
         if ((DSP - dsp_orig) % 2 != 0)
-            fail (Error_Misc_Raw());
+            fail ("Variadic FFI functions must alternate blocks and values");
 
         num_variable = (DSP - dsp_orig) / 2;
     }
@@ -961,7 +961,7 @@ REB_R Routine_Dispatcher(REBFRM *f)
         if (status != FFI_OK) {
             OS_FREE(cif);
             OS_FREE(args_fftypes);
-            fail (Error_Misc_Raw()); // Couldn't prep CIF_VAR
+            fail ("FFI: Couldn't prep CIF_VAR");
         }
     }
 
@@ -1197,7 +1197,7 @@ static REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec, ffi_abi abi) {
 
             if (SAME_STR(name, Canon(SYM_ELLIPSIS))) { // variadic
                 if (is_variadic)
-                    fail (Error_Invalid_Arg(KNOWN(item))); // duplicate "..."
+                    fail ("FFI: Duplicate ... indicating variadic");
 
                 is_variadic = TRUE;
 
@@ -1218,7 +1218,7 @@ static REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec, ffi_abi abi) {
             }
             else { // ordinary argument
                 if (is_variadic)
-                    fail (Error_Invalid_Arg(KNOWN(item))); // variadic is final
+                    fail ("FFI: Variadic must be final parameter");
 
                 REBVAL *param = Alloc_Tail_Array(paramlist);
 
@@ -1243,7 +1243,7 @@ static REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec, ffi_abi abi) {
             switch (VAL_WORD_SYM(item)) {
             case SYM_RETURN:{
                 if (!IS_BLANK(RIN_AT(r, IDX_ROUTINE_RET_SCHEMA)))
-                    fail (Error_Invalid_Arg(KNOWN(item))); // already a RETURN:
+                    fail ("FFI: Return already specified");
 
                 ++item;
 
@@ -1259,12 +1259,12 @@ static REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec, ffi_abi abi) {
                 break;}
 
             default:
-                fail (Error_Invalid_Arg(KNOWN(item)));
+                fail (KNOWN(item));
             }
             break;
 
         default:
-            fail (Error_Invalid_Arg(KNOWN(item)));
+            fail (KNOWN(item));
         }
     }
 
@@ -1310,7 +1310,7 @@ static REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec, ffi_abi abi) {
                 args_fftypes // NULL if 0 fixed args
             )
         ){
-            fail (Error_Misc_Raw()); // !!! Couldn't prep cif...
+            fail ("FFI: Couldn't prep CIF");
         }
 
         Init_Handle_Managed(
@@ -1393,7 +1393,7 @@ REBNATIVE(make_routine)
     //
     REBLIB *lib = VAL_LIBRARY(ARG(lib));
     if (lib == NULL)
-        fail (Error_Invalid_Arg(ARG(lib)));
+        fail (ARG(lib));
 
     // Try to find the C function pointer in the DLL, if it's there.
     // OS_FIND_FUNCTION takes a char* on both Windows and Posix.  The
@@ -1412,7 +1412,7 @@ REBNATIVE(make_routine)
         SER_AT(char, byte_sized, b_index) // name may not be at head index
     );
     if (cfunc == NULL)
-        fail (Error_Invalid_Arg(ARG(name))); // couldn't find function
+        fail ("FFI: Couldn't find function in library");
 
     // Process the parameter types into a function, then fill it in
 
@@ -1460,9 +1460,8 @@ REBNATIVE(make_routine_raw)
     // on 32-bit systems; first cast to (U)nsigned int that holds (P)oin(T)er
     //
     CFUNC *cfunc = cast(CFUNC*, cast(REBUPT, VAL_INT64(ARG(pointer))));
-
     if (cfunc == NULL)
-        fail (Error_Invalid_Arg(ARG(pointer)));
+        fail ("FFI: NULL pointer not allowed for raw MAKE-ROUTINE");
 
     REBFUN *fun = Alloc_Ffi_Function_For_Spec(ARG(ffi_spec), abi);
     REBRIN *r = FUNC_ROUTINE(fun);
@@ -1510,7 +1509,7 @@ REBNATIVE(make_callback)
     ));
 
     if (closure == NULL)
-        fail (Error_Misc_Raw()); // couldn't allocate closure
+        fail ("FFI: Couldn't allocate closure");
 
     ffi_status status = ffi_prep_closure_loc(
         closure,
@@ -1521,15 +1520,15 @@ REBNATIVE(make_callback)
     );
 
     if (status != FFI_OK)
-        fail (Error_Misc_Raw()); // couldn't prep closure
+        fail ("FFI: Couldn't prep closure");
 
-    // This may not be true, but blame the FFI for using voids to pass CFUNC
-    // Use a memcpy in order to get around strict checks that absolutely
-    // refuse to let you do a cast.
-    //
     if (sizeof(void*) != sizeof(CFUNC*))
-        fail (Error(RE_MISC));
+        fail ("FFI does not work when void* size differs from CFUNC* size");
 
+    // It's the FFI's fault for using the wrong type for the thunk.  Use a
+    // memcpy in order to get around strict checks that absolutely refuse to
+    // let you do a cast here.
+    //
     CFUNC *cfunc_thunk;
     memcpy(&cfunc_thunk, &thunk, sizeof(cfunc_thunk));
 

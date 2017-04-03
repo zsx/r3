@@ -203,7 +203,7 @@ REBCNT Modify_String(
             limit = -1;
         }
         else if (!IS_BINARY(src_val))
-            fail (Error_Invalid_Arg(src_val));
+            fail (src_val);
     }
     else if (IS_CHAR(src_val)) {
         src_ser = Make_Series_Codepoint(VAL_CHAR(src_val));

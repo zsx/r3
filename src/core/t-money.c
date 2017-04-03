@@ -140,7 +140,7 @@ void Bin_To_Money_May_Fail(REBVAL *result, const REBVAL *val)
         memcpy(buf, VAL_BIN_AT(val), len);
     }
     else
-        fail (Error_Invalid_Arg(val));
+        fail (val);
 
     memcpy(buf + 12 - len, buf, len); // shift to right side
     memset(buf, 0, 12 - len);
@@ -247,7 +247,7 @@ REBTYPE(Money)
             else if (IS_MONEY(scale))
                 Move_Value(temp, scale);
             else
-                fail (Error_Invalid_Arg(scale));
+                fail (scale);
         }
         else
             SET_MONEY(temp, int_to_deci(0));

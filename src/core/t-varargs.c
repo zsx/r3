@@ -363,7 +363,7 @@ void TO_Varargs(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 
     UNUSED(out);
 
-    fail (Error_Invalid_Arg(arg));
+    fail (arg);
 }
 
 
@@ -382,8 +382,8 @@ REBTYPE(Varargs)
 
     switch (action) {
     case SYM_PICK_P: {
-        if (!IS_INTEGER(arg))
-            fail (Error_Invalid_Arg(arg));
+        if (NOT(IS_INTEGER(arg)))
+            fail (arg);
 
         if (VAL_INT32(arg) != 1)
             fail (Error_Varargs_No_Look_Raw());
@@ -434,7 +434,7 @@ REBTYPE(Varargs)
             limit = 0; // not used, but avoid maybe uninitalized warning
         }
         else
-            fail (Error_Invalid_Arg(ARG(limit)));
+            fail (ARG(limit));
 
         while (IS_BAR(ARG(limit)) || limit-- > 0) {
             indexor = Do_Vararg_Op_May_Throw(D_OUT, value, VARARG_OP_TAKE);

@@ -299,6 +299,6 @@ REBNATIVE(get_signal_actor_handle)
     return R_OUT;
 #else
     UNUSED(frame_);
-    fail (Error_Misc_Raw());
+    fail ("GET-SIGNAL-ACTOR-HANDLE only works in builds with POSIX signals");
 #endif
 }

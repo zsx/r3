@@ -608,7 +608,9 @@ DEVICE_CMD Modify_Socket(REBREQ *sock)
         break; }
 
     default:
-        fail (Error_Misc_Raw()); // not return DR_ERROR?  Is failing here ok?
+        // not return DR_ERROR?  Is failing here ok?
+        //
+        fail ("Unknown socket MODIFY operation");
     }
 
     if (result < 0) {

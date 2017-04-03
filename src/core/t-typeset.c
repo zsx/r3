@@ -141,10 +141,9 @@ REBOOL Update_Typeset_Bits_Core(
     VAL_TYPESET_BITS(typeset) = 0;
 
     const RELVAL *item = head;
-    if (NOT_END(item) && IS_BLOCK(item)) {
-        // Double blocks are a variadic signal.
+    if (NOT_END(item) && IS_BLOCK(item)) { // Double blocks signal variadic
         if (NOT_END(item + 1))
-            fail (Error_Misc_Raw());
+            fail ("Invalid double-block in typeset");
 
         item = VAL_ARRAY_AT(item);
         SET_VAL_FLAG(typeset, TYPESET_FLAG_VARIADIC);
@@ -306,10 +305,10 @@ REBTYPE(Typeset)
     switch (action) {
 
     case SYM_FIND:
-        if (IS_DATATYPE(arg)) {
-            return (TYPE_CHECK(val, VAL_TYPE_KIND(arg))) ? R_TRUE : R_FALSE;
-        }
-        fail (Error_Invalid_Arg(arg));
+        if (IS_DATATYPE(arg))
+            return R_FROM_BOOL(TYPE_CHECK(val, VAL_TYPE_KIND(arg)));
+
+        fail (arg);
 
     case SYM_AND_T:
     case SYM_OR_T:
@@ -317,8 +316,8 @@ REBTYPE(Typeset)
         if (IS_DATATYPE(arg)) {
             VAL_TYPESET_BITS(arg) = FLAGIT_KIND(VAL_TYPE(arg));
         }
-        else if (!IS_TYPESET(arg))
-            fail (Error_Invalid_Arg(arg));
+        else if (NOT(IS_TYPESET(arg)))
+            fail (arg);
 
         if (action == SYM_OR_T)
             VAL_TYPESET_BITS(val) |= VAL_TYPESET_BITS(arg);

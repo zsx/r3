@@ -412,12 +412,12 @@ static REBNATIVE(dh_generate_key)
 
     REBCNT priv_index = Find_Canon_In_Context(obj, CRYPT_WORD_PRIV_KEY, FALSE);
     if (priv_index == 0)
-        fail (Error_Misc_Raw());
+        fail ("Cannot find PRIV-KEY in crypto object");
     Init_Binary(CTX_VAR(obj, priv_index), priv_bin);
 
     REBCNT pub_index = Find_Canon_In_Context(obj, CRYPT_WORD_PUB_KEY, FALSE);
     if (pub_index == 0)
-        fail (Error_Misc_Raw());
+        fail ("Cannot find PUB-KEY in crypto object");
     Init_Binary(CTX_VAR(obj, pub_index), pub_bin);
 
     return R_VOID;
@@ -783,15 +783,15 @@ static REBNATIVE(decloak)
 {
     INCLUDE_PARAMS_OF_DECLOAK;
 
-    if (!Cloak(
+    if (NOT(Cloak(
         TRUE,
         VAL_BIN_AT(ARG(data)),
         VAL_LEN_AT(ARG(data)),
         cast(REBYTE*, ARG(key)),
         0,
         REF(with)
-    )){
-        fail (Error_Invalid_Arg(ARG(key)));
+    ))){
+        fail (ARG(key));
     }
 
     Move_Value(D_OUT, ARG(data));
@@ -816,15 +816,15 @@ static REBNATIVE(encloak)
 {
     INCLUDE_PARAMS_OF_ENCLOAK;
 
-    if (!Cloak(
+    if (NOT(Cloak(
         FALSE,
         VAL_BIN_AT(ARG(data)),
         VAL_LEN_AT(ARG(data)),
         cast(REBYTE*, ARG(key)),
         0,
         REF(with))
-    ){
-        fail (Error_Invalid_Arg(ARG(key)));
+    )){
+        fail (ARG(key));
     }
 
     Move_Value(D_OUT, ARG(data));

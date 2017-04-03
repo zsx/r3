@@ -883,17 +883,14 @@ REBCTX *Construct_Context(
 
     const RELVAL *value = head;
     for (; NOT_END(value); value += 2) {
-        //
-        // !!! Objects are a rewrite in progress; error messages need to
-        // be improved.
-
         if (!IS_SET_WORD(value))
             fail (Error_Invalid_Type(VAL_TYPE(value)));
 
         if (IS_END(value + 1))
-            fail (Error_Misc_Raw());
+            fail ("Unexpected end in context spec block.");
 
-        assert(!IS_SET_WORD(value + 1)); // TBD: support set words!
+        if (IS_SET_WORD(value + 1))
+            fail (Error_Invalid_Type(VAL_TYPE(value + 1))); // TBD: support
 
         REBVAL *var = Sink_Var_May_Fail(value, specifier);
         Derelativize(var, value + 1, specifier);

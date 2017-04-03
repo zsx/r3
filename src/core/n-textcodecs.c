@@ -106,7 +106,7 @@ REBNATIVE(encode_text)
         // (Other support was unimplemented in R3-Alpha, and would just wind
         // up writing garbage.)
         //
-        fail (Error_Misc_Raw());
+        fail ("Can only write out strings to .txt if they are Latin1.");
     }
 
     Init_Binary(D_OUT, Copy_Sequence_At_Position(ARG(string)));
@@ -169,8 +169,8 @@ static void Encode_Utf16_Core(
         #error "Unsupported CPU endian"
     #endif
     }
-    else { // RESERVED for future unicode expansion
-        fail (Error_Misc_Raw());
+    else {
+        fail ("Unicode width > 2 reserved for future expansion.");
     }
 
     TERM_BIN_LEN(bin, len * sizeof(u16));

@@ -343,7 +343,7 @@ REBNATIVE(unprotect)
     UNUSED(PAR(values));
 
     if (REF(hide))
-        fail (Error_Misc_Raw());
+        fail ("Cannot un-hide an object field once hidden");
 
     return Protect_Unprotect_Core(frame_, FLAGIT(PROT_WORD));
 }

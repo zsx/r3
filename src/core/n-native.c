@@ -428,7 +428,7 @@ REBNATIVE(compile)
     }
 
     if (debug)
-        fail (Error_Misc_Raw()); // !!! not implemented yet
+        fail ("Debug builds of user natives are not yet implemented.");
 
     // Using the "hot" mold buffer allows us to build the combined source in
     // memory that is generally preallocated.  This makes it not necessary

@@ -235,8 +235,9 @@ REBARR *Make_Paramlist_Managed_May_Fail(
                     Copy_String_Slimming(VAL_SERIES(item), VAL_INDEX(item), -1)
                 );
             }
-            else if (IS_STRING(DS_TOP)) {
-                //
+            else {
+                assert(IS_STRING(DS_TOP));
+
                 // !!! A string was already pushed.  Should we append?
                 //
                 Init_String(
@@ -244,8 +245,6 @@ REBARR *Make_Paramlist_Managed_May_Fail(
                     Copy_String_Slimming(VAL_SERIES(item), VAL_INDEX(item), -1)
                 );
             }
-            else
-                fail (Error_Misc_Raw()); // should not be possible.
 
             if (DS_TOP == DS_AT(dsp_orig + 3))
                 has_description = TRUE;
@@ -320,7 +319,9 @@ REBARR *Make_Paramlist_Managed_May_Fail(
 
                 typeset = DS_TOP - 1; // volatile if you DS_PUSH!
             }
-            else if (IS_STRING(DS_TOP)) { // !!! are blocks after notes good?
+            else {
+                assert(IS_STRING(DS_TOP)); // !!! are blocks after notes good?
+
                 if (IS_BLANK_RAW(DS_TOP - 2)) {
                     //
                     // No typesets pushed yet, so this is a block before any
@@ -349,8 +350,6 @@ REBARR *Make_Paramlist_Managed_May_Fail(
                     )
                 );
             }
-            else
-                fail (Error_Misc_Raw()); // shouldn't be possible
 
             // Turn block into typeset for parameter at current index.
             // Leaves VAL_TYPESET_SYM as-is.
@@ -1670,7 +1669,7 @@ REBTYPE(Fail)
     UNUSED(frame_);
     UNUSED(action);
 
-    fail (Error_Misc_Raw());
+    fail ("Datatype does not have a dispatcher registered.");
 }
 
 

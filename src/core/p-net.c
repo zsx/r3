@@ -278,7 +278,7 @@ static REB_R Transport_Actor(
 
         if (REF(seek)) {
             UNUSED(ARG(index));
-            fail (Error_Misc_Raw());
+            fail (Error_Bad_Refines_Raw());
         }
         if (REF(append))
             fail (Error_Bad_Refines_Raw());
@@ -503,7 +503,7 @@ REBNATIVE(set_udp_multicast)
 
     REBINT result = OS_DO_DEVICE(sock, RDC_MODIFY);
     if (result < 0)
-        fail (Error_Misc_Raw()); // should device layer just fail()?
+        fail ("SET-UDP-MULTICAST failure"); // can device layer just fail()?
 
     return R_VOID;
 }
@@ -540,7 +540,7 @@ REBNATIVE(set_udp_ttl)
 
     REBINT result = OS_DO_DEVICE(sock, RDC_MODIFY);
     if (result < 0)
-        fail (Error_Misc_Raw()); // should device layer just fail()?
+        fail ("SET-UDP-TTL failure"); // can device layer just fail()?
 
     return R_VOID;
 }

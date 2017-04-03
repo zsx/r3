@@ -346,13 +346,13 @@ void Pick_Time(REBVAL *out, const REBVAL *value, const REBVAL *picker)
         case SYM_MINUTE: i = 1; break;
         case SYM_SECOND: i = 2; break;
         default:
-            fail (Error_Invalid_Arg(picker));
+            fail (picker);
         }
     }
     else if (IS_INTEGER(picker))
         i = VAL_INT32(picker) - 1;
     else
-        fail (Error_Invalid_Arg(picker));
+        fail (picker);
 
     REB_TIMEF tf;
     Split_Time(VAL_TIME(value), &tf); // loses sign
@@ -391,13 +391,13 @@ void Poke_Time_Immediate(
         case SYM_MINUTE: i = 1; break;
         case SYM_SECOND: i = 2; break;
         default:
-            fail (Error_Invalid_Arg(picker));
+            fail (picker);
         }
     }
     else if (IS_INTEGER(picker))
         i = VAL_INT32(picker) - 1;
     else
-        fail (Error_Invalid_Arg(picker));
+        fail (picker);
 
     REB_TIMEF tf;
     Split_Time(VAL_TIME(value), &tf); // loses sign
@@ -408,7 +408,7 @@ void Poke_Time_Immediate(
     else if (IS_BLANK(poke))
         n = 0;
     else
-        fail (Error_Invalid_Arg(poke));
+        fail (poke);
 
     switch(i) {
     case 0:
@@ -432,7 +432,7 @@ void Poke_Time_Immediate(
         }
         break;
     default:
-        fail (Error_Invalid_Arg(picker));
+        fail (picker);
     }
 
     VAL_TIME(value) = Join_Time(&tf, FALSE);
@@ -646,7 +646,8 @@ REBTYPE(Time)
                     Move_Value(D_OUT, ARG(scale));
                     return R_OUT;
                 }
-                else fail (Error_Invalid_Arg(arg));
+                else
+                    fail (arg);
             }
             else {
                 secs = Round_Int(secs, flags | RF_TO, SEC_SEC);

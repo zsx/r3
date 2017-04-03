@@ -907,8 +907,8 @@ REBTYPE(Array)
     }
 
     case SYM_SWAP: {
-        if (!ANY_ARRAY(arg))
-            fail (Error_Invalid_Arg(arg));
+        if (NOT(ANY_ARRAY(arg)))
+            fail (arg);
 
         FAIL_IF_READ_ONLY_ARRAY(array);
         FAIL_IF_READ_ONLY_ARRAY(VAL_ARRAY(arg));

@@ -462,7 +462,7 @@ void TO_Map(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
         specifier = SPECIFIED; // there should be no relative values in a MAP!
     }
     else
-        fail (Error_Invalid_Arg(arg));
+        fail (arg);
 
     REBMAP *map = Make_Map(len / 2); // [key value key value...] + END
     Append_Map(map, array, index, specifier, len);
@@ -665,7 +665,7 @@ REBTYPE(Map)
             fail (Error_Bad_Refines_Raw());
 
         if (!IS_BLOCK(arg))
-            fail (Error_Invalid_Arg(val));
+            fail (val);
         Move_Value(D_OUT, val);
         if (REF(dup)) {
             if (Int32(ARG(count)) <= 0) break;

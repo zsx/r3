@@ -78,6 +78,8 @@
 //
 REBOOL Do_Signals_Throws(REBVAL *out)
 {
+    assert(IS_END(out)); // incoming must be END, will be END if no throw
+
     // !!! When it was the case that the only way Do_Signals_Throws would run
     // due to the Eval_Count reaching the end of an Eval_Dose, this way of
     // doing "CPU quota" would work.  Currently, however, it is inaccurate,
@@ -91,7 +93,6 @@ REBOOL Do_Signals_Throws(REBVAL *out)
     Eval_Count = Eval_Dose;
 
     REBOOL thrown = FALSE;
-    SET_VOID(out);
 
     // The signal mask allows the system to disable processing of some
     // signals.  It defaults to ALL_BITS, but during signal processing
@@ -147,6 +148,18 @@ REBOOL Do_Signals_Throws(REBVAL *out)
         Eval_Sigmask = saved_mask;
         if (Do_Breakpoint_Throws(out, TRUE, VOID_CELL, FALSE))
             return TRUE;
+
+        // !!! What to do with something like a Ctrl-C-based breakpoint
+        // session that does something like `resume/with 10`?  This gets
+        // called "in-between" evaluations, so that 10 really has no meaning
+        // and is just going to get discarded.  FAIL for now to alert the
+        // user that something is off, but perhaps the failure should be
+        // contained in a sandbox and restart the break?
+        //
+        if (NOT(IS_VOID(out)))
+            fail ("Interrupt-based debug session used RESUME/WITH");
+
+        SET_END(out);
         return FALSE;
     }
 

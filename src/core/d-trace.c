@@ -227,7 +227,7 @@ REBNATIVE(trace)
             REBINT lines = Int32(mode);
             Trace_Flags = 0;
             if (lines < 0)
-                fail (Error_Invalid_Arg(mode));
+                fail (mode);
 
             Display_Backtrace(cast(REBCNT, lines));
             return R_VOID;

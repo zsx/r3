@@ -173,7 +173,7 @@ static REBARR *Copy_Body_Deep_Bound_To_New_Context(
 
     REBINT num_vars = IS_BLOCK(spec) ? VAL_LEN_AT(spec) : 1;
     if (num_vars == 0)
-        fail (Error_Invalid_Arg(spec));
+        fail (spec);
 
     REBCTX *context = Alloc_Context(REB_OBJECT, num_vars);
     TERM_ARRAY_LEN(CTX_VARLIST(context), num_vars + 1);
@@ -329,7 +329,7 @@ static REB_R Loop_Number_Common(
     else if (IS_DECIMAL(start) || IS_PERCENT(start))
         s = VAL_DECIMAL(start);
     else
-        fail (Error_Invalid_Arg(start));
+        fail (start);
 
     REBDEC e;
     if (IS_INTEGER(end))
@@ -337,7 +337,7 @@ static REB_R Loop_Number_Common(
     else if (IS_DECIMAL(end) || IS_PERCENT(end))
         e = VAL_DECIMAL(end);
     else
-        fail (Error_Invalid_Arg(end));
+        fail (end);
 
     REBDEC i;
     if (IS_INTEGER(incr))
@@ -345,7 +345,7 @@ static REB_R Loop_Number_Common(
     else if (IS_DECIMAL(incr) || IS_PERCENT(incr))
         i = VAL_DECIMAL(incr);
     else
-        fail (Error_Invalid_Arg(incr));
+        fail (incr);
 
     VAL_RESET_HEADER(var, REB_DECIMAL);
 
@@ -440,7 +440,7 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
             break;
 
         default:
-            fail (Error_Misc_Raw());
+            fail ("FUNCTION! is the only datatype with global enumeration");
         }
     }
     else {
@@ -532,7 +532,7 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
                     DECLARE_LOCAL (key_name);
                     Init_Word(key_name, VAL_KEY_SPELLING(key));
 
-                    fail (Error_Invalid_Arg(key_name));
+                    fail (key_name);
                 }
                 j++;
             }
@@ -566,7 +566,7 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
                         DECLARE_LOCAL (key_name);
                         Init_Word(key_name, VAL_KEY_SPELLING(key));
 
-                        fail (Error_Invalid_Arg(key_name));
+                        fail (key_name);
                     }
                     j++;
                 }
@@ -851,8 +851,8 @@ REBNATIVE(for_skip)
 
     REBVAL *var = Get_Mutable_Var_May_Fail(word, SPECIFIED);
 
-    if (!ANY_SERIES(var))
-        fail (Error_Invalid_Arg(var));
+    if (NOT(ANY_SERIES(var)))
+        fail (var);
 
     REBINT skip = Int32(ARG(skip));
 
@@ -899,8 +899,8 @@ REBNATIVE(for_skip)
         if (IS_BLANK(var))
             return R_OUT;
 
-        if (!ANY_SERIES(var))
-            fail (Error_Invalid_Arg(var));
+        if (NOT(ANY_SERIES(var)))
+            fail (var);
 
         VAL_INDEX(var) += skip;
     }

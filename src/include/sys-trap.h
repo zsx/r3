@@ -289,12 +289,39 @@ inline static void DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(struct Reb_State *s) {
     #define fail(error) \
         Fail_Core(error)
 #else
-    #define fail(error) \
-        do { \
-            TG_Erroring_C_File = __FILE__; \
-            TG_Erroring_C_Line = __LINE__; \
-            Fail_Core(error); \
-        } while (0)
+    #if defined(__cplusplus) && __cplusplus >= 201103L
+        //
+        // We can do a bit more checking in the C++ build, for instance to
+        // make sure you don't pass a RELVAL* into fail().  This could also
+        // be used by a strict build that wanted to get rid of all the hard
+        // coded string fail()s, by triggering a compiler error on them.
+        
+        template <class T>
+        inline static ATTRIBUTE_NO_RETURN void Fail_Core_Cpp(T *p) {
+            static_assert(
+                std::is_same<T, REBCTX>::value
+                || std::is_same<T, const char>::value
+                || std::is_same<T, const REBVAL>::value
+                || std::is_same<T, REBVAL>::value,
+                "fail() works on: REBCTX*, REBVAL*, const char*"
+            );
+            Fail_Core(p);
+        }
+
+        #define fail(error) \
+            do { \
+                TG_Erroring_C_File = __FILE__; \
+                TG_Erroring_C_Line = __LINE__; \
+                Fail_Core_Cpp(error); \
+            } while (0)
+    #else
+        #define fail(error) \
+            do { \
+                TG_Erroring_C_File = __FILE__; \
+                TG_Erroring_C_Line = __LINE__; \
+                Fail_Core(error); \
+            } while (0)
+    #endif
 #endif
 
 

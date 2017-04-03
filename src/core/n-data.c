@@ -774,7 +774,7 @@ REBNATIVE(in)
             return R_BLANK;
         }
 
-        fail (Error_Invalid_Arg(word));
+        fail (word);
     }
 
     REBCTX *context = VAL_CONTEXT(val);
@@ -860,6 +860,8 @@ REBNATIVE(resolve)
 //  ]
 //
 REBNATIVE(set)
+//
+// !!! Should the /LOOKBACK refinement be called /ENFIX?
 {
     INCLUDE_PARAMS_OF_SET;
 
@@ -868,7 +870,7 @@ REBNATIVE(set)
 
     if (REF(lookback)) {
         if (!IS_FUNCTION(ARG(value)))
-            fail (Error_Misc_Raw());
+            fail ("Attempt to SET/LOOKBACK on a non-function");
 
         // SET-INFIX checks for properties of the function to ensure it is
         // actually infix, and INFIX? tests specifically for that.  The only
@@ -898,7 +900,7 @@ REBNATIVE(set)
     // a word in a context to one.
     //
     if (REF(lookback))
-        fail (Error_Misc_Raw());
+        fail ("Cannot currently SET/LOOKBACK on a PATH!");
 
     if (ANY_PATH(ARG(target))) {
         DECLARE_LOCAL (dummy);
@@ -1056,7 +1058,7 @@ REBNATIVE(set)
 
             if (IS_BAR(value))
                 if (!IS_BAR(target))
-                    fail (Error_Misc_Raw());
+                    fail ("BAR! can only line up with other BAR! in SET");
 
             switch (VAL_TYPE(target)) {
             case REB_BLANK:
@@ -1085,7 +1087,7 @@ REBNATIVE(set)
                 // legal but `set [a | b] [1 2 3]` is not.
                 //
                 if (!IS_BAR(value))
-                    fail (Error_Misc_Raw());
+                    fail ("BAR! can only line up with other BAR! in SET");
                 break;
 
             default:
@@ -1259,7 +1261,7 @@ REBNATIVE(lookback_q)
 
         // Not implemented yet...
 
-        fail (Error_Misc_Raw());
+        fail ("LOOKBACK? testing is not currently implemented on PATH!");
     }
 }
 
@@ -1337,7 +1339,7 @@ REBNATIVE(as)
     case REB_LIT_PATH:
     case REB_GET_PATH:
         if (!ANY_ARRAY(value))
-            fail (Error_Invalid_Arg(value));
+            fail (value);
         break;
 
     case REB_STRING:
@@ -1345,7 +1347,7 @@ REBNATIVE(as)
     case REB_FILE:
     case REB_URL:
         if (!ANY_BINSTR(value) || IS_BINARY(value))
-            fail (Error_Invalid_Arg(value));
+            fail (value);
         break;
 
     case REB_WORD:
@@ -1355,7 +1357,7 @@ REBNATIVE(as)
     case REB_ISSUE:
     case REB_REFINEMENT:
         if (!ANY_WORD(value))
-            fail (Error_Invalid_Arg(value));
+            fail (value);
         break;
 
     default:

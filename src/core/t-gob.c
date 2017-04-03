@@ -244,8 +244,8 @@ static void Insert_Gobs(
             val = Get_Opt_Var_May_Fail(val, SPECIFIED);
         }
         if (IS_GOB(val)) {
-            // !!! Temporary error of some kind (supposed to trap, not panic?)
-            if (GOB_PARENT(VAL_GOB(val))) fail (Error_Misc_Raw());
+            if (GOB_PARENT(VAL_GOB(val)) != NULL)
+                fail ("GOB! not expected to have parent");
             *ptr++ = VAL_GOB(val);
             GOB_PARENT(VAL_GOB(val)) = gob;
             SET_GOB_STATE(VAL_GOB(val), GOBS_NEW);
@@ -691,7 +691,7 @@ REBARR *Gob_To_Array(REBGOB *gob)
             sym = SYM_EFFECT;
             break;
         default:
-            fail (Error_Misc_Raw());
+            fail ("Unknown GOB! type");
         }
         Init_Set_Word(val1, Canon(sym));
         Get_GOB_Var(gob, val1, val);
@@ -902,7 +902,7 @@ void TO_Gob(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 
     UNUSED(out);
 
-    fail (Error_Invalid_Arg(arg));
+    fail (arg);
 }
 
 
@@ -1004,7 +1004,9 @@ REBTYPE(Gob)
     // unary actions
     switch(action) {
     case SYM_PICK_P:
-        if (!ANY_NUMBER(arg) && !IS_BLANK(arg)) fail (Error_Invalid_Arg(arg));
+        if (NOT(ANY_NUMBER(arg) || IS_BLANK(arg)))
+            fail (arg);
+
         if (!GOB_PANE(gob)) goto is_blank;
         index += Get_Num_From_Arg(arg) - 1;
         if (index >= tail) goto is_blank;

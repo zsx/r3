@@ -160,7 +160,7 @@ void Min_Max_Pair(REBVAL *out, const REBVAL *a, const REBVAL *b, REBOOL maxed)
     else if (IS_INTEGER(a))
         ax = ay = cast(REBDEC, VAL_INT64(a));
     else
-        fail (Error_Invalid_Arg(a));
+        fail (a);
 
     float bx;
     float by;
@@ -171,7 +171,7 @@ void Min_Max_Pair(REBVAL *out, const REBVAL *a, const REBVAL *b, REBOOL maxed)
     else if (IS_INTEGER(b))
         bx = by = cast(REBDEC, VAL_INT64(b));
     else
-        fail (Error_Invalid_Arg(b));
+        fail (b);
 
     if (maxed)
         SET_PAIR(out, MAX(ax, bx), MAX(ay, by));
@@ -372,7 +372,7 @@ REBTYPE(Pair)
             else if (VAL_WORD_SYM(arg) == SYM_Y)
                 n = 1;
             else
-                fail (Error_Invalid_Arg(arg));
+                fail (arg);
         }
         else {
             n = Get_Num_From_Arg(arg);
@@ -390,7 +390,7 @@ REBTYPE(Pair)
 ///                 if (index == 0) x1 = (REBINT)VAL_DECIMAL(arg);
 ///                 else y1 = (REBINT)VAL_DECIMAL(arg);
 ///             } else
-///                 fail (Error_Invalid_Arg(arg));
+///                 fail (arg);
 ///             goto setPair;
 ///         }
         SET_DECIMAL(D_OUT, n == 0 ? x1 : y1);

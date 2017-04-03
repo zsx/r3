@@ -206,7 +206,7 @@ REB_R N_debug(REBFRM *frame_) {
         // added by DEBUG itself, which presumably should not count.
         //
         if (!(frame = Frame_For_Stack_Level(&HG_Stack_Level, value, TRUE)))
-            fail (Error_Invalid_Arg(value));
+            fail (value);
 
         Init_Block(D_OUT, Make_Where_For_Frame(frame));
         return R_OUT;

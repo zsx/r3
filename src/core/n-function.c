@@ -392,7 +392,7 @@ REBNATIVE(chain)
     REBVAL *check = first;
     while (NOT_END(check)) {
         if (!IS_FUNCTION(check))
-            fail (Error_Invalid_Arg(check));
+            fail (check);
         ++check;
     }
 
@@ -586,13 +586,13 @@ REBNATIVE(hijack)
     REBSTR *opt_victim_name;
     Get_If_Word_Or_Path_Arg(victim, &opt_victim_name, ARG(victim));
     if (!IS_FUNCTION(victim))
-        fail (Error_Misc_Raw());
+        fail ("Victim of HIJACK must be a FUNCTION!");
 
     DECLARE_LOCAL (hijacker);
     REBSTR *opt_hijacker_name;
     Get_If_Word_Or_Path_Arg(hijacker, &opt_hijacker_name, ARG(hijacker));
     if (!IS_FUNCTION(hijacker))
-        fail (Error_Misc_Raw());
+        fail ("Hijacker in HIJACK must be a FUNCTION!");
 
     if (VAL_FUNC(victim) == VAL_FUNC(hijacker)) {
         //
