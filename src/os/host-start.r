@@ -283,7 +283,7 @@ host-start: function [
     ; array remainder can act as the args.
 
     unless tail? argv [ ;-- on most systems, argv[0] is the exe path
-        o/boot: to file! take argv
+        o/boot: to-rebol-file take argv
     ]
 
     until [tail? argv] [
