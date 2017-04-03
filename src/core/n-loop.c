@@ -1311,8 +1311,7 @@ REBNATIVE(while)
 REBNATIVE(until)
 //
 // !!! This arity-2 form of UNTIL is aliased to UNTIL-2 in the bootstrap, and
-// then overwritten with the arity-1 form (LOOP-UNTIL).  Though less useful
-// and less clear, this will be the default state until further notice.
+// UNTIL is left undefined.
 {
     return While_Until_Core(frame_, FALSE);
 }

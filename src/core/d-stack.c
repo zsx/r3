@@ -104,16 +104,6 @@ void Collapsify_Array(REBARR *array, REBSPC *specifier, REBCNT limit)
 //
 REBARR *Make_Where_For_Frame(REBFRM *f)
 {
-    REBARR *where;
-
-    REBCNT dsp_start = DSP;
-
-    REBCNT start;
-    REBCNT end;
-    REBCNT n;
-
-    REBOOL pending;
-
     if (FRM_IS_VALIST(f)) {
         //
         // Traversing a C va_arg, so reify into a (truncated) array.
@@ -122,15 +112,18 @@ REBARR *Make_Where_For_Frame(REBFRM *f)
         Reify_Va_To_Array_In_Frame(f, truncated);
     }
 
+
     // WARNING: MIN is a C macro and repeats its arguments.
     //
-    start = MIN(ARR_LEN(FRM_ARRAY(f)), FRM_EXPR_INDEX(f));
-    end = MIN(ARR_LEN(FRM_ARRAY(f)), FRM_INDEX(f));
+    REBCNT start = MIN(ARR_LEN(FRM_ARRAY(f)), FRM_EXPR_INDEX(f));
+    REBCNT end = MIN(ARR_LEN(FRM_ARRAY(f)), FRM_INDEX(f));
 
     assert(end >= start);
 
     assert(Is_Any_Function_Frame(f));
-    pending = Is_Function_Frame_Fulfilling(f);
+    REBOOL pending = Is_Function_Frame_Fulfilling(f);
+
+    REBCNT dsp_start = DSP;
 
     // !!! We may be running a function where the value for the function was a
     // "head" value not in the array.  These cases could substitute the symbol
@@ -141,6 +134,7 @@ REBARR *Make_Where_For_Frame(REBFRM *f)
         Init_Word(DS_TOP, FRM_LABEL(f));
     */
 
+    REBCNT n;
     for (n = start; n < end; ++n) {
         DS_PUSH_TRASH;
         Derelativize(
@@ -173,7 +167,7 @@ REBARR *Make_Where_For_Frame(REBFRM *f)
         Init_Word(DS_TOP, Canon(SYM_ELLIPSIS));
     }
 
-    where = Pop_Stack_Values(dsp_start);
+    REBARR *where = Pop_Stack_Values(dsp_start);
 
     // Simplify overly-deep blocks embedded in the where so they show (...)
     // instead of printing out fully.

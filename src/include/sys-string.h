@@ -163,7 +163,7 @@ inline static REBUNI GET_ANY_CHAR(REBSER *s, REBCNT n) {
 }
 
 inline static void SET_ANY_CHAR(REBSER *s, REBCNT n, REBYTE c) {
-    if BYTE_SIZE(s)
+    if (BYTE_SIZE(s))
         BIN_HEAD(s)[n] = c;
     else
         UNI_HEAD(s)[n] = c;

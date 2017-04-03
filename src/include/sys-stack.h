@@ -482,12 +482,11 @@ inline static void Drop_Chunk_Of_Values(REBVAL *opt_head)
 // calls in the interpreter to recurse, there's no *portable* way to
 // catch a stack overflow in the C code of the interpreter itself.
 //
-// Hence, by default Rebol will use a non-standard heuristic.  It looks
-// at the compiled addresses of local (stack-allocated) variables in a
-// function, and decides from their relative pointers if memory is growing
-// "up" or "down".  It then extrapolates that C function call frames will
-// be laid out consecutively, and the memory difference between a stack
-// variable in the topmost stacks can be checked against some limit.
+// Hence, by default Rebol will use a non-standard heuristic.  A flag is
+// passed to say if OS_STACK_GROWS_UP.  If so, it then extrapolates that C
+// function call frames will be laid out consecutively, and the memory
+// difference between a stack variable in the topmost stacks can be checked
+// against some limit.
 //
 // This has nothing to do with guarantees in the C standard, and compilers
 // can really put variables at any address they feel like:

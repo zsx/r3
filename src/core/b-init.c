@@ -1225,6 +1225,8 @@ void Init_Core(void)
     REBARR *datatypes_catalog = Init_Datatypes(
         VAL_ARRAY(&boot->types), VAL_ARRAY(&boot->typespecs)
     );
+    MANAGE_ARRAY(datatypes_catalog);
+    PUSH_GUARD_ARRAY(datatypes_catalog);
 
     // !!! REVIEW: Init_Typesets() uses symbols, data stack, and
     // adds words to lib--not available untilthis point in time.
@@ -1247,14 +1249,19 @@ void Init_Core(void)
     // by scanning comments in the C sources for `native: ...` declarations.
     //
     REBARR *natives_catalog = Init_Natives(VAL_ARRAY(&boot->natives));
+    MANAGE_ARRAY(natives_catalog);
+    PUSH_GUARD_ARRAY(natives_catalog);
 
     // boot->actions is the list in %actions.r
     //
     REBARR *actions_catalog = Init_Actions(VAL_ARRAY(&boot->actions));
+    MANAGE_ARRAY(actions_catalog);
+    PUSH_GUARD_ARRAY(actions_catalog);
 
     // boot->errors is the error definition list from %errors.r
     //
     REBCTX *errors_catalog = Init_Errors(VAL_ARRAY(&boot->errors));
+    PUSH_GUARD_CONTEXT(errors_catalog);
 
     Init_System_Object(
         VAL_ARRAY(&boot->sysobj),
@@ -1263,6 +1270,11 @@ void Init_Core(void)
         actions_catalog,
         errors_catalog
     );
+
+    DROP_GUARD_CONTEXT(errors_catalog);
+    DROP_GUARD_ARRAY(actions_catalog);
+    DROP_GUARD_ARRAY(natives_catalog);
+    DROP_GUARD_ARRAY(datatypes_catalog);
 
     Init_Contexts_Object();
     Init_Locale();
