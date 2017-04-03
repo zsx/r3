@@ -263,6 +263,7 @@ inline static REBOOL CTX_VARS_UNAVAILABLE(REBCTX *c) {
 
 inline static REBCTX *VAL_CONTEXT(const RELVAL *v) {
     assert(ANY_CONTEXT(v));
+    assert(v->payload.any_context.phase == NULL || VAL_TYPE(v) == REB_FRAME);
     return AS_CONTEXT(v->payload.any_context.varlist);
 }
 

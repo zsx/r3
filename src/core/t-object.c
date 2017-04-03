@@ -221,12 +221,10 @@ static void Append_To_Context(REBCTX *context, REBVAL *arg)
 
 static REBCTX *Trim_Context(REBCTX *context)
 {
-    REBVAL *var;
-    REBCNT copy_count = 0;
-    REBCTX *context_new;
-    REBVAL *var_new;
     REBVAL *key;
-    REBVAL *key_new;
+    REBVAL *var;
+
+    REBCNT copy_count = 0;
 
     // First pass: determine size of new context to create by subtracting out
     // any void (unset fields), NONE!, or hidden fields
@@ -234,38 +232,44 @@ static REBCTX *Trim_Context(REBCTX *context)
     key = CTX_KEYS_HEAD(context);
     var = CTX_VARS_HEAD(context);
     for (; NOT_END(var); var++, key++) {
-        if (VAL_TYPE(var) != REB_BLANK && NOT_VAL_FLAG(key, TYPESET_FLAG_HIDDEN))
-            copy_count++;
+        if (VAL_TYPE(var) == REB_BLANK)
+            continue;
+        if (GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN))
+            continue;
+
+        ++copy_count;
     }
 
     // Create new context based on the size found
     //
-    context_new = Alloc_Context(copy_count);
-
-    // Make it pass ASSERT_CONTEXT
-    VAL_RESET_HEADER(CTX_VALUE(context_new), VAL_TYPE(CTX_VALUE(context)));
+    REBCTX *trimmed = Alloc_Context(VAL_TYPE(CTX_VALUE(context)), copy_count);
 
     // Second pass: copy the values that were not skipped in the first pass
     //
     key = CTX_KEYS_HEAD(context);
     var = CTX_VARS_HEAD(context);
-    var_new = CTX_VARS_HEAD(context_new);
-    key_new = CTX_KEYS_HEAD(context_new);
+
+    REBVAL *var_new = CTX_VARS_HEAD(trimmed);
+    REBVAL *key_new = CTX_KEYS_HEAD(trimmed);
+
     for (; NOT_END(var); var++, key++) {
-        if (VAL_TYPE(var) != REB_BLANK && NOT_VAL_FLAG(key, TYPESET_FLAG_HIDDEN)) {
-            Move_Value(var_new, var);
-            ++var_new;
-            Move_Value(key_new, key);
-            ++key_new;
-        }
+        if (VAL_TYPE(var) == REB_BLANK)
+            continue;
+        if (GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN))
+            continue;
+
+        Move_Value(var_new, var);
+        ++var_new;
+        Move_Value(key_new, key);
+        ++key_new;
     }
 
     // Terminate the new context
     //
-    TERM_ARRAY_LEN(CTX_VARLIST(context_new), copy_count + 1);
-    TERM_ARRAY_LEN(CTX_KEYLIST(context_new), copy_count + 1);
+    TERM_ARRAY_LEN(CTX_VARLIST(trimmed), copy_count + 1);
+    TERM_ARRAY_LEN(CTX_KEYLIST(trimmed), copy_count + 1);
 
-    return context_new;
+    return trimmed;
 }
 
 
@@ -394,7 +398,7 @@ void MAKE_Context(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
         //
         /*
         REBINT n = Int32s(arg, 0); 
-        context = Alloc_Context(n);
+        context = Alloc_Context(kind, n);
         VAL_RESET_HEADER(CTX_VALUE(context), target);
         CTX_SPEC(context) = NULL;
         CTX_BODY(context) = NULL; */

@@ -478,7 +478,7 @@ static void Init_Function_Meta_Shim(void) {
         SYM_SELF, SYM_DESCRIPTION, SYM_RETURN_TYPE, SYM_RETURN_NOTE,
         SYM_PARAMETER_TYPES, SYM_PARAMETER_NOTES
     };
-    REBCTX *function_meta = Alloc_Context(6);
+    REBCTX *function_meta = Alloc_Context(REB_OBJECT, 6);
     REBCNT i = 1;
     for (; i <= 6; ++i) {
         //
@@ -490,9 +490,6 @@ static void Init_Function_Meta_Shim(void) {
         );
     }
 
-    REBVAL *rootvar = CTX_VALUE(function_meta);
-    VAL_RESET_HEADER(rootvar, REB_OBJECT);
-    rootvar->extra.binding = NULL;
     Init_Object(CTX_VAR(function_meta, 1), function_meta); // it's "selfish"
 
     Init_Object(ROOT_FUNCTION_META, function_meta);
@@ -900,10 +897,10 @@ static void Init_System_Object(
     // Create system/codecs object
     //
     {
-        REBCTX *codecs = Alloc_Context(10);
-        SET_BLANK(CTX_ROOTKEY(codecs));
+        REBCTX *codecs = Alloc_Context(REB_OBJECT, 10);
         VAL_RESET_HEADER(CTX_VALUE(codecs), REB_OBJECT);
         CTX_VALUE(codecs)->extra.binding = NULL;
+        CTX_VALUE(codecs)->payload.any_context.phase = NULL;
         Init_Object(Get_System(SYS_CODECS, 0), codecs);
     }
 }
@@ -1217,15 +1214,11 @@ void Init_Core(void)
 
     // !!! Have MAKE-BOOT compute # of words
     //
-    Lib_Context = Alloc_Context(600);
-    VAL_RESET_HEADER(CTX_VALUE(Lib_Context), REB_OBJECT);
-    CTX_VALUE(Lib_Context)->extra.binding = NULL;
+    Lib_Context = Alloc_Context(REB_OBJECT, 600);
     MANAGE_ARRAY(CTX_VARLIST(Lib_Context));
     PUSH_GUARD_CONTEXT(Lib_Context);
 
-    Sys_Context = Alloc_Context(50);
-    VAL_RESET_HEADER(CTX_VALUE(Sys_Context), REB_OBJECT);
-    CTX_VALUE(Sys_Context)->extra.binding = NULL;
+    Sys_Context = Alloc_Context(REB_OBJECT, 50);
     MANAGE_ARRAY(CTX_VARLIST(Sys_Context));
     PUSH_GUARD_CONTEXT(Sys_Context);
 

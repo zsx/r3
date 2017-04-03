@@ -76,20 +76,23 @@
 // configured, hence this is an "Alloc" instead of a "Make" (because there
 // is still work to be done before it will pass ASSERT_CONTEXT).
 //
-REBCTX *Alloc_Context(REBCNT len)
+REBCTX *Alloc_Context(enum Reb_Kind kind, REBCNT capacity)
 {
-    REBARR *varlist = Make_Array(len + 1); // size + room for ROOTVAR
+    REBARR *varlist = Make_Array(capacity + 1); // size + room for ROOTVAR
     SET_SER_FLAG(varlist, ARRAY_FLAG_VARLIST);
 
     // varlist[0] is a value instance of the OBJECT!/MODULE!/PORT!/ERROR! we
     // are building which contains this context.
 
     REBVAL *rootvar = Alloc_Tail_Array(varlist);
+    VAL_RESET_HEADER(rootvar, kind);
     rootvar->payload.any_context.varlist = varlist;
+    rootvar->payload.any_context.phase = NULL;
+    rootvar->extra.binding = NULL;
 
     // keylist[0] is the "rootkey" which we currently initialize to BLANK
 
-    REBARR *keylist = Make_Array(len + 1); // size + room for ROOTKEY
+    REBARR *keylist = Make_Array(capacity + 1); // size + room for ROOTKEY
     SET_BLANK(Alloc_Tail_Array(keylist));
     AS_SERIES(keylist)->link.meta = NULL; // GC sees meta object, must init
 
@@ -753,6 +756,7 @@ REBCTX *Make_Selfish_Context_Detect(
     //
     REBARR *varlist = Make_Array(len);
     SET_SER_FLAG(varlist, ARRAY_FLAG_VARLIST);
+    TERM_ARRAY_LEN(varlist, len);
 
     REBCTX *context = AS_CONTEXT(varlist);
 
@@ -765,21 +769,19 @@ REBCTX *Make_Selfish_Context_Detect(
 
     // context[0] is an instance value of the OBJECT!/PORT!/ERROR!/MODULE!
     //
-    CTX_VALUE(context)->payload.any_context.varlist = varlist;
-    CTX_VALUE(context)->extra.binding = NULL;
+    REBVAL *var = KNOWN(ARR_HEAD(varlist));
+    VAL_RESET_HEADER(var, kind);
+    var->payload.any_context.varlist = varlist;
+    var->payload.any_context.phase = NULL;
+    var->extra.binding = binding;
 
-    TERM_ARRAY_LEN(CTX_VARLIST(context), len);
+    ++var;
 
-    // !!! This code was inlined from Create_Frame() because it was only
-    // used once here, and it filled the context vars with NONE!.  For
-    // Ren-C we probably want to go with void, and also the filling
-    // of parent vars will overwrite the work here.  Review.
+    // !!! For Ren-C we probably want to go with void default intead of
+    // blanks.  Also the filling of parent vars will overwrite the work here.
     //
-    {
-        REBVAL *var = CTX_VARS_HEAD(context);
-        for (; len > 1; len--, var++) // 1 is rootvar (context), already done
-            SET_BLANK(var);
-    }
+    for (; len > 1; --len, ++var) // 1 is rootvar (context), already done
+        SET_BLANK(var);
 
     if (opt_parent) {
         //
@@ -804,11 +806,6 @@ REBCTX *Make_Selfish_Context_Detect(
             TS_CLONE
         );
     }
-
-    VAL_RESET_HEADER(CTX_VALUE(context), kind);
-    assert(CTX_TYPE(context) == kind);
-
-    CTX_VALUE(context)->extra.binding = binding;
 
     // We should have a SELF key in all cases here.  Set it to be a copy of
     // the object we just created.  (It is indeed a copy of the [0] element,
@@ -1006,15 +1003,16 @@ REBCTX *Merge_Contexts_Selfish(REBCTX *parent1, REBCTX *parent2)
     REBCTX *merged = AS_CONTEXT(varlist);
     INIT_CTX_KEYLIST_UNIQUE(merged, keylist);
 
-    REBVAL *rootvar = Alloc_Tail_Array(CTX_VARLIST(merged));
 
     // !!! Currently we assume the child will be of the same type as the
     // parent...so if the parent was an OBJECT! so will the child be, if
     // the parent was an ERROR! so will the child be.  This is a new idea,
     // so review consequences.
     //
+    REBVAL *rootvar = SINK(ARR_HEAD(varlist));
     VAL_RESET_HEADER(rootvar, CTX_TYPE(parent1));
-    rootvar->payload.any_context.varlist = CTX_VARLIST(merged);
+    rootvar->payload.any_context.varlist = varlist;
+    rootvar->payload.any_context.phase = NULL;
     rootvar->extra.binding = NULL;
 
     // Copy parent1 values:

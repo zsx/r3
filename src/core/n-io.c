@@ -996,7 +996,7 @@ REBNATIVE(call)
     if (input_ser) DROP_GUARD_SERIES(input_ser);
 
     if (REF(info)) {
-        REBCTX *info = Alloc_Context(2);
+        REBCTX *info = Alloc_Context(REB_OBJECT, 2);
 
         SET_INTEGER(Append_Context(info, NULL, Canon(SYM_ID)), pid);
         if (REF(wait))

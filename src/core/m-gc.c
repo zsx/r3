@@ -255,13 +255,13 @@ inline static void Queue_Mark_Map_Deep(REBMAP *m) {
 //
 static void Queue_Mark_Opt_Value_Deep(const RELVAL *v)
 {
-    assert(!in_mark);
+    assert(NOT(in_mark));
 
     // If this happens, it means somehow Recycle() got called between
     // when an `if (Do_XXX_Throws())` branch was taken and when the throw
     // should have been caught up the stack (before any more calls made).
     //
-    assert(!THROWN(v));
+    assert(NOT(v->header.bits & VALUE_FLAG_THROWN));
 
 #if !defined(NDEBUG)
     if (IS_UNREADABLE_IF_DEBUG(v))
@@ -563,6 +563,13 @@ static void Queue_Mark_Opt_Value_Deep(const RELVAL *v)
         #endif
 
             Queue_Mark_Array_Subclass_Deep(binding);
+        }
+
+        REBFUN *phase = v->payload.any_context.phase;
+        if (phase != NULL) {
+            if (CTX_TYPE(context) != REB_FRAME)
+                panic (context);
+            Queue_Mark_Function_Deep(phase);
         }
 
     #if !defined(NDEBUG)

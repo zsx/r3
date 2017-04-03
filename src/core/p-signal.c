@@ -46,7 +46,7 @@ static void update(struct devreq_posix_signal *signal, REBINT len, REBVAL *arg)
     Extend_Series(VAL_SERIES(arg), len);
 
     for (i = 0; i < len; i ++) {
-        REBCTX *obj = Alloc_Context(8);
+        REBCTX *obj = Alloc_Context(REB_OBJECT, 8);
         REBVAL *val = Append_Context(
             obj, NULL, Intern_UTF8_Managed(signal_no, LEN_BYTES(signal_no))
         );
@@ -65,14 +65,7 @@ static void update(struct devreq_posix_signal *signal, REBINT len, REBVAL *arg)
         );
         SET_INTEGER(val, sig[i].si_uid);
 
-        // context[0] is an instance value of the OBJECT!/PORT!/ERROR!/MODULE!
-        //
-        VAL_RESET_HEADER(CTX_VALUE(obj), REB_OBJECT);
-
-        CTX_VALUE(obj)->payload.any_context.varlist = CTX_VARLIST(obj);
-
-        val = Alloc_Tail_Array(VAL_ARRAY(arg));
-        Init_Object(val, obj);
+        Init_Object(Alloc_Tail_Array(VAL_ARRAY(arg)), obj);
     }
 
     req->actual = 0; /* avoid duplicate updates */

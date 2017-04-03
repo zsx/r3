@@ -553,7 +553,7 @@ REBCTX *Alloc_Context_From_Map(REBMAP *map)
 
     // See Alloc_Context() - cannot use it directly because no Collect_Words
 
-    REBCTX *context = Alloc_Context(count);
+    REBCTX *context = Alloc_Context(REB_OBJECT, count);
     REBVAL *key = CTX_KEYS_HEAD(context);
     REBVAL *var = CTX_VARS_HEAD(context);
 
@@ -581,9 +581,6 @@ REBCTX *Alloc_Context_From_Map(REBMAP *map)
     TERM_ARRAY_LEN(CTX_KEYLIST(context), count + 1);
     assert(IS_END(key));
     assert(IS_END(var));
-
-    VAL_RESET_HEADER(CTX_VALUE(context), REB_OBJECT);
-    CTX_VALUE(context)->extra.binding = NULL;
 
     return context;
 }

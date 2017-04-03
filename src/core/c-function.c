@@ -782,6 +782,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         REBVAL *dest = SINK(ARR_HEAD(types_varlist)); // "rootvar"
         VAL_RESET_HEADER(dest, REB_FRAME);
         dest->payload.any_context.varlist = types_varlist; // canon FRAME!
+        dest->payload.any_context.phase = AS_FUNC(paramlist);
         dest->extra.binding = NULL;
         ++dest;
 
@@ -849,6 +850,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         REBVAL *dest = SINK(ARR_HEAD(notes_varlist)); // "rootvar"
         VAL_RESET_HEADER(dest, REB_FRAME);
         dest->payload.any_context.varlist = notes_varlist; // canon FRAME!
+        dest->payload.any_context.phase = AS_FUNC(paramlist);
         dest->extra.binding = NULL;
         ++dest;
 
@@ -1376,6 +1378,8 @@ REBCTX *Make_Frame_For_Function(const REBVAL *value) {
     REBVAL *var = SINK(ARR_HEAD(varlist));
     VAL_RESET_HEADER(var, REB_FRAME);
     var->payload.any_context.varlist = varlist;
+    var->extra.binding = value->extra.binding;
+    var->payload.any_context.phase = func;
 
     // We can reuse the paramlist we're given, but note in the case of
     // definitional RETURN and LEAVE we have to stow the `binding` field
@@ -1390,7 +1394,7 @@ REBCTX *Make_Frame_For_Function(const REBVAL *value) {
     // its values.  See notes in DO of FRAME! regarding this.
     //
     AS_SERIES(varlist)->misc.f = NULL;
-    CTX_VALUE(AS_CONTEXT(varlist))->extra.binding = value->extra.binding;
+
     ++var;
 
     // A FRAME! defaults all args and locals to not being set.  If the frame
@@ -1537,6 +1541,15 @@ REBOOL Specialize_Function_Throws(
         VAL_FUNC(specializee), // cache underlying function's facade
         exemplar // also provide a context of specialization values
     );
+
+    // !!! The full story behind how FRAME!s remember the function they were
+    // made for is not completely told yet, but it comes from the "phase"
+    // field.  System-wide this needs to be honored--all FRAME!s must have
+    // one, eventually.  In order to make sure specialization dispatches the
+    // function you specialized and not the one tied to its underlying frame,
+    // we just patch this one in here.
+    //
+    CTX_VALUE(exemplar)->payload.any_context.phase = VAL_FUNC(specializee);
 
     // The "body" is the FRAME! value of the specialization.  Though we may
     // not be able to touch the keylist of that frame to update the "archetype"
@@ -1830,7 +1843,7 @@ REB_R Returner_Dispatcher(REBFRM *f)
 REB_R Specializer_Dispatcher(REBFRM *f)
 {
     REBVAL *exemplar = KNOWN(FUNC_BODY(f->phase));
-    f->phase = VAL_FUNC(CTX_FRAME_FUNC_VALUE(VAL_CONTEXT(exemplar)));
+    f->phase = exemplar->payload.any_context.phase;
     f->binding = VAL_BINDING(exemplar);
 
     return R_REDO_UNCHECKED;

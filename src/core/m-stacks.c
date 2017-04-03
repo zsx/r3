@@ -293,14 +293,14 @@ void Reify_Frame_Context_Maybe_Fulfilling(REBFRM *f) {
         SET_SER_FLAGS(f->varlist, ARRAY_FLAG_VARLIST | CONTEXT_FLAG_STACK);
     }
 
-    REBCTX *context = AS_CONTEXT(f->varlist);
+    REBCTX *c = AS_CONTEXT(f->varlist);
 
     // We do not Manage_Context, because we are reusing a word series here
     // that has already been managed.  The arglist array was managed when
     // created and kept alive by Mark_Call_Frames
     //
-    INIT_CTX_KEYLIST_SHARED(context, FUNC_PARAMLIST(FRM_UNDERLYING(f)));
-    ASSERT_ARRAY_MANAGED(CTX_KEYLIST(context));
+    INIT_CTX_KEYLIST_SHARED(c, FUNC_PARAMLIST(FRM_UNDERLYING(f)));
+    ASSERT_ARRAY_MANAGED(CTX_KEYLIST(c));
 
     // When in ET_FUNCTION or ET_LOOKBACK, the arglist will be marked safe from
     // GC. It is managed because the pointer makes its way into bindings that
@@ -311,10 +311,13 @@ void Reify_Frame_Context_Maybe_Fulfilling(REBFRM *f) {
     // able to access this information.  This is under review for how it
     // might be stopped.
     //
-    VAL_RESET_HEADER(CTX_VALUE(context), REB_FRAME);
-    CTX_VALUE(context)->payload.any_context.varlist = CTX_VARLIST(context);
-    AS_SERIES(CTX_VARLIST(context))->misc.f = f;
-    CTX_VALUE(context)->extra.binding = f->binding;
+    REBVAL *rootvar = SINK(ARR_HEAD(f->varlist));
+    VAL_RESET_HEADER(rootvar, REB_FRAME);
+    rootvar->payload.any_context.varlist = f->varlist;
+    rootvar->payload.any_context.phase = f->phase;
+    rootvar->extra.binding = f->binding;
+
+    AS_SERIES(f->varlist)->misc.f = f;
 
     // A reification of a frame for native code should not allow changing
     // the values out from under it, because that could cause it to crash
@@ -324,7 +327,7 @@ void Reify_Frame_Context_Maybe_Fulfilling(REBFRM *f) {
     // itself, but should stop modifications from user code.
     //
     if (f->flags.bits & DO_FLAG_NATIVE_HOLD)
-        SET_SER_INFO(CTX_VARLIST(context), SERIES_INFO_RUNNING);
+        SET_SER_INFO(f->varlist, SERIES_INFO_RUNNING);
 
     MANAGE_ARRAY(f->varlist);
 
@@ -335,7 +338,7 @@ void Reify_Frame_Context_Maybe_Fulfilling(REBFRM *f) {
     // By the time the function actually runs, the data should be good.
     //
     if (NOT(Is_Function_Frame_Fulfilling(f)))
-        ASSERT_CONTEXT(context);
-    assert(NOT(CTX_VARS_UNAVAILABLE(context)));
+        ASSERT_CONTEXT(c);
+    assert(NOT(CTX_VARS_UNAVAILABLE(c)));
 #endif
 }

@@ -450,6 +450,16 @@ void Init_Any_Context_Core(REBVAL *out, enum Reb_Kind kind, REBCTX *c) {
     // and it's only REBVAL instances besides the canon that become bound.
     //
     assert(VAL_BINDING(out) == NULL);
+
+    // Only FRAME!s are allowed to have phases.
+    //
+    assert(
+        out->payload.any_context.phase == NULL
+        || (
+            CTX_TYPE(c) == REB_FRAME
+            && NOT(IS_POINTER_TRASH_DEBUG(out->payload.any_context.phase))
+        )
+    );
 }
 
 

@@ -249,6 +249,7 @@ void Probe_Core_Debug(
             VAL_RESET_HEADER(temp, CTX_TYPE(c));
             temp->extra.binding = NULL;
             temp->payload.any_context.varlist = CTX_VARLIST(c);
+            temp->payload.any_context.phase = NULL;
             Debug_Fmt("%r\n", temp);
         }
         else {

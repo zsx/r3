@@ -471,7 +471,24 @@ struct Reb_Any_Context {
     //
     REBARR *varlist;
 
-    void *unused; // for future expansion
+    // A single FRAME! can go through multiple phases of evaluation, some of
+    // which should expose more fields than others.  For instance, when you
+    // specialize a function that has 10 parameters so it has only 8, then
+    // the specialization frame should not expose the 2 that have been
+    // removed.  It's as if the WORDS-OF the spec is shorter than the actual
+    // length which is used.
+    //
+    // Hence, each independent value that holds a frame must remember the
+    // function whose "view" it represents.  This field is only applicable
+    // to frames, and so it could be used for something else on other types
+    //
+    // !!! Note that the binding on a FRAME! can't be used for this purpose,
+    // because it's already used to hold the binding of the function it
+    // represents.  e.g. if you have a definitional return value with a
+    // binding, and try to MAKE FRAME! on it, the paramlist alone is not
+    // enough to remember which specific frame that function should exit.
+    //
+    REBFUN *phase;
 };
 
 

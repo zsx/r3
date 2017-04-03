@@ -171,16 +171,13 @@ static REBARR *Copy_Body_Deep_Bound_To_New_Context(
 ) {
     assert(IS_BLOCK(body));
 
-    REBINT len = IS_BLOCK(spec) ? VAL_LEN_AT(spec) : 1;
-    if (len == 0)
+    REBINT num_vars = IS_BLOCK(spec) ? VAL_LEN_AT(spec) : 1;
+    if (num_vars == 0)
         fail (Error_Invalid_Arg(spec));
 
-    REBCTX *context = Alloc_Context(len);
-    TERM_ARRAY_LEN(CTX_VARLIST(context), len + 1);
-    TERM_ARRAY_LEN(CTX_KEYLIST(context), len + 1);
-
-    VAL_RESET_HEADER(CTX_VALUE(context), REB_OBJECT);
-    CTX_VALUE(context)->extra.binding = NULL;
+    REBCTX *context = Alloc_Context(REB_OBJECT, num_vars);
+    TERM_ARRAY_LEN(CTX_VARLIST(context), num_vars + 1);
+    TERM_ARRAY_LEN(CTX_KEYLIST(context), num_vars + 1);
 
     REBVAL *key = CTX_KEYS_HEAD(context);
     REBVAL *var = CTX_VARS_HEAD(context);
@@ -196,7 +193,7 @@ static REBARR *Copy_Body_Deep_Bound_To_New_Context(
         specifier = SPECIFIED;
     }
 
-    while (len-- > 0) {
+    while (num_vars-- > 0) {
         if (!IS_WORD(item) && !IS_SET_WORD(item))
             fail (Error_Invalid_Arg_Core(item, specifier));
 
