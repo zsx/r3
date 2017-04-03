@@ -37,13 +37,27 @@ struct Reb_Func {
     struct Reb_Array paramlist;
 };
 
-#ifdef NDEBUG
-    #define AS_FUNC(s) \
-        cast(REBFUN*, (s))
+#if !defined(NDEBUG) && defined(__cplusplus) && __cplusplus >= 201103L
+    #include <type_traits>
+
+    template <class T>
+    inline REBFUN *AS_FUNC(T *p) {
+        static_assert(
+            std::is_same<T, void>::value
+            || std::is_same<T, REBNOD>::value
+            || std::is_same<T, REBSER>::value
+            || std::is_same<T, REBARR>::value,
+            "AS_FUNC works on: void*, REBNOD*, REBSER*, REBARR*"
+        );
+        REBARR *paramlist = cast(REBARR*, p);
+        assert(GET_SER_FLAG(paramlist, ARRAY_FLAG_PARAMLIST));
+        return cast(REBFUN*, paramlist);
+    }
 #else
-    #define AS_FUNC(s) \
-        cast(REBFUN*, (s)) // !!! worth it to add debug version that checks?
+    #define AS_FUNC(p) \
+        cast(REBFUN*, (p))
 #endif
+
 
 inline static REBARR *FUNC_PARAMLIST(REBFUN *f) {
     assert(GET_SER_FLAG(&f->paramlist, ARRAY_FLAG_PARAMLIST));

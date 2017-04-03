@@ -91,7 +91,7 @@ inline static REBOOL Try_Add_Binder_Index(
     REBINT index
 ){
     assert(index != 0);
-    assert(GET_SER_FLAG(canon, STRING_FLAG_CANON));
+    assert(GET_SER_INFO(canon, STRING_INFO_CANON));
     if (binder->high) {
         if (canon->misc.bind_index.high != 0)
             return FALSE;
@@ -129,7 +129,7 @@ inline static REBINT Try_Get_Binder_Index( // 0 if not present
     struct Reb_Binder *binder,
     REBSTR *canon
 ){
-    assert(GET_SER_FLAG(canon, STRING_FLAG_CANON));
+    assert(GET_SER_INFO(canon, STRING_INFO_CANON));
 
     if (binder->high)
         return canon->misc.bind_index.high;
@@ -142,7 +142,7 @@ inline static REBINT Try_Remove_Binder_Index( // 0 if failure, else old index
     struct Reb_Binder *binder,
     REBSTR *canon
 ){
-    assert(GET_SER_FLAG(canon, STRING_FLAG_CANON));
+    assert(GET_SER_INFO(canon, STRING_INFO_CANON));
 
     REBINT old_index;
     if (binder->high) {

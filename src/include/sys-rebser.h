@@ -84,7 +84,9 @@
 //
 // As a general rule for choosing which place to put a bit, if it may be
 // interesting to test/set multiple bits at the same time, then they should
-// be in the same flag group.
+// be in the same flag group.  Also, SERIES_FLAG_XXX are passed to the
+// Make_Series() function, so anything that controls series creation is best
+// put in there.
 //
 // !!! Perhaps things that don't change for the lifetime of the series should
 // also prefer the header vs. info?  Such separation might help with caching.
@@ -111,6 +113,18 @@
     FLAGIT_LEFT(GENERAL_SERIES_BIT + 0)
 
 
+//=//// SERIES_FLAG_FILE_LINE /////////////////////////////////////////////=//
+//
+// The Reb_Series node has two pointers in it, ->link and ->misc, which are
+// used for a variety of purposes (pointing to the keylist for an object,
+// the C code that runs as the dispatcher for a function, etc.)  But for
+// regular source series, they can be used to store the filename and line
+// number, if applicable.
+//
+#define SERIES_FLAG_FILE_LINE \
+    FLAGIT_LEFT(GENERAL_SERIES_BIT + 1)
+
+
 //=//// SERIES_FLAG_UTF8_STRING ///////////////////////////////////////////=//
 //
 // Indicates the series holds a UTF-8 encoded string.
@@ -125,22 +139,38 @@
 // http://utf8everywhere.org/
 //
 #define SERIES_FLAG_UTF8_STRING \
-    FLAGIT_LEFT(GENERAL_SERIES_BIT + 1)
-
-
-//=//// STRING_FLAG_CANON /////////////////////////////////////////////////=//
-//
-// This is used to indicate when a SERIES_FLAG_UTF8_STRING series represents
-// the canon form of a word.  This doesn't mean anything special about the
-// case of its letters--just that it was loaded first.  Canon forms can be
-// GC'd and then delegate the job of being canon to another spelling.
-//
-// A canon string is unique because it does not need to store a pointer to
-// its canon form.  So it can use the REBSER.misc field for the purpose of
-// holding an index during binding.
-//
-#define STRING_FLAG_CANON \
     FLAGIT_LEFT(GENERAL_SERIES_BIT + 2)
+
+
+//=//// SERIES_FLAG_POWER_OF_2 ////////////////////////////////////////////=//
+//
+// This is set when an allocation size was rounded to a power of 2.  The bit
+// was introduced in Ren-C when accounting was added to make sure the system's
+// notion of how much memory allocation was outstanding would balance out to
+// zero by the time of exiting the interpreter.
+//
+// The problem was that the allocation size was measured in terms of the
+// number of elements in the series.  If the elements themselves were not the
+// size of a power of 2, then to get an even power-of-2 size of memory
+// allocated, the memory block would not be an even multiple of the element
+// size.  So rather than track the "actual" memory allocation size as a 32-bit
+// number, a single bit flag remembering that the allocation was a power of 2
+// was enough to recreate the number to balance accounting at free time.
+//
+// !!! The original code which created series with items which were not a
+// width of a power of 2 was in the FFI.  It has been rewritten to not use
+// such custom structures, but the support for this remains in case there
+// was a good reason to have a non-power-of-2 size in the future.
+//
+// !!! ...but rationale for why series were ever allocated to a power of 2
+// should be revisited.  Current conventional wisdom suggests that asking
+// for the amount of memory you need and not using powers of 2 is
+// generally a better idea:
+//
+// http://stackoverflow.com/questions/3190146/
+//
+#define SERIES_FLAG_POWER_OF_2 \
+    FLAGIT_LEFT(GENERAL_SERIES_BIT + 3)
 
 
 //=//// SERIES_FLAG_ARRAY /////////////////////////////////////////////////=//
@@ -156,7 +186,7 @@
 // items which are incidentally the size of a REBVAL, but not actually arrays.
 //
 #define SERIES_FLAG_ARRAY \
-    FLAGIT_LEFT(GENERAL_SERIES_BIT + 3)
+    FLAGIT_LEFT(GENERAL_SERIES_BIT + 4)
 
 
 //=//// ARRAY_FLAG_VOIDS_LEGAL ////////////////////////////////////////////=//
@@ -171,7 +201,7 @@
 // are used to represent unset variables.
 //
 #define ARRAY_FLAG_VOIDS_LEGAL \
-    FLAGIT_LEFT(GENERAL_SERIES_BIT + 4)
+    FLAGIT_LEFT(GENERAL_SERIES_BIT + 5)
 
 
 //=//// ARRAY_FLAG_PARAMLIST //////////////////////////////////////////////=//
@@ -180,7 +210,7 @@
 // FUNCTION! (the first element will be a canon value of the function)
 //
 #define ARRAY_FLAG_PARAMLIST \
-    FLAGIT_LEFT(GENERAL_SERIES_BIT + 5)
+    FLAGIT_LEFT(GENERAL_SERIES_BIT + 6)
 
 
 //=//// ARRAY_FLAG_VARLIST ////////////////////////////////////////////////=//
@@ -193,7 +223,7 @@
 // See notes on REBCTX for further details about what a context is.
 //
 #define ARRAY_FLAG_VARLIST \
-    FLAGIT_LEFT(GENERAL_SERIES_BIT + 6)
+    FLAGIT_LEFT(GENERAL_SERIES_BIT + 7)
 
 
 //=//// ARRAY_FLAG_PAIRLIST ///////////////////////////////////////////////=//
@@ -202,7 +232,7 @@
 // series also has a hashlist linked to in the series node.
 //
 #define ARRAY_FLAG_PAIRLIST \
-    FLAGIT_LEFT(GENERAL_SERIES_BIT + 7)
+    FLAGIT_LEFT(GENERAL_SERIES_BIT + 8)
 
 
 //=//// CONTEXT_FLAG_STACK ////////////////////////////////////////////////=//
@@ -218,22 +248,8 @@
 // inaccessible) are checked against this flag.
 //
 #define CONTEXT_FLAG_STACK \
-    FLAGIT_LEFT(GENERAL_SERIES_BIT + 8)
+    FLAGIT_LEFT(GENERAL_SERIES_BIT + 9)
 
-
-#if !defined(NDEBUG)
-    //=//// SERIES_FLAG_LEGACY ////////////////////////////////////////////=//
-    //
-    // This is a flag which is marked at the root set of the body of legacy
-    // functions.  It can be used in a dynamic examination of a call to see if
-    // it "originates from legacy code".  This is a vague concept given the
-    // ability to create blocks and run them--so functions like COPY would
-    // have to propagate the flag to make it "more accurate".  But it's good
-    // enough for casual compatibility in many cases.
-    //
-    #define SERIES_FLAG_LEGACY \
-        FLAGIT_LEFT(GENERAL_SERIES_BIT + 9)
-#endif
 
 // ^-- STOP AT FLAGIT_LEFT(15) --^
 //
@@ -361,34 +377,18 @@
     FLAGIT_LEFT(9)
 
 
-//=//// SERIES_INFO_POWER_OF_2 ////////////////////////////////////////////=//
+//=//// STRING_INFO_CANON /////////////////////////////////////////////////=//
 //
-// This is set when an allocation size was rounded to a power of 2.  The bit
-// was introduced in Ren-C when accounting was added to make sure the system's
-// notion of how much memory allocation was outstanding would balance out to
-// zero by the time of exiting the interpreter.
+// This is used to indicate when a SERIES_FLAG_UTF8_STRING series represents
+// the canon form of a word.  This doesn't mean anything special about the
+// case of its letters--just that it was loaded first.  Canon forms can be
+// GC'd and then delegate the job of being canon to another spelling.
 //
-// The problem was that the allocation size was measured in terms of the
-// number of elements in the series.  If the elements themselves were not the
-// size of a power of 2, then to get an even power-of-2 size of memory
-// allocated, the memory block would not be an even multiple of the element
-// size.  So rather than track the "actual" memory allocation size as a 32-bit
-// number, a single bit flag remembering that the allocation was a power of 2
-// was enough to recreate the number to balance accounting at free time.
+// A canon string is unique because it does not need to store a pointer to
+// its canon form.  So it can use the REBSER.misc field for the purpose of
+// holding an index during binding.
 //
-// !!! The original code which created series with items which were not a
-// width of a power of 2 was in the FFI.  It has been rewritten to not use
-// such custom structures, but the support for this remains in case there
-// was a good reason to have a non-power-of-2 size in the future.
-//
-// !!! ...but rationale for why series were ever allocated to a power of 2
-// should be revisited.  Current conventional wisdom suggests that asking
-// for the amount of memory you need and not using powers of 2 is
-// generally a better idea:
-//
-// http://stackoverflow.com/questions/3190146/
-//
-#define SERIES_INFO_POWER_OF_2 \
+#define STRING_INFO_CANON \
     FLAGIT_LEFT(10)
 
 
@@ -408,6 +408,20 @@
     FLAGIT_LEFT(11)
 
 
+#if !defined(NDEBUG)
+    //=//// SERIES_INFO_LEGACY_DEBUG //////////////////////////////////////=//
+    //
+    // This is a flag which is marked at the root set of the body of legacy
+    // functions.  It can be used in a dynamic examination of a call to see if
+    // it "originates from legacy code".  This is a vague concept given the
+    // ability to create blocks and run them--so functions like COPY would
+    // have to propagate the flag to make it "more accurate".  But it's good
+    // enough for casual compatibility in many cases.
+    //
+    #define SERIES_INFO_LEGACY_DEBUG \
+        FLAGIT_LEFT(12)
+#endif
+
 // ^-- STOP AT FLAGIT_LEFT(15) --^
 //
 // The rightmost 16 bits of the series info is used to store an 8 bit length
@@ -415,7 +429,7 @@
 // flags need to stop at FLAGIT_LEFT(15).
 //
 #if defined(__cplusplus) && (__cplusplus >= 201103L)
-    static_assert(11 < 16, "SERIES_INFO_XXX too high");
+    static_assert(12 < 16, "SERIES_INFO_XXX too high");
 #endif
 
 

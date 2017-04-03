@@ -90,7 +90,7 @@ inline static const REBYTE *STR_HEAD(REBSTR *str) {
 }
 
 inline static REBSTR *STR_CANON(REBSTR *str) {
-    if (GET_SER_FLAG(str, STRING_FLAG_CANON))
+    if (GET_SER_INFO(str, STRING_INFO_CANON))
         return str;
     return str->misc.canon;
 }

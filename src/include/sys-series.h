@@ -99,7 +99,7 @@
 // cast in the C build.)
 //
 
-#if defined(__cplusplus) && __cplusplus >= 201103L
+#if !defined(NDEBUG) && defined(__cplusplus) && __cplusplus >= 201103L
     #include <type_traits>
 
     template <class T>

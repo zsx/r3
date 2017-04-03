@@ -1239,7 +1239,7 @@ void Resolve_Context(
 //
 REBCNT Find_Canon_In_Context(REBCTX *context, REBSTR *canon, REBOOL always)
 {
-    assert(GET_SER_FLAG(canon, STRING_FLAG_CANON));
+    assert(GET_SER_INFO(canon, STRING_INFO_CANON));
 
     REBVAL *key = CTX_KEYS_HEAD(context);
     REBCNT len = CTX_LEN(context);

@@ -1951,7 +1951,7 @@ exit_block:
     //
 #if !defined(NDEBUG)
     if (LEGACY(OPTIONS_REFINEMENTS_BLANK))
-        SET_SER_FLAG(result, SERIES_FLAG_LEGACY);
+        SET_SER_INFO(result, SERIES_INFO_LEGACY_DEBUG);
 #endif
 
     return result;

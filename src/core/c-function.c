@@ -654,6 +654,8 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     // Must make the function "paramlist" even if "empty", for identity.
     //
     REBARR *paramlist = Make_Array(num_slots);
+    SET_SER_FLAG(paramlist, ARRAY_FLAG_PARAMLIST);
+
     if (TRUE) {
         RELVAL *dest = ARR_HEAD(paramlist); // canon function value
         VAL_RESET_HEADER(dest, REB_FUNCTION);
@@ -902,7 +904,6 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     //
     DS_DROP_TO(dsp_orig);
 
-    SET_SER_FLAG(paramlist, ARRAY_FLAG_PARAMLIST);
     return paramlist;
 }
 
@@ -1325,8 +1326,8 @@ REBFUN *Make_Interpreted_Function_May_Fail(
     //
     if (
         LEGACY_RUNNING(OPTIONS_REFINEMENTS_BLANK)
-        || GET_SER_FLAG(VAL_ARRAY(spec), SERIES_FLAG_LEGACY)
-        || GET_SER_FLAG(VAL_ARRAY(code), SERIES_FLAG_LEGACY)
+        || GET_SER_INFO(VAL_ARRAY(spec), SERIES_INFO_LEGACY_DEBUG)
+        || GET_SER_INFO(VAL_ARRAY(code), SERIES_INFO_LEGACY_DEBUG)
     ) {
         SET_VAL_FLAG(FUNC_VALUE(fun), FUNC_FLAG_LEGACY_DEBUG);
     }

@@ -598,7 +598,7 @@ static REBOOL Series_Data_Alloc(
         assert(size >= length * wide);
 
         // We don't round to power of 2 for allocations in memory pools
-        CLEAR_SER_INFO(s, SERIES_INFO_POWER_OF_2);
+        CLEAR_SER_FLAG(s, SERIES_FLAG_POWER_OF_2);
     }
     else {
         // ...the allocation is too big for a pool.  But instead of just
@@ -617,12 +617,12 @@ static REBOOL Series_Data_Alloc(
             // the size doesn't divide evenly by the item width
             //
             if (size % wide != 0)
-                SET_SER_INFO(s, SERIES_INFO_POWER_OF_2);
+                SET_SER_FLAG(s, SERIES_FLAG_POWER_OF_2);
             else
-                CLEAR_SER_INFO(s, SERIES_INFO_POWER_OF_2);
+                CLEAR_SER_FLAG(s, SERIES_FLAG_POWER_OF_2);
         }
         else
-            CLEAR_SER_INFO(s, SERIES_INFO_POWER_OF_2);
+            CLEAR_SER_FLAG(s, SERIES_FLAG_POWER_OF_2);
 
         s->content.dynamic.data = ALLOC_N(REBYTE, size);
         if (s->content.dynamic.data == NULL)
@@ -845,7 +845,7 @@ REBCNT Series_Allocation_Unpooled(REBSER *series)
 {
     REBCNT total = SER_TOTAL(series);
 
-    if (GET_SER_INFO(series, SERIES_INFO_POWER_OF_2)) {
+    if (GET_SER_FLAG(series, SERIES_FLAG_POWER_OF_2)) {
         REBCNT len = 2048;
         while(len < total)
             len *= 2;

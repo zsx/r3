@@ -68,7 +68,7 @@ REBOOL In_Legacy_Function_Debug(void)
 
     // Check the flag on the source series
     //
-    if (GET_SER_FLAG(frame->source.array, SERIES_FLAG_LEGACY))
+    if (GET_SER_INFO(frame->source.array, SERIES_INFO_LEGACY_DEBUG))
         return TRUE;
 
     return FALSE;

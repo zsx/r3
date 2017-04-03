@@ -322,7 +322,7 @@ static void Queue_Mark_Opt_Value_Deep(const RELVAL *v)
         // time a canon word's "index" field is allowed to be nonzero.
         //
         assert(
-            NOT_SER_FLAG(spelling, STRING_FLAG_CANON)
+            NOT_SER_INFO(spelling, STRING_INFO_CANON)
             || (
                 spelling->misc.bind_index.high == 0
                 && spelling->misc.bind_index.low == 0
