@@ -261,8 +261,15 @@ help: procedure [
 ;
 ;           More information: http://www.rebol.com/docs.html
 
-    ; If arg is an undefined word, just make it into a string:
-    if all [word? :word | not set? :word] [word: mold :word]
+    if all [word? :word | blank? context-of word] [
+        print [word "is an unbound WORD!"]
+        leave
+    ]
+
+    if all [word? :word | not set? word] [
+        print [word "is bound to a context, but has no value."]
+        leave
+    ]
 
     ; Open the web page for it?
     if all [
@@ -294,29 +301,17 @@ help: procedure [
         [item tmp]
     ]
 
-    ; If arg is a string or datatype! word, search the system:
-    if any [string? :word | all [word? :word | datatype? get :word]] [
-        if all [word? :word | datatype? get :word] [
-            typespec: spec-of get :word
-            print [
-                word {is a datatype}
-                    |
-                {It is defined as}
-                    either find "aeiou" first typespec/title ["an"] ["a"]
-                    typespec/title newline
-                    |
-                "It is of the general type" typespec/type
-            ]
-        ]
-        if all [word? :word | not set? :word] [leave]
+    if all [word? :word | set? :word | datatype? get :word] [
+        print [word {is a datatype}]
+        leave
+    ]
+
+    ; If arg is a string, search the system:
+    if string? :word [
         types: dump-obj/match lib :word
         sort types
         if not empty? types [
             print ["Found these related words:" newline types]
-            leave
-        ]
-        if all [word? :word datatype? get :word] [
-            print ["No values defined for" word]
             leave
         ]
         print ["No information on" word]
