@@ -168,7 +168,7 @@ static REBCTX* add_path(
 static void cleanup(const REBVAL *val)
 {
     TCCState *state = VAL_HANDLE_POINTER(TCCState, val);
-    assert(state != NULL); 
+    assert(state != NULL);
     tcc_delete(state);
 }
 

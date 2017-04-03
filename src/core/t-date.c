@@ -830,7 +830,7 @@ REBTYPE(Date)
         case SYM_ODD_Q:
             return (day & 1) == 0 ? R_TRUE : R_FALSE;
 
-        case SYM_PICK:
+        case SYM_PICK_P:
             assert(D_ARGC > 1);
             Pick_Date(D_OUT, val, arg);
             return R_OUT;

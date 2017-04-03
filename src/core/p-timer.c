@@ -82,7 +82,7 @@ static REB_R Timer_Actor(REBFRM *frame_, REBCTX *port, REBCNT action)
     //case SYM_PATH:      // not allowed: port/foo is port object field access
     //case SYM_PATH_SET:  // not allowed: above
         if (!IS_EVENT(arg)) fail (Error_Invalid_Arg(arg));
-    case SYM_PICK:
+    case SYM_PICK_P:
 act_blk:
         Move_Value(&save_port, D_ARG(1)); // save for return
         Move_Value(D_ARG(1), state);

@@ -436,7 +436,7 @@ REBTYPE(Tuple)
         SET_INTEGER(D_OUT, len);
         return R_OUT;
 
-    case SYM_PICK:
+    case SYM_PICK_P:
         Pick_Tuple(D_OUT, value, arg);
         return R_OUT;
 

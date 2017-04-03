@@ -807,7 +807,7 @@ REBVAL *Modify_Image(REBFRM *frame_, REBCNT action)
 // !!! old and very broken code, untested and probably (hopefully) not
 // used by R3-View... (?)
 //
-REBVAL *Find_Image(REBFRM *frame_)
+void Find_Image(REBFRM *frame_)
 {
     INCLUDE_PARAMS_OF_FIND;
 
@@ -820,8 +820,10 @@ REBVAL *Find_Image(REBFRM *frame_)
     REBINT  n;
 
     REBCNT len = tail - index;
-    if (len == 0)
-        return NULL;
+    if (len == 0) {
+        SET_VOID(D_OUT);
+        return;
+    }
 
     // !!! There is a general problem with refinements and actions in R3-Alpha
     // in terms of reporting when a refinement was ignored.  This is a
@@ -840,7 +842,8 @@ REBVAL *Find_Image(REBFRM *frame_)
         fail (Error_Bad_Refines_Raw());
     }
 
-    REBOOL only = FALSE;
+    REBOOL only; // initialization would be crossed by goto
+    only = FALSE;
     if (IS_TUPLE(arg)) {
         only = LOGICAL(VAL_TUPLE_LEN(arg) < 4);
         if (REF(only)) only = TRUE;
@@ -860,19 +863,28 @@ REBVAL *Find_Image(REBFRM *frame_)
     else
         fail (Error_Invalid_Type(VAL_TYPE(arg)));
 
-    // Post process the search (failure or apply /match and /tail):
-    if (p) {
-        n = (REBCNT)(p - (REBCNT *)VAL_IMAGE_HEAD(value));
-        if (REF(match)) {
-            if (n != (REBINT)index)
-                return NULL;
-            n++;
-        } else if (REF(tail)) n++;
-        index = n;
-        VAL_INDEX(value) = index;
-        return value;
+    if (p == 0) {
+        SET_VOID(D_OUT);
+        return;
     }
-    return NULL;
+
+    // Post process the search (failure or apply /match and /tail):
+
+    Move_Value(D_OUT, value);
+    n = (REBCNT)(p - (REBCNT *)VAL_IMAGE_HEAD(value));
+    if (REF(match)) {
+        if (n != cast(REBINT, index)) {
+            SET_VOID(D_OUT);
+            return;
+        }
+        n++;
+    }
+    else
+        if (REF(tail))
+            ++n;
+
+    VAL_INDEX(value) = n;
+    return;
 }
 
 
@@ -957,7 +969,7 @@ REBTYPE(Image)
     if (index > tail) index = tail;
 
     // Check must be in this order (to avoid checking a non-series value);
-    if (action >= SYM_TAKE && action <= SYM_SORT)
+    if (action >= SYM_TAKE_P && action <= SYM_SORT)
         FAIL_IF_READ_ONLY_SERIES(series);
 
     // Dispatch action:
@@ -1004,7 +1016,7 @@ REBTYPE(Image)
         SET_INTEGER(D_OUT, tail > index ? tail - index : 0);
         return R_OUT;
 
-    case SYM_PICK:
+    case SYM_PICK_P:
         Pick_Image(D_OUT, value, arg);
         return R_OUT;
 
@@ -1126,7 +1138,7 @@ REBTYPE(Image)
 
     case SYM_FIND:
         Find_Image(frame_); // sets DS_OUT
-        break;
+        return R_OUT;
 
     case SYM_COPY: {
         INCLUDE_PARAMS_OF_COPY;

@@ -632,11 +632,11 @@ REBTYPE(Array)
 
     switch (action) {
     case SYM_POKE:
-    case SYM_PICK: {
+    case SYM_PICK_P: {
         RELVAL *slot;
     pick_using_arg:
         slot = Pick_Block(D_OUT, value, arg);
-        if (action == SYM_PICK) {
+        if (action == SYM_PICK_P) {
             if (IS_VOID(D_OUT)) {
                 assert(!slot);
                 return R_VOID;
@@ -654,8 +654,8 @@ REBTYPE(Array)
         return R_OUT;
     }
 
-    case SYM_TAKE: {
-        INCLUDE_PARAMS_OF_TAKE;
+    case SYM_TAKE_P: {
+        INCLUDE_PARAMS_OF_TAKE_P;
 
         UNUSED(PAR(series));
         if (REF(deep))
@@ -701,7 +701,7 @@ REBTYPE(Array)
     //-- Search:
 
     case SYM_FIND:
-    case SYM_SELECT: {
+    case SYM_SELECT_P: {
         INCLUDE_PARAMS_OF_FIND;
 
         UNUSED(PAR(series));
@@ -989,7 +989,7 @@ REBTYPE(Array)
                 1 + (Random_Int(REF(secure)) % (VAL_LEN_HEAD(value) - index))
             );
             arg = ARG(seed); // argument to pick
-            action = SYM_PICK;
+            action = SYM_PICK_P;
             goto pick_using_arg;
         }
 

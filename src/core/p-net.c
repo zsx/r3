@@ -328,8 +328,8 @@ static REB_R Transport_Actor(
         Move_Value(D_OUT, CTX_VALUE(port));
         return R_OUT; }
 
-    case SYM_PICK: {
-        INCLUDE_PARAMS_OF_PICK;
+    case SYM_PICK_P: {
+        INCLUDE_PARAMS_OF_PICK_P;
         UNUSED(PAR(aggregate));
 
         // FIRST server-port returns new port connection.

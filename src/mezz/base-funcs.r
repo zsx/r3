@@ -283,7 +283,7 @@ dig-function-meta-fields: function [value [function!]] [
 
         child: make frame! :value
         for-each param child [
-            if any-value? select parent param [
+            if any-value? select* parent param [
                 child/(param): copy parent/(param)
             ]
         ]
@@ -574,10 +574,41 @@ find?: redescribe [
     chain [:find | :true?]
 )
 
+select: redescribe [
+    {Variant of SELECT* that returns BLANK when not found, instead of void}
+](
+    chain [:select* | :to-value]
+)
+
 select?: redescribe [
     {Variant of SELECT that returns TRUE if a value was selected, else FALSE.}
 ](
     chain [:select | :any-value?]
+)
+
+pick: redescribe [
+    {Variant of PICK* that returns BLANK! when not found, instead of void}
+](
+    chain [:pick* | :to-value]
+)
+
+take: redescribe [
+    {Variant of TAKE* that will give an error if it can't take, vs. void}
+](
+    chain [
+        :take*
+            |
+        func [
+            return: [any-value!]
+            took [<opt> any-value!]
+        ][
+            either set? 'took [
+                :took
+            ][
+                fail "Can't TAKE from series end (see TAKE* to get void)"
+            ]
+        ]
+    ]
 )
 
 parse?: redescribe [
@@ -759,7 +790,7 @@ left-bar: func [
     right [<opt> any-value! <...>]
         {Any number of expressions on the right.}
 ][
-    loop-until [void? take right]
+    loop-until [void? take* right]
     :left
 ]
 
@@ -772,7 +803,7 @@ right-bar: func [
     right [<opt> any-value! <...>]
         {Any number of expressions on the right.}
 ][
-    also take right (loop-until [void? take right])
+    also take* right (loop-until [void? take* right])
 ]
 
 

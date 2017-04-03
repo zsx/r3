@@ -668,7 +668,7 @@ REBTYPE(Time)
             secs = Random_Range(secs / SEC_SEC, REF(secure)) * SEC_SEC;
             goto fixTime; }
 
-        case SYM_PICK:
+        case SYM_PICK_P:
             Pick_Time(D_OUT, val, arg);
             return R_OUT;
 

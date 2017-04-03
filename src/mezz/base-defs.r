@@ -41,7 +41,7 @@ eval proc [
     <local>
         set-word type-name tester meta
 ][
-    while [any-value? set-word: take set-word...] [
+    while [any-value? set-word: take* set-word...] [
         type-name: append (head clear find (spelling-of set-word) {?}) "!"
         tester: typechecker (get bind (to word! type-name) set-word)
         set set-word :tester
@@ -228,9 +228,9 @@ eval proc [
     <local>
         set-word categories name
 ][
-    while [any-value? set-word: take set-word...] [
-        take divider... ;-- so it doesn't look like we're setting to a string
-        categories: take categories...
+    while [any-value? set-word: take* set-word...] [
+        take* divider... ;-- so it doesn't look like we're setting to a string
+        categories: take* categories...
 
         ; extract XXX string from XXX-OF
         name: head clear find (spelling-of set-word) {-of}

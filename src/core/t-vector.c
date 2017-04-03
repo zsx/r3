@@ -618,7 +618,7 @@ REBTYPE(Vector)
 
     switch (action) {
 
-    case SYM_PICK:
+    case SYM_PICK_P:
         Pick_Vector(D_OUT, value, arg);
         return R_OUT;
 

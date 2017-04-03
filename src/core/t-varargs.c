@@ -381,7 +381,7 @@ REBTYPE(Varargs)
     REBIXO indexor;
 
     switch (action) {
-    case SYM_PICK: {
+    case SYM_PICK_P: {
         if (!IS_INTEGER(arg))
             fail (Error_Invalid_Arg(arg));
 
@@ -402,8 +402,8 @@ REBTYPE(Varargs)
         return indexor == END_FLAG ? R_TRUE : R_FALSE;
     }
 
-    case SYM_TAKE: {
-        INCLUDE_PARAMS_OF_TAKE;
+    case SYM_TAKE_P: {
+        INCLUDE_PARAMS_OF_TAKE_P;
 
         REBDSP dsp_orig = DSP;
 

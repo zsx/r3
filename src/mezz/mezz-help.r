@@ -600,7 +600,7 @@ what: procedure [
     list: make block! 400
     size: 0
 
-    ctx: any [select system/modules :name lib]
+    ctx: any [select system/modules :name | lib]
 
     for-each [word val] ctx [
         if function? :val [

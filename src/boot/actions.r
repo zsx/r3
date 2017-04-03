@@ -174,7 +174,7 @@ length: action [
 
 ;-- Series Extraction
 
-pick: action [
+pick*: action [
     {Returns the value at the specified position.}
     return: [<opt> any-value!]
         {Picked value, or void if index not present}
@@ -204,7 +204,7 @@ find: action [
     /match {Performs comparison and returns the tail of the match}
 ]
 
-select: action [
+select*: action [
     {Searches for a value; returns the value that follows, else void.}
     return: [<opt> any-value!]
     series [any-series! any-context! map! blank!]
@@ -249,7 +249,7 @@ copy: action [
     kinds [typeset! datatype!]
 ]
 
-take: action [
+take*: action [
     {Removes and returns one or more elements.}
     return: [<opt> any-value!]
     series [any-series! port! gob! blank! varargs!] {At position (modified)}

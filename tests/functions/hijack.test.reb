@@ -55,4 +55,17 @@
     step9: (three 10 20 30) ; 60
 
     step10: (two-30 10 20) ; 60
+
+    all? [
+        step1 = 60
+        step2 = 60
+        step3 = 6000
+        step4 = 6000
+        error? step5
+        step6 = 240000
+        step7 = 240000
+        step8 = -40
+        step9 = 60
+        step10 = 60
+    ]
 ]

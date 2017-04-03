@@ -819,7 +819,7 @@ REBTYPE(String)
         break; }
 
     //-- Search:
-    case SYM_SELECT:
+    case SYM_SELECT_P:
     case SYM_FIND: {
         INCLUDE_PARAMS_OF_FIND;
 
@@ -905,16 +905,16 @@ REBTYPE(String)
     //-- Picking:
     case SYM_POKE:
         FAIL_IF_READ_ONLY_SERIES(VAL_SERIES(value));
-    case SYM_PICK: {
+    case SYM_PICK_P: {
         REBINT len = Get_Num_From_Arg(arg); // Position
         //if (len > 0) index--;
         if (REB_I32_SUB_OF(len, 1, &len)
             || REB_I32_ADD_OF(index, len, &index)
             || index < 0 || index >= tail) {
-            if (action == SYM_PICK) return R_BLANK;
+            if (action == SYM_PICK_P) return R_BLANK;
             fail (Error_Out_Of_Range(arg));
         }
-        if (action == SYM_PICK) {
+        if (action == SYM_PICK_P) {
             if (IS_BINARY(value)) {
                 SET_INTEGER(D_OUT, *VAL_BIN_AT_HEAD(value, index));
             }
@@ -950,8 +950,8 @@ REBTYPE(String)
         }
         break; }
 
-    case SYM_TAKE: {
-        INCLUDE_PARAMS_OF_TAKE;
+    case SYM_TAKE_P: {
+        INCLUDE_PARAMS_OF_TAKE_P;
 
         FAIL_IF_READ_ONLY_SERIES(VAL_SERIES(value));
 

@@ -363,7 +363,7 @@ REBTYPE(Pair)
         y1 = cast(REBDEC, Random_Range(cast(REBINT, y1), REF(secure)));
         goto setPair; }
 
-    case SYM_PICK: {
+    case SYM_PICK_P: {
         REBVAL *arg = D_ARG(2);
         REBINT n;
         if (IS_WORD(arg)) {

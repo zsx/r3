@@ -599,13 +599,13 @@ REBTYPE(Map)
 
     switch (action) {
 
-    case SYM_PICK:
+    case SYM_PICK_P:
         Pick_Block(D_OUT, val, arg);
         if (IS_VOID(D_OUT)) return R_BLANK;
         return R_OUT;
 
     case SYM_FIND:
-    case SYM_SELECT: {
+    case SYM_SELECT_P: {
         INCLUDE_PARAMS_OF_FIND;
 
         UNUSED(PAR(series));

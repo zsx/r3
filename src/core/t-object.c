@@ -671,7 +671,7 @@ REBTYPE(Context)
         );
         return R_OUT; }
 
-    case SYM_SELECT:
+    case SYM_SELECT_P:
     case SYM_FIND: {
         if (!IS_WORD(arg))
             return R_BLANK;

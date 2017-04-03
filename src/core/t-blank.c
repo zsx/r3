@@ -72,11 +72,11 @@ REBTYPE(Unit)
 
     case SYM_INDEX_OF:
     case SYM_LENGTH:
-    case SYM_SELECT:
+    case SYM_SELECT_P:
     case SYM_FIND:
     case SYM_REMOVE:
     case SYM_CLEAR:
-    case SYM_TAKE:
+    case SYM_TAKE_P:
         return R_BLANK;
 
     case SYM_COPY: {

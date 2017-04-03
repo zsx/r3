@@ -1003,7 +1003,7 @@ REBTYPE(Gob)
 
     // unary actions
     switch(action) {
-    case SYM_PICK:
+    case SYM_PICK_P:
         if (!ANY_NUMBER(arg) && !IS_BLANK(arg)) fail (Error_Invalid_Arg(arg));
         if (!GOB_PANE(gob)) goto is_blank;
         index += Get_Num_From_Arg(arg) - 1;
@@ -1089,8 +1089,8 @@ REBTYPE(Gob)
         if (index < tail && len != 0) Remove_Gobs(gob, index, len);
         break; }
 
-    case SYM_TAKE: {
-        INCLUDE_PARAMS_OF_TAKE;
+    case SYM_TAKE_P: {
+        INCLUDE_PARAMS_OF_TAKE_P;
 
         UNUSED(PAR(series));
 

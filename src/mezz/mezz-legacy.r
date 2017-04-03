@@ -1246,8 +1246,6 @@ set 'r3-legacy* func [<local> if-flags] [
     ;
     if-flags [none-instead-of-voids] [
         for-each word [
-            first second third fourth fifth sixth seventh eighth ninth tenth
-            select pick
             if unless either case
             while foreach loop repeat forall forskip
         ][

@@ -572,7 +572,7 @@ REBTYPE(Bitset)
     // Define PICK for BITSETS?  PICK's set bits and returns #?
     // Add AND, OR, XOR
 
-    case SYM_PICK:
+    case SYM_PICK_P:
     case SYM_FIND: {
         INCLUDE_PARAMS_OF_FIND; // is PICK guaranteed to have CASE at same pos
 
