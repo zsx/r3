@@ -26,6 +26,133 @@ REBOL [
      }
 ]
 
+
+; The ECHO routine has to collaborate specifically with the console, because
+; it is often desirable to capture the input only, the output only, or both.
+;
+; !!! The features that tie the echo specifically to the console would be
+; things like ECHO INPUT, e.g.:
+;
+; https://github.com/red/red/issues/2487
+;
+; They are not implemented yet, but ECHO is moved here to signify the known
+; issue that the REPL must collaborate specifically with ECHO to achieve
+; this.
+;
+echo: procedure [
+    {Copies console I/O to a file.}
+    
+    'instruction [file! string! block! word!]
+        {File or template with * substitution, or command: [ON OFF RESET].}
+
+    <has>
+    target ([%echo * %.txt])
+    form-target
+    sub ("")
+    old-input (copy :input)
+    old-write-stdout (copy :write-stdout)
+    hook-in
+    hook-out
+    logger
+    ensure-echo-on
+    ensure-echo-off
+][
+    ; Sample "interesting" feature, be willing to form the filename by filling
+    ; in the blank with a substitute string you can change.
+    ;
+    form-target: default [func [return: [file!]] [
+        either block? target [
+            as file! unspaced replace (copy target) '* (
+                either empty? sub [[]] [unspaced ["-" sub]]
+            )
+        ][
+            target
+        ]
+    ]]
+
+    logger: default [func [value][
+        write/append form-target either char? value [to-string value][value]
+        value
+    ]]
+
+    ; Installed hook; in an ideal world, WRITE-STDOUT would not exist and
+    ; would just be WRITE, so this would be hooking WRITE and checking for
+    ; STDOUT or falling through.  Note WRITE doesn't take CHAR! right now.
+    ;
+    hook-out: default [proc [
+        value [string! char! binary!]
+            {Text to write, if a STRING! or CHAR! is converted to OS format}
+    ][
+        old-write-stdout value
+        logger value
+    ]]
+
+    ; It looks a bit strange to look at a console log without the input
+    ; being included too.  Note that hooking the input function doesn't get
+    ; the newlines, has to be added.
+    ;
+    hook-in: default [
+        chain [
+            :old-input
+                |
+            func [value] [
+                logger value
+                logger newline
+                value ;-- hook still needs to return the original value
+            ]
+        ]
+    ]
+
+    ensure-echo-on: default [does [
+        ;
+        ; Hijacking is a NO-OP if the functions are the same.
+        ; (this is indicated by a BLANK! return vs a FUNCTION!)
+        ;
+        hijack 'write-stdout 'hook-out
+        hijack 'input 'hook-in
+    ]]
+
+    ensure-echo-off: default [does [
+        ;
+        ; Restoring a hijacked function with its original will
+        ; remove any overhead and be as fast as it was originally.
+        ;
+        hijack 'write-stdout 'old-write-stdout
+        hijack 'input 'old-input
+    ]]
+
+    case [
+        word? instruction [
+            switch instruction [
+                on [ensure-echo-on]
+                off [ensure-echo-off]
+                reset [
+                    delete form-target
+                    write/append form-target "" ;-- or just have it not exist?
+                ]
+            ] else [
+                word: to-uppercase word
+                fail [
+                    "Unknown ECHO command, not [ON OFF RESET]"
+                        |
+                    unspaced ["Use ECHO (" word ") to force evaluation"]
+                ]
+            ]
+        ]
+
+        string? instruction [
+            sub: instruction
+            ensure-echo-on
+        ]
+
+        any [block? instruction | file? instruction] [
+            target: instruction
+            ensure-echo-on
+        ]
+    ]
+]
+
+
 host-repl: function [
     {Implements one Print-and-Read step of a Read-Eval-Print-Loop (REPL).}
 
@@ -178,6 +305,25 @@ host-repl: function [
         assert [error? code]
     ]
 
+    if code = [q] [
+        ;
+        ; It's possible (and not entirely unlikely) that the user might have
+        ; a variable called Q, and it's bad to have a function defined as "Q"
+        ; which could accidentally trigger a silent exit from scripted code,
+        ; e.g. `append [w x y] q`.  But people have grown used to exiting
+        ; Rebol consoles with it, so detect it specifically in the console.
+        ;
+        if all [bound? code/1 | set? code/1] [
+            ;
+            ; Help the confused user who might not know about the shortcut not
+            ; panic by giving them a message.  Reduce noise for the casual
+            ; quitter by only doing so when there's a bound Q variable.
+            ;
+            print "Q interpreted by console as QUIT, use :Q to get variable."
+        ]
+        code: [quit]
+    ]
+
     return code
 ]
 
@@ -219,7 +365,10 @@ why: procedure [
 
 
 upgrade: procedure [
-    "Check for newer versions (update REBOL)."
+    "Check for newer versions."
 ][
-    fail "Automatic upgrade checking is currently not supported."
+    ; Should this be a console-detected command, like Q, or is it meaningful
+    ; to define this as a function you could call from code?
+    ;
+    do <upgrade>
 ]

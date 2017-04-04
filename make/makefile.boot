@@ -75,7 +75,7 @@ GIT_COMMIT?= unknown
 STANDARD?= c
 RIGOROUS?= no
 WITH_FFI?= no
-STATIC?= yes
+STATIC?= no
 
 # UP - some systems do not use ../
 UP= ..

@@ -26,20 +26,33 @@
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// Various configuration defines (from reb-config.h):
+// This is a set of definitions and helpers which are generically useful for
+// any project which is trying to implement portable C across a variety of
+// old and new compilers/systems.
 //
-// HAS_LL_CONSTS - compiler allows 1234LL constants
-// WEIRD_INT_64 - old MSVC typedef for 64 bit int
-// OS_WIDE_CHAR - the OS uses wide chars (not UTF-8)
+// Though R3-Alpha was written to mostly comply with ANSI C89, it needs 64-bit
+// integers, and used the `long long` data type.  To suppress warnings in a
+// C89 build related to this, use `-Wno-long-long`.  Additionally, `//` style
+// comments are used, which were commonly supported by C compilers even before
+// the C99 standard.  But that means this code can't be used with the switches
+// `--pedantic --std=c89` (unless you convert or strip out all the comments).
+//
+// The Ren-C branch advanced Rebol to be able to build under C99=>C11 and
+// C++98=>C++17 as well.  Some extended checks are provided for these macros
+// if building under various versions of C++.  Also, C99 definitions are
+// taken advantage of if they are available.
 //
 
 
+//
+// FEATURE TESTING MACROS
 //
 // Feature testing macros were a Clang extension, but GCC added support for
 // them.  If compiler doesn't have them, default all features unavailable.
 //
 // http://clang.llvm.org/docs/LanguageExtensions.html#feature-checking-macros
 //
+
 #ifndef __has_builtin
     #define __has_builtin(x) 0
 #endif
@@ -214,7 +227,7 @@
 //
 // VOID would be a more purposeful name, but Windows headers define that
 // for the type (as used in types like LPVOID)
-
+//
 #ifndef NOOP
     #define NOOP \
         ((void)(0))
@@ -321,8 +334,6 @@ typedef unsigned long   REBUPT;     // unsigned counterpart of void*
 //
 // BOOLEAN DEFINITION
 //
-// Rebol 3 historically built on C89 standard compilers, but the Ren-C branch
-// advanced it to be able to build under C99=>C11 and C++98=>C++17 as well.
 // There is a <stdbool.h> available in C99, but not in C89.  So unless the
 // code abandons C89 support, a custom definition of boolean must be used,
 // which is named REBOOL and uses the values TRUE and FALSE.
@@ -699,16 +710,19 @@ typedef u16 REBUNI;
 // http://stackoverflow.com/a/4030983/211160
 //
 // The tricks suggested there for avoiding it seem to still trigger warnings
-// as compilers get new ones, so assume that won't be an issue.
+// as compilers get new ones, so assume that won't be an issue.  As an
+// added check, this gives the UNUSED() macro "teeth" in C++11:
+//
+// http://codereview.stackexchange.com/q/159439
+//
+// Though the version here is more verbose, it uses the specializations to
+// avoid excessive calls to memset() in the debug build.
 //
 #if defined(NDEBUG) || !defined(__cplusplus) || __cplusplus < 199711L
     #define UNUSED(x) \
         ((void)(x))
 #else
-    // In C++11 or later, we can help give UNUSED() teeth by deliberately
-    // trashing the data, after sensing what kind of data it is.
-    //
-    // Of course that's not possible if it's not an lvalue.  So for the basic
+    // Can't trash the variable if it's not an lvalue.  So for the basic
     // SFINAE overload, just cast void.  Do this also for cases that are
     // lvalues, but we don't really know how to "trash" them.
     //
