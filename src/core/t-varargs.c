@@ -90,7 +90,7 @@ REBIXO Do_Vararg_Op_May_Throw(
         label = Canon(SYM___ANONYMOUS__);
     }
     else {
-        REBCTX *context = AS_CONTEXT(vararg->extra.binding);
+        REBCTX *context = CTX(vararg->extra.binding);
         REBFRM *param_frame = CTX_FRAME_IF_ON_STACK(context);
 
         // If the VARARGS! has a call frame, then ensure that the call frame
@@ -160,7 +160,7 @@ REBIXO Do_Vararg_Op_May_Throw(
         f = &temp_frame;
     }
     else {
-        REBCTX *context = AS_CONTEXT(vararg->payload.varargs.feed);
+        REBCTX *context = CTX(vararg->payload.varargs.feed);
 
         // If the VARARGS! has a call frame, then ensure that the call frame
         // where the VARARGS! originated is still on the stack.
@@ -502,7 +502,7 @@ void Mold_Varargs(const REBVAL *v, REB_MOLD *mold) {
         Append_Unencoded(mold->series, "???");
     }
     else {
-        REBCTX *context = AS_CONTEXT(v->extra.binding);
+        REBCTX *context = CTX(v->extra.binding);
         REBFRM *param_frame = CTX_FRAME_IF_ON_STACK(context);
 
         if (param_frame == NULL) {
@@ -572,7 +572,7 @@ void Mold_Varargs(const REBVAL *v, REB_MOLD *mold) {
         Append_Unencoded(mold->series, "** varargs frame not fulfilled");
     }
     else {
-        REBCTX *context = AS_CONTEXT(feed);
+        REBCTX *context = CTX(feed);
         REBFRM *f = CTX_FRAME_IF_ON_STACK(context);
 
         if (f == NULL) {

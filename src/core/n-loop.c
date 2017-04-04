@@ -418,7 +418,7 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
     REBSER *series;
     REBCNT index;
     if (ANY_CONTEXT(data)) {
-        series = AS_SERIES(CTX_VARLIST(VAL_CONTEXT(data)));
+        series = SER(CTX_VARLIST(VAL_CONTEXT(data)));
         index = 1;
     }
     else if (IS_MAP(data)) {
@@ -434,9 +434,9 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
         //
         switch (VAL_TYPE_KIND(data)) {
         case REB_FUNCTION:
-            series = AS_SERIES(Snapshot_All_Functions());
+            series = SER(Snapshot_All_Functions());
             index = 0;
-            PUSH_GUARD_ARRAY_CONTENTS(AS_ARRAY(series));
+            PUSH_GUARD_ARRAY_CONTENTS(ARR(series));
             break;
 
         default:
@@ -486,14 +486,14 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
             if (ANY_ARRAY(data)) {
                 Derelativize(
                     var,
-                    ARR_AT(AS_ARRAY(series), index),
+                    ARR_AT(ARR(series), index),
                     VAL_SPECIFIER(data) // !!! always matches series?
                 );
             }
             else if (IS_DATATYPE(data)) {
                 Derelativize(
                     var,
-                    ARR_AT(AS_ARRAY(series), index),
+                    ARR_AT(ARR(series), index),
                     SPECIFIED // array generated via data stack, all specific
                 );
             }
@@ -512,7 +512,7 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
                         var,
                         REB_WORD,
                         CTX_KEY_SPELLING(VAL_CONTEXT(data), index),
-                        AS_CONTEXT(series),
+                        CTX(series),
                         index
                     );
                     if (NOT_END(var + 1)) {
@@ -523,7 +523,7 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
                 else if (j == 1) {
                     Derelativize(
                         var,
-                        ARR_AT(AS_ARRAY(series), index),
+                        ARR_AT(ARR(series), index),
                         SPECIFIED // !!! it's a varlist
                     );
                 }
@@ -543,12 +543,12 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
                 //
                 // MAP! does not store RELVALs
                 //
-                REBVAL *val = KNOWN(ARR_AT(AS_ARRAY(series), index | 1));
+                REBVAL *val = KNOWN(ARR_AT(ARR(series), index | 1));
                 if (!IS_VOID(val)) {
                     if (j == 0) {
                         Derelativize(
                             var,
-                            ARR_AT(AS_ARRAY(series), index & ~1),
+                            ARR_AT(ARR(series), index & ~1),
                             SPECIFIED // maps always specified
                         );
 
@@ -557,7 +557,7 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
                     else if (j == 1) {
                         Derelativize(
                             var,
-                            ARR_AT(AS_ARRAY(series), index),
+                            ARR_AT(ARR(series), index),
                             SPECIFIED // maps always specified
                         );
                     }
@@ -668,8 +668,8 @@ skip_hidden: ;
         // If asked to enumerate a datatype, we allocated a temporary array
         // of all instances of that datatype.  It has to be freed.
         //
-        DROP_GUARD_ARRAY_CONTENTS(AS_ARRAY(series));
-        Free_Array(AS_ARRAY(series));
+        DROP_GUARD_ARRAY_CONTENTS(ARR(series));
+        Free_Array(ARR(series));
     }
 
     if (threw) {

@@ -44,15 +44,15 @@
 //
 
 inline static void *LIB_FD(REBLIB *l) {
-    return AS_SERIES(l)->misc.fd; // file descriptor
+    return SER(l)->misc.fd; // file descriptor
 }
 
 inline static REBOOL IS_LIB_CLOSED(REBLIB *l) {
-    return LOGICAL(AS_SERIES(l)->misc.fd == NULL);
+    return LOGICAL(SER(l)->misc.fd == NULL);
 }
 
 inline static REBCTX *VAL_LIBRARY_META(const RELVAL *v) {
-    return AS_SERIES(v->payload.library.singular)->link.meta;
+    return SER(v->payload.library.singular)->link.meta;
 }
 
 inline static REBLIB *VAL_LIBRARY(const RELVAL *v) {
@@ -274,7 +274,7 @@ enum {
     IDX_FIELD_MAX
 };
 
-#define FLD_AT(a, n) SER_AT(REBVAL, AS_SERIES(a), (n)) // locate index access
+#define FLD_AT(a, n) SER_AT(REBVAL, SER(a), (n)) // locate index access
 
 inline static REBSTR *FLD_NAME(REBFLD *f) {
     if (IS_BLANK(FLD_AT(f, IDX_FIELD_NAME)))
@@ -368,7 +368,7 @@ inline static REBVAL *STU_VALUE(REBSTU *stu) {
     VAL_STRUCT_INACCESSIBLE(STU_VALUE(stu))
 
 inline static REBFLD *STU_SCHEMA(REBSTU *stu) {
-    REBFLD *schema = AS_SERIES(stu)->link.schema;
+    REBFLD *schema = SER(stu)->link.schema;
     assert(FLD_IS_STRUCT(schema));
     return schema;
 }
@@ -402,7 +402,7 @@ inline static REBYTE *VAL_STRUCT_DATA_HEAD(const RELVAL *v) {
     if (NOT_SER_FLAG(data, SERIES_FLAG_ARRAY))
         return BIN_HEAD(data);
 
-    RELVAL *handle = ARR_HEAD(AS_ARRAY(data));
+    RELVAL *handle = ARR_HEAD(ARR(data));
     assert(VAL_HANDLE_LEN(handle) != 0);
     return VAL_HANDLE_POINTER(REBYTE, handle);
 }
@@ -423,7 +423,7 @@ inline static REBCNT VAL_STRUCT_DATA_LEN(const RELVAL *v) {
     if (NOT_SER_FLAG(data, SERIES_FLAG_ARRAY))
         return BIN_LEN(data);
 
-    RELVAL *handle = ARR_HEAD(AS_ARRAY(data));
+    RELVAL *handle = ARR_HEAD(ARR(data));
     assert(VAL_HANDLE_LEN(handle) != 0);
     return VAL_HANDLE_LEN(handle);
 }
@@ -437,7 +437,7 @@ inline static REBOOL VAL_STRUCT_INACCESSIBLE(const RELVAL *v) {
     if (NOT_SER_FLAG(data, SERIES_FLAG_ARRAY))
         return FALSE; // it's not "external", so never inaccessible
 
-    RELVAL *handle = ARR_HEAD(AS_ARRAY(data));
+    RELVAL *handle = ARR_HEAD(ARR(data));
     if (VAL_HANDLE_LEN(handle) != 0)
         return FALSE; // !!! TBD: double check size is correct for mem block
     
@@ -545,7 +545,7 @@ enum {
     IDX_ROUTINE_MAX
 };
 
-#define RIN_AT(a, n) SER_AT(REBVAL, AS_SERIES(a), (n)) // locate index access
+#define RIN_AT(a, n) SER_AT(REBVAL, SER(a), (n)) // locate index access
 
 inline static CFUNC *RIN_CFUNC(REBRIN *r)
     { return VAL_HANDLE_CFUNC(RIN_AT(r, IDX_ROUTINE_CFUNC)); }

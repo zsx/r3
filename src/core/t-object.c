@@ -163,7 +163,7 @@ static void Append_To_Context(REBCTX *context, REBVAL *arg)
             //
             // Wasn't already collected...so we added it...
             //
-            EXPAND_SERIES_TAIL(AS_SERIES(BUF_COLLECT), 1);
+            EXPAND_SERIES_TAIL(SER(BUF_COLLECT), 1);
             Init_Typeset(
                 ARR_LAST(BUF_COLLECT), ALL_64, VAL_WORD_SPELLING(word)
             );
@@ -569,7 +569,7 @@ REBNATIVE(set_meta)
     REBVAL *value = ARG(value);
 
     if (IS_FUNCTION(value))
-        AS_SERIES(VAL_FUNC_PARAMLIST(value))->link.meta = meta;
+        SER(VAL_FUNC_PARAMLIST(value))->link.meta = meta;
     else {
         assert(ANY_CONTEXT(value));
         INIT_CONTEXT_META(VAL_CONTEXT(value), meta);
@@ -597,7 +597,7 @@ REBCTX *Copy_Context_Core(REBCTX *original, REBOOL deep, REBU64 types)
     //
     ARR_HEAD(varlist)->payload.any_context.varlist = varlist;
 
-    REBCTX *copy = AS_CONTEXT(varlist); // now a well-formed context
+    REBCTX *copy = CTX(varlist); // now a well-formed context
 
     // Reuse the keylist of the original.  (If the context of the source or
     // the copy are expanded, the sharing is unlinked and a copy is made).

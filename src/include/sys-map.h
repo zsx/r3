@@ -53,15 +53,16 @@ inline static REBARR *MAP_PAIRLIST(REBMAP *m) {
 }
 
 #define MAP_HASHLIST(m) \
-    (AS_SERIES(MAP_PAIRLIST(m))->link.hashlist)
+    (SER(MAP_PAIRLIST(m))->link.hashlist)
 
 #define MAP_HASHES(m) \
     SER_HEAD(MAP_HASHLIST(m))
 
-#define AS_MAP(s) \
-    cast(REBMAP*, (s))
-
-
+inline static REBMAP *MAP(void *p) {
+    REBARR *a = ARR(p);
+    assert(GET_SER_FLAG(a, ARRAY_FLAG_PAIRLIST));
+    return cast(REBMAP*, a);
+}
 
 
 inline static REBMAP *VAL_MAP(const RELVAL *v) {
@@ -71,7 +72,7 @@ inline static REBMAP *VAL_MAP(const RELVAL *v) {
     // const REBSER pointers didn't show enough benefit to be worth the
     // work in supporting them (at this time).  Mutability cast needed.
     //
-    return AS_MAP(m_cast(RELVAL*, v)->payload.any_series.series);
+    return MAP(m_cast(RELVAL*, v)->payload.any_series.series);
 }
 
 inline static REBCNT Length_Map(REBMAP *map)

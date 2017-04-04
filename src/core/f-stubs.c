@@ -354,7 +354,7 @@ void Init_Any_Series_At_Core(
     if (specifier == SPECIFIED)
         INIT_SPECIFIC(out, SPECIFIED);
     else
-        INIT_SPECIFIC(out, AS_CONTEXT(specifier));
+        INIT_SPECIFIC(out, CTX(specifier));
 
 #if !defined(NDEBUG)
     if (GET_SER_FLAG(series, SERIES_FLAG_ARRAY) && specifier == SPECIFIED) {
@@ -363,7 +363,7 @@ void Init_Any_Series_At_Core(
         // array cannot have any relative values in it.  Catch it here vs.
         // waiting until a later assertion.
         //
-        ASSERT_NO_RELATIVE(AS_ARRAY(series), FALSE);
+        ASSERT_NO_RELATIVE(ARR(series), FALSE);
     }
     else if (ANY_STRING(out))
         assert(SER_WIDE(series) == 1 || SER_WIDE(series) == 2);

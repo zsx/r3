@@ -41,7 +41,7 @@
 // (deliberate) type incompatibility introduced.  The type compatibility is
 // implemented in a way that works in C or C++ (though it should be reviewed
 // for strict aliasing compliance).  To get the underlying REBSER of a REBARR
-// use the AS_SERIES() operation.
+// use the SER() operation.
 //
 // An ARRAY is the main place in the system where "relative" values come
 // from, because all relative words are created during the copy of the
@@ -63,19 +63,19 @@ struct Reb_Array {
     #include <type_traits>
 
     template <class T>
-    inline REBARR *AS_ARRAY(T *p) {
+    inline REBARR *ARR(T *p) {
         static_assert(
             std::is_same<T, void>::value
             || std::is_same<T, REBNOD>::value
             || std::is_same<T, REBSER>::value,
-            "AS_ARRAY works on: void*, REBNOD*, REBSER*"
+            "ARR works on: void*, REBNOD*, REBSER*"
         );
         REBSER *s = cast(REBSER*, p);
-        assert(GET_SER_FLAG(s, SERIES_FLAG_ARRAY));
-        return cast(REBARR*, s);
+        assert(ALL_SER_FLAGS(s, NODE_FLAG_VALID | SERIES_FLAG_ARRAY));
+        return cast(REBARR*, s);s
     }
 #else
-    #define AS_ARRAY(p) \
+    #define ARR(p) \
         cast(REBARR*, (p))
 #endif
 
@@ -88,16 +88,16 @@ struct Reb_Array {
 // valid for writing a full REBVAL.
 
 inline static RELVAL *ARR_AT(REBARR *a, REBCNT n)
-    { return SER_AT(RELVAL, AS_SERIES(a), (n)); }
+    { return SER_AT(RELVAL, SER(a), (n)); }
 
 inline static RELVAL *ARR_HEAD(REBARR *a)
-    { return SER_HEAD(RELVAL, AS_SERIES(a)); }
+    { return SER_HEAD(RELVAL, SER(a)); }
 
 inline static RELVAL *ARR_TAIL(REBARR *a)
-    { return SER_TAIL(RELVAL, AS_SERIES(a)); }
+    { return SER_TAIL(RELVAL, SER(a)); }
 
 inline static RELVAL *ARR_LAST(REBARR *a)
-    { return SER_LAST(RELVAL, AS_SERIES(a)); }
+    { return SER_LAST(RELVAL, SER(a)); }
 
 // As with an ordinary REBSER, a REBARR has separate management of its length
 // and its terminator.  Many routines seek to control these independently for
@@ -105,7 +105,7 @@ inline static RELVAL *ARR_LAST(REBARR *a)
 //
 inline static REBCNT ARR_LEN(REBARR *a) {
     assert(GET_SER_FLAG(a, SERIES_FLAG_ARRAY));
-    return SER_LEN(AS_SERIES(a));
+    return SER_LEN(SER(a));
 }
 
 
@@ -116,9 +116,9 @@ inline static REBCNT ARR_LEN(REBARR *a) {
 // up front, to legitimately examine the bits (and decisions on how to init)
 //
 inline static void TERM_ARRAY_LEN(REBARR *a, REBCNT len) {
-    REBCNT rest = SER_REST(AS_SERIES(a));
+    REBCNT rest = SER_REST(SER(a));
     assert(len < rest);
-    SET_SERIES_LEN(AS_SERIES(a), len);
+    SET_SERIES_LEN(SER(a), len);
     if (len + 1 == rest)
         assert(IS_END(ARR_TAIL(a)));
     else
@@ -126,7 +126,7 @@ inline static void TERM_ARRAY_LEN(REBARR *a, REBCNT len) {
 }
 
 inline static void SET_ARRAY_LEN_NOTERM(REBARR *a, REBCNT len) {
-    SET_SERIES_LEN(AS_SERIES(a), len); // call out non-terminating usages
+    SET_SERIES_LEN(SER(a), len); // call out non-terminating usages
 }
 
 inline static void RESET_ARRAY(REBARR *a) {
@@ -135,7 +135,7 @@ inline static void RESET_ARRAY(REBARR *a) {
 
 inline static void TERM_SERIES(REBSER *s) {
     if (GET_SER_FLAG(s, SERIES_FLAG_ARRAY))
-        TERM_ARRAY_LEN(AS_ARRAY(s), SER_LEN(s));
+        TERM_ARRAY_LEN(ARR(s), SER_LEN(s));
     else
         memset(SER_AT_RAW(SER_WIDE(s), s, SER_LEN(s)), 0, SER_WIDE(s));
 }
@@ -145,23 +145,23 @@ inline static void TERM_SERIES(REBSER *s) {
 // vs. having to extract the ARR_SERIES to do it each time.
 //
 #define IS_ARRAY_MANAGED(a) \
-    IS_SERIES_MANAGED(AS_SERIES(a))
+    IS_SERIES_MANAGED(SER(a))
 
 #define MANAGE_ARRAY(a) \
-    MANAGE_SERIES(AS_SERIES(a))
+    MANAGE_SERIES(SER(a))
 
 #define ENSURE_ARRAY_MANAGED(a) \
-    ENSURE_SERIES_MANAGED(AS_SERIES(a))
+    ENSURE_SERIES_MANAGED(SER(a))
 
 #define PUSH_GUARD_ARRAY(a) \
-    PUSH_GUARD_SERIES(AS_SERIES(a))
+    PUSH_GUARD_SERIES(SER(a))
 
 #define DROP_GUARD_ARRAY(a) \
-    DROP_GUARD_SERIES(AS_SERIES(a))
+    DROP_GUARD_SERIES(SER(a))
 
 inline static void PUSH_GUARD_ARRAY_CONTENTS(REBARR *a) {
     assert(!IS_ARRAY_MANAGED(a)); // if managed, just use PUSH_GUARD_ARRAY
-    Guard_Node_Core(cast(REBNOD*, a));
+    Guard_Node_Core(NOD(a));
 }
 
 inline static void DROP_GUARD_ARRAY_CONTENTS(REBARR *a) {
@@ -174,7 +174,7 @@ inline static void DROP_GUARD_ARRAY_CONTENTS(REBARR *a) {
     for (; NOT_END(test); ++test)
         ASSERT_VALUE_MANAGED(test);
 #endif
-    DROP_GUARD_SERIES(AS_SERIES(a));
+    DROP_GUARD_SERIES(SER(a));
 }
 
 
@@ -190,7 +190,7 @@ inline static REBOOL Is_Array_Deeply_Frozen(REBARR *a) {
 
 inline static void Deep_Freeze_Array(REBARR *a) {
     Protect_Series(
-        AS_SERIES(a),
+        SER(a),
         0, // start protection at index 0
         FLAGIT(PROT_DEEP) | FLAGIT(PROT_SET) | FLAGIT(PROT_FREEZE)
     );
@@ -201,7 +201,7 @@ inline static void Deep_Freeze_Array(REBARR *a) {
     Is_Series_Read_Only(a)
 
 #define FAIL_IF_READ_ONLY_ARRAY(a) \
-    FAIL_IF_READ_ONLY_SERIES(AS_SERIES(a))
+    FAIL_IF_READ_ONLY_SERIES(SER(a))
 
 
 // Make a series that is the right size to store REBVALs (and
@@ -222,7 +222,7 @@ inline static REBARR *Make_Array_Core(REBCNT capacity, REBUPT flags)
             : GET_SER_INFO(s, SERIES_INFO_HAS_DYNAMIC)
     );
 
-    REBARR *a = AS_ARRAY(s);
+    REBARR *a = ARR(s);
     TERM_ARRAY_LEN(a, 0);
     return a;
 }
@@ -253,7 +253,7 @@ inline static REBARR *Alloc_Singular_Array_Core(REBUPT flags) {
     s->info.bits |= FLAGBYTE_MID(1);
     assert(SER_LEN(s) == 1);
 
-    REBARR *a = AS_ARRAY(s);
+    REBARR *a = ARR(s);
     assert(IS_END(ARR_TAIL(a)));
     return a;
 }
@@ -303,7 +303,7 @@ inline static REBARR *Alloc_Singular_Array_Core(REBUPT flags) {
 
 
 #define Free_Array(a) \
-    Free_Series(AS_SERIES(a))
+    Free_Series(SER(a))
 
 
 
@@ -336,7 +336,7 @@ inline static REBSPC *VAL_SPECIFIER(const REBVAL *v) {
 
 inline static void INIT_VAL_ARRAY(RELVAL *v, REBARR *a) {
     v->extra.binding = (REBARR*)SPECIFIED; // !!! cast() complains, investigate
-    v->payload.any_series.series = AS_SERIES(a);
+    v->payload.any_series.series = SER(a);
 }
 
 // These array operations take the index position into account.  The use
@@ -354,7 +354,7 @@ inline static void INIT_VAL_ARRAY(RELVAL *v, REBARR *a) {
 //
 inline static REBARR *VAL_ARRAY(const RELVAL *v) {
     assert(ANY_ARRAY(v));
-    return AS_ARRAY(v->payload.any_series.series);
+    return ARR(v->payload.any_series.series);
 }
 
 #define VAL_ARRAY_HEAD(v) \
@@ -380,7 +380,7 @@ inline static RELVAL *VAL_ARRAY_TAIL(const RELVAL *v) {
     ARR_AT(VAL_ARRAY(v), (n))
 
 #define Init_Any_Array_At(v,t,a,i) \
-    Init_Any_Series_At((v), (t), AS_SERIES(a), (i))
+    Init_Any_Series_At((v), (t), SER(a), (i))
 
 #define Init_Any_Array(v,t,a) \
     Init_Any_Array_At((v), (t), (a), 0)
@@ -410,11 +410,11 @@ inline static RELVAL *VAL_ARRAY_TAIL(const RELVAL *v) {
         Assert_Array_Core(s)
 
     #define ASSERT_ARRAY_MANAGED(array) \
-        ASSERT_SERIES_MANAGED(AS_SERIES(array))
+        ASSERT_SERIES_MANAGED(SER(array))
 
     static inline void ASSERT_SERIES(REBSER *s) {
         if (GET_SER_FLAG(s, SERIES_FLAG_ARRAY))
-            Assert_Array_Core(AS_ARRAY(s));
+            Assert_Array_Core(ARR(s));
         else
             Assert_Series_Core(s);
     }

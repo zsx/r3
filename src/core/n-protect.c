@@ -114,7 +114,7 @@ void Protect_Series(REBSER *s, REBCNT index, REBFLGS flags)
 
     Flip_Series_To_Black(s); // recursion protection
 
-    RELVAL *val = ARR_AT(AS_ARRAY(s), index);
+    RELVAL *val = ARR_AT(ARR(s), index);
     for (; NOT_END(val); val++)
         Protect_Value(val, flags);
 }
@@ -127,7 +127,7 @@ void Protect_Series(REBSER *s, REBCNT index, REBFLGS flags)
 //
 void Protect_Context(REBCTX *c, REBFLGS flags)
 {
-    if (Is_Series_Black(AS_SERIES(CTX_VARLIST(c))))
+    if (Is_Series_Black(SER(CTX_VARLIST(c))))
         return; // avoid loop
 
     if (GET_FLAG(flags, PROT_SET)) {
@@ -145,7 +145,7 @@ void Protect_Context(REBCTX *c, REBFLGS flags)
 
     if (!GET_FLAG(flags, PROT_DEEP)) return;
 
-    Flip_Series_To_Black(AS_SERIES(CTX_VARLIST(c))); // for recursion
+    Flip_Series_To_Black(SER(CTX_VARLIST(c))); // for recursion
 
     REBVAL *var = CTX_VARS_HEAD(c);
     for (; NOT_END(var); ++var)

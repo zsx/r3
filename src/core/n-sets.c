@@ -105,7 +105,7 @@ static REBSER *Make_Set_Operation_Series(
         // a new buffer every time, but reusing one might be slightly more
         // efficient.
         //
-        REBSER *buffer = AS_SERIES(Make_Array(i));
+        REBSER *buffer = SER(Make_Array(i));
         hret = Make_Hash_Sequence(i);   // allocated
 
         // Optimization note: !!
@@ -140,7 +140,7 @@ static REBSER *Make_Set_Operation_Series(
                 }
                 if (h) {
                     Find_Key_Hashed(
-                        AS_ARRAY(buffer),
+                        ARR(buffer),
                         hret,
                         item,
                         VAL_SPECIFIER(val1),
@@ -182,8 +182,8 @@ static REBSER *Make_Set_Operation_Series(
         // The buffer may have been allocated too large, so copy it at the
         // used capacity size
         //
-        out_ser = AS_SERIES(Copy_Array_Shallow(AS_ARRAY(buffer), SPECIFIED));
-        Free_Array(AS_ARRAY(buffer));
+        out_ser = SER(Copy_Array_Shallow(ARR(buffer), SPECIFIED));
+        Free_Array(ARR(buffer));
     }
     else {
         REB_MOLD mo;

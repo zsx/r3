@@ -52,9 +52,9 @@ REBINT CT_Map(const RELVAL *a, const RELVAL *b, REBINT mode)
 static REBMAP *Make_Map(REBCNT capacity)
 {
     REBARR *pairlist = Make_Array_Core(capacity * 2, ARRAY_FLAG_PAIRLIST);
-    AS_SERIES(pairlist)->link.hashlist = Make_Hash_Sequence(capacity);
+    SER(pairlist)->link.hashlist = Make_Hash_Sequence(capacity);
 
-    return AS_MAP(pairlist);
+    return MAP(pairlist);
 }
 
 
@@ -521,7 +521,7 @@ REBMAP *Mutate_Array_Into_Map(REBARR *a)
 
     SET_SER_FLAG(a, ARRAY_FLAG_PAIRLIST);
 
-    REBMAP *map = AS_MAP(a);
+    REBMAP *map = MAP(a);
     MAP_HASHLIST(map) = Make_Hash_Sequence(size);
 
     Rehash_Map(map);

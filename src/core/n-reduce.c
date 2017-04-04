@@ -161,7 +161,7 @@ REBNATIVE(reduce)
     // and return the position after the insertion (the /INTO convention)
 
     VAL_INDEX(into) = Insert_Series(
-        AS_SERIES(VAL_ARRAY(into)),
+        SER(VAL_ARRAY(into)),
         VAL_INDEX(into),
         cast(REBYTE*, D_OUT),
         1 // multiplied by width (sizeof(REBVAL)) in Insert_Series

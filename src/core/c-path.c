@@ -229,7 +229,7 @@ REBOOL Do_Path_Throws_Core(
     #if !defined(NDEBUG)
         assert(specifier != SPECIFIED);
 
-        REBCTX *context = AS_CONTEXT(specifier);
+        REBCTX *context = CTX(specifier);
         if (VAL_RELATIVE(path) != VAL_FUNC(CTX_FRAME_FUNC_VALUE(context))) {
             printf("Specificity mismatch in path dispatch, expected:\n");
             PROBE(CTX_FRAME_FUNC_VALUE(context));

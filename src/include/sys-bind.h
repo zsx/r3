@@ -262,7 +262,7 @@ inline static REBVAL *Get_Var_Core(
         }
     #endif
 
-        context = AS_CONTEXT(specifier);
+        context = CTX(specifier);
 
         assert(
             VAL_WORD_FUNC(any_word) == VAL_FUNC(CTX_FRAME_FUNC_VALUE(context))
@@ -450,7 +450,7 @@ inline static REBVAL *Derelativize(
         }
         else if (
             VAL_RELATIVE(v)
-            != VAL_FUNC(CTX_FRAME_FUNC_VALUE(AS_CONTEXT(specifier)))
+            != VAL_FUNC(CTX_FRAME_FUNC_VALUE(CTX(specifier)))
         ){
             printf("Function mismatch in specific binding, expected:\n");
             PROBE(FUNC_VALUE(VAL_RELATIVE(v)));

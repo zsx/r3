@@ -82,7 +82,7 @@ ATTRIBUTE_NO_RETURN void Panic_Value_Debug(const RELVAL *v) {
     }
 
     printf("No containing series for value...panicking to make stack dump:\n");
-    Panic_Series_Debug(AS_SERIES(EMPTY_ARRAY));
+    Panic_Series_Debug(SER(EMPTY_ARRAY));
 }
 
 
@@ -240,7 +240,7 @@ void Probe_Core_Debug(
         ASSERT_SERIES(s);
 
         if (GET_SER_FLAG(s, ARRAY_FLAG_VARLIST)) {
-            REBCTX *c = AS_CONTEXT(s);
+            REBCTX *c = CTX(s);
 
             // Don't use Init_Any_Context, because that can implicitly manage
             // the context...which we don't want a debug dump routine to do.
@@ -270,7 +270,7 @@ void Probe_Core_Debug(
                 //
                 DECLARE_LOCAL (value);
                 VAL_RESET_HEADER(value, REB_BLOCK);
-                INIT_VAL_ARRAY(value, AS_ARRAY(s));
+                INIT_VAL_ARRAY(value, ARR(s));
                 VAL_INDEX(value) = 0;
 
                 Debug_Fmt("%r", value);

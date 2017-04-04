@@ -751,7 +751,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         MANAGE_ARRAY(CTX_VARLIST(meta));
     }
 
-    AS_SERIES(paramlist)->link.meta = meta;
+    SER(paramlist)->link.meta = meta;
 
     // If a description string was gathered, it's sitting in the first string
     // slot, the third cell we pushed onto the stack.  Extract it if so.
@@ -778,7 +778,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         REBARR *types_varlist = Make_Array_Core(
             num_slots, ARRAY_FLAG_VARLIST
         );
-        INIT_CTX_KEYLIST_SHARED(AS_CONTEXT(types_varlist), paramlist);
+        INIT_CTX_KEYLIST_SHARED(CTX(types_varlist), paramlist);
 
         REBVAL *dest = SINK(ARR_HEAD(types_varlist)); // "rootvar"
         VAL_RESET_HEADER(dest, REB_FRAME);
@@ -831,7 +831,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         Init_Any_Context(
             CTX_VAR(meta, STD_FUNCTION_META_PARAMETER_TYPES),
             REB_FRAME,
-            AS_CONTEXT(types_varlist)
+            CTX(types_varlist)
         );
     }
 
@@ -847,7 +847,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         REBARR *notes_varlist = Make_Array_Core(
             num_slots, ARRAY_FLAG_VARLIST
         );
-        INIT_CTX_KEYLIST_SHARED(AS_CONTEXT(notes_varlist), paramlist);
+        INIT_CTX_KEYLIST_SHARED(CTX(notes_varlist), paramlist);
 
         REBVAL *dest = SINK(ARR_HEAD(notes_varlist)); // "rootvar"
         VAL_RESET_HEADER(dest, REB_FRAME);
@@ -897,7 +897,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         Init_Any_Context(
             CTX_VAR(meta, STD_FUNCTION_META_PARAMETER_NOTES),
             REB_FRAME,
-            AS_CONTEXT(notes_varlist)
+            CTX(notes_varlist)
         );
     }
 
@@ -1037,7 +1037,7 @@ done_caching:;
     // Having a level of indirection from the REBVAL bits themself also
     // facilitates the "Hijacker" to change multiple REBVALs behavior.
 
-    AS_SERIES(body_holder)->misc.dispatcher = dispatcher;
+    SER(body_holder)->misc.dispatcher = dispatcher;
 
     // When this function is run, it needs to push a stack frame with a
     // certain number of arguments, and do type checking and parameter class
@@ -1050,40 +1050,40 @@ done_caching:;
     // initially just the underlying function's paramlist, but may change.
     //
     if (opt_underlying) {
-        AS_SERIES(paramlist)->misc.facade =
-            AS_SERIES(FUNC_PARAMLIST(opt_underlying))->misc.facade;
+        SER(paramlist)->misc.facade =
+            SER(FUNC_PARAMLIST(opt_underlying))->misc.facade;
     }
     else {
         // To avoid NULL checking when a function is called and looking for
         // the underlying function, the functions own pointer in if needed
         //
-        AS_SERIES(paramlist)->misc.facade = paramlist;
+        SER(paramlist)->misc.facade = paramlist;
     }
 
     if (opt_exemplar) {
         assert(
             CTX_LEN(opt_exemplar)
-            == ARR_LEN(AS_SERIES(paramlist)->misc.facade) - 1
+            == ARR_LEN(SER(paramlist)->misc.facade) - 1
         );
 
-        AS_SERIES(body_holder)->link.exemplar = opt_exemplar;
+        SER(body_holder)->link.exemplar = opt_exemplar;
     }
     else if (opt_underlying)
-        AS_SERIES(body_holder)->link.exemplar =
-            AS_SERIES(
+        SER(body_holder)->link.exemplar =
+            SER(
                 FUNC_VALUE(opt_underlying)->payload.function.body_holder
             )->link.exemplar;
     else
-        AS_SERIES(body_holder)->link.exemplar = NULL;
+        SER(body_holder)->link.exemplar = NULL;
 
     // The meta information may already be initialized, since the native
     // version of paramlist construction sets up the FUNCTION-META information
     // used by HELP.  If so, it must be a valid REBCTX*.  Otherwise NULL.
     //
     assert(
-        AS_SERIES(paramlist)->link.meta == NULL
+        SER(paramlist)->link.meta == NULL
         || GET_SER_FLAG(
-            CTX_VARLIST(AS_SERIES(paramlist)->link.meta), ARRAY_FLAG_VARLIST
+            CTX_VARLIST(SER(paramlist)->link.meta), ARRAY_FLAG_VARLIST
         )
     );
 
@@ -1129,7 +1129,7 @@ REBCTX *Make_Expired_Frame_Ctx_Managed(REBFUN *func)
 
     SET_SER_INFO(varlist, SERIES_INFO_INACCESSIBLE);
 
-    REBCTX *expired = AS_CONTEXT(varlist);
+    REBCTX *expired = CTX(varlist);
 
     INIT_CTX_KEYLIST_SHARED(expired, FUNC_PARAMLIST(func));
 
@@ -1139,7 +1139,7 @@ REBCTX *Make_Expired_Frame_Ctx_Managed(REBFUN *func)
     // indicates that the frame has finished running.  If it is stack-based,
     // then that also means the data values are unavailable.
     //
-    AS_SERIES(varlist)->misc.f = NULL;
+    SER(varlist)->misc.f = NULL;
 
     return expired;
 }
@@ -1392,14 +1392,14 @@ REBCTX *Make_Frame_For_Function(const REBVAL *value) {
     // in the context, since the single archetype paramlist does not hold
     // enough information to know where to return *to*.
     //
-    INIT_CTX_KEYLIST_SHARED(AS_CONTEXT(varlist), FUNC_PARAMLIST(func));
-    ASSERT_ARRAY_MANAGED(CTX_KEYLIST(AS_CONTEXT(varlist)));
+    INIT_CTX_KEYLIST_SHARED(CTX(varlist), FUNC_PARAMLIST(func));
+    ASSERT_ARRAY_MANAGED(CTX_KEYLIST(CTX(varlist)));
 
     // The current implementation allows that `do frame` of the result
     // of a `make frame! :fun` will not make a copy of the frame, but use
     // its values.  See notes in DO of FRAME! regarding this.
     //
-    AS_SERIES(varlist)->misc.f = NULL;
+    SER(varlist)->misc.f = NULL;
 
     ++var;
 
@@ -1415,7 +1415,7 @@ REBCTX *Make_Frame_For_Function(const REBVAL *value) {
 
     TERM_ARRAY_LEN(varlist, ARR_LEN(FUNC_PARAMLIST(func)));
 
-    return AS_CONTEXT(varlist);
+    return CTX(varlist);
 }
 
 
@@ -1457,9 +1457,9 @@ REBOOL Specialize_Function_Throws(
             CTX_VARLIST(exemplar), SPECIFIED
         );
         SET_SER_FLAG(varlist, ARRAY_FLAG_VARLIST);
-        INIT_CTX_KEYLIST_SHARED(AS_CONTEXT(varlist), CTX_KEYLIST(exemplar));
+        INIT_CTX_KEYLIST_SHARED(CTX(varlist), CTX_KEYLIST(exemplar));
 
-        exemplar = AS_CONTEXT(varlist); // okay, now make exemplar our copy
+        exemplar = CTX(varlist); // okay, now make exemplar our copy
         CTX_VALUE(exemplar)->payload.any_context.varlist = varlist;
     }
 
@@ -1541,7 +1541,7 @@ REBOOL Specialize_Function_Throws(
         );
 
     MANAGE_ARRAY(CTX_VARLIST(meta));
-    AS_SERIES(paramlist)->link.meta = meta;
+    SER(paramlist)->link.meta = meta;
 
     REBFUN *fun = Make_Function(
         paramlist,
@@ -1628,7 +1628,7 @@ void Clonify_Function(REBVAL *value)
 
     // !!! Meta: copy, inherit?
     //
-    AS_SERIES(paramlist)->link.meta = FUNC_META(original_fun);
+    SER(paramlist)->link.meta = FUNC_META(original_fun);
 
     REBFUN *new_fun = Make_Function(
         paramlist,
@@ -2063,9 +2063,9 @@ REB_R Apply_Frame_Core(REBFRM *f, REBSTR *label, REBVAL *opt_def)
     if (opt_def)
         Push_Or_Alloc_Args_For_Underlying_Func(f, f->gotten);
     else {
-        ASSERT_CONTEXT(AS_CONTEXT(f->varlist)); // underlying must be set
+        ASSERT_CONTEXT(CTX(f->varlist)); // underlying must be set
 
-        f->args_head = CTX_VARS_HEAD(AS_CONTEXT(f->varlist));
+        f->args_head = CTX_VARS_HEAD(CTX(f->varlist));
 
         REBCTX *exemplar = FUNC_EXEMPLAR(f->phase);
         if (exemplar)

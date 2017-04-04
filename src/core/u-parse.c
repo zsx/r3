@@ -570,7 +570,7 @@ static REBIXO Parse_Array_One_Rule_Core(
 ) {
     assert(IS_END(P_OUT));
 
-    REBARR *array = AS_ARRAY(P_INPUT);
+    REBARR *array = ARR(P_INPUT);
     RELVAL *item = ARR_AT(array, pos);
 
     if (Trace_Level) {
@@ -1009,7 +1009,7 @@ static REBIXO To_Thru_Non_Block_Rule(
         }
 
         REBCNT i = Find_In_Array(
-            AS_ARRAY(P_INPUT),
+            ARR(P_INPUT),
             P_POS,
             SER_LEN(P_INPUT),
             rule,
@@ -1195,7 +1195,7 @@ static REBIXO Do_Eval_Rule(REBFRM *f)
         // Evaluate next expression from the *input* series (not the rules)
         //
         indexor = DO_NEXT_MAY_THROW(
-            P_CELL, AS_ARRAY(P_INPUT), P_POS, P_INPUT_SPECIFIER
+            P_CELL, ARR(P_INPUT), P_POS, P_INPUT_SPECIFIER
         );
         if (indexor == THROWN_FLAG) { // BREAK/RETURN/QUIT/THROW...
             Move_Value(P_OUT, P_CELL);
@@ -1825,7 +1825,7 @@ REBNATIVE(subparse)
                         FETCH_NEXT_RULE_MAYBE_END(f);
                     }
 
-                    RELVAL *cmp = ARR_AT(AS_ARRAY(P_INPUT), P_POS);
+                    RELVAL *cmp = ARR_AT(ARR(P_INPUT), P_POS);
 
                     if (IS_END(cmp))
                         i = END_FLAG;
@@ -1850,7 +1850,7 @@ REBNATIVE(subparse)
                     if (!IS_BLOCK(subrule))
                         fail (Error_Parse_Rule());
 
-                    RELVAL *into = ARR_AT(AS_ARRAY(P_INPUT), P_POS);
+                    RELVAL *into = ARR_AT(ARR(P_INPUT), P_POS);
 
                     if (
                         IS_END(into)
@@ -2037,8 +2037,8 @@ REBNATIVE(subparse)
                         temp,
                         P_TYPE,
                         GET_SER_FLAG(P_INPUT, SERIES_FLAG_ARRAY)
-                            ? AS_SERIES(Copy_Array_At_Max_Shallow(
-                                AS_ARRAY(P_INPUT),
+                            ? SER(Copy_Array_At_Max_Shallow(
+                                ARR(P_INPUT),
                                 begin,
                                 P_INPUT_SPECIFIER,
                                 count
@@ -2058,7 +2058,7 @@ REBNATIVE(subparse)
                                 Sink_Var_May_Fail(
                                     set_or_copy_word, P_RULE_SPECIFIER
                                 ),
-                                ARR_AT(AS_ARRAY(P_INPUT), begin),
+                                ARR_AT(ARR(P_INPUT), begin),
                                 P_INPUT_SPECIFIER
                             );
                         else
@@ -2089,8 +2089,8 @@ REBNATIVE(subparse)
                         captured,
                         P_TYPE,
                         GET_SER_FLAG(P_INPUT, SERIES_FLAG_ARRAY)
-                            ? AS_SERIES(Copy_Array_At_Max_Shallow(
-                                AS_ARRAY(P_INPUT),
+                            ? SER(Copy_Array_At_Max_Shallow(
+                                ARR(P_INPUT),
                                 begin,
                                 P_INPUT_SPECIFIER,
                                 count
@@ -2143,7 +2143,7 @@ REBNATIVE(subparse)
 
                         P_POS = Modify_Array(
                             (flags & PF_CHANGE) ? SYM_CHANGE : SYM_INSERT,
-                            AS_ARRAY(P_INPUT),
+                            ARR(P_INPUT),
                             begin,
                             specified,
                             mod_flags,
@@ -2153,7 +2153,7 @@ REBNATIVE(subparse)
 
                         if (IS_LIT_WORD(rule))
                             VAL_SET_TYPE_BITS( // keeps binding flags
-                                ARR_AT(AS_ARRAY(P_INPUT), P_POS - 1),
+                                ARR_AT(ARR(P_INPUT), P_POS - 1),
                                 REB_WORD
                             );
                     }

@@ -451,7 +451,7 @@ static void Fill_Pool(REBPOL *pool)
 
     // Add new nodes to the end of free list:
 
-    REBNOD *node = cast(REBNOD*, seg + 1);
+    REBNOD *node = NOD(seg + 1);
 
     if (pool->first == NULL) {
         assert(pool->last == NULL);
@@ -471,6 +471,8 @@ static void Fill_Pool(REBPOL *pool)
             break;
         }
 
+        // Can't use NOD() here because it tests for NODE_FLAG_VALID
+        //
         node->next_if_free = cast(REBNOD*, cast(REBYTE*, node) + pool->wide);
         node = node->next_if_free;
     }
@@ -525,9 +527,10 @@ void *Make_Node(REBCNT pool_id)
 // be set to 0.  This will identify the node as not in use to anyone who
 // enumerates the nodes in the pool (such as the garbage collector).
 //
-void Free_Node(REBCNT pool_id, void *pv)
+void Free_Node(REBCNT pool_id, void *p)
 {
-    REBNOD *node = cast(REBNOD*, pv);
+    REBNOD *node = NOD(p);
+
     assert(node->header.bits != 0); // 0 would indicate already free
     node->header.bits = 0;
 
@@ -679,7 +682,7 @@ static REBOOL Series_Data_Alloc(REBSER *s, REBCNT length) {
         // caller to manage...they do not know about the ->rest
         //
         for (n = 0; n < length; n++)
-            INIT_CELL(ARR_AT(AS_ARRAY(s), n));
+            INIT_CELL(ARR_AT(ARR(s), n));
 
         // !!! We should intentionally mark the overage range as not having
         // NODE_FLAG_CELL in the debug build.  Then have the series go through
@@ -695,7 +698,7 @@ static REBOOL Series_Data_Alloc(REBSER *s, REBCNT length) {
         // up front, or only on expansions?
         //
         for(; n < s->content.dynamic.rest - 1; n++) {
-            INIT_CELL(ARR_AT(AS_ARRAY(s), n));
+            INIT_CELL(ARR_AT(ARR(s), n));
         }
 
         // The convention is that the *last* cell in the allocated capacity
@@ -713,7 +716,7 @@ static REBOOL Series_Data_Alloc(REBSER *s, REBCNT length) {
         // capacity they requested, they must use TERM_ARRAY_LEN(), which
         // avoids writing the unwritable locations by checking for END first.
         //
-        RELVAL *ultimate = ARR_AT(AS_ARRAY(s), s->content.dynamic.rest - 1);
+        RELVAL *ultimate = ARR_AT(ARR(s), s->content.dynamic.rest - 1);
         Init_Endlike_Header(&ultimate->header, 0);
     #if !defined(NDEBUG)
         Set_Track_Payload_Debug(ultimate, __FILE__, __LINE__);
@@ -1101,6 +1104,12 @@ static void Free_Unbiased_Series_Data(REBYTE *unbiased, REBCNT size_unpooled)
     REBPOL *pool;
 
     if (pool_num < SYSTEM_POOL) {
+        //
+        // The series data does not honor "node protocol" when it is in use
+        // The pools are not swept the way the REBSER pool is, so only the
+        // free nodes have significance to their headers.  Use a cast and not
+        // NOD() because that assumes NODE_FLAG_VALID
+        //
         REBNOD *node = cast(REBNOD*, unbiased);
 
         assert(Mem_Pools[pool_num].wide >= size_unpooled);
@@ -1198,7 +1207,7 @@ void Expand_Series(REBSER *s, REBCNT index, REBCNT delta)
             // but when it is this will be useful.
             //
             for (index = 0; index < delta; index++)
-                INIT_CELL(ARR_AT(AS_ARRAY(s), index));
+                INIT_CELL(ARR_AT(ARR(s), index));
         }
     #endif
         return;
@@ -1249,7 +1258,7 @@ void Expand_Series(REBSER *s, REBCNT index, REBCNT delta)
             //
             while (delta != 0) {
                 --delta;
-                INIT_CELL(ARR_AT(AS_ARRAY(s), index + delta));
+                INIT_CELL(ARR_AT(ARR(s), index + delta));
             }
         }
     #endif
@@ -1441,7 +1450,7 @@ void Remake_Series(REBSER *s, REBCNT units, REBYTE wide, REBUPT flags)
         s->content.dynamic.len = 0;
 
     if (GET_SER_FLAG(s, SERIES_FLAG_ARRAY))
-        TERM_ARRAY_LEN(AS_ARRAY(s), SER_LEN(s));
+        TERM_ARRAY_LEN(ARR(s), SER_LEN(s));
     else
         TERM_SEQUENCE(s);
 
@@ -1505,9 +1514,9 @@ void GC_Kill_Series(REBSER *s)
         // opposed to the specific singular made for the handle's GC awareness)
 
         if (GET_SER_FLAG(s, SERIES_FLAG_ARRAY)) {
-            RELVAL *v = ARR_HEAD(AS_ARRAY(s));
+            RELVAL *v = ARR_HEAD(ARR(s));
             if (NOT_END(v) && IS_HANDLE(v)) {
-                if (v->extra.singular == AS_ARRAY(s)) {
+                if (v->extra.singular == ARR(s)) {
                     (s->misc.cleaner)(KNOWN(v));
                 }
             }

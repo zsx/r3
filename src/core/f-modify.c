@@ -94,15 +94,15 @@ REBCNT Modify_Array(
 
     if (action != SYM_CHANGE) {
         // Always expand dst_arr for INSERT and APPEND actions:
-        Expand_Series(AS_SERIES(dst_arr), dst_idx, size);
+        Expand_Series(SER(dst_arr), dst_idx, size);
     }
     else {
         if (size > dst_len)
-            Expand_Series(AS_SERIES(dst_arr), dst_idx, size-dst_len);
+            Expand_Series(SER(dst_arr), dst_idx, size-dst_len);
         else if (size < dst_len && (flags & AM_PART))
-            Remove_Series(AS_SERIES(dst_arr), dst_idx, dst_len-size);
+            Remove_Series(SER(dst_arr), dst_idx, dst_len-size);
         else if (size + dst_idx > tail) {
-            EXPAND_SERIES_TAIL(AS_SERIES(dst_arr), size - (tail - dst_idx));
+            EXPAND_SERIES_TAIL(SER(dst_arr), size - (tail - dst_idx));
         }
     }
 

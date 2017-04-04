@@ -259,7 +259,7 @@ ATTRIBUTE_NO_RETURN void Fail_Core(const void *p)
         REBSER *s = m_cast(REBSER*, cast(const REBSER*, p)); // don't mutate
         if (NOT_SER_FLAG(s, ARRAY_FLAG_VARLIST))
             panic (s);
-        error = AS_CONTEXT(s);
+        error = CTX(s);
         break; }
 
     case DETECTED_AS_VALUE: {

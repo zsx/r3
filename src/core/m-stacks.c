@@ -163,10 +163,10 @@ void Expand_Data_Stack_May_Fail(REBCNT amount)
     // If adding in the requested amount would overflow the stack limit, then
     // give a data stack overflow error.
     //
-    if (SER_REST(AS_SERIES(DS_Array)) + amount >= STACK_LIMIT)
+    if (SER_REST(SER(DS_Array)) + amount >= STACK_LIMIT)
         Trap_Stack_Overflow();
 
-    Extend_Series(AS_SERIES(DS_Array), amount);
+    Extend_Series(SER(DS_Array), amount);
 
     // Update the global pointer representing the base of the stack that
     // likely was moved by the above allocation.  (It's not necessarily a
@@ -251,7 +251,7 @@ void Pop_Stack_Values_Into(REBVAL *into, REBDSP dsp_start) {
     FAIL_IF_READ_ONLY_ARRAY(VAL_ARRAY(into));
 
     VAL_INDEX(into) = Insert_Series(
-        AS_SERIES(VAL_ARRAY(into)),
+        SER(VAL_ARRAY(into)),
         VAL_INDEX(into),
         cast(REBYTE*, values), // stack only holds fully specified REBVALs
         len // multiplied by width (sizeof(REBVAL)) in Insert_Series
@@ -293,7 +293,7 @@ void Reify_Frame_Context_Maybe_Fulfilling(REBFRM *f) {
         );
     }
 
-    REBCTX *c = AS_CONTEXT(f->varlist);
+    REBCTX *c = CTX(f->varlist);
 
     // We do not Manage_Context, because we are reusing a word series here
     // that has already been managed.  The arglist array was managed when
@@ -317,7 +317,7 @@ void Reify_Frame_Context_Maybe_Fulfilling(REBFRM *f) {
     rootvar->payload.any_context.phase = f->phase;
     rootvar->extra.binding = f->binding;
 
-    AS_SERIES(f->varlist)->misc.f = f;
+    SER(f->varlist)->misc.f = f;
 
     // A reification of a frame for native code should not allow changing
     // the values out from under it, because that could cause it to crash

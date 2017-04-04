@@ -94,7 +94,7 @@ inline static CFUNC *VAL_HANDLE_CFUNC(const RELVAL *v) {
 inline static CLEANUP_FUNC VAL_HANDLE_CLEANER(const RELVAL *v) {
     assert(IS_HANDLE(v));
     REBARR *singular = v->extra.singular;
-    return singular ? AS_SERIES(singular)->misc.cleaner : NULL;
+    return singular ? SER(singular)->misc.cleaner : NULL;
 }
 
 inline static void SET_HANDLE_LEN(RELVAL *v, REBUPT length) {
@@ -151,7 +151,7 @@ inline static void Init_Handle_Managed_Common(
     CLEANUP_FUNC cleaner
 ){
     REBARR *singular = Alloc_Singular_Array();
-    AS_SERIES(singular)->misc.cleaner = cleaner;
+    SER(singular)->misc.cleaner = cleaner;
 
     RELVAL *v = ARR_HEAD(singular);
     v->extra.singular = singular; 

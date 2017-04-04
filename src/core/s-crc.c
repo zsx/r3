@@ -414,7 +414,7 @@ void Init_Map(REBVAL *out, REBMAP *map)
 
     VAL_RESET_HEADER(out, REB_MAP);
     out->extra.binding = (REBARR*)SPECIFIED; // !!! cast() gripes, investigate
-    out->payload.any_series.series = AS_SERIES(MAP_PAIRLIST(map));
+    out->payload.any_series.series = SER(MAP_PAIRLIST(map));
     out->payload.any_series.index = 0;
 }
 

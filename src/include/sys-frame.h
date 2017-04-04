@@ -475,7 +475,7 @@ inline static void Push_Or_Alloc_Args_For_Underlying_Func(
         // Similarly, it should not be possible to use CTX_FRAME_IF_ON_STACK
         // if the varlist does not become reified.
         //
-        TRASH_POINTER_IF_DEBUG(AS_SERIES(f->varlist)->misc.f);
+        TRASH_POINTER_IF_DEBUG(SER(f->varlist)->misc.f);
     }
     else {
         // We start by allocating the data for the args and locals on the chunk
@@ -558,7 +558,7 @@ inline static void Drop_Function_Args_For_Frame_Core(
         // didn't need to be (no Context_For_Frame_May_Reify_Managed).  We
         // can just free it.
         //
-        assert(IS_POINTER_TRASH_DEBUG(AS_SERIES(f->varlist)->misc.f));
+        assert(IS_POINTER_TRASH_DEBUG(SER(f->varlist)->misc.f));
         Free_Array(f->varlist);
         goto finished;
     }
@@ -566,8 +566,8 @@ inline static void Drop_Function_Args_For_Frame_Core(
     // The varlist is going to outlive this call, so the frame correspondence
     // in it needs to be cleared out, so callers will know the frame is dead.
     //
-    assert(AS_SERIES(f->varlist)->misc.f == f);
-    AS_SERIES(f->varlist)->misc.f = NULL;
+    assert(SER(f->varlist)->misc.f == f);
+    SER(f->varlist)->misc.f = NULL;
 
     // The varlist might have been for indefinite extent variables, or it
     // might be a stub holder for a stack context.
@@ -612,5 +612,5 @@ inline static REBCTX *Context_For_Frame_May_Reify_Managed(REBFRM *f)
     if (f->varlist == NULL || NOT_SER_FLAG(f->varlist, ARRAY_FLAG_VARLIST))
         Reify_Frame_Context_Maybe_Fulfilling(f); // it's not fulfilling, here
 
-    return AS_CONTEXT(f->varlist);
+    return CTX(f->varlist);
 }

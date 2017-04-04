@@ -81,7 +81,7 @@
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// AS_SERIES() COERCION
+// SERIES COERCION
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -93,7 +93,7 @@
 // be accessing the array--in a C++ build this would mean it would have some
 // kind of protected inheritance scheme.
 //
-// The AS_SERIES() macro provides a compromise besides a raw cast of a
+// The SER() macro provides a compromise besides a raw cast of a
 // pointer to a REBSER*, because in the C++ build it makes sure that the
 // incoming pointer type is to a simple series subclass.  (It's just a raw
 // cast in the C build.)
@@ -103,29 +103,28 @@
     #include <type_traits>
 
     template <class T>
-    inline REBSER *AS_SERIES(T *p) {
+    inline REBSER *SER(T *p) {
         static_assert(
             // see specializations for void* and REBNOD*, which do more checks
             std::is_same<T, REBSTR>::value
             || std::is_same<T, REBARR>::value,
-            "AS_SERIES works on: void*, REBNOD*, REBSTR*, REBARR*"
+            "SER works on: void*, REBNOD*, REBSTR*, REBARR*"
         );
         return cast(REBSER*, p);
     }
 
     template <>
-    inline REBSER *AS_SERIES(void *p) {
-        REBNOD *n = cast(REBNOD*, p);
+    inline REBSER *SER(void *p) {
+        REBNOD *n = NOD(p); // ensures NODE_FLAG_VALID
         assert(
-            n->header.bits & NODE_FLAG_VALID // GET_SER_FLAG would recurse!
-            && NOT(n->header.bits & NODE_FLAG_CELL)
+            NOT(n->header.bits & NODE_FLAG_CELL)
             && NOT(n->header.bits & NODE_FLAG_END)
         );
         return cast(REBSER*, n);
     }
 
     template <>
-    inline REBSER *AS_SERIES(REBNOD *n) {
+    inline REBSER *SER(REBNOD *n) {
         assert(
             n->header.bits & NODE_FLAG_VALID // GET_SER_FLAG would recurse!
             && NOT(n->header.bits & NODE_FLAG_CELL)
@@ -134,7 +133,7 @@
         return cast(REBSER*, n);
     }
 #else
-    #define AS_SERIES(p) \
+    #define SER(p) \
         cast(REBSER*, (p))
 #endif
 
@@ -156,16 +155,16 @@
 //
 
 #define SET_SER_FLAG(s,f) \
-    cast(void, (AS_SERIES(s)->header.bits |= cast(REBUPT, (f))))
+    cast(void, (SER(s)->header.bits |= cast(REBUPT, (f))))
 
 #define CLEAR_SER_FLAG(s,f) \
-    cast(void, (AS_SERIES(s)->header.bits &= ~cast(REBUPT, (f))))
+    cast(void, (SER(s)->header.bits &= ~cast(REBUPT, (f))))
 
 #define GET_SER_FLAG(s,f) \
-    LOGICAL(AS_SERIES(s)->header.bits & (f))
+    LOGICAL(SER(s)->header.bits & (f))
 
 #define NOT_SER_FLAG(s,f) \
-    NOT(AS_SERIES(s)->header.bits & (f))
+    NOT(SER(s)->header.bits & (f))
 
 #define SET_SER_FLAGS(s,f) \
     SET_SER_FLAG((s), (f))
@@ -179,16 +178,16 @@
 //
 
 #define SET_SER_INFO(s,f) \
-    cast(void, (AS_SERIES(s)->info.bits |= cast(REBUPT, f)))
+    cast(void, (SER(s)->info.bits |= cast(REBUPT, f)))
 
 #define CLEAR_SER_INFO(s,f) \
-    cast(void, (AS_SERIES(s)->info.bits &= ~cast(REBUPT, f)))
+    cast(void, (SER(s)->info.bits &= ~cast(REBUPT, f)))
 
 #define GET_SER_INFO(s,f) \
-    LOGICAL(AS_SERIES(s)->info.bits & (f))
+    LOGICAL(SER(s)->info.bits & (f))
 
 #define NOT_SER_INFO(s,f) \
-    NOT(AS_SERIES(s)->info.bits & (f))
+    NOT(SER(s)->info.bits & (f))
 
 #define SET_SER_INFOS(s,f) \
     SET_SER_INFO((s), (f))

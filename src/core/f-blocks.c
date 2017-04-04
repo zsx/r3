@@ -234,7 +234,7 @@ void Clonify_Values_Len_Managed(
                 assert(!IS_FRAME(value)); // !!! Don't exist yet...
                 value->payload.any_context.varlist =
                     CTX_VARLIST(Copy_Context_Shallow(VAL_CONTEXT(value)));
-                series = AS_SERIES(CTX_VARLIST(VAL_CONTEXT(value)));
+                series = SER(CTX_VARLIST(VAL_CONTEXT(value)));
             }
             else {
                 if (GET_SER_FLAG(VAL_SERIES(value), SERIES_FLAG_ARRAY)) {
@@ -245,14 +245,14 @@ void Clonify_Values_Len_Managed(
                 #endif
 
                     REBSPC *derived = Derive_Specifier(specifier, value);
-                    series = AS_SERIES(
+                    series = SER(
                         Copy_Array_Shallow(
                             VAL_ARRAY(value),
                             derived
                         )
                     );
 
-                    INIT_VAL_ARRAY(value, AS_ARRAY(series)); // copies args
+                    INIT_VAL_ARRAY(value, ARR(series)); // copies args
 
                     // If it was relative, then copying with a specifier
                     // means it isn't relative any more.
@@ -285,7 +285,7 @@ void Clonify_Values_Len_Managed(
             if (types & FLAGIT_KIND(VAL_TYPE(value)) & TS_ARRAYS_OBJ) {
                 REBSPC *derived = Derive_Specifier(specifier, value);
                 Clonify_Values_Len_Managed(
-                     ARR_HEAD(AS_ARRAY(series)),
+                     ARR_HEAD(ARR(series)),
                      derived,
                      VAL_LEN_HEAD(value),
                      deep,
@@ -433,7 +433,7 @@ REBARR *Copy_Rerelativized_Array_Deep_Managed(
         assert(VAL_RELATIVE(src) == before);
         if (ANY_ARRAY(src)) {
             *dest = *src; // !!! could copy just fields not overwritten
-            dest->payload.any_series.series = AS_SERIES(
+            dest->payload.any_series.series = SER(
                 Copy_Rerelativized_Array_Deep_Managed(
                     VAL_ARRAY(src), before, after
                 )
@@ -466,7 +466,7 @@ REBARR *Copy_Rerelativized_Array_Deep_Managed(
 //
 REBVAL *Alloc_Tail_Array(REBARR *a)
 {
-    EXPAND_SERIES_TAIL(AS_SERIES(a), 1);
+    EXPAND_SERIES_TAIL(SER(a), 1);
     TERM_ARRAY_LEN(a, ARR_LEN(a));
     return SINK(ARR_LAST(a));
 }
@@ -529,10 +529,10 @@ REBCNT Find_Same_Array(REBARR *search_values, const RELVAL *value)
 //
 void Uncolor_Array(REBARR *a)
 {
-    if (Is_Series_White(AS_SERIES(a)))
+    if (Is_Series_White(SER(a)))
         return; // avoid loop
 
-    Flip_Series_To_White(AS_SERIES(a));
+    Flip_Series_To_White(SER(a));
 
     RELVAL *val;
     for (val = ARR_HEAD(a); NOT_END(val); ++val)

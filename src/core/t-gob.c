@@ -454,7 +454,7 @@ static REBOOL Set_GOB_Var(REBGOB *gob, const REBVAL *word, const REBVAL *val)
         SET_GOB_DTYPE(gob, GOBD_NONE);
         if (IS_OBJECT(val)) {
             SET_GOB_DTYPE(gob, GOBD_OBJECT);
-            SET_GOB_DATA(gob, AS_SERIES(CTX_VARLIST(VAL_CONTEXT(val))));
+            SET_GOB_DATA(gob, SER(CTX_VARLIST(VAL_CONTEXT(val))));
         }
         else if (IS_BLOCK(val)) {
             SET_GOB_DTYPE(gob, GOBD_BLOCK);
@@ -530,14 +530,14 @@ static REBOOL Get_GOB_Var(REBGOB *gob, const REBVAL *word, REBVAL *val)
     case SYM_DRAW:
         if (GOB_TYPE(gob) == GOBT_DRAW) {
             // !!! comment said "compiler optimizes" the init "calls below" (?)
-            Init_Block(val, AS_ARRAY(GOB_CONTENT(gob)));
+            Init_Block(val, ARR(GOB_CONTENT(gob)));
         }
         else goto is_blank;
         break;
 
     case SYM_TEXT:
         if (GOB_TYPE(gob) == GOBT_TEXT) {
-            Init_Block(val, AS_ARRAY(GOB_CONTENT(gob)));
+            Init_Block(val, ARR(GOB_CONTENT(gob)));
         }
         else if (GOB_TYPE(gob) == GOBT_STRING) {
             Init_String(val, GOB_CONTENT(gob));
@@ -547,7 +547,7 @@ static REBOOL Get_GOB_Var(REBGOB *gob, const REBVAL *word, REBVAL *val)
 
     case SYM_EFFECT:
         if (GOB_TYPE(gob) == GOBT_EFFECT) {
-            Init_Block(val, AS_ARRAY(GOB_CONTENT(gob)));
+            Init_Block(val, ARR(GOB_CONTENT(gob)));
         }
         else goto is_blank;
         break;
@@ -581,10 +581,10 @@ is_blank:
 
     case SYM_DATA:
         if (GOB_DTYPE(gob) == GOBD_OBJECT) {
-            Init_Object(val, AS_CONTEXT(GOB_DATA(gob)));
+            Init_Object(val, CTX(GOB_DATA(gob)));
         }
         else if (GOB_DTYPE(gob) == GOBD_BLOCK) {
-            Init_Block(val, AS_ARRAY(GOB_DATA(gob)));
+            Init_Block(val, ARR(GOB_DATA(gob)));
         }
         else if (GOB_DTYPE(gob) == GOBD_STRING) {
             Init_String(val, GOB_DATA(gob));

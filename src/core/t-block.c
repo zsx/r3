@@ -119,7 +119,7 @@ void MAKE_Array(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
         Init_Any_Series_At_Core(
             out,
             kind,
-            AS_SERIES(VAL_ARRAY(any_array)),
+            SER(VAL_ARRAY(any_array)),
             index,
             derived
         );
@@ -698,7 +698,7 @@ REBTYPE(Array)
         else
             Derelativize(D_OUT, &ARR_HEAD(array)[index], specifier);
 
-        Remove_Series(AS_SERIES(array), index, len);
+        Remove_Series(SER(array), index, len);
         return R_OUT;
     }
 
@@ -880,7 +880,7 @@ REBTYPE(Array)
                 if (VAL_TYPE(head + end - 1) != REB_BLANK)
                     break;
             }
-            Remove_Series(AS_SERIES(array), end, ARR_LEN(array) - end);
+            Remove_Series(SER(array), end, ARR_LEN(array) - end);
 
             // if (!(flags & AM_TRIM_HEAD) || index >= end) return;
         }
@@ -889,7 +889,7 @@ REBTYPE(Array)
             for (; cast(REBINT, index) < end; index++) {
                 if (VAL_TYPE(head + index) != REB_BLANK) break;
             }
-            Remove_Series(AS_SERIES(array), out, index - out);
+            Remove_Series(SER(array), out, index - out);
         }
 
         if (NOT(REF(head) || REF(tail))) {
@@ -903,7 +903,7 @@ REBTYPE(Array)
                     out++;
                 }
             }
-            Remove_Series(AS_SERIES(array), out, end - out);
+            Remove_Series(SER(array), out, end - out);
         }
 
         Move_Value(D_OUT, value);
@@ -1033,7 +1033,7 @@ void Assert_Array_Core(REBARR *a)
     // we don't use ASSERT_SERIES the macro here, because that checks to
     // see if the series is an array...and if so, would call this routine
     //
-    Assert_Series_Core(AS_SERIES(a));
+    Assert_Series_Core(SER(a));
 
     if (NOT(GET_SER_FLAG(a, SERIES_FLAG_ARRAY)))
         panic (a);
@@ -1051,7 +1051,7 @@ void Assert_Array_Core(REBARR *a)
         panic (item);
 
     if (GET_SER_INFO(a, SERIES_INFO_HAS_DYNAMIC)) {
-        REBCNT rest = SER_REST(AS_SERIES(a));
+        REBCNT rest = SER_REST(SER(a));
 
         assert(rest > 0 && rest > i);
         for (; i < rest - 1; ++i, ++item) {

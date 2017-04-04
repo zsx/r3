@@ -86,7 +86,7 @@ inline static const REBYTE *VAL_WORD_HEAD(const RELVAL *v) {
 
 inline static void INIT_WORD_CONTEXT(RELVAL *v, REBCTX *context) {
     assert(GET_VAL_FLAG(v, WORD_FLAG_BOUND) && context != SPECIFIED);
-    ENSURE_SERIES_MANAGED(CTX_SERIES(context));
+    ENSURE_ARRAY_MANAGED(CTX_VARLIST(context));
     ASSERT_ARRAY_MANAGED(CTX_KEYLIST(context));
     v->extra.binding = CTX_VARLIST(context);
 }

@@ -222,7 +222,7 @@ REBNATIVE(return)
     REBFUN *target =
         IS_FUNCTION(ARR_HEAD(f->binding))
         ? AS_FUNC(f->binding)
-        : AS_FUNC(CTX_KEYLIST(AS_CONTEXT(f->binding)));
+        : AS_FUNC(CTX_KEYLIST(CTX(f->binding)));
 
     REBVAL *typeset = FUNC_PARAM(target, FUNC_NUM_PARAMS(target));
     assert(VAL_PARAM_SYM(typeset) == SYM_RETURN);
@@ -297,7 +297,7 @@ REBNATIVE(typechecker)
 
     // for now, no help...use REDESCRIBE
 
-    AS_SERIES(paramlist)->link.meta = NULL;
+    SER(paramlist)->link.meta = NULL;
 
     REBFUN *fun = Make_Function(
         paramlist,
@@ -422,7 +422,7 @@ REBNATIVE(chain)
     SET_VOID(CTX_VAR(meta, STD_CHAINED_META_CHAINEE_NAMES));
 
     MANAGE_ARRAY(CTX_VARLIST(meta));
-    AS_SERIES(paramlist)->link.meta = meta;
+    SER(paramlist)->link.meta = meta;
 
     REBFUN *fun = Make_Function(
         paramlist,
@@ -515,7 +515,7 @@ REBNATIVE(adapt)
         );
 
     MANAGE_ARRAY(CTX_VARLIST(meta));
-    AS_SERIES(paramlist)->link.meta = meta;
+    SER(paramlist)->link.meta = meta;
 
     REBFUN *fun = Make_Function(
         paramlist,
@@ -616,14 +616,14 @@ REBNATIVE(hijack)
         // directly.  This is a reasonably common case, and especially
         // common when putting the originally hijacked function back.
 
-        AS_SERIES(victim_paramlist)->misc.facade =
-            AS_SERIES(hijacker_paramlist)->misc.facade;
-        AS_SERIES(victim->payload.function.body_holder)->link.exemplar =
-            AS_SERIES(hijacker->payload.function.body_holder)->link.exemplar;
+        SER(victim_paramlist)->misc.facade =
+            SER(hijacker_paramlist)->misc.facade;
+        SER(victim->payload.function.body_holder)->link.exemplar =
+            SER(hijacker->payload.function.body_holder)->link.exemplar;
 
         *VAL_FUNC_BODY(victim) = *VAL_FUNC_BODY(hijacker);
-        AS_SERIES(victim->payload.function.body_holder)->misc.dispatcher =
-            AS_SERIES(hijacker->payload.function.body_holder)->misc.dispatcher;
+        SER(victim->payload.function.body_holder)->misc.dispatcher =
+            SER(hijacker->payload.function.body_holder)->misc.dispatcher;
     }
     else {
         // A mismatch means there could be someone out there pointing at this
@@ -637,7 +637,7 @@ REBNATIVE(hijack)
         // needs to do a new function call.
         //
         Move_Value(VAL_FUNC_BODY(victim), hijacker);
-        AS_SERIES(victim->payload.function.body_holder)->misc.dispatcher =
+        SER(victim->payload.function.body_holder)->misc.dispatcher =
             &Hijacker_Dispatcher;
     }
 
@@ -645,8 +645,8 @@ REBNATIVE(hijack)
     //
     // !!! Should this add a note about the hijacking?
     //
-    AS_SERIES(victim_paramlist)->link.meta =
-        AS_SERIES(hijacker_paramlist)->link.meta;
+    SER(victim_paramlist)->link.meta =
+        SER(hijacker_paramlist)->link.meta;
 
     Move_Value(D_OUT, victim);
     D_OUT->extra.binding = hijacker->extra.binding;
@@ -728,7 +728,7 @@ REBNATIVE(tighten)
     // Hence updates to the title/parameter-descriptions/etc. of the tightened
     // function will affect the original, and vice-versa.
     //
-    AS_SERIES(paramlist)->link.meta = FUNC_META(original);
+    SER(paramlist)->link.meta = FUNC_META(original);
 
     MANAGE_ARRAY(paramlist);
 
@@ -782,7 +782,7 @@ REBNATIVE(tighten)
     // this a real FUNCTION!'s paramlist, the paramlist in the [0] slot would
     // have to be equal to the facade's pointer.)
     //
-    AS_SERIES(paramlist)->misc.facade = facade;
+    SER(paramlist)->misc.facade = facade;
 
     Move_Value(D_OUT, FUNC_VALUE(fun));
 

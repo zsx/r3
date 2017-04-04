@@ -111,7 +111,7 @@ void Append_Values_Len(REBARR *a, const REBVAL *head, REBCNT len)
 
     // updates tail, which could move data storage.
     //
-    EXPAND_SERIES_TAIL(AS_SERIES(a), len);
+    EXPAND_SERIES_TAIL(SER(a), len);
 
     memcpy(ARR_AT(a, old_len), head, sizeof(REBVAL) * len);
 
@@ -334,7 +334,7 @@ void Reset_Sequence(REBSER *s)
 void Reset_Array(REBARR *a)
 {
     if (GET_SER_INFO(a, SERIES_INFO_HAS_DYNAMIC))
-        Unbias_Series(AS_SERIES(a), FALSE);
+        Unbias_Series(SER(a), FALSE);
     TERM_ARRAY_LEN(a, 0);
 }
 
@@ -441,7 +441,7 @@ void Assert_Series_Term_Core(REBSER *s)
         //
         // END values aren't canonized to zero bytes, check IS_END explicitly
         //
-        RELVAL *tail = ARR_TAIL(AS_ARRAY(s));
+        RELVAL *tail = ARR_TAIL(ARR(s));
         if (NOT_END(tail))
             panic (tail);
     }

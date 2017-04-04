@@ -99,14 +99,14 @@ REBCTX *Alloc_Context(enum Reb_Kind kind, REBCNT capacity)
         0 // No keylist flag, but we don't want line numbers
     );
     SET_BLANK(Alloc_Tail_Array(keylist));
-    AS_SERIES(keylist)->link.meta = NULL; // GC sees meta object, must init
+    SER(keylist)->link.meta = NULL; // GC sees meta object, must init
 
     // varlists link keylists via REBSER.misc field, sharable hence managed
 
-    INIT_CTX_KEYLIST_UNIQUE(AS_CONTEXT(varlist), keylist);
+    INIT_CTX_KEYLIST_UNIQUE(CTX(varlist), keylist);
     MANAGE_ARRAY(keylist);
 
-    return AS_CONTEXT(varlist); // varlist pointer is context handle
+    return CTX(varlist); // varlist pointer is context handle
 }
 
 
@@ -135,11 +135,11 @@ REBOOL Expand_Context_Keylist_Core(REBCTX *context, REBCNT delta)
         //
         // Keylists are only typesets, so no need for a specifier.
 
-        REBCTX *meta = AS_SERIES(keylist)->link.meta; // preserve meta object
+        REBCTX *meta = SER(keylist)->link.meta; // preserve meta object
 
         keylist = Copy_Array_Extra_Shallow(keylist, SPECIFIED, delta);
 
-        AS_SERIES(keylist)->link.meta = meta;
+        SER(keylist)->link.meta = meta;
 
         MANAGE_ARRAY(keylist);
         INIT_CTX_KEYLIST_UNIQUE(context, keylist);
@@ -153,7 +153,7 @@ REBOOL Expand_Context_Keylist_Core(REBCTX *context, REBCNT delta)
     // context, and no INIT_CTX_KEYLIST_SHARED was used by another context
     // to mark the flag indicating it's shared.  Extend it directly.
 
-    Extend_Series(AS_SERIES(keylist), delta);
+    Extend_Series(SER(keylist), delta);
     TERM_ARRAY_LEN(keylist, ARR_LEN(keylist));
 
     return FALSE;
@@ -169,7 +169,7 @@ void Expand_Context(REBCTX *context, REBCNT delta)
 {
     // varlist is unique to each object--expand without making a copy.
     //
-    Extend_Series(AS_SERIES(CTX_VARLIST(context)), delta);
+    Extend_Series(SER(CTX_VARLIST(context)), delta);
     TERM_ARRAY_LEN(CTX_VARLIST(context), ARR_LEN(CTX_VARLIST(context)));
 
     Expand_Context_Keylist_Core(context, delta);
@@ -202,7 +202,7 @@ REBVAL *Append_Context(
 
     // Add the key to key list
     //
-    EXPAND_SERIES_TAIL(AS_SERIES(keylist), 1);
+    EXPAND_SERIES_TAIL(SER(keylist), 1);
     REBVAL *key = SINK(ARR_LAST(keylist));
     Init_Typeset(
         key,
@@ -213,7 +213,7 @@ REBVAL *Append_Context(
 
     // Add an unset value to var list
     //
-    EXPAND_SERIES_TAIL(AS_SERIES(CTX_VARLIST(context)), 1);
+    EXPAND_SERIES_TAIL(SER(CTX_VARLIST(context)), 1);
     REBVAL *value = SINK(ARR_LAST(CTX_VARLIST(context)));
     SET_VOID(value);
     TERM_ARRAY_LEN(CTX_VARLIST(context), ARR_LEN(CTX_VARLIST(context)));
@@ -268,7 +268,7 @@ REBCTX *Copy_Context_Shallow_Extra(REBCTX *src, REBCNT extra) {
         REBARR *varlist = Copy_Array_Shallow(CTX_VARLIST(src), SPECIFIED);
         SET_SER_FLAG(varlist, ARRAY_FLAG_VARLIST);
 
-        dest = AS_CONTEXT(varlist);
+        dest = CTX(varlist);
         INIT_CTX_KEYLIST_SHARED(dest, CTX_KEYLIST(src));
     }
     else {
@@ -280,7 +280,7 @@ REBCTX *Copy_Context_Shallow_Extra(REBCTX *src, REBCNT extra) {
         );
         SET_SER_FLAG(varlist, ARRAY_FLAG_VARLIST);
 
-        dest = AS_CONTEXT(varlist);
+        dest = CTX(varlist);
         INIT_CTX_KEYLIST_UNIQUE(dest, keylist);
         MANAGE_ARRAY(CTX_KEYLIST(dest));
     }
@@ -366,7 +366,7 @@ REBARR *Grab_Collected_Keylist_Managed(REBCTX *prior)
         MANAGE_ARRAY(keylist);
     }
 
-    AS_SERIES(keylist)->link.meta = NULL; // clear meta object (GC sees this)
+    SER(keylist)->link.meta = NULL; // clear meta object (GC sees this)
 
     return keylist;
 }
@@ -441,7 +441,7 @@ void Collect_Context_Keys(
     // if duplicates are found, but the actual buffer length will be set
     // correctly by the end.)
     //
-    EXPAND_SERIES_TAIL(AS_SERIES(BUF_COLLECT), CTX_LEN(context));
+    EXPAND_SERIES_TAIL(SER(BUF_COLLECT), CTX_LEN(context));
 
     // EXPAND_SERIES_TAIL will increase the ARR_LEN, even though we intend
     // to overwrite it with a possibly shorter length.  Put the length back
@@ -524,7 +524,7 @@ static void Collect_Context_Inner_Loop(
                 // once per word
                 if (IS_SET_WORD(value) || (flags & COLLECT_ANY_WORD)) {
                     Add_Binder_Index(binder, canon, ARR_LEN(BUF_COLLECT));
-                    EXPAND_SERIES_TAIL(AS_SERIES(BUF_COLLECT), 1);
+                    EXPAND_SERIES_TAIL(SER(BUF_COLLECT), 1);
                     REBVAL *typeset = SINK(ARR_LAST(BUF_COLLECT));
                     Init_Typeset(
                         typeset,
@@ -762,7 +762,7 @@ REBCTX *Make_Selfish_Context_Detect(
     REBARR *varlist = Make_Array_Core(len, ARRAY_FLAG_VARLIST);
     TERM_ARRAY_LEN(varlist, len);
 
-    REBCTX *context = AS_CONTEXT(varlist);
+    REBCTX *context = CTX(varlist);
 
     // !!! We actually don't know if the keylist coming back from
     // Collect_Keylist_Managed was created new or reused.  Err on the safe
@@ -1000,10 +1000,10 @@ REBCTX *Merge_Contexts_Selfish(REBCTX *parent1, REBCTX *parent2)
     REBARR *keylist = Copy_Array_Shallow(BUF_COLLECT, SPECIFIED);
     MANAGE_ARRAY(keylist);
     SET_BLANK(ARR_HEAD(keylist)); // Currently no rootkey usage
-    AS_SERIES(keylist)->link.meta = NULL;
+    SER(keylist)->link.meta = NULL;
 
     REBARR *varlist = Make_Array_Core(ARR_LEN(keylist), ARRAY_FLAG_VARLIST);
-    REBCTX *merged = AS_CONTEXT(varlist);
+    REBCTX *merged = CTX(varlist);
     INIT_CTX_KEYLIST_UNIQUE(merged, keylist);
 
     // !!! Currently we assume the child will be of the same type as the
@@ -1230,7 +1230,7 @@ void Resolve_Context(
     // !!! Note we explicitly do *not* use Collect_Keys_End().  See warning
     // about errors, out of memory issues, etc. at Collect_Keys_Start()
     //
-    SET_SERIES_LEN(AS_SERIES(BUF_COLLECT), 0);  // allow reuse, no terminator
+    SET_SERIES_LEN(SER(BUF_COLLECT), 0);  // allow reuse, no terminator
 
     SHUTDOWN_BINDER(&binder);
 }

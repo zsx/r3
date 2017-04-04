@@ -67,8 +67,8 @@ void MAKE_Library(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
     VAL_RESET_HEADER(ARR_HEAD(singular), REB_LIBRARY);
     ARR_HEAD(singular)->payload.library.singular = singular;
 
-    AS_SERIES(singular)->misc.fd = fd;
-    AS_SERIES(singular)->link.meta = NULL; // build from spec, e.g. arg?
+    SER(singular)->misc.fd = fd;
+    SER(singular)->link.meta = NULL; // build from spec, e.g. arg?
 
     MANAGE_ARRAY(singular);
     Move_Value(out, KNOWN(ARR_HEAD(singular)));
@@ -100,7 +100,7 @@ REBTYPE(Library)
         }
         else {
             OS_CLOSE_LIBRARY(VAL_LIBRARY_FD(lib));
-            AS_SERIES(VAL_LIBRARY(lib))->misc.fd = NULL;
+            SER(VAL_LIBRARY(lib))->misc.fd = NULL;
         }
         return R_VOID; }
 

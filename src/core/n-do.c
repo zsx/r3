@@ -274,7 +274,7 @@ REBNATIVE(do)
         f->binding = VAL_BINDING(source);
 
         f->varlist = CTX_VARLIST(VAL_CONTEXT(source)); // need w/NULL def
-        AS_SERIES(f->varlist)->misc.f = f;
+        SER(f->varlist)->misc.f = f;
 
         return Apply_Frame_Core(f, Canon(SYM___ANONYMOUS__), NULL); }
 

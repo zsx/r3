@@ -202,7 +202,7 @@ REBOOL Do_Breakpoint_Throws(
                 if (frame->varlist == NULL)
                     continue;
 
-                if (VAL_CONTEXT(target) == AS_CONTEXT(frame->varlist)) {
+                if (VAL_CONTEXT(target) == CTX(frame->varlist)) {
                     // Found a match before hitting any breakpoints, so no
                     // need to retransmit.
                     //

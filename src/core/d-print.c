@@ -733,11 +733,11 @@ pick:
             REBSER* temp = va_arg(*vaptr, REBSER*);
             if (GET_SER_FLAG(temp, SERIES_FLAG_ARRAY)) {
                 VAL_RESET_HEADER(value, REB_BLOCK);
-                INIT_VAL_ARRAY(value, AS_ARRAY(temp)); // careful, macro!
+                INIT_VAL_ARRAY(value, ARR(temp));
             }
             else {
                 VAL_RESET_HEADER(value, REB_STRING);
-                INIT_VAL_SERIES(value, temp); // careful, macro!
+                INIT_VAL_SERIES(value, temp);
             }
             VAL_INDEX(value) = 0;
             Mold_Value(mo, value, TRUE);

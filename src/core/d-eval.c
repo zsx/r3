@@ -92,7 +92,7 @@ void Dump_Frame_Location(REBFRM *f)
         Init_Any_Series_At_Core(
             dump,
             REB_BLOCK,
-            AS_SERIES(f->source.array),
+            SER(f->source.array),
             cast(REBCNT, f->index),
             f->specifier
         );

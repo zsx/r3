@@ -74,7 +74,7 @@ static void get_scalar(
         // are to uniquely carry an ffi_type freed when they are GC'd
         //
         REBSTU *sub_stu = Alloc_Singular_Array();
-        AS_SERIES(sub_stu)->link.schema = field;
+        SER(sub_stu)->link.schema = field;
         REBVAL *single = SINK(ARR_HEAD(sub_stu));
 
         // In this case the structure lives at an offset inside another.
@@ -656,7 +656,7 @@ static REBSER *make_ext_storage(
     DECLARE_LOCAL (handle);
     Init_Handle_Managed(handle, cast(REBYTE*, raw_addr), len, &cleanup_noop);
 
-    return AS_SERIES(handle->extra.singular);
+    return SER(handle->extra.singular);
 }
 
 
@@ -1308,7 +1308,7 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
     SET_BLANK(ARR_HEAD(stu));
 
     MANAGE_ARRAY(schema);
-    AS_SERIES(stu)->link.schema = schema;
+    SER(stu)->link.schema = schema;
 
     VAL_RESET_HEADER(out, REB_STRUCT);
     out->payload.structure.stu = stu;
@@ -1480,7 +1480,7 @@ REBSTU *Copy_Struct_Managed(REBSTU *src)
     // linked manually.
     //
     REBSTU *copy = Copy_Array_Shallow(src, SPECIFIED);
-    AS_SERIES(copy)->link.schema = AS_SERIES(src)->link.schema;
+    SER(copy)->link.schema = SER(src)->link.schema;
 
     // Update the binary data with a copy of its sequence.
     //
@@ -1587,7 +1587,7 @@ REBNATIVE(destroy_struct_storage)
     if (NOT_SER_FLAG(data, SERIES_FLAG_ARRAY))
         fail (Error_No_External_Storage_Raw());
 
-    RELVAL *handle = ARR_HEAD(AS_ARRAY(data));
+    RELVAL *handle = ARR_HEAD(ARR(data));
 
     DECLARE_LOCAL (pointer);
     SET_INTEGER(pointer, cast(REBUPT, VAL_HANDLE_POINTER(void, handle)));
