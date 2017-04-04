@@ -285,7 +285,7 @@ inline static REBSTR *FLD_NAME(REBFLD *f) {
 inline static REBOOL FLD_IS_STRUCT(REBFLD *f)
     { return IS_BLOCK(FLD_AT(f, IDX_FIELD_TYPE)); }
 
-inline static unsigned short FLD_TYPE_SYM(REBFLD *f) {
+inline static REBSYM FLD_TYPE_SYM(REBFLD *f) {
     if (FLD_IS_STRUCT(f)) {
         //
         // We could return SYM_STRUCT_X for structs, but it's probably better

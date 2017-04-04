@@ -165,7 +165,7 @@ inline static REB_R R_FROM_BOOL(REBOOL b) {
 // will appear to be equal.  It's a tricky enough bug to catch to warrant an
 // extra check in C++ that disallows comparing SYMs with ==
 //
-#ifdef __cplusplus
+#if !defined(NDEBUG) && defined(__cplusplus)
     struct REBSYM;
 
     struct OPT_REBSYM { // can only be converted to REBSYM, no comparisons
