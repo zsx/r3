@@ -309,6 +309,8 @@ load: function [
     all_LOAD: all
     all: :lib/all
 
+    file: line: void
+
     ; NOTES:
     ; Note that code/data can be embedded in other datatypes, including
     ; not just text, but any binary data, including images, etc. The type
@@ -334,6 +336,9 @@ load: function [
 
         ;-- What type of file? Decode it too:
         maybe? [file! url!] source [
+            file: source
+            line: 1
+
             sftype: file-type? source
             ftype: case [
                 all [:ftype = 'unbound | :sftype = 'extension] [sftype]
@@ -366,7 +371,15 @@ load: function [
         ; data is binary or block now, hdr is object or blank
 
         ;-- Convert code to block, insert header if requested:
-        not block? data [data: to block! data]
+        not block? data [
+            if string? data [
+                data: to binary! data ;-- !!! inefficient, might be UTF8
+            ]
+            assert [binary? data]
+            data: transcode/file/line data :file :line
+            take/last data ;-- !!! always the residual, a #{}... why? 
+        ]
+
         header [insert data hdr]
 
         ;-- Bind code to user context:

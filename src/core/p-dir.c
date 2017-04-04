@@ -55,7 +55,7 @@ static int Read_Dir(struct devreq_file *dir, REBARR *files)
 
     // Temporary filename storage; native OS API character size (REBCHR) varies
     //
-    fname = Make_Series(MAX_FILE_NAME, sizeof(REBCHR), MKS_NONE);
+    fname = Make_Series(MAX_FILE_NAME, sizeof(REBCHR));
     file.path = SER_HEAD(REBCHR, fname);
 
     SET_FLAG(req->modes, RFM_DIR);

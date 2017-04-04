@@ -179,6 +179,15 @@ inline static void DS_PUSH(const REBVAL *v) {
         DS_DROP_TO_Core(dsp)
 #endif
 
+// If Pop_Stack_Values_Core is used SERIES_FLAG_FILE_LINE, it means the system
+// will try to capture the file and line number associated with the current
+// frame into the generated array.  But if there are other flags--like
+// ARRAY_FLAG_PARAMLIST or ARRAY_FLAG_VARLIST--it's assumed that you don't
+// want to do this, because the ->link and ->misc fields have other uses.
+//
+#define Pop_Stack_Values(dsp) \
+    Pop_Stack_Values_Core((dsp), SERIES_FLAG_FILE_LINE)
+
 
 //=////////////////////////////////////////////////////////////////////////=//
 //

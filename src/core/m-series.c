@@ -138,10 +138,10 @@ void Append_Values_Len(REBARR *a, const REBVAL *head, REBCNT len)
 //
 REBSER *Copy_Sequence(REBSER *original)
 {
-    REBCNT len = SER_LEN(original);
-    REBSER *copy = Make_Series(len + 1, SER_WIDE(original), MKS_NONE);
-
     assert(NOT_SER_FLAG(original, SERIES_FLAG_ARRAY));
+
+    REBCNT len = SER_LEN(original);
+    REBSER *copy = Make_Series(len + 1, SER_WIDE(original));
 
     memcpy(
         SER_DATA_RAW(copy),
@@ -164,10 +164,9 @@ REBSER *Copy_Sequence(REBSER *original)
 //
 REBSER *Copy_Sequence_At_Len(REBSER *original, REBCNT index, REBCNT len)
 {
-    REBSER *copy = Make_Series(len + 1, SER_WIDE(original), MKS_NONE);
-
     assert(NOT_SER_FLAG(original, SERIES_FLAG_ARRAY));
 
+    REBSER *copy = Make_Series(len + 1, SER_WIDE(original));
     memcpy(
         SER_DATA_RAW(copy),
         SER_DATA_RAW(original) + index * SER_WIDE(original),
@@ -418,7 +417,7 @@ REBSER *Copy_Buffer(REBSER *buf, REBCNT index, void *end)
 
     if (index) len -= index;
 
-    REBSER *copy = Make_Series(len + 1, SER_WIDE(buf), MKS_NONE);
+    REBSER *copy = Make_Series(len + 1, SER_WIDE(buf));
 
     memcpy(
         SER_DATA_RAW(copy),

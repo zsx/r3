@@ -140,6 +140,18 @@
 
 
 //
+// The fundamental Make_Series creator makes a series which is not GC
+// managed, and whose contents do not interact with the garbage collector.
+// It is possible to pre-create a managed series by using Make_Series_Core()
+// with the option NODE_FLAG_MANAGED...which bypasses the series being
+// added (and later removed) from the manuals tracking list.
+//
+#define Make_Series(capacity, wide) \
+    Make_Series_Core((capacity), (wide), 0)
+
+
+
+//
 // Series header FLAGs (distinct from INFO bits)
 //
 

@@ -282,7 +282,7 @@ REBNATIVE(typechecker)
 
     REBVAL *type = ARG(type);
 
-    REBARR *paramlist = Make_Array(2);
+    REBARR *paramlist = Make_Array_Core(2, ARRAY_FLAG_PARAMLIST);
 
     REBVAL *archetype = Alloc_Tail_Array(paramlist);
     VAL_RESET_HEADER(archetype, REB_FUNCTION);
@@ -293,7 +293,6 @@ REBNATIVE(typechecker)
     Init_Typeset(param, ALL_64, Canon(SYM_VALUE));
     INIT_VAL_PARAM_CLASS(param, PARAM_CLASS_NORMAL);
 
-    SET_SER_FLAG(paramlist, ARRAY_FLAG_PARAMLIST);
     MANAGE_ARRAY(paramlist);
 
     // for now, no help...use REDESCRIBE

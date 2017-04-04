@@ -31,6 +31,17 @@
 #include "sys-core.h"
 
 
+// !!! Currently, callers don't specify if they are copying an array to turn
+// it into a paramlist or varlist, or to use as the kind of array the user
+// might see.  If we used plain Make_Array() then it would add a flag saying
+// there were line numbers available, which might compete with flags written
+// later.  Pass SERIES_FLAG_ARRAY because it only will trigger the line
+// number behavior if the flags are 0.
+//
+#define Make_Array_For_Copy(a) \
+    Make_Array_Core((a), 0)
+
+
 //
 //  Copy_Array_At_Extra_Shallow: C
 //
@@ -45,12 +56,13 @@ REBARR *Copy_Array_At_Extra_Shallow(
     REBCNT extra
 ) {
     REBCNT len = ARR_LEN(original);
-    REBARR *copy;
 
-    if (index > len) return Make_Array(extra);
+    if (index > len)
+        return Make_Array_For_Copy(0);
 
     len -= index;
-    copy = Make_Array(len + extra + 1);
+
+    REBARR *copy = Make_Array_For_Copy(len + extra + 1);
 
     if (specifier == SPECIFIED) {
         //
@@ -97,12 +109,12 @@ REBARR *Copy_Array_At_Max_Shallow(
     REBCNT max
 ) {
     if (index > ARR_LEN(original))
-        return Make_Array(0);
+        return Make_Array_For_Copy(0);
 
     if (index + max > ARR_LEN(original))
         max = ARR_LEN(original) - index;
 
-    REBARR *copy = Make_Array(max + 1);
+    REBARR *copy = Make_Array_For_Copy(max + 1);
 
     if (specifier == SPECIFIED) {
     #if !defined(NDEBUG)
@@ -134,14 +146,15 @@ REBARR *Copy_Array_At_Max_Shallow(
 // Shallow copy the first 'len' values of `head` into a new
 // series created to hold exactly that many entries.
 //
-REBARR *Copy_Values_Len_Extra_Skip_Shallow(
+REBARR *Copy_Values_Len_Extra_Skip_Shallow_Core(
     const RELVAL *head,
     REBSPC *specifier,
     REBCNT len,
     REBCNT extra,
-    REBINT skip
+    REBINT skip,
+    REBUPT flags
 ) {
-    REBARR *array = Make_Array(len + extra + 1);
+    REBARR *array = Make_Array_Core(len + extra + 1, flags);
 
     if (specifier == SPECIFIED && skip == 1) {
     #if !defined(NDEBUG)
@@ -319,7 +332,7 @@ REBARR *Copy_Array_Core_Managed(
     if (index > tail) index = tail;
 
     if (index > ARR_LEN(original)) {
-        copy = Make_Array(extra);
+        copy = Make_Array_For_Copy(extra);
         MANAGE_ARRAY(copy);
     }
     else {
@@ -407,7 +420,7 @@ REBARR *Copy_Rerelativized_Array_Deep_Managed(
     REBFUN *before, // references to `before` will be changed to `after`
     REBFUN *after
 ) {
-    REBARR *copy = Make_Array(ARR_LEN(original));
+    REBARR *copy = Make_Array_For_Copy(ARR_LEN(original));
     RELVAL *src = ARR_HEAD(original);
     RELVAL *dest = ARR_HEAD(copy);
 

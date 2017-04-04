@@ -716,8 +716,9 @@ static REBARR *Init_Actions(REBARR *boot_actions)
 //
 static void Init_Root_Vars(void)
 {
-    REBARR *root = Make_Array(ROOT_MAX);
-    SET_SER_FLAG(root, SERIES_FLAG_FIXED_SIZE);
+    REBARR *root = Make_Array_Core(
+        ROOT_MAX, SERIES_FLAG_FIXED_SIZE | NODE_FLAG_ROOT
+    );
 
     PG_Root_Array = root;
     Root_Vars = cast(ROOT_VARS*, ARR_HEAD(root));
@@ -814,8 +815,6 @@ static void Init_Root_Vars(void)
 
     TERM_ARRAY_LEN(root, ROOT_MAX);
     ASSERT_ARRAY(root);
-
-    SET_SER_FLAG(root, NODE_FLAG_ROOT);
     MANAGE_ARRAY(root);
 }
 
@@ -949,8 +948,10 @@ static void Init_Contexts_Object(void)
 //
 void Init_Task(void)
 {
-    REBARR *task = Make_Array(TASK_MAX);
-    SET_SER_FLAG(task, SERIES_FLAG_FIXED_SIZE);
+    REBARR *task = Make_Array_Core(
+        TASK_MAX,
+        SERIES_FLAG_FIXED_SIZE | NODE_FLAG_ROOT
+    );
 
     TG_Task_Array = task;
     Task_Vars = cast(TASK_VARS*, ARR_HEAD(task));
@@ -989,8 +990,6 @@ void Init_Task(void)
 
     TERM_ARRAY_LEN(task, TASK_MAX);
     ASSERT_ARRAY(task);
-
-    SET_SER_FLAG(task, NODE_FLAG_ROOT);
     MANAGE_ARRAY(task);
 }
 
@@ -1184,8 +1183,12 @@ void Init_Core(void)
     if (utf8 == NULL || SER_LEN(utf8) != NAT_UNCOMPRESSED_SIZE)
         panic ("decompressed native specs size mismatch (try `make clean`)");
 
+    const char *tmp_boot_utf8 = "tmp-boot.r";
+    REBSTR *tmp_boot_filename = Intern_UTF8_Managed(
+        cb_cast(tmp_boot_utf8), strlen(tmp_boot_utf8)
+    );
     REBARR *boot_array = Scan_UTF8_Managed(
-        BIN_HEAD(utf8), NAT_UNCOMPRESSED_SIZE
+        BIN_HEAD(utf8), NAT_UNCOMPRESSED_SIZE, tmp_boot_filename
     );
     PUSH_GUARD_ARRAY(boot_array); // managed, so must be guarded
 

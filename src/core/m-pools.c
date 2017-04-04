@@ -328,7 +328,12 @@ void Init_Pools(REBINT scale)
 
     // Manually allocated series that GC is not responsible for (unless a
     // trap occurs). Holds series pointers.
-    GC_Manuals = Make_Series(15, sizeof(REBSER *), MKS_NONE | MKS_GC_MANUALS);
+    //
+    // As a trick to keep this series from trying to track itself, say it's
+    // managed, then sneak the flag off.
+    //
+    GC_Manuals = Make_Series_Core(15, sizeof(REBSER *), NODE_FLAG_MANAGED);
+    CLEAR_SER_FLAG(GC_Manuals, NODE_FLAG_MANAGED);
 
     Prior_Expand = ALLOC_N(REBSER*, MAX_EXPAND_LIST);
     CLEAR(Prior_Expand, sizeof(REBSER*) * MAX_EXPAND_LIST);
@@ -567,25 +572,19 @@ void Free_Node(REBCNT pool_id, void *pv)
 // This routine can thus be used for an initial construction or an operation
 // like expansion.  Currently not exported from this file.
 //
-static REBOOL Series_Data_Alloc(
-    REBSER *s,
-    REBCNT length,
-    REBYTE wide,
-    REBCNT flags
-) {
+static REBOOL Series_Data_Alloc(REBSER *s, REBCNT length) {
+    //
+    // Data should have not been allocated yet OR caller has extracted it
+    // and nulled it to indicate taking responsibility for freeing it.
+    //
+    assert(s->content.dynamic.data == NULL);
+
+    REBYTE wide = SER_WIDE(s);
+    assert(wide != 0);
+
     REBCNT size; // size of allocation (possibly bigger than we need)
 
     REBCNT pool_num = FIND_POOL(length * wide);
-
-    // Data should have not been allocated yet OR caller has extracted it
-    // and nulled it to indicate taking responsibility for freeing it.
-    assert(s->content.dynamic.data == NULL);
-
-    // !!! See BYTE_SIZE() for the rationale, and consider if this is a
-    // good tradeoff to be making.
-    //
-    assert(wide == 1 || (wide & 1) != 1);
-
     if (pool_num < SYSTEM_POOL) {
         // ...there is a pool designated for allocations of this size range
         s->content.dynamic.data = cast(REBYTE*, Make_Node(pool_num));
@@ -607,22 +606,18 @@ static REBOOL Series_Data_Alloc(
         // boundaries (or choose a power of 2, if requested).
 
         size = length * wide;
-        if (flags & MKS_POWER_OF_2) {
+        if (GET_SER_FLAG(s, SERIES_FLAG_POWER_OF_2)) {
             REBCNT len = 2048;
             while(len < size)
                 len *= 2;
             size = len;
 
-            // Only set the power of 2 flag if it adds information, e.g. if
-            // the size doesn't divide evenly by the item width
+            // Clear the power of 2 flag if it isn't necessary, due to even
+            // divisibility by the item width.
             //
-            if (size % wide != 0)
-                SET_SER_FLAG(s, SERIES_FLAG_POWER_OF_2);
-            else
+            if (size % wide == 0)
                 CLEAR_SER_FLAG(s, SERIES_FLAG_POWER_OF_2);
         }
-        else
-            CLEAR_SER_FLAG(s, SERIES_FLAG_POWER_OF_2);
 
         s->content.dynamic.data = ALLOC_N(REBYTE, size);
         if (s->content.dynamic.data == NULL)
@@ -632,22 +627,11 @@ static REBOOL Series_Data_Alloc(
         Mem_Pools[SYSTEM_POOL].free++;
     }
 
-    // Keep flags like SERIES_FLAG_FIXED_SIZE, but use new width and bias to 0
-    //
-    SER_SET_WIDE(s, wide);
-
     // Note: Bias field may contain other flags at some point.  Because
     // SER_SET_BIAS() uses bit masking on an existing value, we are sure
     // here to clear out the whole value for starters.
     //
     s->content.dynamic.bias = 0;
-
-    if (flags & MKS_ARRAY) {
-        assert(wide == sizeof(REBVAL));
-        SET_SER_FLAG(s, SERIES_FLAG_ARRAY);
-    }
-    else
-        CLEAR_SER_FLAG(s, SERIES_FLAG_ARRAY);
 
     // The allocation may have returned more than we requested, so we note
     // that in 'rest' so that the series can expand in and use the space.
@@ -668,14 +652,17 @@ static REBOOL Series_Data_Alloc(
 
     // See if allocation tripped our need to queue a garbage collection
 
-    if ((GC_Ballast -= size) <= 0) SET_SIGNAL(SIG_RECYCLE);
+    if ((GC_Ballast -= size) <= 0)
+        SET_SIGNAL(SIG_RECYCLE);
 
 #if !defined(NDEBUG)
     if (pool_num >= SYSTEM_POOL)
         assert(Series_Allocation_Unpooled(s) == size);
 #endif
 
-    if (flags & MKS_ARRAY) {
+    if (GET_SER_FLAG(s, SERIES_FLAG_ARRAY)) {
+        assert(wide == sizeof(REBVAL));
+
         REBCNT n;
 
     #if !defined(NDEBUG)
@@ -857,7 +844,7 @@ REBCNT Series_Allocation_Unpooled(REBSER *series)
 
 
 //
-//  Make_Series: C
+//  Make_Series_Core: C
 //
 // Make a series of a given capacity and width (unit size).
 // If the data is tiny enough, it will be fit into the series node itself.
@@ -865,11 +852,8 @@ REBCNT Series_Allocation_Unpooled(REBSER *series)
 // Large series will be allocated from system memory.
 // The series will be zero length to start with.
 //
-REBSER *Make_Series(REBCNT capacity, REBYTE wide, REBCNT flags)
+REBSER *Make_Series_Core(REBCNT capacity, REBYTE wide, REBUPT flags)
 {
-    // PRESERVE flag only makes sense for Remake_Series, where there is
-    // previous data to be kept.
-    assert(!(flags & MKS_PRESERVE));
     assert(wide != 0 && capacity != 0); // not allowed
 
     if (cast(REBU64, capacity) * wide > MAX_I32)
@@ -882,12 +866,12 @@ REBSER *Make_Series(REBCNT capacity, REBYTE wide, REBCNT flags)
 
     REBSER *s = cast(REBSER*, Make_Node(SER_POOL));
 
-    // Header bits can't be zero.  The NODE_FLAG_VALID is sufficient to identify
-    // this as a REBSER node that is not GC managed.  (Because NODE_FLAG_END is
+    // Header bits can't be zero.  NODE_FLAG_VALID is sufficient to identify
+    // this as a REBSER node that is not GC managed.  (Since NODE_FLAG_END is
     // not set, it cannot act as an implicit END marker; there has not
     // yet been a pressing need for a REBSER* to be able to do so.)
     //
-    s->header.bits = NODE_FLAG_VALID;
+    s->header.bits = NODE_FLAG_VALID | flags;
 
     if ((GC_Ballast -= sizeof(REBSER)) <= 0)
         SET_SIGNAL(SIG_RECYCLE);
@@ -920,7 +904,10 @@ REBSER *Make_Series(REBCNT capacity, REBYTE wide, REBCNT flags)
 
     s->content.dynamic.data = NULL;
 
-    if ((flags & MKS_ARRAY) && capacity <= 2) {
+    assert(wide != 0);
+    SER_SET_WIDE(s, wide);
+
+    if ((flags & SERIES_FLAG_ARRAY) && capacity <= 2) {
         //
         // An array requested of capacity 2 actually means one cell of data
         // and one cell that can serve as an END marker.  The invariant that
@@ -928,19 +915,16 @@ REBSER *Make_Series(REBCNT capacity, REBYTE wide, REBCNT flags)
         // an END, and that the caller must never write it...hence it can
         // be less than a full cell's size.
         //
-        SER_SET_WIDE(s, wide);
         assert(NOT_SER_INFO(s, SERIES_INFO_HAS_DYNAMIC));
-        SET_SER_FLAG(s, SERIES_FLAG_ARRAY);
         INIT_CELL(&s->content.values[0]);
     }
     else if (capacity * wide <= sizeof(s->content)) {
-        SER_SET_WIDE(s, wide);
         assert(NOT_SER_INFO(s, SERIES_INFO_HAS_DYNAMIC));
     }
     else {
         // Allocate the actual data blob that holds the series elements
 
-        if (!Series_Data_Alloc(s, capacity, wide, flags)) {
+        if (!Series_Data_Alloc(s, capacity)) {
             Free_Node(SER_POOL, s);
             fail (Error_No_Memory(capacity * wide));
         }
@@ -953,26 +937,42 @@ REBSER *Make_Series(REBCNT capacity, REBYTE wide, REBCNT flags)
         // it might be able to save on a reallocation.
     }
 
-    // All series (besides the series that is the list of manual series
-    // itself) start out in the list of manual series.  The only way
-    // the series will be cleaned up automatically is if a trap happens,
-    // or if it winds up handed to the GC to manage with MANAGE_SERIES().
+    // It is possible for a series to start out unmanaged and then be
+    // transitioned to managed, or it may start off in a managed state.  It
+    // is more efficient if you know a series is going to be managed to
+    // create it in the managed state (it doesn't have to be added and
+    // removed from a manuals list).  But be sure no evaluations are called
+    // in that case before the places that will hold it live are set up.
     //
-    // !!! Should there be a MKS_MANAGED to start a series out in the
-    // managed state, for efficiency?
+    // Note: The call to create GC_Manuals itself lies and says it is managed,
+    // just for the moment of set up, so it doesn't try to add itself to the
+    // manuals list!  It removes the managed flag after the create.
     //
-    if (NOT(flags & MKS_GC_MANUALS)) {
-        //
-        // We can only add to the GC_Manuals series if the series itself
-        // is not GC_Manuals...
-        //
+    if (NOT(flags & NODE_FLAG_MANAGED)) {
         assert(GET_SER_INFO(GC_Manuals, SERIES_INFO_HAS_DYNAMIC));
 
-        if (SER_FULL(GC_Manuals)) Extend_Series(GC_Manuals, 8);
+        if (SER_FULL(GC_Manuals))
+            Extend_Series(GC_Manuals, 8);
 
         cast(REBSER**, GC_Manuals->content.dynamic.data)[
             GC_Manuals->content.dynamic.len++
         ] = s;
+    }
+
+    // Since we're not the scanner, the only way we can attribute a file and
+    // a line number to a series created at runtime is to examine the frame
+    // stack and propagate whatever file and line number information it might
+    // know about from the source it's running onto this series.
+    //
+    if (flags & SERIES_FLAG_FILE_LINE) {
+        //
+        // !!! Feature TBD.  Until then take off the flag since leaving it on
+        // and not setting the fields would crash the GC.
+        //
+        // s->link.filename = ???
+        // s->misc.line = ???;
+        //
+        CLEAR_SER_FLAG(s, SERIES_FLAG_FILE_LINE);
     }
 
     assert(s->info.bits & NODE_FLAG_END);
@@ -1174,7 +1174,6 @@ void Expand_Series(REBSER *s, REBCNT index, REBCNT delta)
     REBCNT len_old = SER_LEN(s);
 
     REBYTE wide = SER_WIDE(s);
-    const REBOOL is_array = GET_SER_FLAG(s, SERIES_FLAG_ARRAY);
 
     const REBOOL was_dynamic = GET_SER_INFO(s, SERIES_INFO_HAS_DYNAMIC);
 
@@ -1188,7 +1187,7 @@ void Expand_Series(REBSER *s, REBCNT index, REBCNT delta)
         SER_SUB_BIAS(s, delta);
 
     #if !defined(NDEBUG)
-        if (is_array) {
+        if (GET_SER_FLAG(s, SERIES_FLAG_ARRAY)) {
             //
             // When the bias region was marked, it was made "unsettable" if
             // this was a debug build.  Now that the memory is included in
@@ -1237,7 +1236,7 @@ void Expand_Series(REBSER *s, REBCNT index, REBCNT delta)
         TERM_SERIES(s);
 
     #if !defined(NDEBUG)
-        if (is_array) {
+        if (GET_SER_FLAG(s, SERIES_FLAG_ARRAY)) {
             //
             // The opened up area needs to be set to "settable" trash in the
             // debug build.  This takes care of making "unsettable" values
@@ -1321,14 +1320,10 @@ void Expand_Series(REBSER *s, REBCNT index, REBCNT delta)
     // expanding if a fixed size allocation was sufficient.
 
     s->content.dynamic.data = NULL;
-    if (!Series_Data_Alloc(
-        s,
-        len_old + delta + x,
-        wide,
-        is_array ? (MKS_ARRAY | MKS_POWER_OF_2) : MKS_POWER_OF_2
-    )) {
+    SET_SER_FLAG(s, SERIES_FLAG_POWER_OF_2);
+    if (!Series_Data_Alloc(s, len_old + delta + x))
         fail (Error_No_Memory((len_old + delta + x) * wide));
-    }
+
     assert(s->content.dynamic.data != NULL);
 
     // If necessary, add series to the recently expanded list
@@ -1362,29 +1357,37 @@ void Expand_Series(REBSER *s, REBCNT index, REBCNT delta)
 #if !defined(NDEBUG)
     PG_Reb_Stats->Series_Expanded++;
 #endif
+
+    assert(NOT_SER_FLAG(s, NODE_FLAG_MARKED));
 }
 
 
 //
 //  Remake_Series: C
 //
-// Reallocate a series as a given maximum size. Content in the
-// retained portion of the length may be kept as-is if the
-// MKS_PRESERVE is passed in the flags.  The other flags are
-// handled the same as when passed to Make_Series.
+// Reallocate a series as a given maximum size.  Content in the retained
+// portion of the length may be kept as-is if NODE_FLAG_VALID is passed in.
+// The other flags are handled the same as when passed to Make_Series.
 //
-void Remake_Series(REBSER *s, REBCNT units, REBYTE wide, REBCNT flags)
+void Remake_Series(REBSER *s, REBCNT units, REBYTE wide, REBUPT flags)
 {
-    REBOOL is_array = GET_SER_FLAG(s, SERIES_FLAG_ARRAY);
+    // !!! This routine is being scaled back in terms of what it's allowed to
+    // do for the moment
+    //
+    assert((flags & ~(NODE_FLAG_VALID | SERIES_FLAG_POWER_OF_2)) == 0);
+
+    REBOOL preserve = LOGICAL(flags & NODE_FLAG_VALID);
+
     REBCNT len_old = SER_LEN(s);
     REBYTE wide_old = SER_WIDE(s);
 
 #if !defined(NDEBUG)
-    assert(is_array == LOGICAL(flags & MKS_ARRAY)); // can't switch arrayness
-
-    if (flags & MKS_PRESERVE)
+    if (preserve)
         assert(wide == wide_old); // can't change width if preserving
 #endif
+
+    SER_SET_WIDE(s, wide);
+    s->header.bits |= flags;
 
     assert(NOT_SER_FLAG(s, SERIES_FLAG_FIXED_SIZE));
 
@@ -1416,16 +1419,14 @@ void Remake_Series(REBSER *s, REBCNT units, REBYTE wide, REBCNT flags)
 
     s->content.dynamic.data = NULL;
 
-    if (!Series_Data_Alloc(
-        s, units + 1, wide, is_array ? MKS_ARRAY | flags : flags
-    )) {
+    if (!Series_Data_Alloc(s, units + 1)) {
         // Put series back how it was (there may be extant references)
         s->content.dynamic.data = data_old;
         fail (Error_No_Memory((units + 1) * wide));
     }
     assert(s->content.dynamic.data != NULL);
 
-    if (flags & MKS_PRESERVE) {
+    if (preserve) {
         // Preserve as much data as possible (if it was requested, some
         // operations may extract the data pointer ahead of time and do this
         // more selectively)
@@ -1439,7 +1440,7 @@ void Remake_Series(REBSER *s, REBCNT units, REBYTE wide, REBCNT flags)
     } else
         s->content.dynamic.len = 0;
 
-    if (flags & MKS_ARRAY)
+    if (GET_SER_FLAG(s, SERIES_FLAG_ARRAY))
         TERM_ARRAY_LEN(AS_ARRAY(s), SER_LEN(s));
     else
         TERM_SEQUENCE(s);
@@ -1646,9 +1647,8 @@ void Widen_String(REBSER *s, REBOOL preserve)
 
     s->content.dynamic.data = NULL;
 
-    if (!Series_Data_Alloc(
-        s, len_old + 1, cast(REBYTE, sizeof(REBUNI)), MKS_NONE
-    )) {
+    SER_SET_WIDE(s, cast(REBYTE, sizeof(REBUNI)));
+    if (!Series_Data_Alloc(s, len_old + 1)) {
         // Put series back how it was (there may be extant references)
         s->content.dynamic.data = data_old;
         fail (Error_No_Memory((len_old + 1) * sizeof(REBUNI)));

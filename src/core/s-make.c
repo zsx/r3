@@ -39,7 +39,7 @@
 //
 REBSER *Make_Binary(REBCNT length)
 {
-    REBSER *series = Make_Series(length + 1, sizeof(REBYTE), MKS_NONE);
+    REBSER *series = Make_Series(length + 1, sizeof(REBYTE));
 
     // !!! Clients seem to have different expectations of if `length` is
     // total capacity (and the binary should be empty) or actually is
@@ -60,7 +60,7 @@ REBSER *Make_Binary(REBCNT length)
 //
 REBSER *Make_Unicode(REBCNT length)
 {
-    REBSER *series = Make_Series(length + 1, sizeof(REBUNI), MKS_NONE);
+    REBSER *series = Make_Series(length + 1, sizeof(REBUNI));
 
     // !!! Clients seem to have different expectations of if `length` is
     // total capacity (and the binary should be empty) or actually is
@@ -262,7 +262,7 @@ REBSER *Copy_String_Slimming(REBSER *src, REBCNT index, REBINT length)
             wide = sizeof(REBUNI);
     }
 
-    REBSER *dst = Make_Series(length + 1, wide, MKS_NONE);
+    REBSER *dst = Make_Series(length + 1, wide);
     Insert_String(dst, 0, src, index, length, TRUE);
     TERM_SEQUENCE_LEN(dst, length);
 

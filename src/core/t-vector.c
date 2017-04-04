@@ -315,13 +315,11 @@ void Set_Vector_Value(REBVAL *var, REBSER *series, REBCNT index)
 //
 REBSER *Make_Vector(REBINT type, REBINT sign, REBINT dims, REBINT bits, REBINT size)
 {
-    REBCNT len;
-    REBSER *ser;
+    REBCNT len = size * dims;
+    if (len > 0x7fffffff)
+        fail ("vector size too big");
 
-    len = size * dims;
-    if (len > 0x7fffffff) return 0;
-    // !!! can width help extend the len?
-    ser = Make_Series(len + 1, bits/8, MKS_NONE | MKS_POWER_OF_2);
+    REBSER *ser = Make_Series_Core(len + 1, bits/8, SERIES_FLAG_POWER_OF_2);
     CLEAR(SER_DATA_RAW(ser), (len * bits) / 8);
     SET_SERIES_LEN(ser, len);
 

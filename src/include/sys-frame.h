@@ -459,9 +459,12 @@ inline static void Push_Or_Alloc_Args_For_Underlying_Func(
         // not quite ready--so the classic interpretation is that it's all or
         // nothing (similar to FUNCTION! vs. CLOSURE! in this respect)
         //
-        f->varlist = Make_Array(num_args + 1);
+        // Note we *don't* set ARRAY_FLAG_VARLIST here, because it is being
+        // used as a signal as to whether the varlist is "valid" and fully
+        // reified for use.
+        //
+        f->varlist = Make_Array_Core(num_args + 1, SERIES_FLAG_FIXED_SIZE);
         TERM_ARRAY_LEN(f->varlist, num_args + 1);
-        SET_SER_FLAG(f->varlist, SERIES_FLAG_FIXED_SIZE);
 
         // Skip the [0] slot which will be filled with the CTX_VALUE
         // !!! Note: Make_Array made the 0 slot an end marker

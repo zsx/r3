@@ -71,36 +71,34 @@ void Init_Stacks(REBCNT size)
     assert(IS_END(&TG_Top_Chunk->values[0]));
 
     // Start the data stack out with just one element in it, and make it an
-    // unwritable trash for the debug build.  This helps avoid both accidental
-    // reads and writes of an empty stack, as well as meaning that indices
-    // into the data stack can be unsigned (no need for -1 to mean empty,
-    // because 0 can)
-    {
-        DS_Array = Make_Array(1);
-        DS_Movable_Base = KNOWN(ARR_HEAD(DS_Array)); // can't push RELVALs
+    // unreadable blank in the debug build.  This helps avoid accidental
+    // reads and is easy to notice when it is overwritten.  It also means
+    // that indices into the data stack can be unsigned (no need for -1 to
+    // mean empty, because 0 can)
+    //
+    // DS_PUSH checks what you're pushing isn't void, as most arrays can't
+    // contain them.  But DS_PUSH_MAYBE_VOID allows you to, in case you
+    // are building a context varlist or similar.
+    //
+    DS_Array = Make_Array_Core(1, ARRAY_FLAG_VOIDS_LEGAL);
+    SET_UNREADABLE_BLANK(ARR_HEAD(DS_Array));
 
-        SET_UNREADABLE_BLANK(ARR_HEAD(DS_Array));
+    // The END marker will signal DS_PUSH that it has run out of space,
+    // and it will perform the allocation at that time.
+    //
+    TERM_ARRAY_LEN(DS_Array, 1);
+    ASSERT_ARRAY(DS_Array);
 
-        // The END marker will signal DS_PUSH that it has run out of space,
-        // and it will perform the allocation at that time.
-        //
-        TERM_ARRAY_LEN(DS_Array, 1);
-        ASSERT_ARRAY(DS_Array);
+    // Reuse the expansion logic that happens on a DS_PUSH to get the
+    // initial stack size.  It requires you to be on an END to run.
+    //
+    DS_Index = 1;
+    DS_Movable_Base = KNOWN(ARR_HEAD(DS_Array)); // can't push RELVALs
+    Expand_Data_Stack_May_Fail(size);
 
-        // DS_PUSH checks what you're pushing isn't void, as most arrays can't
-        // contain them.  But DS_PUSH_MAYBE_VOID allows you to, in case you
-        // are building a context varlist or similar.
-        //
-        SET_SER_FLAG(DS_Array, ARRAY_FLAG_VOIDS_LEGAL);
-
-        // Reuse the expansion logic that happens on a DS_PUSH to get the
-        // initial stack size.  It requires you to be on an END to run.  Then
-        // drop the hypothetical thing pushed.
-        //
-        DS_Index = 1;
-        Expand_Data_Stack_May_Fail(size);
-        DS_DROP;
-    }
+    // Now drop the hypothetical thing pushed that triggered the expand.
+    //
+    DS_DROP;
 
     // Call stack (includes pending functions, parens...anything that sets
     // up a `REBFRM` and calls Do_Core())  Singly linked.
@@ -206,12 +204,13 @@ void Expand_Data_Stack_May_Fail(REBCNT amount)
 //
 // Pops computed values from the stack to make a new ARRAY.
 //
-REBARR *Pop_Stack_Values(REBDSP dsp_start)
+REBARR *Pop_Stack_Values_Core(REBDSP dsp_start, REBUPT flags)
 {
-    REBARR *array = Copy_Values_Len_Shallow(
+    REBARR *array = Copy_Values_Len_Shallow_Core(
         DS_AT(dsp_start + 1), // start somewhere in the stack, end at DS_TOP
         SPECIFIED, // data stack should be fully specified--no relative values
-        DSP - dsp_start // len
+        DSP - dsp_start, // len
+        flags
     );
 
     DS_DROP_TO(dsp_start);
@@ -289,8 +288,9 @@ void Reify_Frame_Context_Maybe_Fulfilling(REBFRM *f) {
         assert(GET_SER_INFO(f->varlist, SERIES_INFO_HAS_DYNAMIC));
     }
     else {
-        f->varlist = Alloc_Singular_Array();
-        SET_SER_FLAGS(f->varlist, ARRAY_FLAG_VARLIST | CONTEXT_FLAG_STACK);
+        f->varlist = Alloc_Singular_Array_Core(
+            ARRAY_FLAG_VARLIST | CONTEXT_FLAG_STACK
+        );
     }
 
     REBCTX *c = AS_CONTEXT(f->varlist);

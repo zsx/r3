@@ -249,9 +249,7 @@ REBNATIVE(checksum)
             if (!SAME_SYM_NONZERO(digests[i].sym, sym))
                 continue;
 
-            REBSER *digest = Make_Series(
-                digests[i].len + 1, sizeof(char), MKS_NONE
-            );
+            REBSER *digest = Make_Series(digests[i].len + 1, sizeof(char));
 
             if (NOT(REF(key)))
                 digests[i].digest(data, len, BIN_HEAD(digest));

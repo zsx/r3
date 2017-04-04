@@ -51,9 +51,7 @@ REBINT CT_Map(const RELVAL *a, const RELVAL *b, REBINT mode)
 //
 static REBMAP *Make_Map(REBCNT capacity)
 {
-    REBARR *pairlist = Make_Array(capacity * 2);
-    SET_SER_FLAG(pairlist, ARRAY_FLAG_PAIRLIST);
-
+    REBARR *pairlist = Make_Array_Core(capacity * 2, ARRAY_FLAG_PAIRLIST);
     AS_SERIES(pairlist)->link.hashlist = Make_Hash_Sequence(capacity);
 
     return AS_MAP(pairlist);
@@ -260,7 +258,7 @@ void Expand_Hash(REBSER *ser)
     }
 
     assert(NOT_SER_FLAG(ser, SERIES_FLAG_ARRAY));
-    Remake_Series(ser, pnum + 1, SER_WIDE(ser), MKS_POWER_OF_2);
+    Remake_Series(ser, pnum + 1, SER_WIDE(ser), SERIES_FLAG_POWER_OF_2);
 
     Clear_Series(ser);
     SET_SERIES_LEN(ser, pnum);

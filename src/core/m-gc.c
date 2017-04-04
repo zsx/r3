@@ -130,6 +130,10 @@ static inline void Mark_Rebser_Only(REBSER *s)
         panic (s);
     }
 #endif
+    assert(NOT_SER_FLAG(s, SERIES_FLAG_ARRAY));
+
+    if (s->header.bits & SERIES_FLAG_FILE_LINE)
+        s->link.filename->header.bits |= NODE_FLAG_MARKED;
     s->header.bits |= NODE_FLAG_MARKED;
 }
 
@@ -185,7 +189,7 @@ static void Queue_Mark_Array_Subclass_Deep(REBARR *a)
     if (Is_Rebser_Marked_Or_Pending(AS_SERIES(a)))
         return;
 
-    Mark_Rebser_Only(AS_SERIES(a)); // the up-front marking just mentioned
+    AS_SERIES(a)->header.bits |= NODE_FLAG_MARKED; // the up-front marking
 
     // Add series to the end of the mark stack series.  The length must be
     // maintained accurately to know when the stack needs to grow.
@@ -204,6 +208,9 @@ inline static void Queue_Mark_Array_Deep(REBARR *a) {
     assert(NOT_SER_FLAG(a, ARRAY_FLAG_PARAMLIST));
     assert(NOT_SER_FLAG(a, ARRAY_FLAG_PAIRLIST));
 
+    if (GET_SER_FLAG(a, SERIES_FLAG_FILE_LINE))
+        AS_SERIES(a)->link.filename->header.bits |= NODE_FLAG_MARKED;
+
     Queue_Mark_Array_Subclass_Deep(a);
 }
 
@@ -212,6 +219,7 @@ inline static void Queue_Mark_Context_Deep(REBCTX *c) {
     assert(GET_SER_FLAG(a, ARRAY_FLAG_VARLIST));
     assert(NOT_SER_FLAG(a, ARRAY_FLAG_PARAMLIST));
     assert(NOT_SER_FLAG(a, ARRAY_FLAG_PAIRLIST));
+    assert(NOT_SER_FLAG(a, SERIES_FLAG_FILE_LINE));
 
     Queue_Mark_Array_Subclass_Deep(a);
 
@@ -225,6 +233,7 @@ inline static void Queue_Mark_Function_Deep(REBFUN *f) {
     assert(GET_SER_FLAG(a, ARRAY_FLAG_PARAMLIST));
     assert(NOT_SER_FLAG(a, ARRAY_FLAG_VARLIST));
     assert(NOT_SER_FLAG(a, ARRAY_FLAG_PAIRLIST));
+    assert(NOT_SER_FLAG(a, SERIES_FLAG_FILE_LINE));
 
     Queue_Mark_Array_Subclass_Deep(a);
 
@@ -238,12 +247,32 @@ inline static void Queue_Mark_Map_Deep(REBMAP *m) {
     assert(GET_SER_FLAG(a, ARRAY_FLAG_PAIRLIST));
     assert(NOT_SER_FLAG(a, ARRAY_FLAG_PARAMLIST));
     assert(NOT_SER_FLAG(a, ARRAY_FLAG_VARLIST));
+    assert(NOT_SER_FLAG(a, SERIES_FLAG_FILE_LINE));
+
 
     Queue_Mark_Array_Subclass_Deep(a);
 
     // Further handling is in Propagate_All_GC_Marks() for ARRAY_FLAG_PAIRLIST
     // where it can safely call Queue_Mark_Map_Deep() again without it
     // being a recursion.  (e.g. marking underlying function for this function)
+}
+
+
+static void Queue_Mark_Opt_Value_Deep(const RELVAL *v);
+
+// A singular array, if you know it to be singular, can be marked a little
+// faster by avoiding a queue step for the array node or walk.
+//
+inline static void Queue_Mark_Singular_Array(REBARR *a) {
+    assert(NOT_SER_FLAG(a, ARRAY_FLAG_PAIRLIST));
+    assert(NOT_SER_FLAG(a, ARRAY_FLAG_PARAMLIST));
+    assert(NOT_SER_FLAG(a, ARRAY_FLAG_VARLIST));
+    assert(NOT_SER_FLAG(a, SERIES_FLAG_FILE_LINE));
+
+    assert(NOT_SER_INFO(a, SERIES_INFO_HAS_DYNAMIC));
+
+    AS_SERIES(a)->header.bits |= NODE_FLAG_MARKED;
+    Queue_Mark_Opt_Value_Deep(ARR_HEAD(a));
 }
 
 
@@ -407,9 +436,10 @@ static void Queue_Mark_Opt_Value_Deep(const RELVAL *v)
         else {
             // Handle was created with Init_Handle_Managed.  It holds a
             // REBSER node that contains exactly one handle, and the actual
-            // data for the handle lives in that shared location.
+            // data for the handle lives in that shared location.  There is
+            // nothing the GC needs to see inside a handle.
             // 
-            Mark_Rebser_Only(AS_SERIES(singular));
+            AS_SERIES(singular)->header.bits |= NODE_FLAG_MARKED;
 
         #if !defined(NDEBUG)
             assert(ARR_LEN(singular) == 1);
@@ -715,9 +745,7 @@ static void Propagate_All_GC_Marks(void)
             // to Queue_Mark_Function_Deep.
 
             REBARR *body_holder = v->payload.function.body_holder;
-            assert(ARR_LEN(body_holder) == 1);
-            Mark_Rebser_Only(AS_SERIES(body_holder));
-            Queue_Mark_Opt_Value_Deep(ARR_HEAD(body_holder));
+            Queue_Mark_Singular_Array(body_holder);
 
             REBCTX *exemplar = AS_SERIES(body_holder)->link.exemplar;
             if (exemplar != NULL)
@@ -1653,12 +1681,12 @@ void Init_GC(void)
 
     // Temporary series and values protected from GC. Holds node pointers.
     //
-    GC_Guarded = Make_Series(15, sizeof(REBNOD*), MKS_NONE);
+    GC_Guarded = Make_Series(15, sizeof(REBNOD*));
 
     // The marking queue used in lieu of recursion to ensure that deeply
     // nested structures don't cause the C stack to overflow.
     //
-    GC_Mark_Stack = Make_Series(100, sizeof(REBARR*), MKS_NONE);
+    GC_Mark_Stack = Make_Series(100, sizeof(REBARR*));
     TERM_SEQUENCE(GC_Mark_Stack);
 }
 

@@ -557,6 +557,14 @@ struct Reb_Series {
     // "payload" which might need to be 64-bit aligned as well.
     //
     union {
+        // Ordinary source series use their ->link field to point to an
+        // interned file name string from which the code was loaded.  If a
+        // series was not created from a file, then the information from the
+        // source that was running at the time is propagated into the new
+        // second-generation series.
+        //
+        REBSTR *filename;
+
         // REBCTX types use this to point from the varlist (the object's
         // values, which is the identity of the object) to the keylist.  One
         // reason why this is stored in the REBSER node of the varlist REBARR
@@ -623,6 +631,12 @@ struct Reb_Series {
     // might be referring to the series.
     //
     union {
+        // Ordinary source series store the line number here.  It probably
+        // could have some bits taken out of it, vs. being a full 32-bit
+        // integer on 32-bit platforms.
+        //
+        REBUPT line;
+
         // native dispatcher code, see Reb_Function's body_holder
         //
         REBNAT dispatcher;

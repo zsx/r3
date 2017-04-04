@@ -214,7 +214,7 @@ static void Insert_Gobs(
 
     // Create or expand the pane series:
     if (!GOB_PANE(gob)) {
-        GOB_PANE(gob) = Make_Series(count + 1, sizeof(REBGOB*), MKS_NONE);
+        GOB_PANE(gob) = Make_Series(count + 1, sizeof(REBGOB*));
         SET_GOB_LEN(gob, count);
         index = 0;
 

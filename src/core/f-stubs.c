@@ -414,6 +414,9 @@ void Init_Any_Context_Core(REBVAL *out, enum Reb_Kind kind, REBCTX *c) {
 
     assert(GET_SER_FLAG(CTX_VARLIST(c), ARRAY_FLAG_VARLIST));
 
+    assert(NOT_SER_FLAG(CTX_VARLIST(c), SERIES_FLAG_FILE_LINE));
+    assert(NOT_SER_FLAG(CTX_KEYLIST(c), SERIES_FLAG_FILE_LINE));
+
     if (IS_FRAME(CTX_VALUE(c)))
         assert(IS_FUNCTION(CTX_FRAME_FUNC_VALUE(c)));
 

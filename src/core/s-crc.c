@@ -382,18 +382,15 @@ REBCNT Hash_Value(const RELVAL *v)
 //
 REBSER *Make_Hash_Sequence(REBCNT len)
 {
-    REBCNT n;
-    REBSER *ser;
-
-    n = Get_Hash_Prime(len * 2); // best when 2X # of keys
-    if (!n) {
+    REBCNT n = Get_Hash_Prime(len * 2); // best when 2X # of keys
+    if (n == 0) {
         DECLARE_LOCAL (temp);
         SET_INTEGER(temp, len);
 
         fail (Error_Size_Limit_Raw(temp));
     }
 
-    ser = Make_Series(n + 1, sizeof(REBCNT), MKS_NONE);
+    REBSER *ser = Make_Series(n + 1, sizeof(REBCNT));
     Clear_Series(ser);
     SET_SERIES_LEN(ser, n);
 

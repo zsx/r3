@@ -189,10 +189,11 @@ void TO_Array(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
         REBCNT index;
         REBSER *utf8 = Temp_Bin_Str_Managed(arg, &index, NULL);
         PUSH_GUARD_SERIES(utf8);
+        REBSTR * const filename = Canon(SYM___ANONYMOUS__);
         Init_Any_Array(
             out,
             kind,
-            Scan_UTF8_Managed(BIN_HEAD(utf8), BIN_LEN(utf8))
+            Scan_UTF8_Managed(BIN_HEAD(utf8), BIN_LEN(utf8), filename)
         );
         DROP_GUARD_SERIES(utf8);
     }
@@ -201,8 +202,11 @@ void TO_Array(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
         // `to block! #{00BDAE....}` assumes the binary data is UTF8, and
         // goes directly to the scanner to make an unbound code array.
         //
+        REBSTR * const filename = Canon(SYM___ANONYMOUS__);
         Init_Any_Array(
-            out, kind, Scan_UTF8_Managed(VAL_BIN_AT(arg), VAL_LEN_AT(arg))
+            out,
+            kind,
+            Scan_UTF8_Managed(VAL_BIN_AT(arg), VAL_LEN_AT(arg), filename)
         );
     }
     else if (IS_MAP(arg)) {

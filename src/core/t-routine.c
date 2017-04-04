@@ -670,8 +670,7 @@ static void ffi_to_rebol(
 
         REBSER *data = Make_Series(
             FLD_WIDE(top), // !!! what about FLD_LEN_BYTES_TOTAL ?
-            sizeof(REBYTE),
-            MKS_NONE
+            sizeof(REBYTE)
         );
         memcpy(SER_HEAD(REBYTE, data), ffi_rvalue, FLD_WIDE(top));
         MANAGE_SERIES(data);
@@ -841,7 +840,7 @@ REB_R Routine_Dispatcher(REBFRM *f)
     // base of the series.  Hence the offsets must be mutated into pointers
     // at the last minute before the FFI call.
     //
-    REBSER *store = Make_Series(1, sizeof(REBYTE), MKS_NONE);
+    REBSER *store = Make_Series(1, sizeof(REBYTE));
 
     void *ret_offset;
     if (!IS_BLANK(RIN_RET_SCHEMA(rin))) {
@@ -864,7 +863,7 @@ REB_R Routine_Dispatcher(REBFRM *f)
     if (num_args == 0)
         arg_offsets = NULL; // don't waste time with the alloc + free
     else
-        arg_offsets = Make_Series(num_args, sizeof(void*), MKS_NONE);
+        arg_offsets = Make_Series(num_args, sizeof(void*));
 
     REBCNT i = 0;
 

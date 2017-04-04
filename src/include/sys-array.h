@@ -208,9 +208,14 @@ inline static void Deep_Freeze_Array(REBARR *a) {
 // marked for the garbage collector to look into recursively).
 // Terminator included implicitly. Sets TAIL to zero.
 //
-inline static REBARR *Make_Array(REBCNT capacity)
+inline static REBARR *Make_Array_Core(REBCNT capacity, REBUPT flags)
 {
-    REBSER *s = Make_Series(capacity + 1, sizeof(REBVAL), MKS_ARRAY);
+    REBSER *s = Make_Series_Core(
+        capacity + 1,
+        sizeof(REBVAL),
+        flags | SERIES_FLAG_ARRAY
+    );
+
     assert(
         capacity <= 1
             ? NOT(GET_SER_INFO(s, SERIES_INFO_HAS_DYNAMIC))
@@ -222,6 +227,9 @@ inline static REBARR *Make_Array(REBCNT capacity)
     return a;
 }
 
+#define Make_Array(capacity) \
+    Make_Array_Core((capacity), SERIES_FLAG_FILE_LINE)
+
 
 // A singular array is specifically optimized to hold *one* value in a REBSER
 // directly, and stay fixed at that size.  Note that the internal logic of
@@ -230,18 +238,28 @@ inline static REBARR *Make_Array(REBCNT capacity)
 // bit and defaults the array to an uninitialized cell with length 1, vs.
 // going through a length 0 step.
 //
-inline static REBARR *Alloc_Singular_Array(void) {
-    REBSER *s = Make_Series(2, sizeof(REBVAL), MKS_ARRAY); // no real 2nd slot
+inline static REBARR *Alloc_Singular_Array_Core(REBUPT flags) {
+    REBSER *s = Make_Series_Core(
+        2, // Length 2 is requested, but there is no "real" second slot
+        sizeof(REBVAL),
+        SERIES_FLAG_ARRAY | SERIES_FLAG_FIXED_SIZE | flags
+    );
     assert(NOT(GET_SER_INFO(s, SERIES_INFO_HAS_DYNAMIC)));
 
+    // The length still needs to be set in the header, as it defaults
+    // to 0 and we want it to be 1.
+    //
+    CLEAR_8_MID_BITS(s->info.bits);
+    s->info.bits |= FLAGBYTE_MID(1);
+    assert(SER_LEN(s) == 1);
+
     REBARR *a = AS_ARRAY(s);
-    SET_SER_FLAG(a, SERIES_FLAG_FIXED_SIZE);
-
-    SET_SERIES_LEN(s, 1); // currently needs length bits set
     assert(IS_END(ARR_TAIL(a)));
-
     return a;
 }
+
+#define Alloc_Singular_Array() \
+    Alloc_Singular_Array_Core(0)
 
 
 #define Append_Value(a,v) \
@@ -252,13 +270,16 @@ inline static REBARR *Alloc_Singular_Array(void) {
 
 
 #define Copy_Values_Len_Shallow(v,s,l) \
-    Copy_Values_Len_Extra_Skip_Shallow((v), (s), (l), 0, 1)
+    Copy_Values_Len_Extra_Skip_Shallow_Core((v), (s), (l), 0, 1, 0)
+
+#define Copy_Values_Len_Shallow_Core(v,s,l,f) \
+    Copy_Values_Len_Extra_Skip_Shallow_Core((v), (s), (l), 0, 1, (f))
 
 #define Copy_Values_Len_Reversed_Shallow(v,s,l) \
-    Copy_Values_Len_Extra_Skip_Shallow((v), (s), (l), 0, -1)
+    Copy_Values_Len_Extra_Skip_Shallow_Core((v), (s), (l), 0, -1, 0)
 
 #define Copy_Values_Len_Extra_Shallow(v, s, l, e) \
-    Copy_Values_Len_Extra_Skip_Shallow((v), (s), (l), (e), 1) 
+    Copy_Values_Len_Extra_Skip_Shallow_Core((v), (s), (l), (e), 1, 0) 
 
 
 #define Copy_Array_Shallow(a,s) \

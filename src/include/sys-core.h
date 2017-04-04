@@ -327,16 +327,6 @@ enum Boot_Levels {
     BOOT_LEVEL_FULL
 };
 
-// Modes allowed by Make_Series function:
-enum {
-    MKS_NONE        = 0,        // data is opaque (not delved into by the GC)
-    MKS_ARRAY       = 1 << 0,   // Contains REBVALs (seen by GC and Debug)
-    MKS_POWER_OF_2  = 1 << 1,   // Round size up to a power of 2
-    MKS_EXTERNAL    = 1 << 2,   // Uses external pointer--don't alloc data
-    MKS_PRESERVE    = 1 << 3,   // "Remake" only (save what data possible)
-    MKS_GC_MANUALS  = 1 << 4    // used in implementation of series itself
-};
-
 // Modes allowed by Make_Function:
 enum {
     MKF_NONE        = 0,        // no special handling (e.g. MAKE FUNCTION!)

@@ -1672,7 +1672,7 @@ void Push_Mold(REB_MOLD *mold)
             mold->series,
             SER_LEN(mold->series) + MIN_COMMON,
             SER_WIDE(mold->series),
-            MKS_PRESERVE
+            NODE_FLAG_VALID // NODE_FLAG_VALID means preserve the data
         );
     }
 

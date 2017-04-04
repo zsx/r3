@@ -866,7 +866,7 @@ REBNATIVE(call)
         PUSH_GUARD_SERIES(cmd_ser);
 
         argc = 1;
-        argv_ser = Make_Series(argc + 1, sizeof(REBCHR*), MKS_NONE);
+        argv_ser = Make_Series(argc + 1, sizeof(REBCHR*));
         argv = SER_HEAD(const REBCHR*, argv_ser);
 
         argv[0] = cmd;
@@ -884,8 +884,8 @@ REBNATIVE(call)
 
         if (argc <= 0) fail (Error_Too_Short_Raw());
 
-        argv_ser = Make_Series(argc + 1, sizeof(REBCHR*), MKS_NONE);
-        argv_saved_sers = Make_Series(argc, sizeof(REBSER*), MKS_NONE);
+        argv_ser = Make_Series(argc + 1, sizeof(REBCHR*));
+        argv_saved_sers = Make_Series(argc, sizeof(REBSER*));
         argv = SER_HEAD(const REBCHR*, argv_ser);
         for (i = 0; i < argc; i ++) {
             RELVAL *param = VAL_ARRAY_AT_HEAD(arg, i);
@@ -915,8 +915,8 @@ REBNATIVE(call)
 
         cmd = NULL;
         argc = 1;
-        argv_ser = Make_Series(argc + 1, sizeof(REBCHR*), MKS_NONE);
-        argv_saved_sers = Make_Series(argc, sizeof(REBSER*), MKS_NONE);
+        argv_ser = Make_Series(argc + 1, sizeof(REBCHR*));
+        argv_saved_sers = Make_Series(argc, sizeof(REBSER*));
 
         argv = SER_HEAD(const REBCHR*, argv_ser);
 

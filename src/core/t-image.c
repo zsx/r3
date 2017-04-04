@@ -580,15 +580,13 @@ REBSER *Make_Image_Binary(const REBVAL *image)
 //
 REBSER *Make_Image(REBCNT w, REBCNT h, REBOOL error)
 {
-    REBSER *img;
-
     if (w > 0xFFFF || h > 0xFFFF) {
         if (error)
             fail (Error_Size_Limit_Raw(Get_Type(REB_IMAGE)));
         return NULL;
     }
 
-    img = Make_Series(w * h + 1, sizeof(u32), MKS_NONE);
+    REBSER *img = Make_Series(w * h + 1, sizeof(u32));
     SET_SERIES_LEN(img, w * h);
     RESET_IMAGE(SER_DATA_RAW(img), SER_LEN(img)); //length in 'pixels'
     IMG_WIDE(img) = w;

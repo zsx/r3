@@ -1358,11 +1358,17 @@ scanword:
 // Initialize a scanner state structure.  Set the standard
 // scan pointers and the limit pointer.
 //
-static void Init_Scan_State(SCAN_STATE *scan_state, const REBYTE *cp, REBCNT limit)
-{
-    scan_state->head_line = scan_state->begin = scan_state->end = cp;
-    scan_state->limit = cp + limit;
-    scan_state->line_count = 1;
+static void Init_Scan_State(
+    SCAN_STATE *scan_state,
+    const REBYTE *utf8,
+    REBCNT limit,
+    REBSTR *filename,
+    REBUPT start_line
+) {
+    scan_state->head_line = scan_state->begin = scan_state->end = utf8;
+    scan_state->limit = utf8 + limit;
+    scan_state->line_count = start_line;
+    scan_state->filename = filename;
     scan_state->opts = 0;
     scan_state->has_error = FALSE;
     scan_state->errors = 0;
@@ -1445,9 +1451,9 @@ static REBARR *Scan_Full_Array(SCAN_STATE *scan_state, REBYTE mode_char);
 // If the source bytes are "[1]" then it will be the array [[1]]
 //
 // Variations like GET-PATH!, SET-PATH! or LIT-PATH! are not discerned in
-// the result. here.  Instead, ordinary path scanning is done, followed by a
+// the result here.  Instead, ordinary path scanning is done, followed by a
 // transformation (e.g. if the first element was a GET-WORD!, change it to
-// an ordinary WORD! and make it a GET-PATH!)
+// an ordinary WORD! and make it a GET-PATH!)  The caller does this.
 //
 static REBARR *Scan_Array(
     SCAN_STATE *scan_state,
@@ -1895,6 +1901,19 @@ static REBARR *Scan_Array(
             fail (error); }
         }
 
+        if (ANY_ARRAY(DS_TOP)) {
+            //
+            // Current thinking is that only arrays will preserve file and
+            // line numbers, because if ANY-STRING! merges with WORD! then
+            // they might wind up using the ->misc and ->link fields for
+            // canonizing and interning like REBSTR* does.
+            //
+            REBSER *s = VAL_SERIES(DS_TOP);
+            s->misc.line = scan_state->line_count;
+            s->link.filename = scan_state->filename;
+            SET_SER_FLAG(s, SERIES_FLAG_FILE_LINE);
+        }
+
         if (line) {
             line = FALSE;
             SET_VAL_FLAG(DS_TOP, VALUE_FLAG_LINE);
@@ -2006,10 +2025,11 @@ static REBARR *Scan_Full_Array(SCAN_STATE *scan_state, REBYTE mode_char)
 //
 // Scan source code. Scan state initialized. No header required.
 //
-REBARR *Scan_UTF8_Managed(const REBYTE *utf8, REBCNT len)
+REBARR *Scan_UTF8_Managed(const REBYTE *utf8, REBCNT len, REBSTR *filename)
 {
     SCAN_STATE scan_state;
-    Init_Scan_State(&scan_state, utf8, len);
+    const REBUPT start_line = 1;
+    Init_Scan_State(&scan_state, utf8, len, filename, start_line);
     return Scan_Array(&scan_state, 0);
 }
 
@@ -2019,25 +2039,28 @@ REBARR *Scan_UTF8_Managed(const REBYTE *utf8, REBCNT len)
 //
 // Scan for header, return its offset if found or -1 if not.
 //
-REBINT Scan_Header(const REBYTE *src, REBCNT len)
+REBINT Scan_Header(const REBYTE *utf8, REBCNT len)
 {
     SCAN_STATE scan_state;
-    const REBYTE *cp;
-    REBINT result;
+    REBSTR * const filename = Canon(SYM___ANONYMOUS__);
+    const REBUPT start_line = 1;
+    Init_Scan_State(&scan_state, utf8, len, filename, start_line);
 
-    // Must be UTF8 byte-stream:
-    Init_Scan_State(&scan_state, src, len);
-    result = Scan_Head(&scan_state);
-    if (!result) return -1;
+    REBINT result = Scan_Head(&scan_state);
+    if (result == 0)
+        return -1;
 
-    cp = scan_state.begin-2;
+    const REBYTE *cp = scan_state.begin - 2;
+
     // Backup to start of it:
     if (result > 0) { // normal header found
-        while (cp != src && *cp != 'r' && *cp != 'R') cp--;
+        while (cp != utf8 && *cp != 'r' && *cp != 'R')
+            --cp;
     } else {
-        while (cp != src && *cp != '[') cp--;
+        while (cp != utf8 && *cp != '[')
+            --cp;
     }
-    return (REBINT)(cp - src);
+    return cast(REBINT, cp - utf8);
 }
 
 
@@ -2077,23 +2100,67 @@ void Shutdown_Scanner(void)
 //          "Translate only a single value (blocks dissected)"
 //      /relax
 //          {Do not cause errors - return error object as value in place}
+//      /file
+//          file-name [file! url!]
+//      /line
+//          line-number [integer!]
 //  ]
 //
 REBNATIVE(transcode)
 {
     INCLUDE_PARAMS_OF_TRANSCODE;
 
+    REBSTR *filename;
+    if (REF(file)) {
+        //
+        // The file string may be mutable, so we wouldn't want to store it
+        // persistently as-is.  Consider:
+        //
+        //     file: copy %test
+        //     x: transcode/file data1 file
+        //     append file "-2"
+        //     y: transcode/file data2 file
+        //
+        // You would not want the change of `file` to affect the filename
+        // references in x's loaded source.  So the series shouldn't be used
+        // directly, and as long as another reference is needed, use an
+        // interned one (the same mechanic words use).  Since the source
+        // filename may be a wide string it is converted to UTF-8 first.
+        //
+        // !!! Should the base name and extension be stored, or whole path?
+        //
+        REBCNT index = VAL_INDEX(ARG(file_name));
+        REBCNT len = VAL_LEN_AT(ARG(file_name));
+        REBSER *temp = Temp_Bin_Str_Managed(ARG(file_name), &index, &len);
+        filename = Intern_UTF8_Managed(BIN_AT(temp, index), len);
+    }
+    else
+        filename = Canon(SYM___ANONYMOUS__);
+
+    REBUPT start_line = 1;
+    if (REF(line)) {
+        start_line = VAL_INT32(ARG(line_number));
+        if (start_line <= 0)
+            fail (ARG(line_number));
+    }
+    else
+        start_line = 1;
+
     SCAN_STATE scan_state;
-
-    assert(IS_BINARY(ARG(source)));
-
     Init_Scan_State(
-        &scan_state, VAL_BIN_AT(ARG(source)), VAL_LEN_AT(ARG(source))
+        &scan_state,
+        VAL_BIN_AT(ARG(source)),
+        VAL_LEN_AT(ARG(source)),
+        filename,
+        start_line
     );
 
-    if (REF(next)) SET_FLAG(scan_state.opts, SCAN_NEXT);
-    if (REF(only)) SET_FLAG(scan_state.opts, SCAN_ONLY);
-    if (REF(relax)) SET_FLAG(scan_state.opts, SCAN_RELAX);
+    if (REF(next))
+        SET_FLAG(scan_state.opts, SCAN_NEXT);
+    if (REF(only))
+        SET_FLAG(scan_state.opts, SCAN_ONLY);
+    if (REF(relax))
+        SET_FLAG(scan_state.opts, SCAN_RELAX);
 
     // The scanner always returns an "array" series.  So set the result
     // to a BLOCK! of the results.
@@ -2125,11 +2192,13 @@ REBNATIVE(transcode)
 const REBYTE *Scan_Any_Word(
     REBVAL *out,
     enum Reb_Kind kind,
-    const REBYTE *cp,
+    const REBYTE *utf8,
     REBCNT len
 ) {
     SCAN_STATE scan_state;
-    Init_Scan_State(&scan_state, cp, len);
+    REBSTR * const filename = Canon(SYM___ANONYMOUS__);
+    const REBUPT start_line = 1;
+    Init_Scan_State(&scan_state, utf8, len, filename, start_line);
 
     REB_MOLD mo;
     CLEARS(&mo);
@@ -2137,7 +2206,7 @@ const REBYTE *Scan_Any_Word(
     if (TOKEN_WORD != Locate_Token_May_Push_Mold(&mo, &scan_state))
         return NULL;
 
-    Init_Any_Word(out, kind, Intern_UTF8_Managed(cp, len));
+    Init_Any_Word(out, kind, Intern_UTF8_Managed(utf8, len));
     Drop_Mold_If_Pushed(&mo);
     return scan_state.begin; // !!! is this right?
 }

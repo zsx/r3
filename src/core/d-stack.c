@@ -231,6 +231,54 @@ REBNATIVE(label_of)
 
 
 //
+//  file-of: native [
+//
+//  "Get filename of origin for any series"
+//
+//      return: [file! url! blank!]
+//      series [any-series!]
+//  ]
+//
+REBNATIVE(file_of)
+{
+    INCLUDE_PARAMS_OF_FILE_OF;
+
+    REBSER *s = VAL_SERIES(ARG(series));
+
+    if (NOT_SER_FLAG(s, SERIES_FLAG_FILE_LINE))
+        return R_BLANK;
+
+    // !!! How to tell whether it's a URL! or a FILE! ?
+    //
+    Scan_File(D_OUT, STR_HEAD(s->link.filename), SER_LEN(s->link.filename));
+    return R_OUT;
+}
+
+
+//
+//  line-of: native [
+//
+//  "Get line of origin for any series"
+//
+//      return: [integer! blank!]
+//      series [any-series!]
+//  ]
+//
+REBNATIVE(line_of)
+{
+    INCLUDE_PARAMS_OF_LINE_OF;
+
+    REBSER *s = VAL_SERIES(ARG(series));
+
+    if (NOT_SER_FLAG(s, SERIES_FLAG_FILE_LINE))
+        return R_BLANK;
+
+    SET_INTEGER(D_OUT, s->misc.line);
+    return R_OUT;
+}
+
+
+//
 //  function-of: native [
 //
 //  "Get the FUNCTION! for a stack level or frame"

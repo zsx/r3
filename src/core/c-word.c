@@ -133,7 +133,9 @@ static void Expand_Word_Table(void)
 
     assert(SER_WIDE(PG_Canons_By_Hash) == sizeof(REBSTR*));
 
-    REBSER *ser = Make_Series(new_size, sizeof(REBSTR*), MKS_POWER_OF_2);
+    REBSER *ser = Make_Series_Core(
+        new_size, sizeof(REBSTR*), SERIES_FLAG_POWER_OF_2
+    );
     Clear_Series(ser);
     SET_SERIES_LEN(ser, new_size);
 
@@ -294,19 +296,24 @@ new_interning: ; // semicolon needed for statement
     // separate allocation.  Because automatically doing this is a new
     // feature, double check with an assert that the behavior matches.
     //
-    REBSTR *intern = Make_Series(len + 1, sizeof(REBYTE), MKS_NONE);
+    REBSTR *intern = Make_Series_Core(
+        len + 1,
+        sizeof(REBYTE),
+        SERIES_FLAG_UTF8_STRING | SERIES_FLAG_FIXED_SIZE
+    );
+
+#if !defined(NDEBUG)
     if (len + 1 > sizeof(intern->content))
         assert(GET_SER_INFO(intern, SERIES_INFO_HAS_DYNAMIC));
     else
         assert(NOT_SER_INFO(intern, SERIES_INFO_HAS_DYNAMIC));
+#endif
 
     // The incoming string isn't always null terminated, e.g. if you are
     // interning `foo` in `foo: bar + 1` it would be colon-terminated.
     //
     memcpy(BIN_HEAD(intern), utf8, len);
     TERM_SEQUENCE_LEN(intern, len);
-
-    SET_SER_FLAGS(intern, SERIES_FLAG_UTF8_STRING | SERIES_FLAG_FIXED_SIZE);
 
     if (canon == NULL) {
         //
@@ -371,6 +378,7 @@ new_interning: ; // semicolon needed for statement
     // to know if a shared instance had been managed by someone else or not.
     //
     MANAGE_SERIES(intern);
+    assert(LEFT_N_BITS(intern->header.bits, 4) != 0);
     return intern;
 }
 
@@ -509,8 +517,7 @@ void Init_Symbols(REBARR *words)
 {
     PG_Symbol_Canons = Make_Series(
         ARR_LEN(words) + 1, // extra NULL at head for SYM_0 (END maps to NULL)
-        sizeof(REBSTR*),
-        MKS_NONE
+        sizeof(REBSTR*)
     );
 
     REBSYM sym = SYM_0;
@@ -599,7 +606,9 @@ void Init_Words(void)
     n = 1; // forces exercise of rehashing logic in debug build
 #endif
 
-    PG_Canons_By_Hash = Make_Series(n, sizeof(REBSTR*), MKS_POWER_OF_2);
+    PG_Canons_By_Hash = Make_Series_Core(
+        n, sizeof(REBSTR*), SERIES_FLAG_POWER_OF_2
+    );
     Clear_Series(PG_Canons_By_Hash); // all slots start at NULL
     SET_SERIES_LEN(PG_Canons_By_Hash, n);
 }

@@ -78,8 +78,10 @@
 //
 REBCTX *Alloc_Context(enum Reb_Kind kind, REBCNT capacity)
 {
-    REBARR *varlist = Make_Array(capacity + 1); // size + room for ROOTVAR
-    SET_SER_FLAG(varlist, ARRAY_FLAG_VARLIST);
+    REBARR *varlist = Make_Array_Core(
+        capacity + 1, // size + room for ROOTVAR
+        ARRAY_FLAG_VARLIST
+    );
 
     // varlist[0] is a value instance of the OBJECT!/MODULE!/PORT!/ERROR! we
     // are building which contains this context.
@@ -92,7 +94,10 @@ REBCTX *Alloc_Context(enum Reb_Kind kind, REBCNT capacity)
 
     // keylist[0] is the "rootkey" which we currently initialize to BLANK
 
-    REBARR *keylist = Make_Array(capacity + 1); // size + room for ROOTKEY
+    REBARR *keylist = Make_Array_Core(
+        capacity + 1, // size + room for ROOTKEY
+        0 // No keylist flag, but we don't want line numbers
+    );
     SET_BLANK(Alloc_Tail_Array(keylist));
     AS_SERIES(keylist)->link.meta = NULL; // GC sees meta object, must init
 
@@ -754,8 +759,7 @@ REBCTX *Make_Selfish_Context_Detect(
 
     // Make a context of same size as keylist (END already accounted for)
     //
-    REBARR *varlist = Make_Array(len);
-    SET_SER_FLAG(varlist, ARRAY_FLAG_VARLIST);
+    REBARR *varlist = Make_Array_Core(len, ARRAY_FLAG_VARLIST);
     TERM_ARRAY_LEN(varlist, len);
 
     REBCTX *context = AS_CONTEXT(varlist);
@@ -916,13 +920,16 @@ REBARR *Context_To_Array(REBCTX *context, REBINT mode)
 {
     REBVAL *key = CTX_KEYS_HEAD(context);
     REBVAL *var = CTX_VARS_HEAD(context);
-    REBARR *block;
     REBCNT n;
 
     assert(!(mode & 4));
-    block = Make_Array(CTX_LEN(context) * (mode == 3 ? 2 : 1));
 
-    //Context might have voids, which denote the value have not been set
+    REBARR *block = Make_Array(CTX_LEN(context) * (mode == 3 ? 2 : 1));
+
+    // Context might have voids, which denote the value have not been set
+    //
+    // !!! This should not be done like this...review
+    //
     SET_SER_FLAG(block, ARRAY_FLAG_VOIDS_LEGAL);
 
     n = 1;
@@ -995,11 +1002,9 @@ REBCTX *Merge_Contexts_Selfish(REBCTX *parent1, REBCTX *parent2)
     SET_BLANK(ARR_HEAD(keylist)); // Currently no rootkey usage
     AS_SERIES(keylist)->link.meta = NULL;
 
-    REBARR *varlist = Make_Array(ARR_LEN(keylist));
-    SET_SER_FLAG(varlist, ARRAY_FLAG_VARLIST);
+    REBARR *varlist = Make_Array_Core(ARR_LEN(keylist), ARRAY_FLAG_VARLIST);
     REBCTX *merged = AS_CONTEXT(varlist);
     INIT_CTX_KEYLIST_UNIQUE(merged, keylist);
-
 
     // !!! Currently we assume the child will be of the same type as the
     // parent...so if the parent was an OBJECT! so will the child be, if
@@ -1318,7 +1323,7 @@ void Init_Collector(void)
     // least 2 long to hold the rootkey (SYM_0) and a possible SYM_SELF
     // hidden actual key.
     //
-    Init_Block(TASK_BUF_COLLECT, Make_Array(2 + 98));
+    Init_Block(TASK_BUF_COLLECT, Make_Array_Core(2 + 98, 0));
 }
 
 

@@ -569,8 +569,9 @@ void Init_Debug_Extension(void) {
         0 == Find_Canon_In_Context(Lib_Context, STR_CANON(debug_name), TRUE) &&
         0 == Find_Canon_In_Context(user_context, STR_CANON(debug_name), TRUE)
     ) {
+        REBSTR *filename = Canon(SYM___ANONYMOUS__);
         REBARR *spec_array = Scan_UTF8_Managed(
-            N_debug_spec, LEN_BYTES(N_debug_spec)
+            N_debug_spec, LEN_BYTES(N_debug_spec), filename
         );
         DECLARE_LOCAL (spec);
         Init_Block(spec, spec_array);
@@ -867,8 +868,12 @@ int main(int argc, char **argv_ansi)
         if (startup == NULL)
             panic ("Can't decompress %host-start.r linked into executable");
 
+        const char *host_start_utf8 = "host-start.r";
+        REBSTR *host_start_filename = Intern_UTF8_Managed(
+            cb_cast(host_start_utf8), strlen(host_start_utf8)
+        );
         REBARR *array = Scan_UTF8_Managed(
-            BIN_HEAD(startup), BIN_LEN(startup)
+            BIN_HEAD(startup), BIN_LEN(startup), host_start_filename
         );
 
         // Bind the REPL and startup code into the lib context.

@@ -652,9 +652,16 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             : DS_AT(definitional_return_dsp);
 
     // Must make the function "paramlist" even if "empty", for identity.
+    // Also make sure the parameter list does not expand.
     //
-    REBARR *paramlist = Make_Array(num_slots);
-    SET_SER_FLAG(paramlist, ARRAY_FLAG_PARAMLIST);
+    // !!! Expanding the parameter list might be part of an advanced feature
+    // under the hood in the future, but users should not themselves grow
+    // function frames by appending to them.
+    //
+    REBARR *paramlist = Make_Array_Core(
+        num_slots,
+        ARRAY_FLAG_PARAMLIST | SERIES_FLAG_FIXED_SIZE
+    );
 
     if (TRUE) {
         RELVAL *dest = ARR_HEAD(paramlist); // canon function value
@@ -727,14 +734,6 @@ REBARR *Make_Paramlist_Managed_May_Fail(
 
         TERM_ARRAY_LEN(paramlist, num_slots);
         MANAGE_ARRAY(paramlist);
-
-        // Make sure the parameter list does not expand.
-        //
-        // !!! Should more precautions be taken, at some point locking and
-        // protecting the whole array?  (It will be changed more by the
-        // caller, but after that.)
-        //
-        SET_SER_FLAG(paramlist, SERIES_FLAG_FIXED_SIZE);
     }
 
     //=///////////////////////////////////////////////////////////////////=//
@@ -776,8 +775,9 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         }
     }
     else {
-        REBARR *types_varlist = Make_Array(num_slots);
-        SET_SER_FLAG(types_varlist, ARRAY_FLAG_VARLIST);
+        REBARR *types_varlist = Make_Array_Core(
+            num_slots, ARRAY_FLAG_VARLIST
+        );
         INIT_CTX_KEYLIST_SHARED(AS_CONTEXT(types_varlist), paramlist);
 
         REBVAL *dest = SINK(ARR_HEAD(types_varlist)); // "rootvar"
@@ -844,8 +844,9 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         }
     }
     else {
-        REBARR *notes_varlist = Make_Array(num_slots);
-        SET_SER_FLAG(notes_varlist, ARRAY_FLAG_VARLIST);
+        REBARR *notes_varlist = Make_Array_Core(
+            num_slots, ARRAY_FLAG_VARLIST
+        );
         INIT_CTX_KEYLIST_SHARED(AS_CONTEXT(notes_varlist), paramlist);
 
         REBVAL *dest = SINK(ARR_HEAD(notes_varlist)); // "rootvar"
@@ -1092,6 +1093,9 @@ done_caching:;
     // error).  That protection is now done to the frame series on reification
     // in order to be able to MAKE FRAME! and reuse the native's paramlist.
 
+    assert(NOT_SER_FLAG(paramlist, SERIES_FLAG_FILE_LINE));
+    assert(NOT_SER_FLAG(body_holder, SERIES_FLAG_FILE_LINE));
+
     return AS_FUNC(paramlist);
 }
 
@@ -1117,9 +1121,10 @@ done_caching:;
 //
 REBCTX *Make_Expired_Frame_Ctx_Managed(REBFUN *func)
 {
-    REBARR *varlist = Alloc_Singular_Array();
+    REBARR *varlist = Alloc_Singular_Array_Core(
+        ARRAY_FLAG_VARLIST | CONTEXT_FLAG_STACK
+    );
     SET_BLANK(ARR_HEAD(varlist));
-    SET_SER_FLAGS(varlist, ARRAY_FLAG_VARLIST | CONTEXT_FLAG_STACK);
     MANAGE_ARRAY(varlist);
 
     SET_SER_INFO(varlist, SERIES_INFO_INACCESSIBLE);
@@ -1369,9 +1374,10 @@ REBCTX *Make_Frame_For_Function(const REBVAL *value) {
     // returned to the user it can't be stack allocated, because it
     // would immediately become useless.  Allocate dynamically.
     //
-    REBARR *varlist = Make_Array(ARR_LEN(FUNC_PARAMLIST(func)));
-    SET_SER_FLAG(varlist, ARRAY_FLAG_VARLIST);
-    SET_SER_FLAG(varlist, SERIES_FLAG_FIXED_SIZE);
+    REBARR *varlist = Make_Array_Core(
+        ARR_LEN(FUNC_PARAMLIST(func)),
+        ARRAY_FLAG_VARLIST | SERIES_FLAG_FIXED_SIZE
+    );
 
     // Fill in the rootvar information for the context canon REBVAL
     //
@@ -1506,8 +1512,10 @@ REBOOL Specialize_Function_Throws(
             DS_PUSH(param);
     }
 
-    REBARR *paramlist = Pop_Stack_Values(dsp_orig);
-    SET_SER_FLAG(paramlist, ARRAY_FLAG_PARAMLIST);
+    REBARR *paramlist = Pop_Stack_Values_Core(
+        dsp_orig,
+        ARRAY_FLAG_PARAMLIST | SERIES_FLAG_FIXED_SIZE
+    );
     MANAGE_ARRAY(paramlist);
 
     RELVAL *rootparam = ARR_HEAD(paramlist);

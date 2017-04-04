@@ -211,6 +211,7 @@ typedef struct rebol_scan_state {
     const REBYTE *end;
     const REBYTE *limit;    /* no chars after this point */
     REBCNT line_count;
+    REBSTR *filename;
     const REBYTE *head_line;        // head of current line (used for errors)
     REBFLGS opts;
     REBOOL has_error;
