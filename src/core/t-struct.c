@@ -311,8 +311,13 @@ static REBOOL same_fields(REBARR *tgt_fieldlist, REBARR *src_fieldlist)
             return FALSE;
         }
 
-        if (FLD_TYPE_SYM(tgt_field) != FLD_TYPE_SYM(src_field))
+        if (NOT(
+            SAME_SYM_NONZERO(
+                FLD_TYPE_SYM(tgt_field), FLD_TYPE_SYM(src_field)
+            )
+        )){
             return FALSE;
+        }
 
         if (FLD_IS_ARRAY(tgt_field)) {
             if (!FLD_IS_ARRAY(src_field))
