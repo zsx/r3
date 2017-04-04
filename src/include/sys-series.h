@@ -161,7 +161,13 @@
     cast(void, (SER(s)->header.bits &= ~cast(REBUPT, (f))))
 
 #define GET_SER_FLAG(s,f) \
+    LOGICAL(SER(s)->header.bits & (f)) // no single-flag check at present
+
+#define ANY_SER_FLAGS(s,f) \
     LOGICAL(SER(s)->header.bits & (f))
+
+#define ALL_SER_FLAGS(s,f) \
+    LOGICAL((SER(s)->header.bits & (f)) == (f))
 
 #define NOT_SER_FLAG(s,f) \
     NOT(SER(s)->header.bits & (f))
@@ -184,7 +190,13 @@
     cast(void, (SER(s)->info.bits &= ~cast(REBUPT, f)))
 
 #define GET_SER_INFO(s,f) \
+    LOGICAL(SER(s)->info.bits & (f)) // no single-flag check at present
+
+#define ANY_SER_INFOS(s,f) \
     LOGICAL(SER(s)->info.bits & (f))
+
+#define ALL_SER_INFOS(s,f) \
+    LOGICAL((SER(s)->info.bits & (f)) == (f))
 
 #define NOT_SER_INFO(s,f) \
     NOT(SER(s)->info.bits & (f))
@@ -440,7 +452,7 @@ static inline REBOOL Is_Series_Black(REBSER *s) {
 }
 
 static inline REBOOL Is_Series_White(REBSER *s) {
-    return NOT(GET_SER_INFO(s, SERIES_INFO_BLACK));
+    return NOT_SER_INFO(s, SERIES_INFO_BLACK);
 }
 
 static inline void Flip_Series_To_Black(REBSER *s) {
@@ -475,12 +487,8 @@ inline static REBOOL Is_Series_Frozen(REBSER *s) {
 }
 
 inline static REBOOL Is_Series_Read_Only(REBSER *s) { // may be temporary...
-    return LOGICAL(
-        s->info.bits & (
-            SERIES_INFO_FROZEN
-            | SERIES_INFO_RUNNING
-            | SERIES_INFO_PROTECTED
-        )
+    return ANY_SER_INFOS(
+        s, SERIES_INFO_FROZEN | SERIES_INFO_RUNNING | SERIES_INFO_PROTECTED
     );
 }
 

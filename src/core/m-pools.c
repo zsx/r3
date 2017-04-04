@@ -451,7 +451,9 @@ static void Fill_Pool(REBPOL *pool)
 
     // Add new nodes to the end of free list:
 
-    REBNOD *node = NOD(seg + 1);
+    // Can't use NOD() here because it tests for NODE_FLAG_VALID
+    //
+    REBNOD *node = cast(REBNOD*, seg + 1);
 
     if (pool->first == NULL) {
         assert(pool->last == NULL);

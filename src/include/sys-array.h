@@ -72,7 +72,7 @@ struct Reb_Array {
         );
         REBSER *s = cast(REBSER*, p);
         assert(ALL_SER_FLAGS(s, NODE_FLAG_VALID | SERIES_FLAG_ARRAY));
-        return cast(REBARR*, s);s
+        return cast(REBARR*, s);
     }
 #else
     #define ARR(p) \
@@ -244,7 +244,7 @@ inline static REBARR *Alloc_Singular_Array_Core(REBUPT flags) {
         sizeof(REBVAL),
         SERIES_FLAG_ARRAY | SERIES_FLAG_FIXED_SIZE | flags
     );
-    assert(NOT(GET_SER_INFO(s, SERIES_INFO_HAS_DYNAMIC)));
+    assert(NOT_SER_INFO(s, SERIES_INFO_HAS_DYNAMIC));
 
     // The length still needs to be set in the header, as it defaults
     // to 0 and we want it to be 1.
