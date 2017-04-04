@@ -50,9 +50,9 @@ static REBREQ *Req_SIO;
 ***********************************************************************/
 
 //
-//  Init_StdIO: C
+//  Startup_StdIO: C
 //
-void Init_StdIO(void)
+void Startup_StdIO(void)
 {
     //OS_CALL_DEVICE(RDI_STDIO, RDC_INIT);
     Req_SIO = OS_MAKE_DEVREQ(RDI_STDIO);
@@ -785,11 +785,11 @@ void Form_Args(REB_MOLD *mo, const char *fmt, ...)
 
 
 //
-//  Init_Raw_Print: C
+//  Startup_Raw_Print: C
 //
 // Initialize print module.
 //
-void Init_Raw_Print(void)
+void Startup_Raw_Print(void)
 {
     Init_String(TASK_BYTE_BUF,  Make_Binary(1000));
 }

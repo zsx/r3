@@ -48,7 +48,8 @@
 #include "rsa.h"
 
 
-// Initialized by Init_Core_Ext() and released by Shutdown_Core_Ext()
+// Initialized by the CRYPT extension entry point, shut down by the exit code
+//
 #ifdef TO_WINDOWS
     HCRYPTPROV gCryptProv = 0;
 #else

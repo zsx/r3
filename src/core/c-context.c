@@ -1311,9 +1311,9 @@ REBVAL *Obj_Value(REBVAL *value, REBCNT index)
 
 
 //
-//  Init_Collector: C
+//  Startup_Collector: C
 //
-void Init_Collector(void)
+void Startup_Collector(void)
 {
     // Temporary block used while scanning for frame words:
     // "just holds typesets, no GC behavior" (!!! until typeset symbols or

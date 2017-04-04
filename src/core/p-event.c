@@ -242,9 +242,9 @@ act_blk:
 
 
 //
-//  Init_Event_Scheme: C
+//  Startup_Event_Scheme: C
 //
-void Init_Event_Scheme(void)
+void Startup_Event_Scheme(void)
 {
     req = 0; // move to port struct
 }

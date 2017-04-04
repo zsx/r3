@@ -598,9 +598,9 @@ REBINT Hash_String(
 
 
 //
-//  Init_CRC: C
+//  Startup_CRC: C
 //
-void Init_CRC(void)
+void Startup_CRC(void)
 {
     CRC_Table = ALLOC_N(REBCNT, 256);
     Make_CRC_Table(PRZCRC);

@@ -250,11 +250,11 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 
 
 //
-//  Init_Pools: C
+//  Startup_Pools: C
 //
 // Initialize memory pool array.
 //
-void Init_Pools(REBINT scale)
+void Startup_Pools(REBINT scale)
 {
 #ifndef NDEBUG
     const char *env_always_malloc = NULL;

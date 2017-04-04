@@ -185,7 +185,7 @@ void RL_Init(void *lib)
     if (((HOST_LIB_VER << 16) + HOST_LIB_SUM) != Host_Lib->ver_sum)
         panic ("Host-lib wrong version/checksum");
 
-    Init_Core();
+    Startup_Core();
 }
 
 

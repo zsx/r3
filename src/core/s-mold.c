@@ -1844,9 +1844,9 @@ void Drop_Mold_Core(REB_MOLD *mold, REBOOL not_pushed_ok)
 
 
 //
-//  Init_Mold: C
+//  Startup_Mold: C
 //
-void Init_Mold(REBCNT size)
+void Startup_Mold(REBCNT size)
 {
     REBYTE *cp;
     REBYTE c;

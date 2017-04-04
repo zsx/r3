@@ -27,7 +27,7 @@
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// The primary routine for starting up Rebol is Init_Core().  It runs the
+// The primary routine for starting up Rebol is Startup_Core().  It runs the
 // bootstrap in phases, based on processing various portions of the data in
 // %tmp-boot-block.r (which is the aggregated code from the %mezz/*.r files,
 // packed into one file as part of the build preparation).
@@ -123,22 +123,9 @@ static void Assert_Basics(void)
     // not work out as designed, it *should* be possible to comment this out
     // and keep running.
     //
-    if (sizeof(void*) == 8) {
-        if (sizeof(REBVAL) != 32 || sizeof(REBEVT) != 32)
-            panic ("size of void* is 8 but REBVAL is not sizeof(void*)*4");
+    if (sizeof(REBVAL) != sizeof(void*) * 4)
+        panic ("size of REBVAL is not sizeof(void*) * 4");
 
-        assert(sizeof(REBGOB) == 88); // !!! REBGOB to be made a REBARR
-    }
-    else if (sizeof(void*) == 4) {
-        if (sizeof(REBVAL) != 16 || sizeof(REBEVT) != 16)
-            panic ("size of void* is 4 but REBVAL is not sizeof(void*)*4");
-
-        assert(sizeof(REBGOB) == 64); // !!! REBGOB to be made a REBARR
-    }
-    else
-        panic ("sizeof void* is neither 4 nor 8");
-
-    assert(sizeof(REBDAT) == 4);
     assert(sizeof(REBEVT) == sizeof(REBVAL));
 
     // The REBSER is designed to place the `info` bits exactly after a REBVAL
@@ -164,14 +151,14 @@ static void Assert_Basics(void)
 
 
 //
-//  Init_Base: C
+//  Startup_Base: C
 //
 // The code in "base" is the lowest level of Rebol initialization written as
 // Rebol code.  This is where things like `+` being an infix form of ADD is
 // set up, or FIRST being a specialization of PICK.  It's also where the
 // definition of the locals-gathering FUNCTION currently lives.
 //
-static void Init_Base(REBARR *boot_base)
+static void Startup_Base(REBARR *boot_base)
 {
     RELVAL *head = ARR_HEAD(boot_base);
 
@@ -203,11 +190,11 @@ static void Init_Base(REBARR *boot_base)
 
 
 //
-//  Init_Sys: C
+//  Startup_Sys: C
 //
 // The SYS context contains supporting Rebol code for implementing "system"
 // features.  The code has natives, actions, and the definitions from
-// Init_Base() available for its implementation.
+// Startup_Base() available for its implementation.
 //
 // (Note: The SYS context should not be confused with "the system object",
 // which is a different thing.)
@@ -217,11 +204,11 @@ static void Init_Base(REBARR *boot_base)
 // core.  Any work the core C needs to have done that would be more easily
 // done by delegating it to Rebol can use a function in sys as a service.
 //
-static void Init_Sys(REBARR *boot_sys) {
+static void Startup_Sys(REBARR *boot_sys) {
     RELVAL *head = ARR_HEAD(boot_sys);
 
     // Add all new top-level SET-WORD! found in the sys boot-block to Lib,
-    // and then bind deeply all words to Lib and Sys.  See Init_Base() notes
+    // and then bind deeply all words to Lib and Sys.  See Startup_Base() notes
     // for why the top-level walk is needed first.
     //
     Bind_Values_Set_Midstream_Shallow(head, Sys_Context);
@@ -238,7 +225,7 @@ static void Init_Sys(REBARR *boot_sys) {
 
 
 //
-//  Init_Datatypes: C
+//  Startup_Datatypes: C
 //
 // Create library words for each type, (e.g. make INTEGER! correspond to
 // the integer datatype value).  Returns an array of words for the added
@@ -249,7 +236,7 @@ static void Init_Sys(REBARR *boot_sys) {
 // used for void, and also not value type.  Hence the total number of types is
 // REB_MAX - 1.
 //
-static REBARR *Init_Datatypes(REBARR *boot_types, REBARR *boot_typespecs)
+static REBARR *Startup_Datatypes(REBARR *boot_types, REBARR *boot_typespecs)
 {
     if (ARR_LEN(boot_types) != REB_MAX - 1)
         panic (boot_types); // Every REB_XXX but REB_0 should have a WORD!
@@ -289,7 +276,7 @@ static REBARR *Init_Datatypes(REBARR *boot_types, REBARR *boot_typespecs)
 
 
 //
-//  Init_True_And_False: C
+//  Startup_True_And_False: C
 //
 // !!! Rebol is firm on TRUE and FALSE being WORD!s, as opposed to the literal
 // forms of logical true and false.  Not only does this frequently lead to
@@ -301,7 +288,7 @@ static REBARR *Init_Datatypes(REBARR *boot_types, REBARR *boot_typespecs)
 // Since no good literal form exists, the %sysobj.r file uses the words.  They
 // have to be defined before the point that it runs (along with the natives).
 //
-static void Init_True_And_False(void)
+static void Startup_True_And_False(void)
 {
     REBVAL *true_value = Append_Context(Lib_Context, 0, Canon(SYM_TRUE));
     SET_TRUE(true_value);
@@ -497,7 +484,7 @@ static void Init_Function_Meta_Shim(void) {
 
 
 //
-//  Init_Natives: C
+//  Startup_Natives: C
 //
 // Create native functions.  In R3-Alpha this would go as far as actually
 // creating a NATIVE native by hand, and then run code that would call that
@@ -518,7 +505,7 @@ static void Init_Function_Meta_Shim(void) {
 //
 // Returns an array of words bound to natives for SYSTEM/CATALOG/NATIVES
 //
-static REBARR *Init_Natives(REBARR *boot_natives)
+static REBARR *Startup_Natives(REBARR *boot_natives)
 {
     // Must be called before first use of Make_Paramlist_Managed_May_Fail()
     //
@@ -655,11 +642,11 @@ static REBARR *Init_Natives(REBARR *boot_natives)
 
 
 //
-//  Init_Actions: C
+//  Startup_Actions: C
 //
 // Returns an array of words bound to actions for SYSTEM/CATALOG/ACTIONS
 //
-static REBARR *Init_Actions(REBARR *boot_actions)
+static REBARR *Startup_Actions(REBARR *boot_actions)
 {
     RELVAL *head = ARR_HEAD(boot_actions);
 
@@ -805,7 +792,7 @@ static void Init_Root_Vars(void)
     SET_UNREADABLE_BLANK(ROOT_SYSTEM);
 
     // Data stack not initialized, can't do typeset construction yet
-    // (at least not how Init_Typesets() is written)
+    // (at least not how Startup_Typesets() is written)
     //
     SET_UNREADABLE_BLANK(ROOT_TYPESETS);
 
@@ -932,7 +919,7 @@ static void Init_Contexts_Object(void)
 
 
 //
-//  Init_Task: C
+//  Startup_Task: C
 //
 // !!! Prior to the release of R3-Alpha, there had apparently been some amount
 // of effort to take single-threaded assumptions and globals, and move to a
@@ -946,7 +933,7 @@ static void Init_Contexts_Object(void)
 // "isolates", where independent interpreters can be loaded in the same
 // process, just not sharing objects with each other.
 //
-void Init_Task(void)
+void Startup_Task(void)
 {
     REBARR *task = Make_Array_Core(
         TASK_MAX,
@@ -966,7 +953,7 @@ void Init_Task(void)
     Eval_Sigmask = ALL_BITS;
     Eval_Limit = 0;
 
-    Init_Stacks(STACK_MIN/4);
+    Startup_Stacks(STACK_MIN/4);
 
     // Initialize a few fields:
     SET_INTEGER(TASK_BALLAST, MEM_BALLAST);
@@ -978,10 +965,10 @@ void Init_Task(void)
     Prep_Global_Cell(&TG_Thrown_Arg);
     SET_UNREADABLE_BLANK(&TG_Thrown_Arg);
 
-    Init_Raw_Print();
-    Init_Scanner();
-    Init_Mold(MIN_COMMON/4);
-    Init_Collector();
+    Startup_Raw_Print();
+    Startup_Scanner();
+    Startup_Mold(MIN_COMMON/4);
+    Startup_Collector();
 
     // Symbols system not initialized, can't init the errors just yet
     //
@@ -1036,7 +1023,7 @@ void Init_Locale(void)
 
 
 //
-//  Init_Core: C
+//  Startup_Core: C
 //
 // Initialize the interpreter core.
 //
@@ -1057,7 +1044,7 @@ void Init_Locale(void)
 // assume things about command-line switches (or even that there is a command
 // line!)  Converting the code that made such assumptions ongoing.
 //
-void Init_Core(void)
+void Startup_Core(void)
 {
 
 //==//////////////////////////////////////////////////////////////////////==//
@@ -1126,7 +1113,7 @@ void Init_Core(void)
     CLEAR(Reb_Opts, sizeof(REB_OPTS));
     Saved_State = NULL;
 
-    Init_StdIO();
+    Startup_StdIO();
 
     Assert_Basics();
     PG_Boot_Time = OS_DELTA_TIME(0, 0);
@@ -1137,8 +1124,8 @@ void Init_Core(void)
 //
 //==//////////////////////////////////////////////////////////////////////==//
 
-    Init_Pools(0);          // Memory allocator
-    Init_GC();
+    Startup_Pools(0);          // Memory allocator
+    Startup_GC();
 
 //==//////////////////////////////////////////////////////////////////////==//
 //
@@ -1148,7 +1135,7 @@ void Init_Core(void)
 
     Init_Root_Vars();    // Special REBOL values per program
     Init_Char_Cases();
-    Init_CRC();             // For word hashing
+    Startup_CRC();             // For word hashing
     Set_Random(0);
     Init_Words();
 
@@ -1158,7 +1145,7 @@ void Init_Core(void)
 //
 //==//////////////////////////////////////////////////////////////////////==//
 
-    Init_Task();
+    Startup_Task();
 
     // !!! REVIEW: Init_Function_Tags() uses BUF_UTF8, not
     // available untilthis point in time.
@@ -1196,7 +1183,7 @@ void Init_Core(void)
 
     BOOT_BLK *boot = cast(BOOT_BLK*, VAL_ARRAY_HEAD(ARR_HEAD(boot_array)));
 
-    Init_Symbols(VAL_ARRAY(&boot->words));
+    Startup_Symbols(VAL_ARRAY(&boot->words));
 
     // STR_SYMBOL(), VAL_WORD_SYM() and Canon(SYM_XXX) now available
 
@@ -1225,18 +1212,18 @@ void Init_Core(void)
     MANAGE_ARRAY(CTX_VARLIST(Sys_Context));
     PUSH_GUARD_CONTEXT(Sys_Context);
 
-    REBARR *datatypes_catalog = Init_Datatypes(
+    REBARR *datatypes_catalog = Startup_Datatypes(
         VAL_ARRAY(&boot->types), VAL_ARRAY(&boot->typespecs)
     );
     MANAGE_ARRAY(datatypes_catalog);
     PUSH_GUARD_ARRAY(datatypes_catalog);
 
-    // !!! REVIEW: Init_Typesets() uses symbols, data stack, and
+    // !!! REVIEW: Startup_Typesets() uses symbols, data stack, and
     // adds words to lib--not available untilthis point in time.
     //
-    Init_Typesets();
+    Startup_Typesets();
 
-    Init_True_And_False();
+    Startup_True_And_False();
     Add_Lib_Keys_R3Alpha_Cant_Make();
 
     Prep_Global_Cell(&Callback_Error);
@@ -1251,19 +1238,19 @@ void Init_Core(void)
     // boot->natives is from the automatically gathered list of natives found
     // by scanning comments in the C sources for `native: ...` declarations.
     //
-    REBARR *natives_catalog = Init_Natives(VAL_ARRAY(&boot->natives));
+    REBARR *natives_catalog = Startup_Natives(VAL_ARRAY(&boot->natives));
     MANAGE_ARRAY(natives_catalog);
     PUSH_GUARD_ARRAY(natives_catalog);
 
     // boot->actions is the list in %actions.r
     //
-    REBARR *actions_catalog = Init_Actions(VAL_ARRAY(&boot->actions));
+    REBARR *actions_catalog = Startup_Actions(VAL_ARRAY(&boot->actions));
     MANAGE_ARRAY(actions_catalog);
     PUSH_GUARD_ARRAY(actions_catalog);
 
     // boot->errors is the error definition list from %errors.r
     //
-    REBCTX *errors_catalog = Init_Errors(VAL_ARRAY(&boot->errors));
+    REBCTX *errors_catalog = Startup_Errors(VAL_ARRAY(&boot->errors));
     PUSH_GUARD_CONTEXT(errors_catalog);
 
     Init_System_Object(
@@ -1313,7 +1300,7 @@ void Init_Core(void)
 
     assert(DSP == 0 && FS_TOP == NULL);
 
-    REBCTX *error = Finalize_Mezzanine(&boot->base, &boot->sys, &boot->mezz);
+    REBCTX *error = Startup_Mezzanine(&boot->base, &boot->sys, &boot->mezz);
     if (error != NULL) {
         //
         // There is theoretically some level of error recovery that could
@@ -1367,10 +1354,10 @@ void Init_Core(void)
 
 
 //
-//  Finalize_Mezzanine: C
+//  Startup_Mezzanine: C
 //
 // For boring technical reasons, the `boot` variable might be "clobbered"
-// by a longjmp in Init_Core().  The easiest way to work around this is
+// by a longjmp in Startup_Core().  The easiest way to work around this is
 // by taking the code that setjmp/longjmps (e.g. PUSH_TRAP, fail()) and
 // putting it into a separate function.
 //
@@ -1378,7 +1365,7 @@ void Init_Core(void)
 //
 // Returns error from finalizing or NULL.
 //
-REBCTX *Finalize_Mezzanine(
+REBCTX *Startup_Mezzanine(
     REBVAL *base_block,
     REBVAL *sys_block,
     REBVAL *mezz_block
@@ -1395,9 +1382,9 @@ REBCTX *Finalize_Mezzanine(
     if (error)
         return error;
 
-    Init_Base(VAL_ARRAY(base_block));
+    Startup_Base(VAL_ARRAY(base_block));
 
-    Init_Sys(VAL_ARRAY(sys_block));
+    Startup_Sys(VAL_ARRAY(sys_block));
 
     // The FINISH-INIT-CORE function should likely do very little.  But right
     // now it is where the user context is created from the lib context (a
@@ -1436,7 +1423,7 @@ REBCTX *Finalize_Mezzanine(
 //  Shutdown_Core: C
 //
 // The goal of Shutdown_Core() is to release all memory and resources that the
-// interpreter has accrued since Init_Core().  This is a good "sanity check"
+// interpreter has accrued since Startup_Core().  This is a good "sanity check"
 // that there aren't unaccounted-for leaks (or semantic errors which such
 // leaks may indicate).
 //
@@ -1466,7 +1453,7 @@ void Shutdown_Core(void)
 
     // Run Recycle, but the TRUE flag indicates we want every series
     // that is managed to be freed.  (Only unmanaged should be left.)
-    // We remove the only two root contexts that the Init_Core process added
+    // We remove the only two root contexts that the Startup_Core process added
     // -however- there may be other roots.  But by this point, the roots
     // created by Alloc_Pairing() with an owning context should be freed.
     //
@@ -1486,7 +1473,7 @@ void Shutdown_Core(void)
     Shutdown_GC();
 
     // !!! Need to review the relationship between Open_StdIO (which the host
-    // does) and Init_StdIO...they both open, and both close.
+    // does) and Startup_StdIO...they both open, and both close.
 
     Shutdown_StdIO();
 

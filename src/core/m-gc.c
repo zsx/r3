@@ -1668,11 +1668,11 @@ REBARR *Snapshot_All_Functions(void)
 
 
 //
-//  Init_GC: C
+//  Startup_GC: C
 //
 // Initialize garbage collector.
 //
-void Init_GC(void)
+void Startup_GC(void)
 {
     assert(NOT(GC_Disabled));
     assert(NOT(GC_Recycling));

@@ -295,7 +295,7 @@ ATTRIBUTE_NO_RETURN void Fail_Core(const void *p)
 
     // If we raise the error we'll lose the stack, and if it's an early
     // error we always want to see it (do not use ATTEMPT or TRY on
-    // purpose in Init_Core()...)
+    // purpose in Startup_Core()...)
     //
     if (PG_Boot_Phase < BOOT_DONE)
         panic (error);
@@ -652,7 +652,7 @@ REBOOL Make_Error_Object_Throws(
 
         error = Copy_Context_Shallow(root_error);
 
-        // !!! fix in Init_Errors()?
+        // !!! fix in Startup_Errors()?
         //
         VAL_RESET_HEADER(CTX_VALUE(error), REB_ERROR);
 
@@ -1585,11 +1585,11 @@ int Exit_Status_From_Value(REBVAL *value)
 
 
 //
-//  Init_Errors: C
+//  Startup_Errors: C
 //
 // Create error objects and error type objects
 //
-REBCTX *Init_Errors(REBARR *boot_errors)
+REBCTX *Startup_Errors(REBARR *boot_errors)
 {
     REBCTX *catalog = Construct_Context(
         REB_OBJECT,

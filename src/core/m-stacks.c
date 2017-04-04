@@ -32,9 +32,9 @@
 
 
 //
-//  Init_Stacks: C
+//  Startup_Stacks: C
 //
-void Init_Stacks(REBCNT size)
+void Startup_Stacks(REBCNT size)
 {
     // We always keep one chunker around for the first chunk push, and prep
     // one chunk so that the push and drop routines never worry about testing

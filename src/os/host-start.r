@@ -15,7 +15,7 @@ REBOL [
 
         This is a beginning attempt to factor out what used to be in
         R3-Alpha's %sys-start.r and executed by RL_Start().  By making the
-        Init_Core() routine more lightweight, it's possible to get the system
+        Startup_Core() routine more lightweight, it's possible to get the system
         up to a point where it's possible to use Rebol code to do things like
         command-line processing.
 
@@ -237,7 +237,7 @@ host-start: function [
     ; Currently there is just one monolithic "initialize all schemes", e.g.
     ; FILE:// and HTTP:// and CONSOLE:// -- this will need to be broken down
     ; into finer granularity.  Formerly all of them were loaded at the end
-    ; of Init_Core(), but one small step is to push the decision into the
+    ; of Startup_Core(), but one small step is to push the decision into the
     ; host...which loads them all, but should be more selective.
     ;
     sys/init-schemes

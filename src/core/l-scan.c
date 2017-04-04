@@ -2065,9 +2065,9 @@ REBINT Scan_Header(const REBYTE *utf8, REBCNT len)
 
 
 //
-//  Init_Scanner: C
+//  Startup_Scanner: C
 //
-void Init_Scanner(void)
+void Startup_Scanner(void)
 {
     REBCNT n = 0;
     while (Token_Names[n] != NULL)

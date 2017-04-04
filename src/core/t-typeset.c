@@ -75,13 +75,13 @@ REBINT CT_Typeset(const RELVAL *a, const RELVAL *b, REBINT mode)
 
 
 //
-//  Init_Typesets: C
+//  Startup_Typesets: C
 //
 // Create typeset variables that are defined above.
 // For example: NUMBER is both integer and decimal.
 // Add the new variables to the system context.
 //
-void Init_Typesets(void)
+void Startup_Typesets(void)
 {
     REBDSP dsp_orig = DSP;
 

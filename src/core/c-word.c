@@ -350,7 +350,7 @@ new_interning: ; // semicolon needed for statement
         intern->misc.bind_index.low = 0;
 
         // leave header.bits as 0 for SYM_0 as answer to VAL_WORD_SYM()
-        // Init_Symbols() tags values from %words.r after the fact.
+        // Startup_Symbols() tags values from %words.r after the fact.
     }
     else {
         // This is a synonym for an existing canon.  Link it into the synonyms
@@ -499,7 +499,7 @@ REBINT Compare_Word(const RELVAL *s, const RELVAL *t, REBOOL is_case)
 
 
 //
-//  Init_Symbols: C
+//  Startup_Symbols: C
 //
 // By this point in the boot, the canon words have already been created for
 // everything in %words.r.
@@ -513,7 +513,7 @@ REBINT Compare_Word(const RELVAL *s, const RELVAL *t, REBOOL is_case)
 // It also creates a table for mapping from SYM_XXX => REBSTR series.  This
 // is used e.g. by Canon(SYM_XXX) to get the string name for a symbol.
 //
-void Init_Symbols(REBARR *words)
+void Startup_Symbols(REBARR *words)
 {
     PG_Symbol_Canons = Make_Series(
         ARR_LEN(words) + 1, // extra NULL at head for SYM_0 (END maps to NULL)

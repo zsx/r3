@@ -12,7 +12,7 @@ REBOL [
     }
     Context: sys
     Note: {
-        The Init_Core() function in %b-init.c is supposed to be a fairly
+        The Startup_Core() function in %b-init.c is supposed to be a fairly
         minimal startup, to get the system running.  For instance, it does
         not do any command-line processing...as the host program might not
         even *have* a command line.  It just gets basic things set up like
@@ -20,7 +20,7 @@ REBOL [
 
         Not much of that work can be delegated to Rebol routines, because
         the evaluator can't run for a lot of that setup time.  But at the
-        end of Init_Core() when the evaluator is ready, it runs this
+        end of Startup_Core() when the evaluator is ready, it runs this
         routine for any core initialization code which can reasonably be
         delegated to Rebol.
 
@@ -33,7 +33,7 @@ REBOL [
 finish-init-core: procedure [
     "Completes the boot sequence for Ren-C core."
     boot-mezz [block!]
-        {Mezzanine code loaded as part of the boot block in Init_Core()}
+        {Mezzanine code loaded as part of the boot block in Startup_Core()}
 ][
     ; Remove the reference through which this function we are running is
     ; found, so it's invisible to the user and can't run again (but leave
@@ -80,7 +80,7 @@ finish-init-core: procedure [
     ;
     comment [if :lib/secure [protect-system-object]]
 
-    ; The mezzanine is currently considered part of what Init_Core() will
+    ; The mezzanine is currently considered part of what Startup_Core() will
     ; initialize for all clients.
     ;
     do bind-lib boot-mezz
