@@ -113,15 +113,15 @@ REBNATIVE(verify)
         fail (Error_Verify_Failed_Raw(FALSE_VALUE));
     }
 
-    REBFRM f;
-    Push_Frame(&f, ARG(conditions));
+    DECLARE_FRAME (f);
+    Push_Frame(f, ARG(conditions));
 
     DECLARE_LOCAL (temp);
 
-    while (NOT_END(f.value)) {
-        const RELVAL *start = f.value;
-        if (Do_Next_In_Frame_Throws(D_OUT, &f)) {
-            Drop_Frame(&f);
+    while (NOT_END(f->value)) {
+        const RELVAL *start = f->value;
+        if (Do_Next_In_Frame_Throws(D_OUT, f)) {
+            Drop_Frame(f);
             return R_OUT_IS_THROWN;
         }
 
@@ -130,7 +130,7 @@ REBNATIVE(verify)
 
         Init_Block(
             temp,
-            Copy_Values_Len_Shallow(start, f.specifier, f.value - start)
+            Copy_Values_Len_Shallow(start, f->specifier, f->value - start)
         );
 
         if (IS_VOID(D_OUT))
@@ -139,7 +139,7 @@ REBNATIVE(verify)
         fail (Error_Verify_Failed_Raw(temp));
     }
 
-    Drop_Frame(&f);
+    Drop_Frame(f);
     return R_VOID;
 }
 

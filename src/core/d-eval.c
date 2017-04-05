@@ -293,22 +293,14 @@ REBUPT Do_Core_Expression_Checks_Debug(REBFRM *f) {
     assert(f->label_debug == NULL); // marked debug to point out debug only
 #endif
 
-    // Make sure `eval` is trash in debug build if not doing a `reevaluate`.
+    // Make sure `cell` is trash in debug build if not doing a `reevaluate`.
     // It does not have to be GC safe (for reasons explained below).  We
     // also need to reset evaluation to normal vs. a kind of "inline quoting"
     // in case EVAL/ONLY had enabled that.
     //
-    // Note that since the cell lives in a union, it cannot have a constructor
-    // so the automatic mark of writable that most REBVALs get could not
-    // be used.  Since it's a raw RELVAL, we have to explicitly mark writable.
-    //
-    // Also, the eval's cell bits live in a union that can wind up getting used
-    // for other purposes.  Hence the writability must be re-indicated here
-    // before the slot is used each time.
-    //
 #if !defined(NDEBUG)
     if (f->value != &f->cell)
-        Prep_Global_Cell(&f->cell);
+        SET_TRASH_IF_DEBUG(&f->cell);
 #endif
 
     // Trash call variables in debug build to make sure they're not reused.

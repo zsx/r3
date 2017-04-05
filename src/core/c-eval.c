@@ -835,6 +835,11 @@ reevaluate:;
 
             if (f->refine == LOOKBACK_ARG) {
                 //
+                // Switch to ordinary arg up front, so gotos below are good to go
+                // for the next argument
+                //
+                f->refine = ORDINARY_ARG;
+
                 // !!! Can a variadic lookback argument be meaningful?
                 // Arguably, if you have an arity-1 function which is variadic
                 // and you enfix it, then giving it a feed of either 0 or 1
@@ -922,7 +927,6 @@ reevaluate:;
                     assert(FALSE);
                 }
 
-                f->refine = ORDINARY_ARG;
                 SET_END(f->out);
                 goto check_arg;
             }
@@ -1896,7 +1900,7 @@ reevaluate:;
 
         if (GET_VAL_FLAG(f->gotten, VALUE_FLAG_ENFIXED)) {
             if (
-                GET_VAL_FLAG(f->gotten, FUNC_FLAG_DEFERS_LOOKBACK_ARG)
+                GET_VAL_FLAG(f->gotten, FUNC_FLAG_DEFERS_LOOKBACK)
                 && (f->flags.bits & DO_FLAG_FULFILLING_ARG)
             ){
                 // This is the special case; we have a lookback function

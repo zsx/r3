@@ -789,17 +789,16 @@ REB_R Routine_Dispatcher(REBFRM *f)
         // FFI argument series.
         //
         do {
-            REBIXO indexor = Do_Vararg_Op_May_Throw(
-                f->out, vararg, VARARG_OP_TAKE
-            );
-            if (indexor == THROWN_FLAG) {
-                assert(THROWN(f->out));
+            REB_R r = Do_Vararg_Op_May_Throw(f->out, vararg, VARARG_OP_TAKE);
+
+            if (r == R_OUT_IS_THROWN)
                 return R_OUT_IS_THROWN;
-            }
-            if (indexor == END_FLAG)
+            if (r == R_VOID)
                 break;
+            assert(r == R_OUT);
 
             DS_PUSH(f->out);
+            SET_END(f->out); // expected by Do_Vararg_Op
         } while (TRUE);
 
         // !!! The Atronix va_list interface required a type to be specified

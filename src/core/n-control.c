@@ -177,12 +177,12 @@ REBNATIVE(all)
 
     assert(IS_END(D_OUT)); // guaranteed by the evaluator
 
-    REBFRM f;
-    Push_Frame(&f, ARG(block));
+    DECLARE_FRAME (f);
+    Push_Frame(f, ARG(block));
 
-    while (NOT_END(f.value)) {
-        if (Do_Next_In_Frame_Throws(D_CELL, &f)) {
-            Drop_Frame(&f);
+    while (NOT_END(f->value)) {
+        if (Do_Next_In_Frame_Throws(D_CELL, f)) {
+            Drop_Frame(f);
             Move_Value(D_OUT, D_CELL);
             return R_OUT_IS_THROWN;
         }
@@ -191,14 +191,14 @@ REBNATIVE(all)
             continue;
 
         if (IS_CONDITIONAL_FALSE(D_CELL)) { // a failed ALL returns BLANK!
-            Drop_Frame(&f);
+            Drop_Frame(f);
             return R_BLANK;
         }
 
         Move_Value(D_OUT, D_CELL); // preserve (not overwritten by later voids)
     }
 
-    Drop_Frame(&f);
+    Drop_Frame(f);
 
     // If IS_END(out), no successes or failures found (all opt-outs)
     //
@@ -221,14 +221,14 @@ REBNATIVE(any)
 {
     INCLUDE_PARAMS_OF_ANY;
 
-    REBFRM f;
-    Push_Frame(&f, ARG(block));
+    DECLARE_FRAME (f);
+    Push_Frame(f, ARG(block));
 
     REBOOL voted = FALSE;
 
-    while (NOT_END(f.value)) {
-        if (Do_Next_In_Frame_Throws(D_OUT, &f)) {
-            Drop_Frame(&f);
+    while (NOT_END(f->value)) {
+        if (Do_Next_In_Frame_Throws(D_OUT, f)) {
+            Drop_Frame(f);
             return R_OUT_IS_THROWN;
         }
 
@@ -236,14 +236,14 @@ REBNATIVE(any)
             continue;
 
         if (IS_CONDITIONAL_TRUE(D_OUT)) { // successful ANY returns the value
-            Drop_Frame(&f);
+            Drop_Frame(f);
             return R_OUT;
         }
 
         voted = TRUE; // signal at least one non-void result was seen
     }
 
-    Drop_Frame(&f);
+    Drop_Frame(f);
 
     if (voted)
         return R_BLANK;
@@ -270,14 +270,14 @@ REBNATIVE(none)
 {
     INCLUDE_PARAMS_OF_NONE;
 
-    REBFRM f;
-    Push_Frame(&f, ARG(block));
+    DECLARE_FRAME (f);
+    Push_Frame(f, ARG(block));
 
     REBOOL voted = FALSE;
 
-    while (NOT_END(f.value)) {
-        if (Do_Next_In_Frame_Throws(D_OUT, &f)) {
-            Drop_Frame(&f);
+    while (NOT_END(f->value)) {
+        if (Do_Next_In_Frame_Throws(D_OUT, f)) {
+            Drop_Frame(f);
             return R_OUT_IS_THROWN;
         }
 
@@ -285,14 +285,14 @@ REBNATIVE(none)
             continue;
 
         if (IS_CONDITIONAL_TRUE(D_OUT)) { // any true results mean failure
-            Drop_Frame(&f);
+            Drop_Frame(f);
             return R_BLANK;
         }
 
         voted = TRUE; // signal that at least one non-void result was seen
     }
 
-    Drop_Frame(&f);
+    Drop_Frame(f);
 
     if (voted)
         return R_BAR;
@@ -322,21 +322,21 @@ REBNATIVE(case)
 {
     INCLUDE_PARAMS_OF_CASE; // ? is renamed as "q"
 
-    REBFRM f;
-    Push_Frame(&f, ARG(cases));
+    DECLARE_FRAME (f);
+    Push_Frame(f, ARG(cases));
 
     // With the block argument pushed in the enumerator, that frame slot is
     // available for scratch space in the rest of the routine.
 
-    while (NOT_END(f.value)) {
-        if (IS_BAR(f.value)) { // interstitial BAR! legal, `case [1 2 | 3 4]`
-            Fetch_Next_In_Frame(&f);
+    while (NOT_END(f->value)) {
+        if (IS_BAR(f->value)) { // interstitial BAR! legal, `case [1 2 | 3 4]`
+            Fetch_Next_In_Frame(f);
             continue;
         }
 
         // Perform a DO/NEXT's worth of evaluation on a "condition" to test
 
-        if (Do_Next_In_Frame_Throws(D_CELL, &f)) {
+        if (Do_Next_In_Frame_Throws(D_CELL, f)) {
             Move_Value(D_OUT, D_CELL);
             goto return_thrown;
         }
@@ -344,10 +344,10 @@ REBNATIVE(case)
         if (IS_VOID(D_CELL)) // no void conditions allowed (as with IF)
             fail (Error_No_Return_Raw());
 
-        if (IS_END(f.value)) // require conditions and branches in pairs
+        if (IS_END(f->value)) // require conditions and branches in pairs
             fail (Error_Past_End_Raw());
 
-        if (IS_BAR(f.value)) // BAR! out of sync, between condition and branch
+        if (IS_BAR(f->value)) // BAR! out of sync between condition and branch
             fail (Error_Bar_Hit_Mid_Case_Raw());
 
         // Regardless of whether a "condition" was true or false, it's
@@ -365,7 +365,7 @@ REBNATIVE(case)
         // GROUP! as in `case [([x]) [y]]`.
         //
         if (NOT(IS_CONDITIONAL_TRUE_SAFE(D_CELL))) {
-            if (Do_Next_In_Frame_Throws(D_CELL, &f)) {
+            if (Do_Next_In_Frame_Throws(D_CELL, f)) {
                 Move_Value(D_OUT, D_CELL);
                 goto return_thrown;
             }
@@ -381,7 +381,7 @@ REBNATIVE(case)
         //
         // Similar to IF TRUE STUFF, so CASE can act like many IFs at once.
 
-        if (Do_Next_In_Frame_Throws(D_CELL, &f)) {
+        if (Do_Next_In_Frame_Throws(D_CELL, f)) {
             Move_Value(D_OUT, D_CELL);
             goto return_thrown;
         }
@@ -403,19 +403,19 @@ REBNATIVE(case)
     goto return_maybe_matched;
 
 return_maybe_matched: // CASE/ALL can get here even if D_OUT not written
-    Drop_Frame(&f);
+    Drop_Frame(f);
     if (REF(opt))
         return R_OUT_VOID_IF_UNWRITTEN; // user wants voids as-is
     return R_OUT_VOID_IF_UNWRITTEN_BLANK_IF_VOID;
 
 return_matched:
-    Drop_Frame(&f);
+    Drop_Frame(f);
     if (REF(opt))
         return R_OUT; // user wants voids as-is
     return R_OUT_BLANK_IF_VOID;
 
 return_thrown:
-    Drop_Frame(&f);
+    Drop_Frame(f);
     return R_OUT_IS_THROWN;
 }
 
@@ -447,8 +447,8 @@ REBNATIVE(switch)
 {
     INCLUDE_PARAMS_OF_SWITCH; // ? is renamed as "q"
 
-    REBFRM f;
-    Push_Frame(&f, ARG(cases));
+    DECLARE_FRAME (f);
+    Push_Frame(f, ARG(cases));
 
     // The evaluator always initializes the out slot to an END marker.  That
     // makes sure it gets overwritten with a value (or void) before returning.
@@ -470,13 +470,13 @@ REBNATIVE(switch)
 
     SET_VOID(D_CELL); // used for "fallout"
 
-    while (NOT_END(f.value)) {
+    while (NOT_END(f->value)) {
 
         // If a block is seen at this point, it doesn't correspond to any
         // condition to match.  If no more tests are run, let it suppress the
         // feature of the last value "falling out" the bottom of the switch
 
-        if (IS_BLOCK(f.value)) {
+        if (IS_BLOCK(f->value)) {
             SET_VOID(D_CELL);
             goto continue_loop;
         }
@@ -485,17 +485,17 @@ REBNATIVE(switch)
         // All other types are seen as-is (hence words act "quoted")
 
         if (
-            IS_GROUP(f.value)
-            || IS_GET_WORD(f.value)
-            || IS_GET_PATH(f.value)
+            IS_GROUP(f->value)
+            || IS_GET_WORD(f->value)
+            || IS_GET_PATH(f->value)
         ){
-            if (Eval_Value_Core_Throws(D_CELL, f.value, f.specifier)) {
+            if (Eval_Value_Core_Throws(D_CELL, f->value, f->specifier)) {
                 Move_Value(D_OUT, D_CELL);
                 goto return_thrown;
             }
         }
         else
-            Derelativize(D_CELL, f.value, f.specifier);
+            Derelativize(D_CELL, f->value, f->specifier);
 
         // It's okay that we are letting the comparison change `value`
         // here, because equality is supposed to be transitive.  So if it
@@ -513,20 +513,20 @@ REBNATIVE(switch)
         // Skip ahead to try and find a block, to treat as code for the match
 
         do {
-            Fetch_Next_In_Frame(&f);
-            if (IS_END(f.value))
+            Fetch_Next_In_Frame(f);
+            if (IS_END(f->value))
                 goto return_defaulted;
-        } while (!IS_BLOCK(f.value));
+        } while (!IS_BLOCK(f->value));
 
         // Run the code if it was found.  Because it writes D_OUT with a value
         // (or void), it won't be END--so we'll know at least one case has run.
 
         REBSPC *derived; // goto would cross initialization
-        derived = Derive_Specifier(VAL_SPECIFIER(ARG(cases)), f.value);
+        derived = Derive_Specifier(VAL_SPECIFIER(ARG(cases)), f->value);
         if (Do_At_Throws(
             D_OUT,
-            VAL_ARRAY(f.value),
-            VAL_INDEX(f.value),
+            VAL_ARRAY(f->value),
+            VAL_INDEX(f->value),
             derived
         )) {
             goto return_thrown;
@@ -538,14 +538,14 @@ REBNATIVE(switch)
             goto return_matched;
 
     continue_loop:
-        Fetch_Next_In_Frame(&f);
+        Fetch_Next_In_Frame(f);
     }
 
     if (NOT_END(D_OUT)) // at least one case body's DO ran and overwrote D_OUT
         goto return_matched;
 
 return_defaulted:
-    Drop_Frame(&f);
+    Drop_Frame(f);
 
     if (REF(default)) {
         const REBOOL only = FALSE; // !!! Should it use REF(only)?
@@ -562,14 +562,14 @@ return_defaulted:
     return R_OUT;
 
 return_matched:
-    Drop_Frame(&f);
+    Drop_Frame(f);
 
     if (REF(opt))
         return R_OUT;
     return R_OUT_BLANK_IF_VOID;
 
 return_thrown:
-    Drop_Frame(&f);
+    Drop_Frame(f);
     return R_OUT_IS_THROWN;
 }
 

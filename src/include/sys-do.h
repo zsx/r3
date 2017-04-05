@@ -148,8 +148,6 @@ inline static void Push_Frame_Core(REBFRM *f)
     if (C_STACK_OVERFLOWING(&f))
         Trap_Stack_Overflow();
 
-    Prep_Global_Cell(&f->cell);
-
     f->prior = TG_Frame_Stack;
     TG_Frame_Stack = f;
     if (NOT(f->flags.bits & DO_FLAG_VA_LIST)) {
@@ -186,12 +184,13 @@ inline static void Push_Frame_At(
     REBFRM *f,
     REBARR *array,
     REBCNT index,
-    REBSPC *specifier
+    REBSPC *specifier,
+    REBUPT flags
 ) {
     SET_FRAME_VALUE(f, ARR_AT(array, index));
     f->source.array = array;
 
-    Init_Endlike_Header(&f->flags, 0);
+    Init_Endlike_Header(&f->flags, flags);
 
     f->gotten = END; // tells ET_WORD and ET_GET_WORD they must do a get
     f->index = index + 1;
@@ -219,7 +218,9 @@ inline static void Push_Frame_At(
 
 inline static void Push_Frame(REBFRM *f, const REBVAL *v)
 {
-    Push_Frame_At(f, VAL_ARRAY(v), VAL_INDEX(v), VAL_SPECIFIER(v));
+    Push_Frame_At(
+        f, VAL_ARRAY(v), VAL_INDEX(v), VAL_SPECIFIER(v), DO_FLAG_NORMAL
+    );
 }
 
 inline static void Drop_Frame(REBFRM *f)
@@ -382,8 +383,7 @@ inline static REBOOL Do_Next_In_Subframe_Throws(
         || parent->eval_type == REB_SET_PATH
     );
 
-    REBFRM child_frame;
-    REBFRM *child = &child_frame;
+    DECLARE_FRAME (child);
 
     child->gotten = parent->gotten;
 
@@ -460,9 +460,7 @@ inline static REBIXO DO_NEXT_MAY_THROW(
     REBCNT index,
     REBSPC *specifier
 ){
-    REBFRM frame;
-    Prep_Global_Cell(&frame.cell);
-    REBFRM *f = &frame;
+    DECLARE_FRAME (f);
 
     SET_FRAME_VALUE(f, ARR_AT(array, index));
     if (IS_END(f->value)) {
@@ -510,44 +508,43 @@ inline static REBIXO Do_Array_At_Core(
     REBSPC *specifier,
     REBFLGS flags
 ) {
-    REBFRM f;
-    Prep_Global_Cell(&f.cell);
+    DECLARE_FRAME (f);
 
     if (opt_first) {
-        SET_FRAME_VALUE(&f, opt_first);
-        f.index = index;
+        SET_FRAME_VALUE(f, opt_first);
+        f->index = index;
     }
     else {
         // Do_Core() requires caller pre-seed first value, always
         //
-        SET_FRAME_VALUE(&f, ARR_AT(array, index));
-        f.index = index + 1;
+        SET_FRAME_VALUE(f, ARR_AT(array, index));
+        f->index = index + 1;
     }
 
-    if (IS_END(f.value)) {
+    if (IS_END(f->value)) {
         SET_VOID(out);
         return END_FLAG;
     }
 
     SET_END(out);
-    f.out = out;
+    f->out = out;
 
-    f.source.array = array;
-    f.specifier = specifier;
+    f->source.array = array;
+    f->specifier = specifier;
 
-    Init_Endlike_Header(&f.flags, flags); // see notes on definition
+    Init_Endlike_Header(&f->flags, flags); // see notes on definition
 
-    f.gotten = END; // so ET_WORD and ET_GET_WORD do their own Get_Var
-    f.pending = NULL;
+    f->gotten = END; // so ET_WORD and ET_GET_WORD do their own Get_Var
+    f->pending = NULL;
 
-    Push_Frame_Core(&f);
-    Do_Core(&f);
-    Drop_Frame_Core(&f);
+    Push_Frame_Core(f);
+    Do_Core(f);
+    Drop_Frame_Core(f);
 
-    if (THROWN(f.out))
+    if (THROWN(f->out))
         return THROWN_FLAG; // !!! prohibits recovery from exits
 
-    return IS_END(f.value) ? END_FLAG : f.index;
+    return IS_END(f->value) ? END_FLAG : f->index;
 }
 
 
@@ -713,37 +710,36 @@ inline static REBIXO Do_Va_Core(
     va_list *vaptr,
     REBFLGS flags
 ) {
-    REBFRM f;
-    Prep_Global_Cell(&f.cell);
+    DECLARE_FRAME (f);
 
     if (opt_first)
-        SET_FRAME_VALUE(&f, opt_first); // no specifier, not relative
+        SET_FRAME_VALUE(f, opt_first); // no specifier, not relative
     else {
-        SET_FRAME_VALUE(&f, va_arg(*vaptr, const REBVAL*));
-        assert(!IS_RELATIVE(f.value));
+        SET_FRAME_VALUE(f, va_arg(*vaptr, const REBVAL*));
+        assert(!IS_RELATIVE(f->value));
     }
 
-    if (IS_END(f.value)) {
+    if (IS_END(f->value)) {
         SET_VOID(out);
         return END_FLAG;
     }
 
     SET_END(out);
-    f.out = out;
+    f->out = out;
 
 #if !defined(NDEBUG)
-    f.index = TRASHED_INDEX;
+    f->index = TRASHED_INDEX;
 #endif
-    f.source.vaptr = vaptr;
-    f.gotten = END; // so ET_WORD and ET_GET_WORD do their own Get_Var
-    f.specifier = SPECIFIED; // va_list values MUST be full REBVAL* already
-    f.pending = VA_LIST_PENDING;
+    f->source.vaptr = vaptr;
+    f->gotten = END; // so REB_WORD and REB_GET_WORD do their own Get_Var
+    f->specifier = SPECIFIED; // va_list values MUST be full REBVAL* already
+    f->pending = VA_LIST_PENDING;
 
-    Init_Endlike_Header(&f.flags, flags | DO_FLAG_VA_LIST); // see notes
+    Init_Endlike_Header(&f->flags, flags | DO_FLAG_VA_LIST); // see notes
 
-    Push_Frame_Core(&f);
-    Do_Core(&f);
-    Drop_Frame_Core(&f);
+    Push_Frame_Core(f);
+    Do_Core(f);
+    Drop_Frame_Core(f);
 
     // Note: While on many platforms va_end() is a no-op, the C standard is
     // clear that it must be called...it's undefined behavior if you skip it:
@@ -762,13 +758,13 @@ inline static REBIXO Do_Va_Core(
     // into evaluation, so they must be stored in an intermediate array.)
     // Reification also does a va_end(), so we don't want to do it again.
     //
-    if (FRM_IS_VALIST(&f)) // didn't get reified, so va_end() not called...
+    if (FRM_IS_VALIST(f)) // didn't get reified, so va_end() not called...
         va_end(*vaptr);
 
-    if (THROWN(f.out))
+    if (THROWN(f->out))
         return THROWN_FLAG; // !!! prohibits recovery from exits
 
-    return IS_END(f.value) ? END_FLAG : VA_LIST_FLAG;
+    return IS_END(f->value) ? END_FLAG : VA_LIST_FLAG;
 }
 
 

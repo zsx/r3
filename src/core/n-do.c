@@ -252,8 +252,7 @@ REBNATIVE(do)
         // not want that strange voodoo to be what DO does on a FRAME!,
         // it would have to be another operation (REDO ?)
         //
-        REBFRM *f = CTX_FRAME_IF_ON_STACK(c);
-        if (f != NULL)
+        if (CTX_FRAME_IF_ON_STACK(c) != NULL)
             fail (Error_Do_Running_Frame_Raw());
 
         // Right now all stack based contexts are either running (stopped by
@@ -262,8 +261,7 @@ REBNATIVE(do)
         if (CTX_VARS_UNAVAILABLE(c))
             fail (Error_Do_Expired_Frame_Raw());
 
-        REBFRM frame;
-        f = &frame;
+        DECLARE_FRAME (f);
 
         // Apply_Frame_Core sets up most of the Reb_Frame, but expects these
         // arguments to be filled in.
@@ -323,8 +321,8 @@ REBNATIVE(do_all)
     SET_END(thrown_name);
     PUSH_GUARD_VALUE(thrown_name);
 
-    REBFRM f;
-    Push_Frame(&f, ARG(block));
+    DECLARE_FRAME (f);
+    Push_Frame(f, ARG(block));
 
     // The trap must be pushed *after* the frame has been pushed, so that
     // when a fail() happens it won't pop the running frame.
@@ -356,25 +354,25 @@ repush:
             fail (Error_Multiple_Do_Errors_Raw(arg1, arg2));
         }
 
-        f.eval_type = REB_0; // invariant of Do_Next_In_Frame
+        f->eval_type = REB_0; // invariant of Do_Next_In_Frame
 
         assert(IS_END(thrown_name));
         Init_Error(arg_or_error, error);
 
-        while (NOT_END(f.value) && NOT(IS_BAR(f.value)))
-            Fetch_Next_In_Frame(&f);
+        while (NOT_END(f->value) && NOT(IS_BAR(f->value)))
+            Fetch_Next_In_Frame(f);
 
         goto repush;
     }
 
     SET_VOID(D_OUT); // default return result of DO-ALL []
 
-    while (NOT_END(f.value)) {
-        if (IS_BAR(f.value)) {
+    while (NOT_END(f->value)) {
+        if (IS_BAR(f->value)) {
             //
-            // BAR! is handled explicitly, because you might have f.value as
+            // BAR! is handled explicitly, because you might have f->value as
             // the BAR! in `| asdf`, call into the evaluator and get an error,
-            // yet then come back and still have f.value positioned at the
+            // yet then come back and still have f->value positioned at the
             // BAR!.  This comes from how child frames and optimizations work.
             // Hence it's not easy to know where to skip forward to in case
             // of an error.
@@ -386,11 +384,11 @@ repush:
             // the next BAR!, as this routine does.
             //
             SET_VOID(D_OUT);
-            Fetch_Next_In_Frame(&f);
+            Fetch_Next_In_Frame(f);
             continue;
         }
 
-        if (Do_Next_In_Frame_Throws(D_OUT, &f)) {
+        if (Do_Next_In_Frame_Throws(D_OUT, f)) {
             if (NOT_END(arg_or_error)) { // already a throw or fail pending!
                 DECLARE_LOCAL (arg1);
                 if (IS_END(thrown_name)) {
@@ -417,12 +415,12 @@ repush:
             CATCH_THROWN(arg_or_error, D_OUT);
             Move_Value(thrown_name, D_OUT); // THROWN cleared by CATCH_THROWN
 
-            while (NOT_END(f.value) && NOT(IS_BAR(f.value)))
-                Fetch_Next_In_Frame(&f);
+            while (NOT_END(f->value) && NOT(IS_BAR(f->value)))
+                Fetch_Next_In_Frame(f);
         }
     }
 
-    Drop_Frame(&f);
+    Drop_Frame(f);
 
     DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 
@@ -463,8 +461,7 @@ REBNATIVE(apply)
 
     REBVAL *def = ARG(def);
 
-    REBFRM frame;
-    REBFRM *f = &frame;
+    DECLARE_FRAME (f);
 
 #if !defined(NDEBUG)
     RELVAL *first_def = VAL_ARRAY_AT(def);

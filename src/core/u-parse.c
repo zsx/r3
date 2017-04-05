@@ -157,8 +157,7 @@ static REBOOL Subparse_Throws(
     REBSPC *rules_specifier,
     REBCNT find_flags
 ) {
-    REBFRM frame;
-    REBFRM *f = &frame;
+    DECLARE_FRAME (f);
 
     SET_END(out);
 
@@ -176,7 +175,6 @@ static REBOOL Subparse_Throws(
     // with no items advanced.
     //
     if (VAL_INDEX(rules) >= VAL_LEN_HEAD(rules)) {
-        Prep_Global_Cell(&f->cell); // bypass C++ assert on no prep
         *interrupted_out = FALSE;
         SET_INTEGER(out, VAL_INDEX(input));
         return FALSE;

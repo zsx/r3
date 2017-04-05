@@ -141,17 +141,18 @@ REBNATIVE(make)
         REBDSP dsp_orig = DSP;
 
         do {
-            REBIXO indexor = Do_Vararg_Op_May_Throw(D_OUT, arg, VARARG_OP_TAKE);
+            REB_R r = Do_Vararg_Op_May_Throw(D_OUT, arg, VARARG_OP_TAKE);
 
-            if (indexor == THROWN_FLAG) {
+            if (r == R_OUT_IS_THROWN) {
                 DS_DROP_TO(dsp_orig);
                 return R_OUT_IS_THROWN;
             }
-            if (indexor == END_FLAG)
+            if (r == R_VOID)
                 break;
-            assert(indexor == VA_LIST_FLAG);
+            assert(r == R_OUT);
 
             DS_PUSH(D_OUT);
+            SET_END(D_OUT); // expected by Do_Vararg_Op
         } while (TRUE);
 
         Init_Any_Array(D_OUT, kind, Pop_Stack_Values(dsp_orig));

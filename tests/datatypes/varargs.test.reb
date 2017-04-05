@@ -35,3 +35,35 @@
     error? trap [take eval (foo: func [x [integer! <...>]] [x])]
 ]
 
+[
+    f: func [args [any-value! <opt> <...>]] [
+       b: take args
+       either tail? args [b] ["not at end"]
+    ]
+    x: make varargs! [_]
+    blank? apply :f [args: x]
+]
+
+
+; Testing the variadic behavior of |> and <| is easier than rewriting tests
+; here to do the same thing.
+
+[
+    value: 1 + 2 <| 30 + 40 () () ()
+        |
+    value = 3
+][
+    (value: 1 + 2 <| 30 + 40 () () ())
+    value = 3
+][
+    (value: 1 + 2 |> 30 + 40 () () ())
+        |
+    value = 70
+][
+    (value: 1 + 2 |> 30 + 40 () () ())
+    value = 70
+][
+    void? (<| 10)
+][
+    void? (10 |>)
+]

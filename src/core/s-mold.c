@@ -1535,26 +1535,26 @@ REBOOL Form_Reduce_Throws(
 
     Push_Mold(&mo);
 
-    REBFRM f;
-    Push_Frame_At(&f, array, index, specifier);
+    DECLARE_FRAME (f);
+    Push_Frame_At(f, array, index, specifier, DO_FLAG_NORMAL);
 
     REBOOL pending = FALSE;
 
-    while (NOT_END(f.value)) {
-        if (IS_BLANK(f.value)) { // opt-out
-            Fetch_Next_In_Frame(&f);
+    while (NOT_END(f->value)) {
+        if (IS_BLANK(f->value)) { // opt-out
+            Fetch_Next_In_Frame(f);
             continue;
         }
 
-        if (IS_BAR(f.value)) { // newline
+        if (IS_BAR(f->value)) { // newline
             Append_Codepoint_Raw(mo.series, '\n');
             pending = FALSE;
-            Fetch_Next_In_Frame(&f);
+            Fetch_Next_In_Frame(f);
             continue;
         }
 
-        if (Do_Next_In_Frame_Throws(out, &f)) {
-            Drop_Frame(&f);
+        if (Do_Next_In_Frame_Throws(out, f)) {
+            Drop_Frame(f);
             return TRUE;
         }
 
@@ -1582,7 +1582,7 @@ REBOOL Form_Reduce_Throws(
         }
     }
 
-    Drop_Frame(&f);
+    Drop_Frame(f);
 
     Init_String(out, Pop_Molded_String(&mo));
 

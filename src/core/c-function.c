@@ -207,12 +207,12 @@ REBARR *Make_Paramlist_Managed_May_Fail(
 
     REBOOL refinement_seen = FALSE;
 
-    REBFRM f;
-    Push_Frame(&f, spec);
+    DECLARE_FRAME (f);
+    Push_Frame(f, spec);
 
-    while (NOT_END(f.value)) {
-        const RELVAL *item = f.value; // gets "faked", e.g. <return> => RETURN:
-        Fetch_Next_In_Frame(&f); // go ahead and consume next
+    while (NOT_END(f->value)) {
+        const RELVAL *item = f->value; // "faked", e.g. <return> => RETURN:
+        Fetch_Next_In_Frame(f); // go ahead and consume next
 
     //=//// STRING! FOR FUNCTION DESCRIPTION OR PARAMETER NOTE ////////////=//
 
@@ -539,7 +539,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             SET_VAL_FLAG(typeset, TYPESET_FLAG_DURABLE);
     }
 
-    Drop_Frame(&f);
+    Drop_Frame(f);
 
     // Go ahead and flesh out the TYPESET! BLOCK! STRING! triples.
     //
@@ -970,7 +970,7 @@ REBFUN *Make_Function(
     assert(rootparam->payload.function.paramlist == paramlist);
     assert(rootparam->extra.binding == NULL); // archetype
 
-    // Precalculate FUNC_FLAG_DEFERS_LOOKBACK_ARG
+    // Precalculate FUNC_FLAG_DEFERS_LOOKBACK
     //
     // Note that this flag is only relevant for *un-refined-calls*.  There
     // are no lookback function calls via PATH! and brancher dispatch is done
@@ -999,7 +999,7 @@ REBFUN *Make_Function(
             //
             // First argument is not tight, cache flag to report it.
             //
-            SET_VAL_FLAG(rootparam, FUNC_FLAG_DEFERS_LOOKBACK_ARG);
+            SET_VAL_FLAG(rootparam, FUNC_FLAG_DEFERS_LOOKBACK);
             goto done_caching;
 
         // Otherwise, at least one argument but not one that requires the

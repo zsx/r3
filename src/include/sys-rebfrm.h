@@ -599,3 +599,13 @@ struct Reb_Frame {
     struct Reb_State state;
 #endif
 };
+
+
+// It is more pleasant to have a uniform way of speaking of frames by pointer,
+// so this macro sets that up for you, the same way DECLARE_LOCAL does.  The
+// optimizer should eliminate the extra pointer.
+//
+#define DECLARE_FRAME(name) \
+    REBFRM name##struct; \
+    REBFRM * const name = &name##struct; \
+    Prep_Global_Cell(&name->cell)

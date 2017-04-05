@@ -6,7 +6,7 @@
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// Copyright 2016 Rebol Open Source Contributors
+// Copyright 2016-2017 Rebol Open Source Contributors
 // REBOL is a trademark of REBOL Technologies
 //
 // See README.md and CREDITS.md for more information
@@ -35,6 +35,80 @@
 #include "sys-core.h"
 
 
+#define R_For_Vararg_End(op) \
+    ((op) == VARARG_OP_TAIL_Q ? R_TRUE : R_VOID) 
+
+
+// Some VARARGS! are generated from a block with no frame, while others
+// have a frame.  It would be inefficient to force the creation of a frame on
+// each call for a BLOCK!-based varargs.  So rather than doing so, and forcing
+// even simple cases to make a frame, there's a prelude which sees if it can
+// get away with just operating on the current value.
+//
+inline static REB_R Vararg_Op_If_No_Advance(
+    REBVAL *out,
+    enum Reb_Vararg_Op op,
+    const RELVAL *v,
+    REBSPC *specifier,
+    enum Reb_Param_Class pclass
+){
+    assert(NOT_END(v));
+
+    if (IS_BAR(v)) // all functions args, including varargs, stop at `|`
+        return R_For_Vararg_End(op);
+
+    if (
+        (pclass == PARAM_CLASS_NORMAL || pclass == PARAM_CLASS_TIGHT)
+        && IS_WORD(v)
+    ){
+        // When a variadic argument is being TAKE-n, deferred left hand side
+        // argument needs to be seen as end of variadic input.  Otherwise,
+        // `summation 1 2 3 |> 100` acts as `summation 1 2 (3 |> 100)`.
+        // Deferred operators need to act somewhat as an expression barrier.
+        //
+        // Same rule applies for "tight" arguments, `sum 1 2 3 + 4` with
+        // sum being variadic and tight needs to act as `(sum 1 2 3) + 4`
+        //
+        REBVAL *child_gotten = Get_Var_Core(
+            v,
+            specifier,
+            GETVAR_END_IF_UNAVAILABLE
+        );
+
+        // Raw check faster because it will fail on END marker
+        //
+        if (VAL_TYPE_RAW(child_gotten) == REB_FUNCTION) {
+            if (GET_VAL_FLAG(child_gotten, VALUE_FLAG_ENFIXED)) {
+                if (
+                    pclass == PARAM_CLASS_TIGHT
+                    || GET_VAL_FLAG(child_gotten, FUNC_FLAG_DEFERS_LOOKBACK) 
+                ){
+                    return R_For_Vararg_End(op);
+                }
+            }
+        }
+    }
+
+    // The odd fake circumstances which make things "look like" END are all
+    // taken care of now, so we're not "at the TAIL?"
+    //
+    if (op == VARARG_OP_TAIL_Q)
+        return R_FALSE;
+
+    if (op == VARARG_OP_FIRST) {
+        if (pclass != PARAM_CLASS_HARD_QUOTE)
+            fail (Error_Varargs_No_Look_Raw()); // hard quote only
+
+        Derelativize(out, v, specifier);
+        SET_VAL_FLAG(out, VALUE_FLAG_UNEVALUATED);
+
+        return R_OUT; // only a lookahead, no need to advance
+    }
+
+    return R_UNHANDLED; // may need to create a frame
+}
+
+
 //
 //  Do_Vararg_Op_May_Throw: C
 //
@@ -60,17 +134,12 @@
 // it is not an index number, so it is an opaque way of saying "there is
 // still more data"--and it's the same type as END_FLAG and THROWN_FLAG.
 //
-REBIXO Do_Vararg_Op_May_Throw(
+REB_R Do_Vararg_Op_May_Throw(
     REBVAL *out,
     RELVAL *vararg,
     enum Reb_Vararg_Op op
 ) {
-#if !defined(NDEBUG)
-    if (op == VARARG_OP_TAIL_Q)
-        assert(out == NULL); // not expecting return result
-    else
-        SET_END(out); // don't want trash in frame output on FAIL
-#endif
+    assert(IS_END(out));
 
     const RELVAL *param; // for type checking
     enum Reb_Param_Class pclass;
@@ -80,10 +149,15 @@ REBIXO Do_Vararg_Op_May_Throw(
 
     if (vararg->extra.binding == NULL) {
         //
-        // Just a vararg created from a block, never passed as an argument
+        // A vararg created from a block AND never passed as an argument
         // so no typeset or quoting settings available.  Treat as "normal"
         // parameter.
         //
+        assert(
+            NOT_SER_FLAG(
+                vararg->payload.varargs.feed, ARRAY_FLAG_VARLIST
+            )
+        );
         pclass = PARAM_CLASS_NORMAL;
         param = NULL; // doesn't correspond to a real varargs parameter
         arg = NULL; // no corresponding varargs argument either
@@ -108,178 +182,172 @@ REBIXO Do_Vararg_Op_May_Throw(
         label = FRM_LABEL(param_frame);
     }
 
-    if (op == VARARG_OP_FIRST && pclass != PARAM_CLASS_HARD_QUOTE)
-        fail (Error_Varargs_No_Look_Raw()); // lookahead needs hard quote
-
-    REBVAL *shared;
-
-    REBFRM temp_frame;
-    Prep_Global_Cell(&temp_frame.cell);
-
-    REBFRM *f;
+    REB_R r;
 
     if (NOT_SER_FLAG(vararg->payload.varargs.feed, ARRAY_FLAG_VARLIST)) {
-        REBARR *array1 = vararg->payload.varargs.feed;
-
+        //
         // We are processing an ANY-ARRAY!-based varargs, which came from
         // either a MAKE VARARGS! on an ANY-ARRAY! value -or- from a
         // MAKE ANY-ARRAY! on a varargs (which reified the varargs into an
         // array during that creation, flattening its entire output).
-        //
-        shared = KNOWN(ARR_HEAD(array1)); // 1 element, array or end mark
 
+        REBARR *array1 = vararg->payload.varargs.feed;
+        REBVAL *shared = KNOWN(ARR_HEAD(array1));
         if (IS_END(shared))
-            return END_FLAG; // exhausted
+            return R_For_Vararg_End(op); // exhausted
 
-        assert(IS_BLOCK(shared)); // holds index and data values (specified)
+        assert(IS_BLOCK(shared) && ARR_LEN(array1) == 1);
 
-        // A proxy call frame is created to feed from the shared array, and
-        // its index will be updated (or set to END when exhausted)
+        r = Vararg_Op_If_No_Advance(
+            out,
+            op,
+            VAL_ARRAY_AT(shared),
+            VAL_SPECIFIER(shared),
+            pclass
+        );
 
-        if (VAL_INDEX(shared) >= ARR_LEN(VAL_ARRAY(shared))) {
-            SET_END(shared); // input now exhausted, mark for shared instances
-            return END_FLAG;
-        }
+        if (r != R_UNHANDLED)
+            goto type_check_and_return;
 
-        if (op == VARARG_OP_FIRST) {
+        switch (pclass) {
+        case PARAM_CLASS_NORMAL:
+        case PARAM_CLASS_TIGHT: {
+            DECLARE_FRAME (f);
+            Push_Frame_At(
+                f,
+                VAL_ARRAY(shared),
+                VAL_INDEX(shared),
+                VAL_SPECIFIER(shared),
+                pclass == PARAM_CLASS_NORMAL
+                    ? DO_FLAG_FULFILLING_ARG
+                    : DO_FLAG_FULFILLING_ARG | DO_FLAG_NO_LOOKAHEAD
+            );
+
+            // Note: Do_Next_In_Subframe_Throws() is not needed here because
+            // this is a single use frame, whose state can be overwritten.
+            //
+            if (Do_Next_In_Frame_Throws(out, f)) {
+                Drop_Frame(f);
+                return R_OUT_IS_THROWN;
+            }
+
+            if (IS_END(f->value))
+                SET_END(shared); // signal end to all varargs sharing value
+            else {
+                // The indexor is "prefetched", so though the temp_frame would
+                // be ready to use again we're throwing it away, and need to
+                // effectively "undo the prefetch" by taking it down by 1.
+                //
+                assert(f->index > 0);
+                VAL_INDEX(shared) = f->index - 1; // seen by all sharings
+            }
+
+            Drop_Frame(f);
+            break; }
+
+        case PARAM_CLASS_HARD_QUOTE:
             Derelativize(out, VAL_ARRAY_AT(shared), VAL_SPECIFIER(shared));
-            return VA_LIST_FLAG;
+            SET_VAL_FLAG(out, VALUE_FLAG_UNEVALUATED);
+            VAL_INDEX(shared) += 1;
+            break;
+
+        case PARAM_CLASS_SOFT_QUOTE:
+            if (IS_QUOTABLY_SOFT(VAL_ARRAY_AT(shared))) {
+                if (Eval_Value_Core_Throws(
+                    out, VAL_ARRAY_AT(shared), VAL_SPECIFIER(shared)
+                )){
+                    return R_OUT_IS_THROWN;
+                }
+            }
+            else { // not a soft-"exception" case, quote ordinarily
+                Derelativize(out, VAL_ARRAY_AT(shared), VAL_SPECIFIER(shared));
+                SET_VAL_FLAG(out, VALUE_FLAG_UNEVALUATED);
+            }
+            VAL_INDEX(shared) += 1;
+            break;
+
+        default:
+            fail ("Invalid variadic parameter class");
         }
-
-        // Fill in just enough enformation to call the FETCH-based routines
-
-        Init_Endlike_Header(&temp_frame.flags, DO_FLAG_NORMAL);
-        temp_frame.value = VAL_ARRAY_AT(shared);
-        temp_frame.specifier = VAL_SPECIFIER(shared);
-        temp_frame.source.array = VAL_ARRAY(shared);
-        temp_frame.index = VAL_INDEX(shared) + 1;
-        temp_frame.out = out;
-        temp_frame.pending = NULL;
-        temp_frame.gotten = END;
-
-        f = &temp_frame;
     }
     else {
-        REBCTX *context = CTX(vararg->payload.varargs.feed);
+        // "Ordinary" case... use the original frame implied by the VARARGS!
+        // (so long as it is still live on the stack)
 
-        // If the VARARGS! has a call frame, then ensure that the call frame
-        // where the VARARGS! originated is still on the stack.
-        //
-        f = CTX_FRAME_IF_ON_STACK(context);
+        REBCTX *context = CTX(vararg->payload.varargs.feed);
+        REBFRM *f = CTX_FRAME_IF_ON_STACK(context);
         if (f == NULL)
             fail (Error_Varargs_No_Stack_Raw());
 
-        // "Ordinary" case... use the original frame implied by the VARARGS!
-        // The Reb_Frame isn't a bad pointer, we checked FRAME! is stack-live.
-        //
         if (IS_END(f->value))
-            return END_FLAG;
+            return R_For_Vararg_End(op); // exhausted
 
-        if (op == VARARG_OP_FIRST) {
-            Derelativize(out, f->value, f->specifier);
-            return VA_LIST_FLAG;
-        }
-
-        shared = NULL; // not used but avoid maybe uninitialized warning
-    }
-
-    // The invariant here is that `f` has been prepared for fetching/doing
-    // and has at least one value in it.
-    //
-    assert(NOT_END(f->value));
-    assert(op != VARARG_OP_FIRST);
-
-    if (IS_BAR(f->value))
-        return END_FLAG; // all functions, including varargs, stop at `|`
-
-    // When a variadic argument is being TAKE-n, a deferred left hand side
-    // argument needs to be seen as the end of variadic input.  Otherwise,
-    // `summation 1 2 3 |> 100` would act as `summation 1 2 (3 |> 100)`.
-    // A deferred operator needs to act somewhat as an expression barrier.
-    //
-    // The same rule applies for "tight" arguments, `sum 1 2 3 + 4` with
-    // sum being variadic and tight needs to act as `(sum 1 2 3) + 4`
-    //
-    if (
-        (pclass == PARAM_CLASS_NORMAL || pclass == PARAM_CLASS_TIGHT)
-        && IS_WORD(f->value)
-        && IS_WORD_BOUND(f->value)
-    ){
-        // !!! "f" frame is eval_type REB_FUNCTION and we can't disrupt that.
-        // If we were going to reuse this fetch then we'd have to build a
-        // child frame and call Do_Core(), not Do_Next_In_Frame_May_Throw()
-        // because it would be child->eval_type and child->gotten we pre-set
-        //
-        REBVAL *child_gotten = Get_Var_Core(
+        r = Vararg_Op_If_No_Advance(
+            out,
+            op,
             f->value,
             f->specifier,
-            GETVAR_READ_ONLY
+            pclass
         );
 
-        if (IS_FUNCTION(child_gotten)) {
-            if (GET_VAL_FLAG(child_gotten, VALUE_FLAG_ENFIXED)) {
-                if (pclass == PARAM_CLASS_TIGHT)
-                    return END_FLAG;
-                if (GET_VAL_FLAG(child_gotten, FUNC_FLAG_DEFERS_LOOKBACK_ARG))
-                    return END_FLAG;
+        if (r != R_UNHANDLED)
+            goto type_check_and_return;
+
+        // Note that evaluative cases here need Do_Next_In_Subframe_Throws(),
+        // because a function is running and the frame state can't be
+        // overwritten by an arbitrary evaluation.
+        //
+        switch (pclass) {
+        case PARAM_CLASS_NORMAL:
+            if (Do_Next_In_Subframe_Throws(out, f, DO_FLAG_FULFILLING_ARG))
+                return R_OUT_IS_THROWN;
+            break;
+
+        case PARAM_CLASS_TIGHT:
+            if (Do_Next_In_Subframe_Throws(
+                out,
+                f,
+                DO_FLAG_FULFILLING_ARG | DO_FLAG_NO_LOOKAHEAD
+            )){
+                return R_OUT_IS_THROWN;
             }
-        }
-    }
+            break;
 
-    // Based on the quoting class of the parameter, fulfill the varargs from
-    // whatever information was loaded into `c` as the "feed" for values.
-    //
-    switch (pclass) {
-    case PARAM_CLASS_NORMAL: {
-        if (op == VARARG_OP_TAIL_Q)
-            return VA_LIST_FLAG;
-
-        if (Do_Next_In_Subframe_Throws(out, f, DO_FLAG_FULFILLING_ARG))
-            return THROWN_FLAG;
-        break; }
-
-    case PARAM_CLASS_TIGHT: {
-        if (op == VARARG_OP_TAIL_Q)
-            return VA_LIST_FLAG;
-
-        if (Do_Next_In_Subframe_Throws(
-            out,
-            f,
-            DO_FLAG_FULFILLING_ARG | DO_FLAG_NO_LOOKAHEAD
-        )){
-            return THROWN_FLAG;
-        }
-        break; }
-
-    case PARAM_CLASS_HARD_QUOTE:
-        if (op == VARARG_OP_TAIL_Q) return VA_LIST_FLAG;
-
-        Quote_Next_In_Frame(out, f);
-        break;
-
-    case PARAM_CLASS_SOFT_QUOTE:
-        if (
-            IS_GROUP(f->value)
-            || IS_GET_WORD(f->value)
-            || IS_GET_PATH(f->value) // these 3 cases evaluate
-        ) {
-            if (op == VARARG_OP_TAIL_Q) return VA_LIST_FLAG;
-
-            if (Eval_Value_Core_Throws(out, f->value, f->specifier))
-                return THROWN_FLAG;
-
-            Fetch_Next_In_Frame(f);
-        }
-        else { // not a soft-"exception" case, quote ordinarily
-            if (op == VARARG_OP_TAIL_Q) return VA_LIST_FLAG;
-
+        case PARAM_CLASS_HARD_QUOTE:
             Quote_Next_In_Frame(out, f);
-        }
-        break;
+            break;
 
-    default:
-        assert(FALSE);
+        case PARAM_CLASS_SOFT_QUOTE:
+            if (IS_QUOTABLY_SOFT(f->value)) {
+                if (Eval_Value_Core_Throws(out, f->value, f->specifier))
+                    return R_OUT_IS_THROWN;
+
+                Fetch_Next_In_Frame(f);
+            }
+            else { // not a soft-"exception" case, quote ordinarily
+                Quote_Next_In_Frame(out, f);
+            }
+            break;
+
+        default:
+            fail ("Invalid variadic parameter class");
+        }
     }
+
+    r = R_OUT;
+
+type_check_and_return:
+    if (r != R_OUT) {
+        assert(
+            op == VARARG_OP_TAIL_Q ? r == R_TRUE || r == R_FALSE : r == R_VOID
+        );
+        return r;
+    }
+
+    assert(NOT(THROWN(out))); // should have returned above
+
+    if (param && NOT(TYPE_CHECK(param, VAL_TYPE(out))))
+        fail (Error_Arg_Type(label, param, VAL_TYPE(out)));
 
     if (arg) {
         if (GET_VAL_FLAG(out, VALUE_FLAG_UNEVALUATED))
@@ -288,30 +356,7 @@ REBIXO Do_Vararg_Op_May_Throw(
             CLEAR_VAL_FLAG(arg, VALUE_FLAG_UNEVALUATED);
     }
 
-    assert(NOT(THROWN(out))); // should have returned above
-
-    // If the `c` we were updating was the stack local call we created just
-    // for this function, then the new index status would be lost when this
-    // routine ended.  Update the indexor state in the sub_value array.
-    //
-    if (f == &temp_frame) {
-        assert(ANY_ARRAY(shared));
-        if (IS_END(f->value))
-            SET_END(shared); // signal no more to all varargs sharing value
-        else {
-            // The indexor is "prefetched", so although the temp_frame would
-            // be ready to use again we're throwing it away, and need to
-            // effectively "undo the prefetch" by taking it down by 1.  The
-            //
-            assert(f->index > 0);
-            VAL_INDEX(shared) = f->index - 1; // update seen by all sharings
-        }
-    }
-
-    if (param && !TYPE_CHECK(param, VAL_TYPE(out)))
-        fail (Error_Arg_Type(label, param, VAL_TYPE(out)));
-
-    return VA_LIST_FLAG; // may be at end now, but reflect that at *next* call
+    return R_OUT; // may be at end now, but reflect that at *next* call
 }
 
 
@@ -378,8 +423,6 @@ REBTYPE(Varargs)
     REBVAL *value = D_ARG(1);
     REBVAL *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
 
-    REBIXO indexor;
-
     switch (action) {
     case SYM_PICK_P: {
         if (NOT(IS_INTEGER(arg)))
@@ -388,24 +431,18 @@ REBTYPE(Varargs)
         if (VAL_INT32(arg) != 1)
             fail (Error_Varargs_No_Look_Raw());
 
-        indexor = Do_Vararg_Op_May_Throw(D_OUT, value, VARARG_OP_FIRST);
-        assert(indexor == VA_LIST_FLAG || indexor == END_FLAG); // no throw
-        if (indexor == END_FLAG)
-            SET_BLANK(D_OUT); // want to be consistent with TAKE
-
-        return R_OUT;
+        return Do_Vararg_Op_May_Throw(D_OUT, value, VARARG_OP_FIRST);
     }
 
     case SYM_TAIL_Q: {
-        indexor = Do_Vararg_Op_May_Throw(NULL, value, VARARG_OP_TAIL_Q);
-        assert(indexor == VA_LIST_FLAG || indexor == END_FLAG); // no throw
-        return indexor == END_FLAG ? R_TRUE : R_FALSE;
-    }
+        REB_R r = Do_Vararg_Op_May_Throw(
+            m_cast(REBVAL*, END), value, VARARG_OP_TAIL_Q // won't write `out`
+        );
+        assert(r == R_TRUE || r == R_FALSE); // cannot throw
+        return r; }
 
     case SYM_TAKE_P: {
         INCLUDE_PARAMS_OF_TAKE_P;
-
-        REBDSP dsp_orig = DSP;
 
         UNUSED(PAR(series));
         if (REF(deep))
@@ -413,16 +450,10 @@ REBTYPE(Varargs)
         if (REF(last))
             fail (Error_Varargs_Take_Last_Raw());
 
-        if (NOT(REF(part))) {
-            indexor = Do_Vararg_Op_May_Throw(D_OUT, value, VARARG_OP_TAKE);
-            if (indexor == THROWN_FLAG)
-                return R_OUT_IS_THROWN;
+        if (NOT(REF(part)))
+            return Do_Vararg_Op_May_Throw(D_OUT, value, VARARG_OP_TAKE);
 
-            if (indexor == END_FLAG)
-                SET_VOID(D_OUT); // currently allowed even without an /OPT
-
-            return R_OUT;
-        }
+        REBDSP dsp_orig = DSP;
 
         REBINT limit;
         if (IS_INTEGER(ARG(limit))) {
@@ -437,12 +468,13 @@ REBTYPE(Varargs)
             fail (ARG(limit));
 
         while (IS_BAR(ARG(limit)) || limit-- > 0) {
-            indexor = Do_Vararg_Op_May_Throw(D_OUT, value, VARARG_OP_TAKE);
-            if (indexor == THROWN_FLAG)
+            REB_R r = Do_Vararg_Op_May_Throw(D_OUT, value, VARARG_OP_TAKE);
+            
+            if (r == R_OUT_IS_THROWN)
                 return R_OUT_IS_THROWN;
-
-            if (indexor == END_FLAG)
+            if (r == R_VOID)
                 break;
+            assert(r == R_OUT);
 
             DS_PUSH(D_OUT);
         }

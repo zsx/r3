@@ -202,7 +202,7 @@ inline static REBRIN *FUNC_ROUTINE(REBFUN *f) {
 // static for invocation via a plain word.  This property is calculated at
 // the time of Make_Function().
 //
-#define FUNC_FLAG_DEFERS_LOOKBACK_ARG FUNC_FLAG(2)
+#define FUNC_FLAG_DEFERS_LOOKBACK FUNC_FLAG(2)
 
 // This is another cached property, needed because lookahead/lookback is done
 // so frequently, and it's quicker to check a bit on the function than to
@@ -241,7 +241,7 @@ inline static REBRIN *FUNC_ROUTINE(REBFUN *f) {
 // These are the flags which are scanned for and set during Make_Function
 //
 #define FUNC_FLAG_CACHED_MASK \
-    (FUNC_FLAG_DEFERS_LOOKBACK_ARG | FUNC_FLAG_QUOTES_FIRST_ARG)
+    (FUNC_FLAG_DEFERS_LOOKBACK | FUNC_FLAG_QUOTES_FIRST_ARG)
 
 
 inline static REBFUN *VAL_FUNC(const RELVAL *v) {

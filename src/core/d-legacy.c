@@ -55,20 +55,20 @@ REBOOL In_Legacy_Function_Debug(void)
     // Find the first bit of code that's actually running ordinarily in
     // the evaluator, and not just dispatching.
     //
-    REBFRM *frame = FS_TOP;
-    for (; frame != NULL; frame = frame->prior) {
-        if (frame->flags.bits & DO_FLAG_VA_LIST)
+    REBFRM *f = FS_TOP;
+    for (; f != NULL; f = f->prior) {
+        if (f->flags.bits & DO_FLAG_VA_LIST)
             return FALSE; // no source array to look at
 
         break; // whatever's dispatching here, there is a source array
     }
 
-    if (frame == NULL)
+    if (f == NULL)
         return FALSE;
 
     // Check the flag on the source series
     //
-    if (GET_SER_INFO(frame->source.array, SERIES_INFO_LEGACY_DEBUG))
+    if (GET_SER_INFO(f->source.array, SERIES_INFO_LEGACY_DEBUG))
         return TRUE;
 
     return FALSE;

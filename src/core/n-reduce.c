@@ -53,27 +53,27 @@ REBOOL Reduce_Any_Array_Throws(
 
     REBDSP dsp_orig = DSP;
 
-    REBFRM f;
-    Push_Frame(&f, any_array);
+    DECLARE_FRAME (f);
+    Push_Frame(f, any_array);
 
     DECLARE_LOCAL (reduced);
 
-    while (NOT_END(f.value)) {
-        if (IS_BAR(f.value)) {
+    while (NOT_END(f->value)) {
+        if (IS_BAR(f->value)) {
             if (flags & REDUCE_FLAG_KEEP_BARS) {
                 DS_PUSH_TRASH;
-                Quote_Next_In_Frame(DS_TOP, &f);
+                Quote_Next_In_Frame(DS_TOP, f);
             }
             else
-                Fetch_Next_In_Frame(&f);
+                Fetch_Next_In_Frame(f);
 
             continue;
         }
 
-        if (Do_Next_In_Frame_Throws(reduced, &f)) {
+        if (Do_Next_In_Frame_Throws(reduced, f)) {
             Move_Value(out, reduced);
             DS_DROP_TO(dsp_orig);
-            Drop_Frame(&f);
+            Drop_Frame(f);
             return TRUE;
         }
 
@@ -97,7 +97,7 @@ REBOOL Reduce_Any_Array_Throws(
     else
         Init_Any_Array(out, VAL_TYPE(any_array), Pop_Stack_Values(dsp_orig));
 
-    Drop_Frame(&f);
+    Drop_Frame(f);
     return FALSE;
 }
 
@@ -193,31 +193,31 @@ REBOOL Compose_Any_Array_Throws(
 ) {
     REBDSP dsp_orig = DSP;
 
-    REBFRM f;
-    Push_Frame(&f, any_array);
+    DECLARE_FRAME (f);
+    Push_Frame(f, any_array);
 
     DECLARE_LOCAL (composed);
     DECLARE_LOCAL (specific);
 
-    while (NOT_END(f.value)) {
-        if (IS_GROUP(f.value)) {
+    while (NOT_END(f->value)) {
+        if (IS_GROUP(f->value)) {
             //
             // Evaluate the GROUP! at current position into `composed` cell.
             //
-            REBSPC *derived = Derive_Specifier(f.specifier, f.value);
+            REBSPC *derived = Derive_Specifier(f->specifier, f->value);
             if (Do_At_Throws(
                 composed,
-                VAL_ARRAY(f.value),
-                VAL_INDEX(f.value),
+                VAL_ARRAY(f->value),
+                VAL_INDEX(f->value),
                 derived
             )){
                 Move_Value(out, composed);
                 DS_DROP_TO(dsp_orig);
-                Drop_Frame(&f);
+                Drop_Frame(f);
                 return TRUE;
             }
 
-            Fetch_Next_In_Frame(&f);
+            Fetch_Next_In_Frame(f);
 
             if (IS_BLOCK(composed) && !only) {
                 //
@@ -247,11 +247,11 @@ REBOOL Compose_Any_Array_Throws(
             }
         }
         else if (deep) {
-            if (IS_BLOCK(f.value)) {
+            if (IS_BLOCK(f->value)) {
                 //
                 // compose/deep [does [(1 + 2)] nested] => [does [3] nested]
 
-                Derelativize(specific, f.value, f.specifier);
+                Derelativize(specific, f->value, f->specifier);
 
                 if (Compose_Any_Array_Throws(
                     composed,
@@ -262,39 +262,39 @@ REBOOL Compose_Any_Array_Throws(
                 )) {
                     Move_Value(out, composed);
                     DS_DROP_TO(dsp_orig);
-                    Drop_Frame(&f);
+                    Drop_Frame(f);
                     return TRUE;
                 }
 
                 DS_PUSH(composed);
             }
             else {
-                if (ANY_ARRAY(f.value)) {
+                if (ANY_ARRAY(f->value)) {
                     //
                     // compose [copy/(orig) (copy)] => [copy/(orig) (copy)]
                     // !!! path and second group are copies, first group isn't
                     //
-                    REBSPC *derived = Derive_Specifier(f.specifier, f.value);
+                    REBSPC *derived = Derive_Specifier(f->specifier, f->value);
                     REBARR *copy = Copy_Array_Shallow(
-                        VAL_ARRAY(f.value),
+                        VAL_ARRAY(f->value),
                         derived
                     );
                     DS_PUSH_TRASH;
                     Init_Any_Array_At(
-                        DS_TOP, VAL_TYPE(f.value), copy, VAL_INDEX(f.value)
+                        DS_TOP, VAL_TYPE(f->value), copy, VAL_INDEX(f->value)
                     ); // ...manages
                 }
                 else
-                    DS_PUSH_RELVAL(f.value, f.specifier);
+                    DS_PUSH_RELVAL(f->value, f->specifier);
             }
-            Fetch_Next_In_Frame(&f);
+            Fetch_Next_In_Frame(f);
         }
         else {
             //
             // compose [[(1 + 2)] (reverse "wollahs")] => [[(1 + 2)] "shallow"]
             //
-            DS_PUSH_RELVAL(f.value, f.specifier);
-            Fetch_Next_In_Frame(&f);
+            DS_PUSH_RELVAL(f->value, f->specifier);
+            Fetch_Next_In_Frame(f);
         }
     }
 
@@ -303,7 +303,7 @@ REBOOL Compose_Any_Array_Throws(
     else
         Init_Any_Array(out, VAL_TYPE(any_array), Pop_Stack_Values(dsp_orig));
 
-    Drop_Frame(&f);
+    Drop_Frame(f);
     return FALSE;
 }
 

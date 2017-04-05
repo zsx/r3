@@ -790,7 +790,10 @@ left-bar: func [
     right [<opt> any-value! <...>]
         {Any number of expressions on the right.}
 ][
-    loop-until [void? take* right]
+    ; !!! Should this fail if left is END?  How would it tell the difference
+    ; between left being void or end, is that exposed with SEMIQUOTED?
+
+    until [tail? right] [take* right] ;-- void evaluations or end both void
     :left
 ]
 
@@ -803,7 +806,10 @@ right-bar: func [
     right [<opt> any-value! <...>]
         {Any number of expressions on the right.}
 ][
-    also take* right (loop-until [void? take* right])
+    ; !!! This could fail if `tail? right`, but should it?  Might make
+    ; COMPOSE situations less useful, e.g. `compose [thing |> (may-be-void)]`
+
+    also (take* right) (until [tail? right] [take* right])
 ]
 
 
