@@ -1122,7 +1122,7 @@ static void Free_Unbiased_Series_Data(REBYTE *unbiased, REBCNT size_unpooled)
         pool->free++;
 
         struct Reb_Header *alias = &node->header;
-        alias->bits = 0;
+        alias->bits = 0; // see Init_Endlike_Header() for why we do this
     }
     else {
         FREE_N(REBYTE, size_unpooled, unbiased);
@@ -1397,9 +1397,6 @@ void Remake_Series(REBSER *s, REBCNT units, REBYTE wide, REBUPT flags)
         assert(wide == wide_old); // can't change width if preserving
 #endif
 
-    SER_SET_WIDE(s, wide);
-    s->header.bits |= flags;
-
     assert(NOT_SER_FLAG(s, SERIES_FLAG_FIXED_SIZE));
 
     REBOOL was_dynamic = GET_SER_INFO(s, SERIES_INFO_HAS_DYNAMIC);
@@ -1423,6 +1420,13 @@ void Remake_Series(REBSER *s, REBCNT units, REBYTE wide, REBUPT flags)
         content_old = s->content;
         data_old = cast(REBYTE*, &content_old);
     }
+
+    // We don't want to update the header bits to reflect a new state of the
+    // SERIES_FLAG_POWER_OF_2 until *after* Series_Allocation_Unpooled
+    // was able to take the old state into account.
+    //
+    SER_SET_WIDE(s, wide);
+    s->header.bits |= flags;
 
     // !!! Currently the remake won't make a series that fits in the size of
     // a REBSER.  All series code needs a general audit, so that should be one
