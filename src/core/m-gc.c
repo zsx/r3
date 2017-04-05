@@ -999,7 +999,7 @@ static void Mark_Data_Stack(void)
 static void Mark_Symbol_Series(void)
 {
     REBSTR **canon = SER_HEAD(REBSTR*, PG_Symbol_Canons);
-    assert(*canon == NULL); // SYM_0 is for all non-builtin words
+    assert(IS_POINTER_TRASH_DEBUG(*canon)); // SYM_0 is for all non-builtin words
     ++canon;
     for (; *canon != NULL; ++canon)
         Mark_Rebser_Only(*canon);

@@ -217,7 +217,8 @@ REBSTR *Intern_UTF8_Managed(const REBYTE *utf8, REBCNT len)
     //
     REBCNT hash = Hash_Word(utf8, len);
     REBCNT skip = (hash & 0x0000FFFF) % size;
-    if (skip == 0) skip = 1;
+    if (skip == 0)
+        skip = 1;
     hash = (hash & 0x00FFFF00) % size;
 
     REBSTR **deleted_slot = NULL;
@@ -283,12 +284,12 @@ REBSTR *Intern_UTF8_Managed(const REBYTE *utf8, REBCNT len)
         // If none of the synonyms matched, then this case variation needs
         // to get its own interning, and point to the canon found.
 
-        /*assert(canon != NULL);*/
+        assert(canon != NULL);
         goto new_interning; // break loop, make a new synonym
     }
 
     // normal loop fallthrough at canon == NULL - make a new canon form
-    /*assert(canon == NULL)*/
+    assert(canon == NULL);
 
 new_interning: ; // semicolon needed for statement
 
@@ -386,14 +387,15 @@ new_interning: ; // semicolon needed for statement
 //
 //  GC_Kill_Interning: C
 //
+// Unlink this spelling out of the circularly linked list of synonyms.
+// Further, if it happens to be canon, we need to re-point everything in the
+// chain to a new entry.  Choose the synonym as a new canon if so.
+//
 void GC_Kill_Interning(REBSTR *intern)
 {
     REBSER *synonym = intern->link.synonym;
 
-    // We need to unlink this spelling out of the circularly linked list of
-    // synonyms.  Further, if it happens to be canon, we need to re-point
-    // everything in the chain to a new entry.  Choose the synonym if so.
-    // (Note synonym and intern may be the same here.)
+    // Note synonym and intern may be the same here.
     //
     REBSER *temp = synonym;
     while (temp->link.synonym != intern) {
@@ -434,7 +436,9 @@ void GC_Kill_Interning(REBSTR *intern)
         // the canon form, then it gets a promotion to being the canon form.
         // It should hash the same, and be able to take over the hash slot.
         //
-        /*assert(hash == Hash_Word(STR_HEAD(synonym)));*/
+    #ifdef SLOW_INTERN_HASH_DOUBLE_CHECK
+        assert(hash == Hash_Word(STR_HEAD(synonym)));
+    #endif
         canons_by_hash[hash] = synonym;
         SET_SER_INFO(synonym, STRING_INFO_CANON);
         synonym->misc.bind_index.low = 0;
@@ -482,26 +486,69 @@ const REBYTE *Get_Type_Name(const RELVAL *value)
 // Note that words are kept UTF8 encoded.
 // Positive result if s > t and negative if s < t.
 //
-REBINT Compare_Word(const RELVAL *s, const RELVAL *t, REBOOL is_case)
+REBINT Compare_Word(const RELVAL *s, const RELVAL *t, REBOOL strict)
 {
     const REBYTE *sp = STR_HEAD(VAL_WORD_SPELLING(s));
     const REBYTE *tp = STR_HEAD(VAL_WORD_SPELLING(t));
 
-    // Use a more strict comparison than normal:
-    if (is_case) return COMPARE_BYTES(sp, tp);
+    if (strict)
+        return COMPARE_BYTES(sp, tp); // must match byte-for-byte
 
-    // They are the equivalent words:
-    if (VAL_WORD_CANON(s) == VAL_WORD_CANON(t)) return 0;
+    if (VAL_WORD_CANON(s) == VAL_WORD_CANON(t))
+        return 0; // equivalent canon forms are considered equal
 
-    // They must be differ by case:
+    // They must differ by case....
     return Compare_UTF8(sp, tp, LEN_BYTES(tp)) + 2;
+}
+
+
+//
+//  Startup_Interning: C
+//
+// Get the engine ready to do Intern_UTF8_Managed(), which is required to
+// get REBSTR* pointers generated during a scan of ANY-WORD!s.  Words of the
+// same spelling currently look up and share the same REBSTR*, this process
+// is referred to as "string interning":
+//
+// https://en.wikipedia.org/wiki/String_interning
+//
+void Startup_Interning(void)
+{
+    PG_Num_Canon_Slots_In_Use = 0;
+#if !defined(NDEBUG)
+    PG_Num_Canon_Deleteds = 0;
+#endif
+
+    // Start hash table out at a fixed size.  When collisions occur, it
+    // causes a skipping pattern that continues until it finds the desired
+    // slot.  The method is known as linear probing:
+    //
+    // https://en.wikipedia.org/wiki/Linear_probing
+    //
+    // It must always be at least as big as the total number of words, in order
+    // for it to uniquely be able to locate each symbol pointer.  But to
+    // reduce long probing chains, it should be significantly larger than that.
+    // R3-Alpha used a heuristic of 4 times as big as the number of words.
+
+    REBCNT n;
+#if defined(NDEBUG)
+    n = Get_Hash_Prime(WORD_TABLE_SIZE * 4); // extra reduces rehashing
+#else
+    n = 1; // forces exercise of rehashing logic in debug build
+#endif
+
+    PG_Canons_By_Hash = Make_Series_Core(
+        n, sizeof(REBSTR*), SERIES_FLAG_POWER_OF_2
+    );
+    Clear_Series(PG_Canons_By_Hash); // all slots start at NULL
+    SET_SERIES_LEN(PG_Canons_By_Hash, n);
 }
 
 
 //
 //  Startup_Symbols: C
 //
-// By this point in the boot, the canon words have already been created for
+// By this point in the boot, the canon words have already been interned for
 // everything in %words.r.
 //
 // This goes through the name series for %words.r words and tags them with
@@ -515,13 +562,21 @@ REBINT Compare_Word(const RELVAL *s, const RELVAL *t, REBOOL is_case)
 //
 void Startup_Symbols(REBARR *words)
 {
-    PG_Symbol_Canons = Make_Series(
-        ARR_LEN(words) + 1, // extra NULL at head for SYM_0 (END maps to NULL)
-        sizeof(REBSTR*)
+    PG_Symbol_Canons = Make_Series_Core(
+        ARR_LEN(words) + 1, // extra NULL at head for SYM_0
+        sizeof(REBSTR*),
+        SERIES_FLAG_FIXED_SIZE // can't ever add more SYM_XXX lookups
     );
 
+    // All words that not in %words.r will get back VAL_WORD_SYM(w) == SYM_0
+    // Hence, SYM_0 cannot be canonized.  Allowing Canon(SYM_0) to return NULL
+    // and try and use that meaningfully is too risky, so it is simply
+    // prohibited to canonize SYM_0, and trash the REBSTR* in the [0] slot.
+    //
     REBSYM sym = SYM_0;
-    *SER_AT(REBSTR*, PG_Symbol_Canons, cast(REBCNT, sym)) = NULL; // Canon(REB_0)
+    TRASH_POINTER_IF_DEBUG(
+        *SER_AT(REBSTR*, PG_Symbol_Canons, cast(REBCNT, sym))
+    );
 
     RELVAL *word = ARR_HEAD(words);
     for (; NOT_END(word); ++word) {
@@ -572,43 +627,15 @@ void Startup_Symbols(REBARR *words)
 //
 void Shutdown_Symbols(void)
 {
-    assert(PG_Num_Canon_Slots_In_Use - PG_Num_Canon_Deleteds == 0);
-    Free_Series(PG_Canons_By_Hash);
     Free_Series(PG_Symbol_Canons);
 }
 
 
 //
-//  Init_Words: C
+//  Shutdown_Interning: C
 //
-void Init_Words(void)
+void Shutdown_Interning(void)
 {
-    PG_Num_Canon_Slots_In_Use = 0;
-#if !defined(NDEBUG)
-    PG_Num_Canon_Deleteds = 0;
-#endif
-
-    // Start hash table out at a fixed size.  When collisions occur, it
-    // causes a skipping pattern that continues until it finds the desired
-    // slot.  The method is known as linear probing:
-    //
-    // https://en.wikipedia.org/wiki/Linear_probing
-    //
-    // It must always be at least as big as the total number of words, in order
-    // for it to uniquely be able to locate each symbol pointer.  But to
-    // reduce long probing chains, it should be significantly larger than that.
-    // R3-Alpha used a heuristic of 4 times as big as the number of words.
-
-    REBCNT n;
-#if defined(NDEBUG)
-    n = Get_Hash_Prime(WORD_TABLE_SIZE * 4); // extra reduces rehashing
-#else
-    n = 1; // forces exercise of rehashing logic in debug build
-#endif
-
-    PG_Canons_By_Hash = Make_Series_Core(
-        n, sizeof(REBSTR*), SERIES_FLAG_POWER_OF_2
-    );
-    Clear_Series(PG_Canons_By_Hash); // all slots start at NULL
-    SET_SERIES_LEN(PG_Canons_By_Hash, n);
+    assert(PG_Num_Canon_Slots_In_Use - PG_Num_Canon_Deleteds == 0);
+    Free_Series(PG_Canons_By_Hash);
 }

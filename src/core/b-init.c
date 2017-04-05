@@ -1137,7 +1137,7 @@ void Startup_Core(void)
     Init_Char_Cases();
     Startup_CRC();             // For word hashing
     Set_Random(0);
-    Init_Words();
+    Startup_Interning();
 
 //==//////////////////////////////////////////////////////////////////////==//
 //
@@ -1469,6 +1469,7 @@ void Shutdown_Core(void)
     Shutdown_Char_Cases();
 
     Shutdown_Symbols();
+    Shutdown_Interning();
 
     Shutdown_GC();
 
