@@ -37,7 +37,7 @@ spaced: specialize 'delimit [delimiter: space]
 
 eval proc [
     {Make type testing functions (variadic to quote "top-level" words)}
-    :set-word... [set-word! <...>]
+    'set-word... [set-word! <...>]
     <local>
         set-word type-name tester meta
 ][
@@ -222,9 +222,9 @@ dump: proc [
 
 eval proc [
     {Make reflector functions (variadic to quote "top-level" words)}
-    :set-word... [set-word! <...>]
-    :divider... [blank! <...>]
-    :categories... [string! <...>]
+    'set-word... [set-word! <...>]
+    :divider... [bar! <...>]
+    'categories... [string! <...>]
     <local>
         set-word categories name
 ][
@@ -245,13 +245,13 @@ eval proc [
         ]
     ]
 ]
-    spec-of: _ {function, object, or module}
-    body-of: _ {function or module} ; %mezz-func.r overwrites
-    words-of: _ {function, object, or module}
-    values-of: _ {object or module}
-    types-of: _ {function}
-    addr-of: _ {struct or callback}
-    title-of: _ {function} ; should work for module
+    spec-of: | {function, object, or module}
+    body-of: | {function or module} ; %mezz-func.r overwrites
+    words-of: | {function, object, or module}
+    values-of: | {object or module}
+    types-of: | {function}
+    addr-of: | {struct or callback}
+    title-of: | {function} ; should work for module
 |
 
 

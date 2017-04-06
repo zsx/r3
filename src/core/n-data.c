@@ -1523,12 +1523,22 @@ REBNATIVE(false_q)
 //      return: [any-value!]
 //      :value [any-value!]
 //  ][
+//      if bar? :value [
+//          fail "Cannot quote expression barrier" ;-- not actual error
+//      ]
 //      :value ;-- actually also sets unevaluated bit, how could a user do so?
 //  ]
 //
 REBNATIVE(quote)
 {
     INCLUDE_PARAMS_OF_QUOTE;
+
+    // Generally speaking, a hard quoting operation is permitted to quote
+    // BAR! if it really wants to.  The general advice is to fail in this
+    // case, but it is not enforced.
+    //
+    if (IS_BAR(ARG(value)))
+        fail (Error_Expression_Barrier_Raw());
 
     Move_Value(D_OUT, ARG(value));
 

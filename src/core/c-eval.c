@@ -970,9 +970,9 @@ reevaluate:;
 
     //=//// IF EVAL SEMANTICS, DISALLOW LITERAL EXPRESSION BARRIERS ///////=//
 
-            if (IS_BAR(f->value)) {
+            if (IS_BAR(f->value) && pclass != PARAM_CLASS_HARD_QUOTE) {
                 //
-                // Not even legal if arg is quoted.  It must come through
+                // Only legal if arg is *hard quoted*.  Else, it must come via
                 // other means (e.g. literal as `'|` or `first [|]`)
 
                 if (NOT_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))

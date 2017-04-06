@@ -789,11 +789,16 @@ left-bar: func [
         {A single complete expression on the left.}
     right [<opt> any-value! <...>]
         {Any number of expressions on the right.}
+    :look [any-value! <...>]
 ][
     ; !!! Should this fail if left is END?  How would it tell the difference
     ; between left being void or end, is that exposed with SEMIQUOTED?
 
-    until [tail? right] [take* right] ;-- void evaluations or end both void
+    loop-until [
+        while [bar? first look] [take look] ;-- want to feed past BAR!s
+        take* right ;-- a void eval or an end both give back void here
+        tail? look
+    ]
     :left
 ]
 
@@ -805,11 +810,22 @@ right-bar: func [
         {A single complete expression on the left.}
     right [<opt> any-value! <...>]
         {Any number of expressions on the right.}
+    :look [any-value! <...>]
 ][
     ; !!! This could fail if `tail? right`, but should it?  Might make
     ; COMPOSE situations less useful, e.g. `compose [thing |> (may-be-void)]`
 
-    also (take* right) (until [tail? right] [take* right])
+    also (
+        ; We want to make sure `1 |> | 2 3 4` is void, not BAR!
+        ;
+        either* bar? first look [void] [take* right]
+    )(
+        loop-until [
+            while [bar? first look] [take look]
+            take* right ;-- a void eval or an end both give back void here
+            tail? look
+        ]
+    )
 ]
 
 

@@ -36,7 +36,7 @@
 
 
 #define R_For_Vararg_End(op) \
-    ((op) == VARARG_OP_TAIL_Q ? R_TRUE : R_VOID) 
+    ((op) == VARARG_OP_TAIL_Q ? R_TRUE : R_VOID)
 
 
 // Some VARARGS! are generated from a block with no frame, while others
@@ -54,8 +54,25 @@ inline static REB_R Vararg_Op_If_No_Advance(
 ){
     assert(NOT_END(v));
 
-    if (IS_BAR(v)) // all functions args, including varargs, stop at `|`
+    if (IS_BAR(v)) {
+        //
+        // Only hard quotes are allowed to see BAR! (and if they do, they
+        // are *encouraged* to test the evaluated bit and error on literals,
+        // unless they have a *really* good reason to do otherwise)
+        //
+        if (pclass == PARAM_CLASS_HARD_QUOTE) {
+            if (op == VARARG_OP_TAIL_Q)
+                return R_FALSE;
+            if (op == VARARG_OP_FIRST) {
+                SET_BAR(out);
+                return R_OUT;
+            }
+            assert(op == VARARG_OP_TAKE);
+            return R_UNHANDLED; // advance frame/array to consume BAR!
+        }
+
         return R_For_Vararg_End(op);
+    }
 
     if (
         (pclass == PARAM_CLASS_NORMAL || pclass == PARAM_CLASS_TIGHT)
@@ -75,13 +92,13 @@ inline static REB_R Vararg_Op_If_No_Advance(
             GETVAR_END_IF_UNAVAILABLE
         );
 
-        // Raw check faster because it will fail on END marker
+        // Raw check faster, no need to separately test for IS_END()
         //
         if (VAL_TYPE_RAW(child_gotten) == REB_FUNCTION) {
             if (GET_VAL_FLAG(child_gotten, VALUE_FLAG_ENFIXED)) {
                 if (
                     pclass == PARAM_CLASS_TIGHT
-                    || GET_VAL_FLAG(child_gotten, FUNC_FLAG_DEFERS_LOOKBACK) 
+                    || GET_VAL_FLAG(child_gotten, FUNC_FLAG_DEFERS_LOOKBACK)
                 ){
                     return R_For_Vararg_End(op);
                 }
@@ -467,9 +484,9 @@ REBTYPE(Varargs)
         else
             fail (ARG(limit));
 
-        while (IS_BAR(ARG(limit)) || limit-- > 0) {
+        while (limit-- > 0) {
             REB_R r = Do_Vararg_Op_May_Throw(D_OUT, value, VARARG_OP_TAKE);
-            
+
             if (r == R_OUT_IS_THROWN)
                 return R_OUT_IS_THROWN;
             if (r == R_VOID)
