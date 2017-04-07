@@ -199,9 +199,8 @@ newline
 (
     either sanitize [
         unspaced [
-            {SANITIZE_FLAGS= -fno-omit-frame-pointer -fsanitize=address}
-                space {-L/usr/local/lib -I/usr/local/include} newline
-            {SANITIZE_LINK_FLAGS= -lasan -fsanitize=address} newline
+            {SANITIZE_FLAGS= -fno-omit-frame-pointer -fsanitize=address} newline
+            {SANITIZE_LINK_FLAGS= -fsanitize=address} newline
         ]
     ][
         unspaced [
@@ -486,6 +485,9 @@ emit case [
         {}
     ]
     args/STATIC = "yes" [
+        join-of if sanitize [
+            "-static-libasan "
+        ]
         either cplusplus [
             unspaced ["-static-libgcc -static-libstdc++" space]
         ][
