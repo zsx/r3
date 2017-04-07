@@ -234,6 +234,7 @@ script:
           rm r3-make;
           mv r3 r3-make;
           make clean;
+          export R3_ALWAYS_MALLOC=1
       fi
 
     # On the second build of building twice, or just building once, include
