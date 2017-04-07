@@ -217,7 +217,7 @@ script:
     # just built r3 as its own r3-make.
     #
     - |
-      if [[ ("${OS_ID}" = "0.4.40" || "${OS_ID}" = "0.2.40") && "${DEBUG}" = "yes" ]]; then
+      if [[ ("${OS_ID}" = "0.4.40" || "${OS_ID}" = "0.2.40") && "${DEBUG}" != "none" ]]; then
           #
           # If building twice, don't specify GIT_COMMIT for the first build.
           # This means there's a test of the build process when one is not
