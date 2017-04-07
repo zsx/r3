@@ -24,6 +24,7 @@ matrix:
         # Linux x64, debug, gcc
         #
         - os: linux
+          dist: trusty #gcc on Ubuntu 12.04 does not support sanitizers
           sudo: false #Force new container-based infrastructure.
           language: c
           env: OS_ID=0.4.40 DEBUG=asserts STANDARD=c RIGOROUS=yes STATIC=yes
@@ -34,6 +35,7 @@ matrix:
         # gcc 4.6
         #
         - os: linux
+          dist: trusty #gcc on Ubuntu 12.04 does not support sanitizers
           sudo: false #Force new container-based infrastructure.
           language: cpp
           env: OS_ID=0.4.40 DEBUG=asserts STANDARD=c++0x RIGOROUS=yes STATIC=yes
