@@ -44,6 +44,10 @@
     blank? apply :f [args: x]
 ]
 
+[
+    f: func [:look [<...>]][first look]
+    blank? apply 'f [look: make varargs! []]
+]
 
 ; Testing the variadic behavior of |> and <| is easier than rewriting tests
 ; here to do the same thing.

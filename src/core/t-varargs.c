@@ -41,20 +41,21 @@
 
 // Some VARARGS! are generated from a block with no frame, while others
 // have a frame.  It would be inefficient to force the creation of a frame on
-// each call for a BLOCK!-based varargs.  So rather than doing so, and forcing
-// even simple cases to make a frame, there's a prelude which sees if it can
-// get away with just operating on the current value.
+// each call for a BLOCK!-based varargs.  So rather than doing so, there's a
+// prelude which sees if it can answer the current query just from looking one
+// unit ahead.
 //
 inline static REB_R Vararg_Op_If_No_Advance(
     REBVAL *out,
     enum Reb_Vararg_Op op,
-    const RELVAL *v,
+    const RELVAL *look,
     REBSPC *specifier,
     enum Reb_Param_Class pclass
 ){
-    assert(NOT_END(v));
+    if (IS_END(look))
+        return R_For_Vararg_End(op); // exhausted
 
-    if (IS_BAR(v)) {
+    if (IS_BAR(look)) {
         //
         // Only hard quotes are allowed to see BAR! (and if they do, they
         // are *encouraged* to test the evaluated bit and error on literals,
@@ -76,7 +77,7 @@ inline static REB_R Vararg_Op_If_No_Advance(
 
     if (
         (pclass == PARAM_CLASS_NORMAL || pclass == PARAM_CLASS_TIGHT)
-        && IS_WORD(v)
+        && IS_WORD(look)
     ){
         // When a variadic argument is being TAKE-n, deferred left hand side
         // argument needs to be seen as end of variadic input.  Otherwise,
@@ -86,14 +87,12 @@ inline static REB_R Vararg_Op_If_No_Advance(
         // Same rule applies for "tight" arguments, `sum 1 2 3 + 4` with
         // sum being variadic and tight needs to act as `(sum 1 2 3) + 4`
         //
-        REBVAL *child_gotten = Get_Var_Core(
-            v,
-            specifier,
-            GETVAR_END_IF_UNAVAILABLE
-        );
+        // Look ahead, and if actively bound see if it's to an enfix function
+        // and the rules apply.  Note the raw check is faster, no need to
+        // separately test for IS_END()
 
-        // Raw check faster, no need to separately test for IS_END()
-        //
+        const REBVAL *child_gotten = Get_Opt_Var_Else_End(look, specifier);
+
         if (VAL_TYPE_RAW(child_gotten) == REB_FUNCTION) {
             if (GET_VAL_FLAG(child_gotten, VALUE_FLAG_ENFIXED)) {
                 if (
@@ -106,8 +105,8 @@ inline static REB_R Vararg_Op_If_No_Advance(
         }
     }
 
-    // The odd fake circumstances which make things "look like" END are all
-    // taken care of now, so we're not "at the TAIL?"
+    // The odd circumstances which make things simulate END--as well as an
+    // actual END--are all taken care of, so we're not "at the TAIL?"
     //
     if (op == VARARG_OP_TAIL_Q)
         return R_FALSE;
@@ -116,13 +115,13 @@ inline static REB_R Vararg_Op_If_No_Advance(
         if (pclass != PARAM_CLASS_HARD_QUOTE)
             fail (Error_Varargs_No_Look_Raw()); // hard quote only
 
-        Derelativize(out, v, specifier);
+        Derelativize(out, look, specifier);
         SET_VAL_FLAG(out, VALUE_FLAG_UNEVALUATED);
 
         return R_OUT; // only a lookahead, no need to advance
     }
 
-    return R_UNHANDLED; // may need to create a frame
+    return R_UNHANDLED; // must advance, may need to create a frame to do so
 }
 
 
@@ -210,16 +209,14 @@ REB_R Do_Vararg_Op_May_Throw(
 
         REBARR *array1 = vararg->payload.varargs.feed;
         REBVAL *shared = KNOWN(ARR_HEAD(array1));
-        if (IS_END(shared))
-            return R_For_Vararg_End(op); // exhausted
 
-        assert(IS_BLOCK(shared) && ARR_LEN(array1) == 1);
+        assert(IS_END(shared) || (IS_BLOCK(shared) && ARR_LEN(array1) == 1));
 
         r = Vararg_Op_If_No_Advance(
             out,
             op,
-            VAL_ARRAY_AT(shared),
-            VAL_SPECIFIER(shared),
+            IS_END(shared) ? END : VAL_ARRAY_AT(shared),
+            IS_END(shared) ? SPECIFIED : VAL_SPECIFIER(shared),
             pclass
         );
 
@@ -295,9 +292,6 @@ REB_R Do_Vararg_Op_May_Throw(
         REBFRM *f = CTX_FRAME_IF_ON_STACK(context);
         if (f == NULL)
             fail (Error_Varargs_No_Stack_Raw());
-
-        if (IS_END(f->value))
-            return R_For_Vararg_End(op); // exhausted
 
         r = Vararg_Op_If_No_Advance(
             out,
