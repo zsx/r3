@@ -485,9 +485,7 @@ emit case [
         {}
     ]
     args/STATIC = "yes" [
-        join-of if sanitize [
-            "-static-libasan "
-        ]
+        join-of either sanitize ["-static-libasan "][{}]
         either cplusplus [
             unspaced ["-static-libgcc -static-libstdc++" space]
         ][
