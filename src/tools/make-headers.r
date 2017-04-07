@@ -201,10 +201,21 @@ file-base: has load %../tools/file-base.r
 
 for-each item file-base/core [
     ;
-    ; Items can be blocks if there's special flags for the file (none paid
-    ; attention to here)
+    ; Items can be blocks if there's special flags for the file (
+    ; <no-make-header> marks it to be skipped by this script)
     ;
-    file: to file! either block? item [first item] [item]
+    either block? item [
+        either all [
+            2 <= length item
+            <no-make-header> = item/2
+        ][; skip this file
+            continue
+        ][
+            file: to file first item
+        ]
+    ][
+        file: to file! item
+    ]
 
     assert [
         | %.c = suffix? file

@@ -149,7 +149,7 @@ core: [
     u-md5.c
     u-parse.c
     u-sha1.c
-    u-zlib.c
+    [u-zlib.c <no-make-header>]
 ]
 
 ; Files created by the make-boot process
