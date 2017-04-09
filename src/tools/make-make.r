@@ -417,7 +417,35 @@ case [
 ]
 
 newline
+
+case [
+    any [blank? args/WITH_TCC | args/WITH_TCC = "no"] [
+        unspaced [
+            {TCC=} newline
+            {TCC_FLAGS=} newline
+            {TCC_LIB_DIR?=}
+            {TCC_LIBS=} newline
+            {TCC_LINK_FLAGS=} newline
+        ]
+    ]
+    true [
+        path: to-rebol-file args/WITH_TCC
+        unless 'file = exists? path [
+            fail ["WITH_TCC must be the path to the tcc executable or no, not" (args/WITH_TCC)]
+        ]
+        unspaced [
+            {TCC=} path newline
+            {TCC_FLAGS=-DWITH_TCC -I../external/tcc} newline
+            {TCC_LIB_DIR?=} first split-path path newline
+            {TCC_LIBS=$(TCC_LIB_DIR)/libtcc1.a $(TCC_LIB_DIR)/libtcc.a} newline
+            {TCC_LINK_FLAGS=-L$(TCC_LIB_DIR)} newline
+        ]
+    ]
 ]
+
+newline
+]
+
 
 
 ;
@@ -462,8 +490,15 @@ emit newline
 emit [
 newline
 {# Flags for core and for host:
-RFLAGS= -c -D$(TO_OS_BASE) -D$(TO_OS_NAME) -DREB_API  $(RAPI_FLAGS) $(FFI_FLAGS) $I
-HFLAGS= -c -D$(TO_OS_BASE) -D$(TO_OS_NAME) -DREB_CORE $(HOST_FLAGS) $I}
+RFLAGS= -D$(TO_OS_BASE) -D$(TO_OS_NAME) -DREB_API  $(RAPI_FLAGS) $(FFI_FLAGS) $I $(TCC_FLAGS)
+HFLAGS= -D$(TO_OS_BASE) -D$(TO_OS_NAME) -DREB_CORE $(HOST_FLAGS) $I}
+
+newline newline
+
+{# Flags used by tcc to preprocess sys-core.h
+# filter out options that tcc doesn't support
+TCC_CPP_FLAGS_tmp=$(RFLAGS:--std%=)
+TCC_CPP_FLAGS=$(TCC_CPP_FLAGS_tmp:--pedantic=)}
 
 newline newline
 ]
@@ -596,7 +631,14 @@ emit [
     {    $(REBOL) $T/make-boot-ext-header.r EXTENSIONS=} extensions newline
 ]
 
+unless any [blank? args/WITH_TCC | args/WITH_TCC = "no"] [
+    emit [
+	{    $(TCC) -E -dD -nostdlib -DREN_C_STDIO_OK -UHAVE_ASAN_INTERFACE_H -o ../src/include/sys-core.i $(TCC_CPP_FLAGS) $(TCC_CPP_EXTRA_FLAGS) -I../external/tcc/include ../src/include/sys-core.h} newline
+	{    $(REBOL) $T/make-embedded-header.r} newline
+]
 
+    append file-base/generated [tmp-symbols.c e-embedded-header.c]
+]
 
 emit [
 {zlib:
@@ -697,7 +739,7 @@ emit-obj-files compose [
 emit {
 # Directly linked r3 executable:
 $(R3_TARGET): tmps objs $(OBJS) $(HOST)
-    $(CC) -o $(R3_TARGET) $(OBJS) $(HOST) $(CLIB) $(FFI_LIBS)
+    $(CC) -o $(R3_TARGET) $(OBJS) $(HOST) $(CLIB) $(FFI_LIBS) $(TCC_LINK_FLAGS) $(TCC_LIBS)
     $(STRIP) $(R3_TARGET)
     $(LS) $(R3_TARGET)
 
@@ -815,7 +857,7 @@ emit-file-deps: function [
         ]
 
         emit-line/indent spaced [
-            "$(CC)"
+            "$(CC) -c"
             pick ["$(RFLAGS)" "$(HFLAGS)"] not dir
             file-specific-flags
             src
