@@ -70,14 +70,13 @@
 
 #define DO_FLAG_NORMAL 0
 
-// See Init_Endlike_Header() for why these (and DO_FLAG_8_IS_FALSE) are
-// chosen the way they are.  This means that the Reb_Frame->flags field
-// can function as an implicit END for Reb_Frame->cell, as well as be
-// distinguished from a REBVAL*, a REBSER*, or a UTF8 string.
+// See Init_Endlike_Header() for why these are chosen the way they are.  This
+// means that the Reb_Frame->flags field can function as an implicit END for
+// Reb_Frame->cell, as well as be distinguished from a REBVAL*, a REBSER*, or
+// a UTF8 string.
 //
-#define DO_FLAG_0_IS_TRUE FLAGIT_LEFT(0)
-#define DO_FLAG_1_IS_TRUE FLAGIT_LEFT(1)
-#define DO_FLAG_2_IS_FALSE FLAGIT_LEFT(2)
+#define DO_FLAG_0_IS_TRUE FLAGIT_LEFT(0) // NODE_FLAG_NODE
+#define DO_FLAG_1_IS_FALSE FLAGIT_LEFT(1) // NOT(NODE_FLAG_FREE)
 
 
 //=//// DO_FLAG_TO_END ////////////////////////////////////////////////////=//
@@ -93,13 +92,8 @@
 // equivalent results.  There are nuances to preserve this invariant and
 // especially in light of interaction with lookahead.
 //
-// !!! All things being equal, it might be nice if this flag were FALSE to
-// indicate NOT(NODE_FLAG_VALID) for anything that mistakenly tried to
-// interpret this as the header of a REBVAL* or a REBSER*.  But that is
-// covered by the next 2 bits already...so it would be "wasting" a bit.
-//
 #define DO_FLAG_TO_END \
-    FLAGIT_LEFT(3)
+    FLAGIT_LEFT(2)
 
 
 //=//// DO_FLAG_VA_LIST ///////////////////////////////////////////////////=//
@@ -113,7 +107,10 @@
 // else, but this is a cheap flag for now.
 //
 #define DO_FLAG_VA_LIST \
-    FLAGIT_LEFT(4)
+    FLAGIT_LEFT(3)
+
+
+#define DO_FLAG_4_IS_TRUE FLAGIT_LEFT(4) // NODE_FLAG_END
 
 
 //=//// DO_FLAG_TOOK_FRAME_LOCK ///////////////////////////////////////////=//
@@ -135,6 +132,9 @@
     FLAGIT_LEFT(6)
 
 
+#define DO_FLAG_7_IS_FALSE FLAGIT_LEFT(7) // NOT(NODE_FLAG_CELL)
+
+
 //=//// DO_FLAG_FULFILLING_ARG ////////////////////////////////////////////=//
 //
 // Deferred lookback operations need to know when they are dealing with an
@@ -143,10 +143,7 @@
 // also means that `add 1 <| 2` will act as an error.
 //
 #define DO_FLAG_FULFILLING_ARG \
-    FLAGIT_LEFT(7)
-
-
-#define DO_FLAG_8_IS_FALSE FLAGIT_LEFT(8) // see Init_Endlike_Header()
+    FLAGIT_LEFT(8)
 
 
 //=//// DO_FLAG_NO_ARGS_EVALUATE //////////////////////////////////////////=//

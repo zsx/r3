@@ -115,7 +115,7 @@
 
     template <>
     inline REBSER *SER(void *p) {
-        REBNOD *n = NOD(p); // ensures NODE_FLAG_VALID
+        REBNOD *n = NOD(p); // ensures NOT(NODE_FLAG_FREE)
         assert(
             NOT(n->header.bits & NODE_FLAG_CELL)
             && NOT(n->header.bits & NODE_FLAG_END)
@@ -126,7 +126,8 @@
     template <>
     inline REBSER *SER(REBNOD *n) {
         assert(
-            n->header.bits & NODE_FLAG_VALID // GET_SER_FLAG would recurse!
+            (n->header.bits & NODE_FLAG_NODE)
+            && NOT(n->header.bits & NODE_FLAG_FREE) // GET_SER_FLAG recurses!
             && NOT(n->header.bits & NODE_FLAG_CELL)
             && NOT(n->header.bits & NODE_FLAG_END)
         );
@@ -229,7 +230,7 @@ inline static REBCNT SER_LEN(REBSER *s) {
 }
 
 inline static void SET_SERIES_LEN(REBSER *s, REBCNT len) {
-    assert(NOT_SER_FLAG(s, CONTEXT_FLAG_STACK));
+    assert(NOT_SER_INFO(s, CONTEXT_INFO_STACK));
 
     if (GET_SER_INFO(s, SERIES_INFO_HAS_DYNAMIC)) {
         s->content.dynamic.len = len;

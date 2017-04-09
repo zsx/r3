@@ -574,7 +574,7 @@ inline static void Drop_Function_Args_For_Frame_Core(
 
     ASSERT_ARRAY_MANAGED(f->varlist);
 
-    if (NOT(GET_SER_FLAG(f->varlist, CONTEXT_FLAG_STACK))) {
+    if (NOT(GET_SER_INFO(f->varlist, CONTEXT_INFO_STACK))) {
         //
         // If there's no stack memory being tracked by this context, it
         // has dynamic memory and is being managed by the garbage collector

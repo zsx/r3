@@ -139,7 +139,7 @@
             panic_at (v, file, line);
         }
 
-        if (NOT(v->header.bits & NODE_FLAG_VALID)) {
+        if (v->header.bits & NODE_FLAG_FREE) {
             printf("VAL_TYPE() called on trash cell\n");
             panic_at (v, file, line);
         }
@@ -160,22 +160,6 @@
     #define VAL_TYPE(v) \
         VAL_TYPE_Debug((v), __FILE__, __LINE__)
 #endif
-
-inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
-    //
-    // Note: Only use if you are sure the new type payload is in sync with
-    // the type and bits (e.g. changing ANY-WORD! to another ANY-WORD!).
-    // Otherwise the value-specific flags might be misinterpreted.
-    //
-    // Use VAL_RESET_HEADER() to set the type AND initialize the flags to 0.
-    //
-    assert(
-        (v->header.bits & NODE_FLAG_CELL)
-        && (v->header.bits & NODE_FLAG_VALID)
-    );
-    CLEAR_8_RIGHT_BITS((v)->header.bits);
-    (v)->header.bits |= HEADERIZE_KIND(kind);
-}
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -352,7 +336,7 @@ inline static void VAL_RESET_HEADER_common( // don't call directly
     // bugs somehow, which may be arguably good in a release build, but do it
     // without for now and assume it was set and the AND= above kept it.
     //
-    v->header.bits |= NODE_FLAG_VALID | HEADERIZE_KIND(kind) | extra_flags;
+    v->header.bits |= HEADERIZE_KIND(kind) | extra_flags;
 }
 
 #ifdef NDEBUG
@@ -362,8 +346,9 @@ inline static void VAL_RESET_HEADER_common( // don't call directly
     #define ASSERT_CELL_WRITABLE(v,file,line) \
         NOOP
 
+    // Note no VALUE_FLAG_STACK
     #define INIT_CELL(v) \
-        (v)->header.bits = NODE_FLAG_CELL; // no VALUE_FLAG_STACK
+        (v)->header.bits = NODE_FLAG_NODE | NODE_FLAG_FREE | NODE_FLAG_CELL
 #else
     #define ASSERT_CELL_WRITABLE(v,file,line) \
         Assert_Cell_Writable((v), (file), (line))
@@ -393,7 +378,9 @@ inline static void VAL_RESET_HEADER_common( // don't call directly
     inline static void INIT_CELL_Debug(
         RELVAL *v, const char *file, int line
     ){
-        v->header.bits = NODE_FLAG_CELL; // no VALUE_FLAG_STACK
+        // Note: no VALUE_FLAG_STACK
+        //
+        v->header.bits = NODE_FLAG_NODE | NODE_FLAG_FREE | NODE_FLAG_CELL;
         Set_Track_Payload_Debug(v, file, line);
     }
 
@@ -404,6 +391,17 @@ inline static void VAL_RESET_HEADER_common( // don't call directly
 #define VAL_RESET_HEADER(v,t) \
     VAL_RESET_HEADER_EXTRA((v), (t), 0)
 
+inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
+    //
+    // Note: Only use if you are sure the new type payload is in sync with
+    // the type and bits (e.g. changing ANY-WORD! to another ANY-WORD!).
+    // Otherwise the value-specific flags might be misinterpreted.
+    //
+    ASSERT_CELL_WRITABLE(v, __FILE__, __LINE__);
+    CLEAR_8_RIGHT_BITS(v->header.bits);
+    v->header.bits |= HEADERIZE_KIND(kind);
+}
+
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -411,8 +409,8 @@ inline static void VAL_RESET_HEADER_common( // don't call directly
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// Trash is a cell (marked by NODE_FLAG_CELL) without NODE_FLAG_VALID set.
-// To prevent it from being inspected while it's in an invalid state, VAL_TYPE
+// Trash is a cell (marked by NODE_FLAG_CELL) with NODE_FLAG_FREE set.  To
+// prevent it from being inspected while it's in an invalid state, VAL_TYPE
 // used on a trash cell will assert in the debug build.
 //
 // The garbage collector is not tolerant of trash.
@@ -433,6 +431,7 @@ inline static void VAL_RESET_HEADER_common( // don't call directly
         ASSERT_CELL_WRITABLE(v, file, line);
 
         v->header.bits &= CELL_MASK_RESET;
+        v->header.bits |= NODE_FLAG_FREE;
 
         Set_Track_Payload_Debug(v, file, line);
     }
@@ -442,8 +441,9 @@ inline static void VAL_RESET_HEADER_common( // don't call directly
 
     inline static REBOOL IS_TRASH_DEBUG(const RELVAL *v) {
         assert(v->header.bits & NODE_FLAG_CELL);
-        if (v->header.bits & NODE_FLAG_VALID)
+        if (NOT(v->header.bits & NODE_FLAG_FREE))
             return FALSE;
+        assert(LEFT_8_BITS(v->header.bits) == TRASH_CELL_BYTE); // bad UTF-8
         assert(VAL_TYPE_RAW(v) == REB_0);
         return TRUE;
     }
@@ -592,7 +592,7 @@ inline static void VAL_RESET_HEADER_common( // don't call directly
     ) {
         ASSERT_CELL_WRITABLE(v, file, line);
 
-        if (v->header.bits & NODE_FLAG_VALID) {
+        if (NOT(v->header.bits & NODE_FLAG_FREE)) {
             VAL_RESET_HEADER_EXTRA_Debug(
                 v,
                 REB_BLANK,
@@ -1237,8 +1237,8 @@ inline static void SET_GOB(RELVAL *v, REBGOB *g) {
 inline static REBVAL *Move_Value(RELVAL *out, const REBVAL *v)
 {
     assert(
-        GET_VAL_FLAG(v, NODE_FLAG_CELL)
-        && GET_VAL_FLAG(v, NODE_FLAG_VALID)
+        ALL_VAL_FLAGS(v, NODE_FLAG_CELL | NODE_FLAG_NODE)
+        && NOT_VAL_FLAG(v, NODE_FLAG_FREE)
     );
     assert(NOT_END(v));
     ASSERT_CELL_WRITABLE(out, __FILE__, __LINE__);
@@ -1331,11 +1331,11 @@ inline static REBVAL *Move_Value(RELVAL *out, const REBVAL *v)
 // DECLARE_LOCAL inside of a loop.  It should be at the outermost scope of
 // the function.
 //
-// Note: when setting the header bits, it doesn't set NODE_FLAG_VALID,
-// so this is a "trash" cell by default.
+// Note: It sets NODE_FLAG_FREE, so this is a "trash" cell by default.
 //
 #define DECLARE_LOCAL(name) \
     REBSER name##_pair; \
     *cast(RELVAL*, &name##_pair) = *BLANK_VALUE; /* => tbd: FS_TOP FRAME! */ \
     REBVAL * const name = cast(REBVAL*, &name##_pair) + 1; \
-    name->header.bits = NODE_FLAG_CELL | VALUE_FLAG_STACK
+    name->header.bits = (NODE_FLAG_NODE | NODE_FLAG_FREE \
+        | NODE_FLAG_CELL | VALUE_FLAG_STACK)

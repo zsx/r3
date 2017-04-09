@@ -1121,9 +1121,8 @@ done_caching:;
 //
 REBCTX *Make_Expired_Frame_Ctx_Managed(REBFUN *func)
 {
-    REBARR *varlist = Alloc_Singular_Array_Core(
-        ARRAY_FLAG_VARLIST | CONTEXT_FLAG_STACK
-    );
+    REBARR *varlist = Alloc_Singular_Array_Core(ARRAY_FLAG_VARLIST);
+    SET_SER_INFO(varlist, CONTEXT_INFO_STACK);
     SET_BLANK(ARR_HEAD(varlist));
     MANAGE_ARRAY(varlist);
 

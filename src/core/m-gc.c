@@ -802,7 +802,7 @@ static void Propagate_All_GC_Marks(void)
             //
             assert(GET_SER_FLAG(a, ARRAY_FLAG_VARLIST));
             assert(IS_FRAME(ARR_HEAD(a)));
-            assert(GET_SER_FLAG(a, CONTEXT_FLAG_STACK));
+            assert(GET_SER_INFO(a, CONTEXT_INFO_STACK));
             continue;
         }
 
@@ -889,8 +889,7 @@ static void Mark_Root_Series(void)
             if (IS_FREE_NODE(s))
                 continue;
 
-            if (Is_Rebser_Marked(s))
-                continue;
+            assert(NOT(Is_Rebser_Marked(s))); // can't be marked yet
 
             if (NOT(s->header.bits & NODE_FLAG_ROOT))
                 continue;
@@ -1193,13 +1192,13 @@ static REBCNT Sweep_Series(void)
 {
     REBCNT count = 0;
 
-    // Optimization here depends on SWITCH of the concrete values of bits.
+    // Optimization here depends on SWITCH of a bank of 4 bits.
     //
     static_assert_c(
-        NODE_FLAG_MANAGED == FLAGIT_LEFT(3) // 0x1 after right shift
-        && (NODE_FLAG_CELL == FLAGIT_LEFT(2)) // 0x2 after right shift
-        && (NODE_FLAG_END == FLAGIT_LEFT(1)) // 0x4 after right shift
-        && (NODE_FLAG_VALID == FLAGIT_LEFT(0)) // 0x8 after right shift
+        NODE_FLAG_MARKED == FLAGIT_LEFT(3) // 0x1 after right shift
+        && (NODE_FLAG_MANAGED == FLAGIT_LEFT(2)) // 0x2 after right shift
+        && (NODE_FLAG_FREE == FLAGIT_LEFT(1)) // 0x4 after right shift
+        && (NODE_FLAG_NODE == FLAGIT_LEFT(0)) // 0x8 after right shift
     );
 
     REBSEG *seg;
@@ -1209,14 +1208,6 @@ static REBCNT Sweep_Series(void)
         for (n = Mem_Pools[SER_POOL].units; n > 0; --n, ++s) {
             switch (LEFT_N_BITS(s->header.bits, 4)) {
             case 0:
-                // NODE_FLAG_VALID is clear.  The only way this should be able
-                // to happen is if this is a free node with all header bits
-                // set to 0.  The first 4 bits were all zero, but make sure
-                // that the rest are.
-                //
-                assert(IS_FREE_NODE(s));
-                break;
-
             case 1: // 0x1
             case 2: // 0x2
             case 3: // 0x2 + 0x1
@@ -1225,109 +1216,73 @@ static REBCNT Sweep_Series(void)
             case 6: // 0x4 + 0x2
             case 7: // 0x4 + 0x2 + 0x1
                 //
-                // NODE_FLAG_VALID (0x8) is clear...but other bits are set.
-                // This kind of signature is reserved for UTF-8 strings
-                // (corresponding to valid ASCII values in the first byte).
-                // They should never occur in the REBSER pools.
+                // NODE_FLAG_NODE (0x8) is clear.  This signature is
+                // reserved for UTF-8 strings (corresponding to valid ASCII
+                // values in the first byte).
                 //
-                assert(FALSE);
+                panic (s);
+
+            // v-- Everything below here has NODE_FLAG_NODE set (0x8)
+
+            case 8:
+                // 0x8: unmanaged and unmarked, e.g. a series that was made
+                // with Make_Series() and hasn't been managed.  It doesn't
+                // participate in the GC.  Leave it as is.
+                //
                 break;
 
-            // v-- Everything below this line has NODE_FLAG_VALID set (0x8)
+            case 9:
+                // 0x8 + 0x1: marked but not managed, this can't happen,
+                // because the marking itself asserts nodes are managed.
+                //
+                panic (s);
 
-            case 8: // 0x8
+            case 10:
+                // 0x8 + 0x2: managed but didn't get marked, should be GC'd
                 //
-                // It's not a cell and not managed, hence a typical unmanaged
-                // REBSER (as it comes back from Make_Series()).  NODE_FLAG_END
-                // is not set so this cannot act as an implicit END marker.
+                // !!! It would be nice if we could have NODE_FLAG_CELL here
+                // as part of the switch, but see its definition for why it
+                // is at position 8 from left and not an earlier bit.
                 //
-                assert(!IS_SERIES_MANAGED(s));
-                break;
-
-            case 9: // 0x8 + 0x1
-                //
-                // It's not a cell and managed hence a typical managed series
-                // (as you would get from Make_Series() then MANAGE_SERIES()).
-                // Again NODE_FLAG_END is not set so this cannot act as an
-                // implicit END marker.
-                //
-                // If it's GC marked in use, leave it alone...else kill it.
-                //
-                assert(IS_SERIES_MANAGED(s));
-                if (Is_Rebser_Marked(s))
-                    Unmark_Rebser(s);
-                else {
-                    GC_Kill_Series(s);
-                    ++count;
-                }
-                break;
-
-            case 10: // 0x8 + 0x2
-                //
-                // It's a cell which is not managed and not an end.  Hence
-                // this is a pairing with some value key that is not an END
-                // and not GC managed.  Skip it.
-                //
-                // !!! It is a REBNOD, but *not* a "series".
-                //
-                assert(!IS_SERIES_MANAGED(s));
-                break;
-
-            case 11: // 0x8 + 0x2 + 0x1
-                //
-                // It's a cell which is managed where the key is not an END.
-                // This is a managed pairing, so mark bit should be heeded.
-                //
-                // !!! It is a REBNOD, but *not* a "series".
-                //
-                assert(IS_SERIES_MANAGED(s));
-                if (Is_Rebser_Marked(s))
-                    Unmark_Rebser(s);
-                else {
+                if (s->header.bits & NODE_FLAG_CELL)
                     Free_Node(SER_POOL, s); // Free_Pairing is for manuals
-                    ++count;
-                }
+                else
+                    GC_Kill_Series(s);
+                ++count;
+                break;
+
+            case 11:
+                // 0x8 + 0x2 + 0x1: managed and marked, so it's still live.
+                // Don't GC it, just clear the mark.
+                //
+                s->header.bits &= ~NODE_FLAG_MARKED;
                 break;
 
             // v-- Everything below this line has the two leftmost bits set
-            // in the header.  In the general case this could be a valid first
-            // byte of a multi-byte sequence in UTF-8...which we don't want
-            // to conflict with a valid REBSER* or REBVAL*.  But see notes.
+            // in the header.  In the *general* case this could be a valid
+            // first byte of a multi-byte sequence in UTF-8...so only the
+            // special bit pattern of the free case uses this.
 
-            case 12: // 0x8 + 0x4
-                assert(FALSE); // "unmanaged non-cell that can act as an end"
+            case 12:
+                // 0x8 + 0x4: free node, uses special illegal UTF-8 byte
+                //
+                assert(LEFT_8_BITS(s->header.bits) == FREED_SERIES_BYTE);
                 break;
 
-            case 13: // 0x8 + 0x4 + 0x1
-                assert(FALSE); // "managed non-cell that can act as an end"
-                break;
+            case 13:
+                // 0x8 + 0x4 + 0x1: "free unmanaged marked node" (?!)
+                // 
+                panic (s);
 
-            case 14: // 0x8 + 0x4 + 0x2
+            case 14:
+                // 0x8 + 0x4 + 0x2: "free managed unmarked node" (?!)
                 //
-                // Unmanaged cell that's an END marker.  This combination
-                // sounds like what could plausibly be an ordinary END marker
-                // in a cell (as opposed to an implicit END).  However, there
-                // would be no way to distinguish this from legal leading
-                // bytes of multi-byte UTF-8 sequences.  Hence SET_END()
-                // uses a different bit pattern (below).
-                //
-                assert(FALSE);
-                break;
+                panic (s);
 
-            case 15: // 0x8 + 0x4 + 0x2 + 0x1
+            case 15:
+                // 0x8 + 0x4 + 0x2 + 0x1: "free managed marked node" (?!)
                 //
-                // While this indicates a "managed" cell that's an END marker,
-                // there is actually only one legal possibility...and the
-                // managed bit is not relevant.  What is relevant is that
-                // SET_END() on a valid cell spot uses the special illegal
-                // UTF-8 pattern of `11111111` (255) to allow distinguishing
-                // it from a valid multi-byte UTF-8 sequence.
-                //
-                // !!! It is a REBNOD, but *not* a "series".
-                //
-                assert(!IS_SERIES_MANAGED(s));
-                assert(LEFT_N_BITS(s->header.bits, 8) == 255);
-                break;
+                panic (s);
             }
         }
     }

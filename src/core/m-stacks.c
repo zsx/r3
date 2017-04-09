@@ -288,9 +288,8 @@ void Reify_Frame_Context_Maybe_Fulfilling(REBFRM *f) {
         assert(GET_SER_INFO(f->varlist, SERIES_INFO_HAS_DYNAMIC));
     }
     else {
-        f->varlist = Alloc_Singular_Array_Core(
-            ARRAY_FLAG_VARLIST | CONTEXT_FLAG_STACK
-        );
+        f->varlist = Alloc_Singular_Array_Core(ARRAY_FLAG_VARLIST);
+        SET_SER_INFO(f->varlist, CONTEXT_INFO_STACK);
     }
 
     REBCTX *c = CTX(f->varlist);

@@ -92,6 +92,20 @@
 // also prefer the header vs. info?  Such separation might help with caching.
 //
 
+//=//// ARRAY_FLAG_VOIDS_LEGAL ////////////////////////////////////////////=//
+//
+// Identifies arrays in which it is legal to have void elements.  This is true
+// for instance on reified C va_list()s which were being used for unevaluated
+// applies (like R3-Alpha's APPLY/ONLY).  When those va_lists need to be put
+// into arrays for the purposes of GC protection, they may contain voids which
+// they need to track.
+//
+// Note: ARRAY_FLAG_VARLIST also implies legality of voids, which
+// are used to represent unset variables.
+//
+#define ARRAY_FLAG_VOIDS_LEGAL \
+    NODE_FLAG_SPECIAL
+
 
 //=//// SERIES_FLAG_FIXED_SIZE ////////////////////////////////////////////=//
 //
@@ -189,28 +203,13 @@
     FLAGIT_LEFT(GENERAL_SERIES_BIT + 4)
 
 
-//=//// ARRAY_FLAG_VOIDS_LEGAL ////////////////////////////////////////////=//
-//
-// Identifies arrays in which it is legal to have void elements.  This is true
-// for instance on reified C va_list()s which were being used for unevaluated
-// applies (like R3-Alpha's APPLY/ONLY).  When those va_lists need to be put
-// into arrays for the purposes of GC protection, they may contain voids which
-// they need to track.
-//
-// Note: ARRAY_FLAG_VARLIST also implies legality of voids, which
-// are used to represent unset variables.
-//
-#define ARRAY_FLAG_VOIDS_LEGAL \
-    FLAGIT_LEFT(GENERAL_SERIES_BIT + 5)
-
-
 //=//// ARRAY_FLAG_PARAMLIST //////////////////////////////////////////////=//
 //
 // ARRAY_FLAG_PARAMLIST indicates the array is the parameter list of a
 // FUNCTION! (the first element will be a canon value of the function)
 //
 #define ARRAY_FLAG_PARAMLIST \
-    FLAGIT_LEFT(GENERAL_SERIES_BIT + 6)
+    FLAGIT_LEFT(GENERAL_SERIES_BIT + 5)
 
 
 //=//// ARRAY_FLAG_VARLIST ////////////////////////////////////////////////=//
@@ -223,7 +222,7 @@
 // See notes on REBCTX for further details about what a context is.
 //
 #define ARRAY_FLAG_VARLIST \
-    FLAGIT_LEFT(GENERAL_SERIES_BIT + 7)
+    FLAGIT_LEFT(GENERAL_SERIES_BIT + 6)
 
 
 //=//// ARRAY_FLAG_PAIRLIST ///////////////////////////////////////////////=//
@@ -232,23 +231,7 @@
 // series also has a hashlist linked to in the series node.
 //
 #define ARRAY_FLAG_PAIRLIST \
-    FLAGIT_LEFT(GENERAL_SERIES_BIT + 8)
-
-
-//=//// CONTEXT_FLAG_STACK ////////////////////////////////////////////////=//
-//
-// This indicates that a context's varlist data lives on the stack.  That
-// means that when the function terminates, the data will no longer be
-// accessible (so SERIES_INFO_INACCESSIBLE will be true).
-//
-// !!! Ultimately this flag may be unnecessary because stack-based and
-// dynamic series will "hybridize" so that they may have some stack
-// fields and some fields in dynamic memory.  For now it's a good sanity
-// check that things which should only happen to stack contexts (like becoming
-// inaccessible) are checked against this flag.
-//
-#define CONTEXT_FLAG_STACK \
-    FLAGIT_LEFT(GENERAL_SERIES_BIT + 9)
+    FLAGIT_LEFT(GENERAL_SERIES_BIT + 7)
 
 
 // ^-- STOP AT FLAGIT_LEFT(15) --^
@@ -260,7 +243,7 @@
 // could use the same bit, if needed.
 //
 #if defined(__cplusplus) && (__cplusplus >= 201103L)
-    static_assert(GENERAL_SERIES_BIT + 9 < 16, "SERIES_FLAG_XXX too high");
+    static_assert(GENERAL_SERIES_BIT + 7 < 16, "SERIES_FLAG_XXX too high");
 #endif
 
 
@@ -274,16 +257,18 @@
 // are the info bits, which are more likely to be changed over the lifetime
 // of the series--defaulting to FALSE.
 //
-// See Init_Endlike_Header() for why the leading bits are chosen the way they
-// are (and why SERIES_INFO_8_IS_FALSE is unused also).  This means that the
-// Reb_Series->info field can function as an implicit END for
-// Reb_Series->content, as well as be distinguished from a REBVAL*, a REBSER*,
-// or a UTF8 string.
+// See Init_Endlike_Header() for why the bits are chosen the way they are.
+// 4 are reserved, this means that the Reb_Series->info field can function as
+// an implicit END for Reb_Series->content, as well as be distinguished from
+// a REBVAL*, a REBSER*, or a UTF8 string.
+//
+// Review: Due to the Init_Endlike_Header trick, it might be safer with the
+// aliasing to make the info contain the properties that *don't* change over
+// the lifetime of the series.  (?)
 //
 
-#define SERIES_INFO_0_IS_TRUE FLAGIT_LEFT(0) // NODE_FLAG_VALID
-#define SERIES_INFO_1_IS_TRUE FLAGIT_LEFT(1) // NODE_FLAG_END
-#define SERIES_INFO_2_IS_FALSE FLAGIT_LEFT(2) // NOT(NODE_FLAG_CELL)
+#define SERIES_INFO_0_IS_TRUE FLAGIT_LEFT(0) // NODE_FLAG_NODE
+#define SERIES_INFO_1_IS_FALSE FLAGIT_LEFT(1) // NOT(NODE_FLAG_FREE)
 
 
 //=//// SERIES_INFO_HAS_DYNAMIC ///////////////////////////////////////////=//
@@ -296,8 +281,10 @@
 // This bit will be flipped if a series grows.  (In the future it should also
 // be flipped when the series shrinks, but no shrinking in the GC yet.)
 //
+// Note: Same bit as NODE_FLAG_MANAGED, should not be relevant.
+//
 #define SERIES_INFO_HAS_DYNAMIC \
-    FLAGIT_LEFT(3)
+    FLAGIT_LEFT(2)
 
 
 //=//// SERIES_INFO_BLACK /////////////////////////////////////////////////=//
@@ -308,8 +295,13 @@
 // reusing NODE_FLAG_MARKED.  Purposes could be for recursion protection or
 // other features, to avoid having to make a map from REBSER to REBOOL.
 //
+// Note: Same bit as NODE_FLAG_MARKED, interesting but irrelevant.
+//
 #define SERIES_INFO_BLACK \
-    FLAGIT_LEFT(4)
+    FLAGIT_LEFT(3)
+
+
+#define SERIES_INFO_4_IS_TRUE FLAGIT_LEFT(4) // NODE_FLAG_END
 
 
 //=//// SERIES_INFO_PROTECTED /////////////////////////////////////////////=//
@@ -323,6 +315,8 @@
 // distinct.  SERIES_INFO_PROTECTED is a protection on a series itself--which
 // ends up affecting all values with that series in the payload.
 //
+// Note: Same bit as NODE_FLAG_ROOT, should not be relevant.
+//
 #define SERIES_INFO_PROTECTED \
     FLAGIT_LEFT(5)
 
@@ -334,8 +328,13 @@
 // is finished, which distinguishes it from SERIES_INFO_FROZEN, from which it
 // will never come back, as long as it lives...
 //
+// Note: Same bit as NODE_FLAG_SPECIAL, should not be relevant.
+// 
 #define SERIES_INFO_RUNNING \
     FLAGIT_LEFT(6)
+
+
+#define SERIES_INFO_7_IS_FALSE FLAGIT_LEFT(7) // NOT(NODE_FLAG_CELL)
 
 
 //=//// SERIES_INFO_FROZEN ////////////////////////////////////////////////=//
@@ -353,18 +352,15 @@
 // value in the series data...then by that point it cannot be enforced.
 //
 #define SERIES_INFO_FROZEN \
-    FLAGIT_LEFT(7)
-
-
-#define SERIES_INFO_8_IS_FALSE FLAGIT_LEFT(8) // see Init_Endlike_Header()
+    FLAGIT_LEFT(8)
 
 
 //=//// SERIES_INFO_INACCESSIBLE //////////////////////////////////////////=//
 //
-// Currently this used to note when a CONTEXT_FLAG_STACK series has had its
+// Currently this used to note when a CONTEXT_INFO_STACK series has had its
 // stack level popped (there's no data to lookup for words bound to it).
 //
-// !!! This is currently redundant with checking if a CONTEXT_FLAG_STACK
+// !!! This is currently redundant with checking if a CONTEXT_INFO_STACK
 // series has its `misc.f` (REBFRM) nulled out, but it means both can be
 // tested at the same time with a single bit.
 //
@@ -408,6 +404,22 @@
     FLAGIT_LEFT(11)
 
 
+//=//// CONTEXT_INFO_STACK ////////////////////////////////////////////////=//
+//
+// This indicates that a context's varlist data lives on the stack.  That
+// means that when the function terminates, the data will no longer be
+// accessible (so SERIES_INFO_INACCESSIBLE will be true).
+//
+// !!! Ultimately this flag may be unnecessary because stack-based and
+// dynamic series will "hybridize" so that they may have some stack
+// fields and some fields in dynamic memory.  For now it's a good sanity
+// check that things which should only happen to stack contexts (like becoming
+// inaccessible) are checked against this flag.
+//
+#define CONTEXT_INFO_STACK \
+    FLAGIT_LEFT(12)
+
+
 #if !defined(NDEBUG)
     //=//// SERIES_INFO_LEGACY_DEBUG //////////////////////////////////////=//
     //
@@ -419,7 +431,7 @@
     // enough for casual compatibility in many cases.
     //
     #define SERIES_INFO_LEGACY_DEBUG \
-        FLAGIT_LEFT(12)
+        FLAGIT_LEFT(13)
 #endif
 
 // ^-- STOP AT FLAGIT_LEFT(15) --^
@@ -429,7 +441,7 @@
 // flags need to stop at FLAGIT_LEFT(15).
 //
 #if defined(__cplusplus) && (__cplusplus >= 201103L)
-    static_assert(12 < 16, "SERIES_INFO_XXX too high");
+    static_assert(13 < 16, "SERIES_INFO_XXX too high");
 #endif
 
 

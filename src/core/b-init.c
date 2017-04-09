@@ -147,6 +147,18 @@ static void Assert_Basics(void)
     // you'd like to catch IS_END() tests on trash.)
     //
     assert(REB_MAX < 256);
+
+    // Make sure tricks for "internal END markers" are lined up as expected.
+    //
+    assert(SERIES_INFO_0_IS_TRUE == NODE_FLAG_NODE);
+    assert(SERIES_INFO_1_IS_FALSE == NODE_FLAG_FREE);
+    assert(SERIES_INFO_4_IS_TRUE == NODE_FLAG_END);
+    assert(SERIES_INFO_7_IS_FALSE == NODE_FLAG_CELL);
+
+    assert(DO_FLAG_0_IS_TRUE == NODE_FLAG_NODE);
+    assert(DO_FLAG_1_IS_FALSE == NODE_FLAG_FREE);
+    assert(DO_FLAG_4_IS_TRUE == NODE_FLAG_END);
+    assert(DO_FLAG_7_IS_FALSE == NODE_FLAG_CELL);
 }
 
 

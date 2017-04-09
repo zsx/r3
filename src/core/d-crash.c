@@ -98,39 +98,13 @@ ATTRIBUTE_NO_RETURN void Panic_Core(
     strncat(buf, "\n", PANIC_BUF_SIZE - strlen(buf));
 
     switch (Detect_Rebol_Pointer(p)) {
-    case DETECTED_AS_NON_EMPTY_UTF8:
+    case DETECTED_AS_UTF8: // string might be empty...handle specially?
         strncat(
             buf,
             cast(const char*, p),
             PANIC_BUF_SIZE - strlen(buf)
         );
         break;
-
-    case DETECTED_AS_EMPTY_UTF8: {
-        //
-        // More often than not, what this actually is would be a freed series.
-        // Which ordinary code shouldn't run into, so you have to assume in
-        // general it's not an empty string.  But how often is an empty string
-        // passed to panic?
-        //
-        // If it is an empty string, you run the risk of causing an access
-        // violation by reading beyond that first 0 byte to see the full
-        // header.
-        //
-    #if !defined(NDEBUG)
-        const struct Reb_Header *h = cast(const struct Reb_Header*, p);
-        if (h->bits == 0) {
-            REBSER *s = m_cast(REBSER*, cast(const REBSER*, p)); // read only
-            Panic_Series_Debug(s);
-        }
-    #endif
-        const char *no_message = "[empty UTF-8 string (or freed series)]";
-        strncat(
-            buf,
-            no_message,
-            PANIC_BUF_SIZE - strlen(no_message)
-        );
-        break; }
 
     case DETECTED_AS_SERIES: {
         REBSER *s = m_cast(REBSER*, cast(const REBSER*, p)); // don't mutate
@@ -159,7 +133,15 @@ ATTRIBUTE_NO_RETURN void Panic_Core(
     #endif
         break; }
 
+    case DETECTED_AS_FREED_SERIES:
+    #if !defined(NDEBUG)
+        Panic_Series_Debug(m_cast(REBSER*, cast(const REBSER*, p)));
+    #endif
+        strncat(buf, "freed series", PANIC_BUF_SIZE - strlen(buf));
+        break;
+
     case DETECTED_AS_VALUE:
+    case DETECTED_AS_END:
     #if !defined(NDEBUG)
         Panic_Value_Debug(cast(const REBVAL*, p));
     #else
@@ -167,31 +149,11 @@ ATTRIBUTE_NO_RETURN void Panic_Core(
     #endif
         break;
 
-    case DETECTED_AS_CELL_END:
+    case DETECTED_AS_TRASH_CELL:
     #if !defined(NDEBUG)
-        Panic_Value_Debug(cast(const REBVAL*, p));
-    #else
-        strncat(buf, "full cell-sized end", PANIC_BUF_SIZE - strlen(buf));
+        Panic_Value_Debug(cast(const RELVAL*, p));
     #endif
-        break;
-
-    case DETECTED_AS_INTERNAL_END:
-    #if !defined(NDEBUG)
-        printf("Internal END marker, if array then panic-ing container:\n");
-        Panic_Series_Debug(cast(REBSER*,
-            m_cast(REBYTE*, cast(const REBYTE*, p))
-            - offsetof(struct Reb_Series, info)
-            + offsetof(struct Reb_Series, header)
-        ));
-    #else
-        strncat(buf, "internal end marker", PANIC_BUF_SIZE - strlen(buf));
-    #endif
-
-    default:
-        strncat(buf,
-            "Detect_Rebol_Pointer() failure",
-            PANIC_BUF_SIZE - strlen(buf)
-        );
+        strncat(buf, "trash cell", PANIC_BUF_SIZE - strlen(buf));
         break;
     }
 
@@ -208,11 +170,6 @@ ATTRIBUTE_NO_RETURN void Panic_Core(
 #endif
 
     OS_CRASH(cb_cast(Str_Panic_Title), cb_cast(buf));
-
-    // Note that since we crash, we never return so that the caller can run
-    // a va_end on the passed-in args.  This is illegal in the general case:
-    //
-    //    http://stackoverflow.com/a/587139/211160
 
     DEAD_END;
 }

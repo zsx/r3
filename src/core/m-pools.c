@@ -451,7 +451,7 @@ static void Fill_Pool(REBPOL *pool)
 
     // Add new nodes to the end of free list:
 
-    // Can't use NOD() here because it tests for NODE_FLAG_VALID
+    // Can't use NOD() here because it tests for NOT(NODE_FLAG_FREE)
     //
     REBNOD *node = cast(REBNOD*, seg + 1);
 
@@ -465,15 +465,18 @@ static void Fill_Pool(REBPOL *pool)
     }
 
     while (TRUE) {
-        struct Reb_Header *alias = &node->header; // pointer alias
-        alias->bits = 0; // alias ensures compiler invalidates ALL Reb_Headers
+        //
+        // See Init_Endlike_Header() for why we do this
+        //
+        struct Reb_Header *alias = &node->header;
+        alias->bits = FLAGBYTE_FIRST(FREED_SERIES_BYTE);
 
         if (--units == 0) {
             node->next_if_free = NULL;
             break;
         }
 
-        // Can't use NOD() here because it tests for NODE_FLAG_VALID
+        // Can't use NOD() here because it tests for NODE_FLAG_FREE
         //
         node->next_if_free = cast(REBNOD*, cast(REBYTE*, node) + pool->wide);
         node = node->next_if_free;
@@ -516,7 +519,7 @@ void *Make_Node(REBCNT pool_id)
     pool->free--;
 
     assert(cast(REBUPT, node) % sizeof(REBI64) == 0);
-    assert(node->header.bits == 0); // client needs to change to non-zero
+    assert(IS_FREE_NODE(node)); // client needs to change to non-zero
 
     return cast(void *, node);
 }
@@ -533,8 +536,10 @@ void Free_Node(REBCNT pool_id, void *p)
 {
     REBNOD *node = NOD(p);
 
-    assert(node->header.bits != 0); // 0 would indicate already free
-    node->header.bits = 0;
+    // See Init_Endlike_Header() for why we do this
+    //
+    struct Reb_Header *alias = &node->header;
+    alias->bits = FLAGBYTE_FIRST(FREED_SERIES_BYTE);
 
     REBPOL *pool = &Mem_Pools[pool_id];
 
@@ -871,12 +876,10 @@ REBSER *Make_Series_Core(REBCNT capacity, REBYTE wide, REBUPT flags)
 
     REBSER *s = cast(REBSER*, Make_Node(SER_POOL));
 
-    // Header bits can't be zero.  NODE_FLAG_VALID is sufficient to identify
-    // this as a REBSER node that is not GC managed.  (Since NODE_FLAG_END is
-    // not set, it cannot act as an implicit END marker; there has not
-    // yet been a pressing need for a REBSER* to be able to do so.)
+    // Header bits can't be zero.  NODE_FLAG_NODE is sufficient to identify
+    // this as a REBSER node that is not GC managed.
     //
-    s->header.bits = NODE_FLAG_VALID | flags;
+    s->header.bits = NODE_FLAG_NODE | flags;
 
     if ((GC_Ballast -= sizeof(REBSER)) <= 0)
         SET_SIGNAL(SIG_RECYCLE);
@@ -1110,7 +1113,7 @@ static void Free_Unbiased_Series_Data(REBYTE *unbiased, REBCNT size_unpooled)
         // The series data does not honor "node protocol" when it is in use
         // The pools are not swept the way the REBSER pool is, so only the
         // free nodes have significance to their headers.  Use a cast and not
-        // NOD() because that assumes NODE_FLAG_VALID
+        // NOD() because that assumes NOT(NODE_FLAG_FREE)
         //
         REBNOD *node = cast(REBNOD*, unbiased);
 
@@ -1121,8 +1124,10 @@ static void Free_Unbiased_Series_Data(REBYTE *unbiased, REBCNT size_unpooled)
         pool->first = node;
         pool->free++;
 
+        // See Init_Endlike_Header() for why we do this
+        //
         struct Reb_Header *alias = &node->header;
-        alias->bits = 0; // see Init_Endlike_Header() for why we do this
+        alias->bits = FLAGBYTE_FIRST(FREED_SERIES_BYTE);
     }
     else {
         FREE_N(REBYTE, size_unpooled, unbiased);
@@ -1377,17 +1382,16 @@ void Expand_Series(REBSER *s, REBCNT index, REBCNT delta)
 //  Remake_Series: C
 //
 // Reallocate a series as a given maximum size.  Content in the retained
-// portion of the length may be kept as-is if NODE_FLAG_VALID is passed in.
-// The other flags are handled the same as when passed to Make_Series.
+// portion of the length will be preserved if NODE_FLAG_NODE is passed in.
 //
 void Remake_Series(REBSER *s, REBCNT units, REBYTE wide, REBUPT flags)
 {
     // !!! This routine is being scaled back in terms of what it's allowed to
-    // do for the moment
+    // do for the moment; so the method of passing in flags is a bit strange.
     //
-    assert((flags & ~(NODE_FLAG_VALID | SERIES_FLAG_POWER_OF_2)) == 0);
+    assert((flags & ~(NODE_FLAG_NODE | SERIES_FLAG_POWER_OF_2)) == 0);
 
-    REBOOL preserve = LOGICAL(flags & NODE_FLAG_VALID);
+    REBOOL preserve = LOGICAL(flags & NODE_FLAG_NODE);
 
     REBCNT len_old = SER_LEN(s);
     REBYTE wide_old = SER_WIDE(s);
@@ -1759,29 +1763,19 @@ REBOOL Is_Value_Managed(const RELVAL *value)
 // trustworthy method for "sniffing" pointers and discerning whether it is a
 // REBSER*, a REBVAL*, or a UTF-8 character string.
 //
-// Note that a freed series will look like an empty UTF8 string.
-//
 enum Reb_Pointer_Detect Detect_Rebol_Pointer(const void *p) {
     const REBYTE *bp = cast(const REBYTE*, p);
     REBYTE left_4_bits = *bp >> 4;
 
+#if !defined(NDEBUG)
+    REBUPT cell_flag = NODE_FLAG_CELL;
+    assert(LEFT_8_BITS(cell_flag) == 0x1);
+    REBUPT end_flag = NODE_FLAG_END;
+    assert(LEFT_8_BITS(end_flag) == 0x8);
+#endif
+
     switch (left_4_bits) {
-    case 0: {
-        if (*bp != 0) {
-            //
-            // only top 4 bits 0, could be ASCII control character (including
-            // line feed...
-            //
-            return DETECTED_AS_NON_EMPTY_UTF8;
-        }
-
-        // All 0 bits in first byte would either be an empty UTF-8 string or
-        // a *freed* series.  We don't want to risk crashing the system on a
-        // valid empty string, so bias the guess to UTF8.
-        //
-        return DETECTED_AS_EMPTY_UTF8;
-    }
-
+    case 0:
     case 1:
     case 2:
     case 3:
@@ -1789,50 +1783,48 @@ enum Reb_Pointer_Detect Detect_Rebol_Pointer(const void *p) {
     case 5:
     case 6:
     case 7:
-        return DETECTED_AS_NON_EMPTY_UTF8; // topmost ASCII codepoints
+        return DETECTED_AS_UTF8; // ASCII codepoints 0 - 127
 
     // v-- bit sequences starting with `10` (continuation bytes, so not
     // valid starting points for a UTF-8 string)
 
     case 8: // 0xb1000
-        return DETECTED_AS_SERIES;
+        if (*bp & 0x8)
+            return DETECTED_AS_END; // may be end cell or "endlike" header
+        if (*bp & 0x1)
+            return DETECTED_AS_VALUE; // unmanaged
+        return DETECTED_AS_SERIES; // unmanaged
 
     case 9: // 0xb1001
-        return DETECTED_AS_SERIES;
+        if (*bp & 0x8)
+            return DETECTED_AS_END; // has to be an "endlike" header
+        panic (p); // would be "marked and unmanaged", not legal
 
     case 10: // 0b1010
     case 11: // 0b1011
-        return DETECTED_AS_VALUE;
+        if (*bp & 0x8)
+            return DETECTED_AS_END;
+        if (*bp & 0x1)
+            return DETECTED_AS_VALUE; // managed, marked if `case 11`
+        return DETECTED_AS_SERIES; // managed, marked if `case 11`
 
     // v-- bit sequences starting with `11` are usually legal multi-byte
-    // valid starting points, so second byte is corrupted for internal ends,
-    // and the particular bad first byte `11111111` is used for end cells.
+    // valid starting points for UTF-8, with only the exceptions made for
+    // the illegal 192 and 193 bytes which represent freed series and trash.
 
     case 12: // 0b1100
+        if (*bp == FREED_SERIES_BYTE)
+            return DETECTED_AS_FREED_SERIES;
+
+        if (*bp == TRASH_CELL_BYTE)
+            return DETECTED_AS_TRASH_CELL;
+
+        return DETECTED_AS_UTF8;
+
     case 13: // 0b1101
-        //
-        // If this is the first byte of a valid UTF-8 sequence, then the next
-        // byte cannot start with a 0 bit.  Init_Endlike_Header() takes
-        // advantage of this fact.
-        //
-        if (*(bp + 1) < 128) // test 9th bit from left, a.k.a. FLAGIT_LEFT(8)
-            return DETECTED_AS_INTERNAL_END;
-
-        return DETECTED_AS_NON_EMPTY_UTF8;
-
     case 14: // 0b1110
-        //
-        // Though it carries the end bit and the cell bit, there are too many
-        // valid UTF-8 leading characters starting with this sequence.  So
-        // END cells use a full `11111111` pattern instead.
-        //
-        return DETECTED_AS_NON_EMPTY_UTF8;
-
     case 15: // 0b1111
-        if (*bp == 255)
-            return DETECTED_AS_CELL_END;
-
-        return DETECTED_AS_NON_EMPTY_UTF8;
+        return DETECTED_AS_UTF8;
     }
 
     DEAD_END;
@@ -1846,16 +1838,46 @@ enum Reb_Pointer_Detect Detect_Rebol_Pointer(const void *p) {
 //
 void Assert_Pointer_Detection_Working(void)
 {
-    assert(Detect_Rebol_Pointer("") == DETECTED_AS_EMPTY_UTF8);
-    assert(Detect_Rebol_Pointer("asdf") == DETECTED_AS_NON_EMPTY_UTF8);
+    assert(Detect_Rebol_Pointer("") == DETECTED_AS_UTF8);
+    assert(Detect_Rebol_Pointer("asdf") == DETECTED_AS_UTF8);
 
     assert(Detect_Rebol_Pointer(EMPTY_ARRAY) == DETECTED_AS_SERIES);
     assert(Detect_Rebol_Pointer(BLANK_VALUE) == DETECTED_AS_VALUE);
 
-    DECLARE_LOCAL (cell_end);
-    SET_END(cell_end);
-    assert(Detect_Rebol_Pointer(cell_end) == DETECTED_AS_CELL_END);
-    assert(Detect_Rebol_Pointer(END) == DETECTED_AS_INTERNAL_END);
+    DECLARE_LOCAL (trash_cell);
+    assert(Detect_Rebol_Pointer(trash_cell) == DETECTED_AS_TRASH_CELL);
+
+    DECLARE_LOCAL (end_cell);
+    SET_END(end_cell);
+    assert(Detect_Rebol_Pointer(end_cell) == DETECTED_AS_END);
+    assert(Detect_Rebol_Pointer(END) == DETECTED_AS_END);
+
+    // It's not generally known that an Init_Endlike_Header() header will
+    // not be managed.  But the canon END is not managed, and end cells can
+    // be either managed or unmanaged...but by default, not.
+    //
+    assert(NOT(end_cell->header.bits & NODE_FLAG_MANAGED));
+    assert(NOT(END->header.bits & NODE_FLAG_MANAGED));
+
+    REBSER *series = Make_Series(1, sizeof(char));
+    assert(Detect_Rebol_Pointer(series) == DETECTED_AS_SERIES);
+    Free_Series(series);
+    assert(Detect_Rebol_Pointer(series) == DETECTED_AS_FREED_SERIES);
+
+    // Sanity check the flags used for the Init_Endlike_Header trick
+    //
+    assert(
+        SERIES_INFO_0_IS_TRUE == NODE_FLAG_NODE
+        && SERIES_INFO_1_IS_FALSE == NODE_FLAG_FREE
+        && SERIES_INFO_4_IS_TRUE == NODE_FLAG_END
+        && SERIES_INFO_7_IS_FALSE == NODE_FLAG_CELL
+    );
+    assert(
+        DO_FLAG_0_IS_TRUE == NODE_FLAG_NODE
+        && DO_FLAG_1_IS_FALSE == NODE_FLAG_FREE
+        && DO_FLAG_4_IS_TRUE == NODE_FLAG_END
+        && DO_FLAG_7_IS_FALSE == NODE_FLAG_CELL
+    );
 }
 
 

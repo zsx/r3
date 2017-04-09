@@ -44,8 +44,9 @@
 // #include "host-view.h"
 
 enum GOB_FLAGS {        // GOB attribute and option flags
-    GOBF_USED = 0,
-    GOBF_MARK,
+    GOBF_0_IS_TRUE,     // aligns with NODE_FLAG_NODE
+    GOBF_1_IS_FALSE,    // aligns with NODE_FLAG_FREE
+    GOBF_MARK = 2,
     GOBF_TOP,           // Top level (window or output image)
     GOBF_WINDOW,        // Window (parent is OS window reference)
     GOBF_OPAQUE,        // Has no alpha

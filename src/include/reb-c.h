@@ -998,6 +998,9 @@ typedef REBUPT REBFLGS;
 // that would be faster than a byte operation, especially with optimization.
 //
 
+#define LEFT_8_BITS(flags) \
+    (((const REBYTE*)&flags)[0]) // reminds that 8 is faster
+
 #define LEFT_N_BITS(flags,n) \
     (((const REBYTE*)&flags)[0] >> (8 - (n))) // n <= 8
 

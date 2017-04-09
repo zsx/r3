@@ -71,7 +71,8 @@ struct Reb_Array {
             "ARR works on: void*, REBNOD*, REBSER*"
         );
         REBSER *s = cast(REBSER*, p);
-        assert(ALL_SER_FLAGS(s, NODE_FLAG_VALID | SERIES_FLAG_ARRAY));
+        assert(NOT_SER_FLAG(s, NODE_FLAG_FREE));
+        assert(ALL_SER_FLAGS(s, NODE_FLAG_NODE | SERIES_FLAG_ARRAY));
         return cast(REBARR*, s);
     }
 #else

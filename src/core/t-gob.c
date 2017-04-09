@@ -76,7 +76,7 @@ REBGOB *Make_Gob(void)
     GOB_W(gob) = 100;
     GOB_H(gob) = 100;
     GOB_ALPHA(gob) = 255;
-    gob->header.bits = GOBF_USED;
+    gob->header.bits = NODE_FLAG_NODE;
     if ((GC_Ballast -= Mem_Pools[GOB_POOL].wide) <= 0) SET_SIGNAL(SIG_RECYCLE);
     return gob;
 }

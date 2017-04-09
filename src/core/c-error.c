@@ -246,14 +246,11 @@ ATTRIBUTE_NO_RETURN void Fail_Core(const void *p)
     REBCTX *error;
 
     switch (Detect_Rebol_Pointer(p)) {
-    case DETECTED_AS_NON_EMPTY_UTF8: {
+    case DETECTED_AS_UTF8: {
         DECLARE_LOCAL (string);
         Init_String(string, Make_UTF8_May_Fail(cast(const char*, p)));
         error = Error(RE_USER, string, END);
         break; }
-
-    case DETECTED_AS_EMPTY_UTF8:
-        panic (p);
 
     case DETECTED_AS_SERIES: {
         REBSER *s = m_cast(REBSER*, cast(const REBSER*, p)); // don't mutate
@@ -262,19 +259,20 @@ ATTRIBUTE_NO_RETURN void Fail_Core(const void *p)
         error = CTX(s);
         break; }
 
+    case DETECTED_AS_FREED_SERIES:
+        panic (p);
+
     case DETECTED_AS_VALUE: {
         const REBVAL *v = cast(const REBVAL*, p);
         error = Error(RE_INVALID_ARG, v, END);
         break; }
 
-    case DETECTED_AS_CELL_END:
-        panic (p);
-
-    case DETECTED_AS_INTERNAL_END:
+    case DETECTED_AS_END:
+    case DETECTED_AS_TRASH_CELL:
         panic (p);
 
     default:
-        panic (p);
+        panic (p); // suppress compiler error from non-smart compilers
     }
 
     ASSERT_CONTEXT(error);

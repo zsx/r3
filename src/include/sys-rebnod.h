@@ -96,41 +96,96 @@ struct Reb_Header {
 };
 
 enum Reb_Pointer_Detect {
-    DETECTED_AS_SERIES = 0,
-    DETECTED_AS_NON_EMPTY_UTF8 = 1,
-    DETECTED_AS_CELL_END = 2,
-    DETECTED_AS_EMPTY_UTF8 = 3, // Note: might also be a freed series!
-    DETECTED_AS_INTERNAL_END = 4,
-    DETECTED_AS_VALUE = 5
+    DETECTED_AS_UTF8 = 0,
+    
+    DETECTED_AS_SERIES = 1,
+    DETECTED_AS_FREED_SERIES = 2,
+
+    DETECTED_AS_VALUE = 3,
+    DETECTED_AS_END = 4, // may be a cell, or made with Init_Endlike_Header()
+    DETECTED_AS_TRASH_CELL = 5
 };
 
-#define DETECTED_AS_UTF8_MASK 0x1 // matches 1 and 3
-#define DETECTED_AS_END_MASK 0x2 // matches 2 and 4
-
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  NODE_FLAG_VALID (leftmost bit)
+//  NODE_FLAG_NODE (leftmost bit)
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// The first bit will be 1 for all Reb_Header in the system that are not free
-// or trash.  Freed REBSER actually have *all* 0 bits in the header, while
-// a trash REBVAL cell will have VALUE_FLAG_CELL set.
+// For the sake of simplicity, the leftmost bit in a node is always one.  This
+// is because every UTF-8 string starting with a bit pattern 10xxxxxxx in the
+// first byte is invalid.
 //
-// !!! UTF-8 empty strings (just a 0 terminator byte) are indistingushable,
-// since only one byte may be valid to examine without crashing.  But in a
-// working state, the system should never be in a position of needing to
-// distinguish a freed node from an empty string.  Debug builds can use
-// heuristics to guess which it is when providing diagnostics.
+// Warning: Previous attempts to multiplex this with an information-bearing
+// bit were tricky, and wound up ultimately paying for a fixed bit in some
+// other situations.  Better to sacrifice the bit and keep it straightforward.
 //
-#define NODE_FLAG_VALID \
+#define NODE_FLAG_NODE \
     FLAGIT_LEFT(0)
 
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  NODE_FLAG_END (second-leftmost bit)
+//  NODE_FLAG_FREE (second-leftmost bit)
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// The second-leftmost bit will be 0 for all Reb_Header in the system that
+// are "valid".  This completes the plan of making sure all REBVAL and REBSER
+// that are usable will start with the bit pattern 10xxxxxx, hence not be
+// confused with a string...since that always indicates an invalid leading
+// byte in UTF-8.
+//
+// The exception are freed nodes, but they use 11000000 and 110000001 for
+// freed REBSER nodes and "freed" value nodes (trash).  These are the bytes
+// 192 and 193, which are specifically illegal in any UTF8 sequence.  So
+// even these cases may be safely distinguished from strings.  See the
+// NODE_FLAG_CELL for why it is chosen to be that 8th bit.
+//
+#define NODE_FLAG_FREE \
+    FLAGIT_LEFT(1)
+
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  NODE_FLAG_MANAGED (third-leftmost bit)
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// The GC-managed bit is used on series to indicate that its lifetime is
+// controlled by the garbage collector.  If this bit is not set, then it is
+// still manually managed...and during the GC's sweeping phase the simple fact
+// that it isn't NODE_FLAG_MARKED won't be enough to consider it for freeing.
+//
+// See MANAGE_SERIES for details on the lifecycle of a series (how it starts
+// out manually managed, and then must either become managed or be freed
+// before the evaluation that created it ends).
+//
+#define NODE_FLAG_MANAGED \
+    FLAGIT_LEFT(2)
+
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  NODE_FLAG_MARKED (fourth-leftmost bit)
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// This flag is used by the mark-and-sweep of the garbage collector, and
+// should not be referenced outside of %m-gc.c.
+//
+// See `SERIES_INFO_BLACK` for a generic bit available to other routines
+// that wish to have an arbitrary marker on series (for things like
+// recursion avoidance in algorithms).
+//
+#define NODE_FLAG_MARKED \
+    FLAGIT_LEFT(3)
+
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  NODE_FLAG_END (fifth-leftmost bit)
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -150,12 +205,50 @@ enum Reb_Pointer_Detect {
 // It's only valid to overwrite end markers when NODE_FLAG_CELL is set.
 //
 #define NODE_FLAG_END \
-    FLAGIT_LEFT(1)
+    FLAGIT_LEFT(4)
 
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  NODE_FLAG_CELL (third-leftmost bit)
+//  NODE_FLAG_ROOT (sixth-leftmost bit)
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// This indicates the node should be treated as a root for GC purposes.  It
+// only means anything on a REBVAL if that REBVAL happens to live in the key
+// slot of a paired REBSER--it should not generally be set otherwise.
+//
+// !!! Review the implications of this flag "leaking" if a key is ever bit
+// copied out of a pairing that uses it.  It might not be a problem so long
+// as the key is ensured read-only, so that the bit is just noise on any
+// non-key that has it...but the consequences may be more sinister.
+//
+#define NODE_FLAG_ROOT \
+    FLAGIT_LEFT(5)
+
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  NODE_FLAG_SPECIAL (seventh-leftmost bit)
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// It's a bit of a pun to try and come up with a meaning that is shared
+// between REBSER and REBVAL for this bit,  But the specific desire to put the
+// NODE_FLAG_CELL in eighth from the left position means it's easier to make
+// this a generic node flag to keep the first byte layout knowledge here.
+//
+// For a REBVAL, this means THROWN.  For a REBSER, this means marked as
+// voids being legal.  They alias this as ARRAY_FLAG_VOIDS_LEGAL and
+// VALUE_FLAG_THROWN.
+//
+#define NODE_FLAG_SPECIAL \
+    FLAGIT_LEFT(6)
+
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  NODE_FLAG_CELL (eighth-leftmost bit)
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -173,69 +266,28 @@ enum Reb_Pointer_Detect {
 // from an ordinary REBSER node.  Plain REBSERs have the cell mask clear,
 // while paring values have it set.
 //
+// The position chosen is not random.  It is picked as the 8th bit from the
+// left so that freed nodes can still express a distinction between
+// being a cell and not, due to 11000000 (192) and 11000001 (193) are both
+// invalid UTF-8 bytes, hence these two free states are distinguishable from
+// a leading byte of a string.
+//
 #define NODE_FLAG_CELL \
-    FLAGIT_LEFT(2)
-
-
-//=////////////////////////////////////////////////////////////////////////=//
-//
-//  NODE_FLAG_MANAGED (fourth-leftmost bit)
-//
-//=////////////////////////////////////////////////////////////////////////=//
-//
-// The GC-managed bit is used on series to indicate that its lifetime is
-// controlled by the garbage collector.  If this bit is not set, then it is
-// still manually managed...and during the GC's sweeping phase the simple fact
-// that it isn't NODE_FLAG_MARKED won't be enough to consider it for freeing.
-//
-// See MANAGE_SERIES for details on the lifecycle of a series (how it starts
-// out manually managed, and then must either become managed or be freed
-// before the evaluation that created it ends).
-//
-#define NODE_FLAG_MANAGED \
-    FLAGIT_LEFT(3)
-
-
-//=////////////////////////////////////////////////////////////////////////=//
-//
-//  NODE_FLAG_MARKED (fifth-leftmost bit)
-//
-//=////////////////////////////////////////////////////////////////////////=//
-//
-// This flag is used by the mark-and-sweep of the garbage collector, and
-// should not be referenced outside of %m-gc.c.
-//
-// See `SERIES_INFO_BLACK` for a generic bit available to other routines
-// that wish to have an arbitrary marker on series (for things like
-// recursion avoidance in algorithms).
-//
-#define NODE_FLAG_MARKED \
-    FLAGIT_LEFT(4)
-
-
-//=////////////////////////////////////////////////////////////////////////=//
-//
-//  NODE_FLAG_ROOT (fifth-leftmost bit)
-//
-//=////////////////////////////////////////////////////////////////////////=//
-//
-// This indicates the node should be treated as a root for GC purposes.  It
-// only means anything on a REBVAL if that REBVAL happens to live in the key
-// slot of a paired REBSER--it should not generally be set otherwise.
-//
-// !!! Review the implications of this flag "leaking" if a key is ever bit
-// copied out of a pairing that uses it.  It might not be a problem so long
-// as the key is ensured read-only, so that the bit is just noise on any
-// non-key that has it...but the consequences may be more sinister.
-//
-#define NODE_FLAG_ROOT \
-    FLAGIT_LEFT(5)
+    FLAGIT_LEFT(7)
 
 
 // v-- BEGIN GENERAL VALUE AND SERIES BITS WITH THIS INDEX
 
-#define GENERAL_VALUE_BIT 6
-#define GENERAL_SERIES_BIT 6
+#define GENERAL_VALUE_BIT 8
+#define GENERAL_SERIES_BIT 8
+
+
+// There are two special invalid bytes in UTF8 which have a leading "110"
+// bit pattern, and these are used to signal the header bytes in trashed
+// values...this is why NODE_FLAG_CELL is chosen at its position.
+//
+#define FREED_SERIES_BYTE 192
+#define TRASH_CELL_BYTE 193
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -246,13 +298,13 @@ enum Reb_Pointer_Detect {
 //
 // Though the name Node is used for a superclass that can be "in use" or
 // "free", this is the definition of the structure for its layout when it
-// does *not* have NODE_FLAG_VALID set.  In that case, the memory manager
-// will set the header bits to 0 and use the pointer slot right after the
-// header for its linked list of free nodes.
+// has NODE_FLAG_FREE set.  In that case, the memory manager will set the
+// header bits to have the leftmost byte as FREED_SERIES_BYTE, and use the
+// pointer slot right after the header for its linked list of free nodes.
 //
 
 struct Reb_Node {
-    struct Reb_Header header; // will be header.bits = 0 if node is free
+    struct Reb_Header header; // leftmost byte FREED_SERIES_BYTE if free
 
     struct Reb_Node *next_if_free; // if not free, entire node is available
 
@@ -260,20 +312,70 @@ struct Reb_Node {
     // must be a baseline guarantee for node allocations to be able to know
     // where 64-bit alignment boundaries are.
     //
-    /*struct REBI64 payload[N];*/
+    /* REBI64 payload[N];*/
 };
 
-#define IS_FREE_NODE(n) \
-    (cast(REBNOD*, (n))->header.bits == 0)
+inline static REBOOL IS_FREE_NODE(void *p) {
+    struct Reb_Node *n = cast(struct Reb_Node*, p);
+
+    if (NOT(n->header.bits & NODE_FLAG_FREE))
+        return FALSE;
+
+    REBYTE left_8 = LEFT_8_BITS(n->header.bits);
+    assert(left_8 == FREED_SERIES_BYTE || left_8 == TRASH_CELL_BYTE);
+    UNUSED(left_8);
+    return TRUE;
+}
 
 
-// !!! Definitions for the memory allocator generally don't need to be
-// included by all clients, though currently it is necessary to indicate
-// whether a "node" is to be allocated from the REBSER pool or the REBGOB
-// pool.  Hence, the REBPOL has to be exposed to be included in the
-// function prototypes.  Review this necessity when REBGOB is changed.
 //
-typedef struct rebol_mem_pool REBPOL;
+// With these definitions:
+//
+//     struct Foo_Type { struct Reb_Header header; int x; }
+//     struct Foo_Type *foo = ...;
+//
+//     struct Bar_Type { struct Reb_Header header; float x; }
+//     struct Bar_Type *bar = ...;
+//
+// This C code:
+//
+//     foo->header.bits = 1020;
+//
+// ...is actually different *semantically* from this code:
+//
+//     struct Reb_Header *alias = &foo->header;
+//     alias->bits = 1020;
+//
+// The first is considered as not possibly able to affect the header in a
+// Bar_Type.  It only is seen as being able to influence the header in other
+// Foo_Type instances.
+//
+// The second case, by forcing access through a generic aliasing pointer,
+// will cause the optimizer to realize all bets are off for any type which
+// might contain a `struct Reb_Header`.
+//
+// This is an important point to know, with certain optimizations of writing
+// headers through one type and then reading them through another.  That
+// trick is used for "implicit termination", see documentation of IS_END().
+//
+// (Note that this "feature" of writing through pointers actually slows
+// things down.  Desire to control this behavior is why the `restrict`
+// keyword exists in C99: https://en.wikipedia.org/wiki/Restrict )
+//
+inline static void Init_Endlike_Header(struct Reb_Header *alias, REBUPT bits)
+{
+    // Endlike headers have the leading bits `10` so they don't look like a
+    // UTF-8 string.  This makes them look like an "in use node", and they
+    // of course have NODE_FLAG_END set.  They do not have NODE_FLAG_CELL
+    // set, however, which prevents value writes to them.
+    //
+    assert(
+        NOT(bits & (
+            NODE_FLAG_NODE | NODE_FLAG_FREE | NODE_FLAG_END | NODE_FLAG_CELL
+        ))
+    );
+    alias->bits = bits | NODE_FLAG_NODE | NODE_FLAG_END;
+}
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -298,6 +400,14 @@ typedef struct rebol_mem_pool REBPOL;
 // In a C++11 build, an extra check is done to ensure the type you pass in a
 // FREE or FREE_N lines up with the type of pointer being freed.
 //
+
+// !!! Definitions for the memory allocator generally don't need to be
+// included by all clients, though currently it is necessary to indicate
+// whether a "node" is to be allocated from the REBSER pool or the REBGOB
+// pool.  Hence, the REBPOL has to be exposed to be included in the
+// function prototypes.  Review this necessity when REBGOB is changed.
+//
+typedef struct rebol_mem_pool REBPOL;
 
 #define ALLOC(t) \
     cast(t *, Alloc_Mem(sizeof(t)))

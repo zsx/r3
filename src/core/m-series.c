@@ -469,10 +469,10 @@ void Assert_Series_Core(REBSER *s)
         panic (s);
 
     assert(
-        GET_SER_INFO(s, SERIES_INFO_0_IS_TRUE)
-        && GET_SER_INFO(s, SERIES_INFO_1_IS_TRUE)
-        && NOT_SER_INFO(s, SERIES_INFO_2_IS_FALSE)
-        && NOT_SER_INFO(s, SERIES_INFO_8_IS_FALSE)
+        GET_SER_INFO(s, SERIES_INFO_0_IS_TRUE) // @ NODE_FLAG_NODE
+        && NOT_SER_INFO(s, SERIES_INFO_1_IS_FALSE) // @ NOT(NODE_FLAG_FREE)
+        && GET_SER_INFO(s, SERIES_INFO_4_IS_TRUE) // @ NODE_FLAG_END
+        && NOT_SER_INFO(s, SERIES_INFO_7_IS_FALSE) // @ NODE_FLAG_CELL
     );
 
     assert(SER_LEN(s) < SER_REST(s));
@@ -495,12 +495,12 @@ ATTRIBUTE_NO_RETURN void Panic_Series_Debug(REBSER *s)
     fflush(stdout);
     fflush(stderr);
 
-    if (IS_SERIES_MANAGED(s))
+    if (s->header.bits & NODE_FLAG_MANAGED)
         printf("managed");
     else
         printf("unmanaged");
     printf(" series was likely ");
-    if (IS_FREE_NODE(s))
+    if (s->header.bits & NODE_FLAG_FREE)
         printf("freed");
     else
         printf("created");

@@ -122,8 +122,8 @@ void Assert_Cell_Writable(const RELVAL *v, const char *file, int line)
 //
 void SET_END_Debug(RELVAL *v, const char *file, int line) {
     ASSERT_CELL_WRITABLE(v, file, line);
-    v->header.bits &= CELL_MASK_RESET;
-    v->header.bits |= NODE_FLAG_VALID | FLAGBYTE_FIRST(255);
+    v->header.bits &= CELL_MASK_RESET; // leaves NODE_FLAG_CELL, etc.
+    v->header.bits |= NODE_FLAG_NODE | NODE_FLAG_END;
     Set_Track_Payload_Debug(v, file, line);
 }
 
@@ -132,14 +132,14 @@ void SET_END_Debug(RELVAL *v, const char *file, int line) {
 //  IS_END_Debug: C
 //
 REBOOL IS_END_Debug(const RELVAL *v, const char *file, int line) {
-    if (NOT(v->header.bits & NODE_FLAG_VALID)) {
+    if (v->header.bits & NODE_FLAG_FREE) {
         printf("IS_END() called on garbage\n");
         panic_at(v, file, line);
     }
 
     if (IS_END_MACRO(v)) {
         if (v->header.bits & NODE_FLAG_CELL)
-            assert(LEFT_N_BITS(v->header.bits, 8) == 255);
+            assert(VAL_TYPE_RAW(v) == REB_0);
         return TRUE;
     }
     return FALSE;

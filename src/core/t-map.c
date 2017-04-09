@@ -258,7 +258,12 @@ void Expand_Hash(REBSER *ser)
     }
 
     assert(NOT_SER_FLAG(ser, SERIES_FLAG_ARRAY));
-    Remake_Series(ser, pnum + 1, SER_WIDE(ser), SERIES_FLAG_POWER_OF_2);
+    Remake_Series(
+        ser,
+        pnum + 1,
+        SER_WIDE(ser),
+        SERIES_FLAG_POWER_OF_2 // NOT(NODE_FLAG_NODE) => don't keep data
+    );
 
     Clear_Series(ser);
     SET_SERIES_LEN(ser, pnum);

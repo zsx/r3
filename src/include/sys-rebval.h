@@ -72,6 +72,40 @@
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
+//  VALUE_FLAG_THROWN
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// This is how a REBVAL signals that it is a "throw" (e.g. a RETURN, BREAK,
+// CONTINUE or generic THROW signal).
+//
+// The bit being set does not mean the cell contains the thrown quantity
+// (e.g. it would not be the `1020` in `throw 1020`)  The evaluator thread
+// enters a modal "thrown state", and it's the state which holds the value.
+// It must be processed (or trigger an error) before another throw occurs.
+//
+// What the bit actually indicates is a cell containing the "label" or "name"
+// of the throw.  Having the label quickly available in the slot being bubbled
+// up makes it easy for recipients to decide if they are interested in throws
+// of that type or not--after which they can request the thrown value.
+//
+// R3-Alpha code would frequently forget to check for thrown values, and
+// wind up acting as if they did not happen.  In addition to enforcing that
+// all thrown values are handled by entering a "thrown state" for the
+// interpreter, all routines that can potentially return thrown values
+// have been adapted to return a boolean and adopt the XXX_Throws()
+// naming convention:
+//
+//     if (XXX_Throws()) {
+//        /* handling code */
+//     }
+//
+#define VALUE_FLAG_THROWN \
+    NODE_FLAG_SPECIAL
+
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
 //  VALUE_FLAG_CONDITIONAL_FALSE
 //
 //=////////////////////////////////////////////////////////////////////////=//
@@ -117,40 +151,6 @@
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  VALUE_FLAG_THROWN
-//
-//=////////////////////////////////////////////////////////////////////////=//
-//
-// This is how a REBVAL signals that it is a "throw" (e.g. a RETURN, BREAK,
-// CONTINUE or generic THROW signal).
-//
-// The bit being set does not mean the cell contains the thrown quantity
-// (e.g. it would not be the `1020` in `throw 1020`)  The evaluator thread
-// enters a modal "thrown state", and it's the state which holds the value.
-// It must be processed (or trigger an error) before another throw occurs.
-//
-// What the bit actually indicates is a cell containing the "label" or "name"
-// of the throw.  Having the label quickly available in the slot being bubbled
-// up makes it easy for recipients to decide if they are interested in throws
-// of that type or not--after which they can request the thrown value.
-//
-// R3-Alpha code would frequently forget to check for thrown values, and
-// wind up acting as if they did not happen.  In addition to enforcing that
-// all thrown values are handled by entering a "thrown state" for the
-// interpreter, all routines that can potentially return thrown values
-// have been adapted to return a boolean and adopt the XXX_Throws()
-// naming convention:
-//
-//     if (XXX_Throws()) {
-//        /* handling code */
-//     }
-//
-#define VALUE_FLAG_THROWN \
-    FLAGIT_LEFT(GENERAL_VALUE_BIT + 2)
-
-
-//=////////////////////////////////////////////////////////////////////////=//
-//
 //  VALUE_FLAG_RELATIVE
 //
 //=////////////////////////////////////////////////////////////////////////=//
@@ -166,7 +166,7 @@
 // the same function if it contains any instances of such relative words.
 //
 #define VALUE_FLAG_RELATIVE \
-    FLAGIT_LEFT(GENERAL_VALUE_BIT + 3)
+    FLAGIT_LEFT(GENERAL_VALUE_BIT + 2)
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -192,7 +192,7 @@
 // That has a lot of impact for the new user experience.
 //
 #define VALUE_FLAG_UNEVALUATED \
-    FLAGIT_LEFT(GENERAL_VALUE_BIT + 4)
+    FLAGIT_LEFT(GENERAL_VALUE_BIT + 3)
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -218,7 +218,7 @@
 // !!! This feature is a work in progress.
 //
 #define VALUE_FLAG_STACK \
-    FLAGIT_LEFT(GENERAL_VALUE_BIT + 5)
+    FLAGIT_LEFT(GENERAL_VALUE_BIT + 4)
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -247,7 +247,7 @@
 //
 
 #define VALUE_FLAG_ENFIXED \
-    FLAGIT_LEFT(GENERAL_VALUE_BIT + 6)
+    FLAGIT_LEFT(GENERAL_VALUE_BIT + 5)
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -263,14 +263,14 @@
 //
 
 #define VALUE_FLAG_PROTECTED \
-    FLAGIT_LEFT(GENERAL_VALUE_BIT + 7)
+    FLAGIT_LEFT(GENERAL_VALUE_BIT + 6)
 
 
 // v-- BEGIN TYPE SPECIFIC BITS HERE
 
 
 #define TYPE_SPECIFIC_BIT \
-    (GENERAL_VALUE_BIT + 8)
+    (GENERAL_VALUE_BIT + 7)
 
 
 // Technically speaking, this only needs to use 6 bits of the rightmost byte
@@ -771,9 +771,13 @@ struct Reb_Value
 // cell if overwritten but not copied.  For now, this is why `foo: :+` does
 // not make foo an enfixed operation.
 //
+// Note that this will clear NODE_FLAG_FREE, so it should be checked by the
+// debug build before resetting.
+//
 
 #define CELL_MASK_RESET \
-    (NODE_FLAG_CELL | NODE_FLAG_MANAGED | VALUE_FLAG_STACK)
+    (NODE_FLAG_NODE | NODE_FLAG_CELL \
+        | NODE_FLAG_MANAGED | VALUE_FLAG_STACK)
 
 #define CELL_MASK_COPY \
     ~(CELL_MASK_RESET \
@@ -818,13 +822,8 @@ struct Reb_Value
         IS_END_MACRO(v)
 
     inline static void SET_END(RELVAL *v) {
-        //
-        // Invalid UTF-8 byte, but also NODE_FLAG_END and NODE_FLAG_CELL set.
-        // Other flags are set (e.g. NODE_FLAG_MANAGED) which should not
-        // be of concern or looked at due to the IS_END() status.
-        //
-        v->header.bits &= CELL_MASK_RESET;
-        v->header.bits |= NODE_FLAG_VALID | FLAGBYTE_FIRST(255);
+        v->header.bits &= CELL_MASK_RESET; // leaves flags _CELL, _NODE, etc.
+        v->header.bits |= NODE_FLAG_END;
     }
 #else
     // Note: These must be macros (that don't need IS_END_Debug or
@@ -842,75 +841,6 @@ struct Reb_Value
 
 #define NOT_END(v) \
     NOT(IS_END(v))
-
-//
-// With these definitions:
-//
-//     struct Foo_Type { struct Reb_Header header; int x; }
-//     struct Foo_Type *foo = ...;
-//
-//     struct Bar_Type { struct Reb_Header header; float x; }
-//     struct Bar_Type *bar = ...;
-//
-// This C code:
-//
-//     foo->header.bits = 1020;
-//
-// ...is actually different *semantically* from this code:
-//
-//     struct Reb_Header *alias = &foo->header;
-//     alias->bits = 1020;
-//
-// The first is considered as not possibly able to affect the header in a
-// Bar_Type.  It only is seen as being able to influence the header in other
-// Foo_Type instances.
-//
-// The second case, by forcing access through a generic aliasing pointer,
-// will cause the optimizer to realize all bets are off for any type which
-// might contain a `struct Reb_Header`.
-//
-// This is an important point to know, with certain optimizations of writing
-// headers through one type and then reading them through another.  That
-// trick is used for "implicit termination", see documentation of IS_END().
-//
-// (Note that this "feature" of writing through pointers actually slows
-// things down.  Desire to control this behavior is why the `restrict`
-// keyword exists in C99: https://en.wikipedia.org/wiki/Restrict )
-//
-inline static void Init_Endlike_Header(struct Reb_Header *alias, REBUPT bits)
-{
-    // The leftmost 3 bits of the info are `110`, and the 8th bit is `0`.  The
-    // strategic choice of `x10` is easily understood: since the info bits are
-    // placed in the structure after a potential internal cell, that carries a
-    // bit in the NODE_FLAG_END slot as 1 and the NODE_FLAG_CELL slot is 0.
-    // This makes an "implicit unwritable terminator" that helps simulate an
-    // array of length 1.
-    //
-    // The `11x` is not possible to distinguish from the first byte of a
-    // unicode character in a general case.  However, with the leading byte of
-    // the second character starting with the high bit clear, it could not be
-    // a valid UTF-8 string.  This allows us to distinguish implicit END
-    // markers from unicode strings if we need to do so...at a cost of only
-    // two bits (vs. other approaches like sacrificing a full byte of the
-    // header, to throw in a full invalid byte).
-    //
-    // Note: really it's only diagnostics that should need to distinguish
-    // internal ENDs from unicode strings, but for 2 bits it's worth it ATM.
-    //
-    assert(
-        NOT(bits & (
-            NODE_FLAG_END | NODE_FLAG_CELL | NODE_FLAG_VALID | FLAGIT_LEFT(8)
-        ))
-    );
-
-    // Write from generic pointer to `struct Reb_Header`.  Make it look like
-    // a "terminating non-cell".  This means it will stop REBVAL* traversals
-    // that bump into it, as well as stop value cell initializations in the
-    // debug build from thinking it's a cell-sized slot that could be
-    // overwritten with a non-END.
-    //
-    alias->bits = bits | NODE_FLAG_VALID | NODE_FLAG_END;
-}
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -950,18 +880,16 @@ inline static void Init_Endlike_Header(struct Reb_Header *alias, REBUPT bits)
         //
         //     http://stackoverflow.com/a/7189821/211160
         //
-        // In the debug C++ build there is an extra check of "writability",
-        // because the NODE_FLAG_VALID must be set on cells.  All stack
-        // variables holding REBVAL are given this mark in this constructor,
-        // and all array cells are given the mark when the array is built.
-        //
-        // It also means that the check is only be performed in the C++ build,
-        // otherwise there would need to be a manual set of this bit on every
-        // stack variable.
+        // No required functionality should be implemented via the constructor
+        // but optional debug features can be added.
         //
         Reb_Specific_Value () {
         }
 
+        // The destructor checks that all REBVALs wound up with NODE_FLAG_CELL
+        // set on them.  This would be done by DECLARE_LOCAL () if a stack
+        // value, and by the Make_Series() construction for SERIES_FLAG_ARRAY.
+        //
         ~Reb_Specific_Value() {
             assert(header.bits & NODE_FLAG_CELL);
 
