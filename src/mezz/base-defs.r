@@ -177,44 +177,24 @@ probe: func [
     :value
 ]
 
-
 dump: proc [
     {Show the name of a value (or block of expressions) with the value itself}
     :value
     <local>
-        dump-one dump-val clip-string item
+        dump-one item
 ][
-   clip-string: function [str len][
-      either len < length str [
-         delimit [ copy/part str len - 3 "..." ] _
-      ][
-         str
-      ]
-   ]
-   
-   dump-val: function [val][
-      either object? val [
-         unspaced [
-            "make object! [" |
-            dump-obj val | "]"
-         ]
-      ][
-         clip-string mold val 71
-      ]
-    ]
-
     dump-one: proc [item][
         case [
             string? item [
-                print ["---" clip-string item 68 "---"] ;-- label it
+                print ["---" item "---"] ;-- label it
             ]
 
             word? item [
-                print [to set-word! item "=>" dump-val get item]
+                print [to set-word! item "=>" mold get item]
             ]
 
             path? item [
-                print [to set-path! item "=>" dump-val get item]
+                print [to set-path! item "=>" mold get item]
             ]
 
             group? item [
@@ -237,7 +217,6 @@ dump: proc [
         dump-one value
     ]
 ]
-
 
 eval proc [
     {Make reflector functions (variadic to quote "top-level" words)}
