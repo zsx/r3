@@ -74,7 +74,7 @@ const void *r3_libtcc1_symbols[];
 
 static void tcc_error_report(void *ignored, const char *msg)
 {
-    assert(ignored == NULL); // !!! is this to tunnel an arbitrary pointer?
+    UNUSED(ignored);
 
     DECLARE_LOCAL (err);
     REBSER *ser = Make_Binary(strlen(msg) + 2);
