@@ -96,6 +96,67 @@ dump-obj: function [
 ]
 
 
+dump: proc [
+    {Show the name of a value (or block of expressions) with the value itself}
+    :value
+    <local>
+        dump-one dump-val clip-string item
+][
+   clip-string: function [str len][
+      either len < length str [
+         delimit [ copy/part str len - 3 "..." ] _
+      ][
+         str
+      ]
+   ]
+   
+   dump-val: function [val][
+      either object? val [
+         unspaced [
+            "make object! [" |
+            dump-obj val | "]"
+         ]
+      ][
+         clip-string mold val 71
+      ]
+    ]
+
+    dump-one: proc [item][
+        case [
+            string? item [
+                print ["---" clip-string item 68 "---"] ;-- label it
+            ]
+
+            word? item [
+                print [to set-word! item "=>" dump-val get item]
+            ]
+
+            path? item [
+                print [to set-path! item "=>" dump-val get item]
+            ]
+
+            group? item [
+                trap/with [
+                    print [item "=>" mold eval item]
+                ] func [error] [
+                    print [item "=!!!=>" mold error]
+                ]
+            ]
+        ] else [
+            fail [
+                "Item not WORD!, PATH!, or GROUP! in DUMP." item
+            ]
+        ]
+    ]
+
+    either block? value [
+        for-each item value [dump-one item]
+    ][
+        dump-one value
+    ]
+]
+
+
 spec-of: function [
     {Generate a block which could be used as a "spec block" from a function.}
 

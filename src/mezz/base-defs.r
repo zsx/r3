@@ -177,46 +177,6 @@ probe: func [
     :value
 ]
 
-dump: proc [
-    {Show the name of a value (or block of expressions) with the value itself}
-    :value
-    <local>
-        dump-one item
-][
-    dump-one: proc [item][
-        case [
-            string? item [
-                print ["---" item "---"] ;-- label it
-            ]
-
-            word? item [
-                print [to set-word! item "=>" mold get item]
-            ]
-
-            path? item [
-                print [to set-path! item "=>" mold get item]
-            ]
-
-            group? item [
-                trap/with [
-                    print [item "=>" mold eval item]
-                ] func [error] [
-                    print [item "=!!!=>" mold error]
-                ]
-            ]
-        ] else [
-            fail [
-                "Item not WORD!, PATH!, or GROUP! in DUMP." item
-            ]
-        ]
-    ]
-
-    either block? value [
-        for-each item value [dump-one item]
-    ][
-        dump-one value
-    ]
-]
 
 eval proc [
     {Make reflector functions (variadic to quote "top-level" words)}
