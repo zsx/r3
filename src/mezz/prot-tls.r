@@ -7,43 +7,17 @@ REBOL [
     Todo: {
         -cached sessions
         -automagic cert data lookup
-        -add more cipher suites (based on DSA, 3DES, ECDH, ECDHE, ECDSA, SHA256, SHA384 ...)
+        -add more cipher suites
         -server role support
         -SSL3.0, TLS1.1/1.2 compatibility
         -cert validation
     }
 ]
 
-; support functions
-
-debug: (comment [:print] blank)
-
-emit: func [
-    ctx [object!]
-    code [block! binary!]
-] [
-    join ctx/msg code
-]
-
-to-bin: func [
-    val [integer!]
-    width [integer!]
-] [
-    skip tail to binary! val negate width
-]
-
-make-tls-error: func [
-    "Make an error for the TLS protocol"
-    message [string! block!]
-] [
-    if block? message [message: unspaced message]
-    make error! [
-        type: 'Access
-        id: 'Protocol
-        arg1: message
-    ]
-]
-
+;
+; These are the currently supported cipher suites.  (Additional possibilities
+; would be DSA, 3DES, ECDH, ECDHE, ECDSA, SHA256, SHA384...)
+;
 cipher-suites: has [
     TLS_RSA_WITH_RC4_128_MD5:               #{00 04}
     TLS_RSA_WITH_RC4_128_SHA:               #{00 05}
@@ -55,49 +29,92 @@ cipher-suites: has [
     TLS_DHE_RSA_WITH_AES_256_CBC_SHA:       #{00 39}
 ]
 
-; ASN.1 format parser code
 
-universal-tags: [
-    eoc
-    boolean
-    integer
-    bit-string
-    octet-string
-    null
-    object-identifier
-    object-descriptor
-    external
-    real
-    enumerated
-    embedded-pdv
-    utf8string
-    relative-oid
-    undefined
-    undefined
-    sequence
-    set
-    numeric-string
-    printable-string
-    t61-string
-    videotex-string
-    ia5-string
-    utc-time
-    generalized-time
-    graphic-string
-    visible-string
-    general-string
-    universal-string
-    character-string
-    bmp-string
+;
+; SUPPORT FUNCTIONS
+;
+
+debug: (comment [:print] blank)
+
+emit: func [
+    ctx [object!]
+    code [block! binary!]
+][
+    join ctx/msg code
 ]
 
-class-types: [universal application context-specific private]
+to-bin: func [
+    val [integer!]
+    width [integer!]
+][
+    skip tail to binary! val negate width
+]
 
-parse-asn: func [
+make-tls-error: func [
+    "Make an error for the TLS protocol"
+    message [string! block!]
+][
+    if block? message [message: unspaced message]
+    make error! [
+        type: 'Access
+        id: 'Protocol
+        arg1: message
+    ]
+]
+
+
+;
+; ASN.1 FORMAT PARSER CODE
+;
+; ASN.1 is similar in purpose and use to protocol buffers and Apache Thrift,
+; which are also interface description languages for cross-platform data
+; serialization. Like those languages, it has a schema (in ASN.1, called a
+; "module"), and a set of encodings, typically type-length-value encodings.
+;
+; https://en.wikipedia.org/wiki/Abstract_Syntax_Notation_One
+;
+
+parse-asn: function [
     data [binary!]
-    /local
-        mode d constructed? class tag ln size result val
-] [
+
+    <has>
+
+    universal-tags ([
+        eoc
+        boolean
+        integer
+        bit-string
+        octet-string
+        null
+        object-identifier
+        object-descriptor
+        external
+        real
+        enumerated
+        embedded-pdv
+        utf8string
+        relative-oid
+        undefined
+        undefined
+        sequence
+        set
+        numeric-string
+        printable-string
+        t61-string
+        videotex-string
+        ia5-string
+        utc-time
+        generalized-time
+        graphic-string
+        visible-string
+        general-string
+        universal-string
+        character-string
+        bmp-string
+    ])
+
+    class-types ([universal application context-specific private])
+][
     result: make block! 16
     mode: 'type
 
@@ -137,7 +154,7 @@ parse-asn: func [
                         ]
                     ]
                     mode: 'type
-                ] [
+                ][
                     mode: 'value
                 ]
             ]
@@ -176,77 +193,88 @@ parse-asn: func [
     result
 ]
 
-; protocol state handling
 
-read-proto-states: [
-    client-hello [server-hello]
-    server-hello [certificate]
-    certificate [server-hello-done server-key-exchange]
-    server-key-exchange [server-hello-done]
-    server-hello-done [#complete]
-    finished [change-cipher-spec alert]
-    change-cipher-spec [encrypted-handshake]
-    encrypted-handshake [application #complete]
-    application [application alert #complete]
-    alert [#complete]
-    close-notify [alert]
-]
+;
+; PROTOCOL STATE HANDLING
+;
 
-write-proto-states: [
-    server-hello-done [client-key-exchange]
-    client-key-exchange [change-cipher-spec]
-    change-cipher-spec [finished]
-    encrypted-handshake [application]
-    application [application alert]
-    alert [close-notify]
-    close-notify []
-]
-
-get-next-proto-state: func [
+get-next-read-state: function [
     ctx [object!]
-    /write-state "default is read state"
-    /local
-        next-state
-] [
-    all [
-        next-state: select/only/skip either write-state [write-proto-states] [read-proto-states] ctx/protocol-state 2
-        not empty? next-state
-        next-state
-    ]
+
+    <has>
+
+    read-proto-states ([
+        client-hello [server-hello]
+        server-hello [certificate]
+        certificate [server-hello-done server-key-exchange]
+        server-key-exchange [server-hello-done]
+        server-hello-done [#complete]
+        finished [change-cipher-spec alert]
+        change-cipher-spec [encrypted-handshake]
+        encrypted-handshake [application #complete]
+        application [application alert #complete]
+        alert [#complete]
+        close-notify [alert]
+    ])
+][
+    select/only/skip read-proto-states ctx/protocol-state 2
 ]
 
-update-proto-state: func [
+
+get-next-write-state: function [
+    ctx [object!]
+
+    <has>
+
+    write-proto-states ([
+        server-hello-done [client-key-exchange]
+        client-key-exchange [change-cipher-spec]
+        change-cipher-spec [finished]
+        encrypted-handshake [application]
+        application [application alert]
+        alert [close-notify]
+        close-notify _
+    ])
+][
+    select/only/skip write-proto-states ctx/protocol-state 2
+]
+
+
+update-proto-state: function [
     ctx [object!]
     new-state [word!]
     /write-state
-    /local
-        next-state
-] [
+][
     debug [ctx/protocol-state "->" new-state write-state]
     either any [
         blank? ctx/protocol-state
         all [
-            next-state:
-                get-next-proto-state/(all [write-state 'write-state]) ctx
+            next-state: either write-state [
+                get-next-write-state ctx
+            ][
+                get-next-read-state ctx
+            ]
 
             find next-state new-state
         ]
-    ] [
+    ][
         debug ["new-state:" new-state]
         ctx/protocol-state: new-state
-    ] [
+    ][
         fail "invalid protocol state"
     ]
 ]
 
-; TLS protocol code
 
-client-hello: func [
+;
+; TLS PROTOCOL CODE
+;
+
+client-hello: function [
     ctx [object!]
-    /local
-        beg len cs-data
-] [
+][
     ; generate client random struct
+    ;
     ctx/client-random: to-bin to-integer difference now/precise 1-Jan-1970 4
     random/seed now/time/precise
     loop 28 [append ctx/client-random (random/secure 256) - 1]
@@ -261,7 +289,7 @@ client-hello: func [
         #{01}                       ; protocol message type (1=ClientHello)
         #{00 00 00}                 ; protocol message length
         ctx/version                 ; max supported version by client (TLS1.0)
-        ctx/client-random           ; random struct (4 bytes gmt unix time + 28 random bytes)
+        ctx/client-random           ; 4 bytes gmt unix time + 28 random bytes
         #{00}                       ; session ID length
         to-bin length cs-data 2     ; cipher suites length
         cs-data                     ; cipher suites list
@@ -270,6 +298,7 @@ client-hello: func [
     ]
 
     ; set the correct msg lengths
+    ;
     change at ctx/msg beg + 7 to-bin len: length at ctx/msg beg + 10 3
     change at ctx/msg beg + 4 to-bin len + 4 2
 
@@ -278,11 +307,10 @@ client-hello: func [
     return ctx/msg
 ]
 
-client-key-exchange: func [
+
+client-key-exchange: function [
     ctx [object!]
-    /local
-    rsa-key key-data beg len
-] [
+][
     switch ctx/key-method [
         rsa [
             ; generate pre-master-secret
@@ -298,7 +326,9 @@ client-key-exchange: func [
             ; supply encrypted pre-master-secret to server
             key-data: rsa ctx/pre-master-secret rsa-key
         ]
-        dhe-dss dhe-rsa [
+
+        dhe-dss
+        dhe-rsa [
             ; generate public/private keypair
             dh-generate-key ctx/dh-key
 
@@ -315,7 +345,7 @@ client-key-exchange: func [
         #{16}                       ; protocol type (22=Handshake)
         ctx/version                 ; protocol version (3|1 = TLS1.0)
         #{00 00}                    ; length of SSL record data
-        #{10}                       ; protocol message type (16=ClientKeyExchange)
+        #{10}                       ; message type (16=ClientKeyExchange)
         #{00 00 00}                 ; protocol message length
         to-bin length key-data 2    ; length of the key (2 bytes)
         key-data
@@ -347,9 +377,9 @@ client-key-exchange: func [
 ]
 
 
-change-cipher-spec: func [
+change-cipher-spec: function [
     ctx [object!]
-] [
+][
     emit ctx [
         #{14}           ; protocol type (20=ChangeCipherSpec)
         ctx/version     ; protocol version (3|1 = TLS1.0)
@@ -359,12 +389,11 @@ change-cipher-spec: func [
     return ctx/msg
 ]
 
-encrypted-handshake-msg: func [
+
+encrypted-handshake-msg: function [
     ctx [object!]
     message [binary!]
-    /local
-        plain-msg
-] [
+][
     plain-msg: message
     message: encrypt-data/type ctx message #{16}
     emit ctx [
@@ -377,10 +406,11 @@ encrypted-handshake-msg: func [
     return ctx/msg
 ]
 
-application-data: func [
+
+application-data: function [
     ctx [object!]
     message [binary! string!]
-] [
+][
     message: encrypt-data ctx to binary! message
     emit ctx [
         #{17}                       ; protocol type (23=Application)
@@ -391,10 +421,10 @@ application-data: func [
     return ctx/msg
 ]
 
-alert-close-notify: func [
+
+alert-close-notify: function [
     ctx [object!]
-    /local message
-] [
+][
     message: encrypt-data ctx #{0100} ; close notify
     emit ctx [
         #{15}                       ; protocol type (21=Alert)
@@ -406,27 +436,30 @@ alert-close-notify: func [
 ]
 
 
-finished: func [
+finished: function [
     ctx [object!]
-] [
+][
     ctx/seq-num-w: 0
+    who-finished: either ctx/server? ["server finished"] ["client finished"]
+
     return join-all [
         #{14}       ; protocol message type (20=Finished)
         #{00 00 0c} ; protocol message length (12 bytes)
-        prf ctx/master-secret either ctx/server? ["server finished"] ["client finished"] join-all [
-            checksum/method ctx/handshake-messages 'md5 checksum/method ctx/handshake-messages 'sha1
+
+        prf ctx/master-secret who-finished join-all [
+            checksum/method ctx/handshake-messages 'md5
+            checksum/method ctx/handshake-messages 'sha1
         ] 12
     ]
 ]
 
-encrypt-data: func [
+
+encrypt-data: function [
     ctx [object!]
     data [binary!]
     /type
         msg-type [binary!] "application data is default"
-    /local
-        mac padding len
-] [
+][
     data: join-all [
         data
         ; MAC code
@@ -464,12 +497,11 @@ encrypt-data: func [
     return data
 ]
 
-decrypt-data: func [
+
+decrypt-data: function [
     ctx [object!]
     data [binary!]
-    /local
-        crypt-data
-] [
+][
     switch ctx/crypt-method [
         rc4 [
             unless ctx/decrypt-stream [
@@ -488,58 +520,19 @@ decrypt-data: func [
     return data
 ]
 
-protocol-types: [
-    20 change-cipher-spec
-    21 alert
-    22 handshake
-    23 application
-]
 
-message-types: [
-    0 hello-request
-    1 client-hello
-    2 server-hello
-    11 certificate
-    12 server-key-exchange
-    13 certificate-request
-    14 server-hello-done
-    15 certificate-verify
-    16 client-key-exchange
-    20 finished
-]
-
-alert-descriptions: [
-    0 "Close notify"
-    10 "Unexpected message"
-    20 "Bad record MAC"
-    21 "Decryption failed"
-    22 "Record overflow"
-    30 "Decompression failure"
-    40 "Handshake failure"
-    41 "No certificate"
-    42 "Bad certificate"
-    43 "Unsupported certificate"
-    44 "Certificate revoked"
-    45 "Certificate expired"
-    46 "Certificate unknown"
-    47 "Illegal parameter"
-    48 "Unknown CA"
-    49 "Access denied"
-    50 "Decode error"
-    51 "Decrypt error"
-    60 "Export restriction"
-    70 "Protocol version"
-    71 "Insufficient security"
-    80 "Internal error"
-    90 "User cancelled"
-   100 "No renegotiation"
-   110 "Unsupported extension"
-]
-
-parse-protocol: func [
+parse-protocol: function [
     data [binary!]
-    /local proto
-] [
+    
+    <has>
+
+    protocol-types ([
+        20 change-cipher-spec
+        21 alert
+        22 handshake
+        23 application
+    ])
+][
     unless proto: select protocol-types data/1 [
         fail "unknown/invalid protocol type"
     ]
@@ -551,12 +544,59 @@ parse-protocol: func [
     ]
 ]
 
-parse-messages: func [
+
+parse-messages: function [
     ctx [object!]
     proto [object!]
-    /local
-        result data msg-type len clen msg-content mac msg-obj
-] [
+
+    <has>
+
+    message-types ([
+        0 hello-request
+        1 client-hello
+        2 server-hello
+        11 certificate
+        12 server-key-exchange
+        13 certificate-request
+        14 server-hello-done
+        15 certificate-verify
+        16 client-key-exchange
+        20 finished
+    ])
+
+    alert-descriptions ([
+        0 "Close notify"
+        10 "Unexpected message"
+        20 "Bad record MAC"
+        21 "Decryption failed"
+        22 "Record overflow"
+        30 "Decompression failure"
+        40 "Handshake failure"
+        41 "No certificate"
+        42 "Bad certificate"
+        43 "Unsupported certificate"
+        44 "Certificate revoked"
+        45 "Certificate expired"
+        46 "Certificate unknown"
+        47 "Illegal parameter"
+        48 "Unknown CA"
+        49 "Access denied"
+        50 "Decode error"
+        51 "Decrypt error"
+        60 "Export restriction"
+        70 "Protocol version"
+        71 "Insufficient security"
+        80 "Internal error"
+        90 "User cancelled"
+       100 "No renegotiation"
+       110 "Unsupported extension"
+    ])
+
+    ; The structure has a field called LENGTH, so when a FUNCTION! is used
+    ; that field is picked up.
+    ;
+    <with> length
+][
     result: make block! 8
     data: proto/messages
 
@@ -587,6 +627,7 @@ parse-messages: func [
                 ]
             ]
         ]
+
         handshake [
             while [data/1] [
                 msg-type: select message-types data/1
@@ -694,6 +735,7 @@ parse-messages: func [
                         ctx/server-random: msg-obj/server-random
                         msg-obj
                     ]
+
                     certificate [
                         msg-content: copy/part at data 5 len
                         msg-obj: context [
@@ -726,6 +768,7 @@ parse-messages: func [
                         ]
                         msg-obj
                     ]
+
                     server-key-exchange [
                         switch ctx/key-method [
                             dhe-dss dhe-rsa [
@@ -755,12 +798,14 @@ parse-messages: func [
                             fail "Server-key-exchange message sent illegally."
                         ]
                     ]
+
                     server-hello-done [
                         context [
                             type: msg-type
                             length: len
                         ]
                     ]
+
                     client-hello [
                         msg-content: copy/part at data 7 len
                         context [
@@ -770,21 +815,27 @@ parse-messages: func [
                             content: msg-content
                         ]
                     ]
+
                     finished [
                         ctx/seq-num-r: 0
                         msg-content: copy/part at data 5 len
-                        either (msg-content <>
-                            prf ctx/master-secret either ctx/server? ["client finished"] ["server finished"]
-                                join-all [
-                                    checksum/method
-                                    ctx/handshake-messages 'md5
-                                    checksum/method ctx/handshake-messages 'sha1
-                                ] 12
-                        ) [
-                            fail "Bad 'finished' MAC"
-                        ] [
-                            debug "FINISHED MAC verify: OK"
+                        who-finished: either ctx/server? [
+                            "client finished"
+                        ][
+                            "server finished"
                         ]
+                        if (msg-content <>
+                            prf ctx/master-secret who-finished join-all [
+                                checksum/method
+                                ctx/handshake-messages 'md5
+                                checksum/method ctx/handshake-messages 'sha1
+                            ] 12
+                        )[
+                            fail "Bad 'finished' MAC"
+                        ]
+
+                        debug "FINISHED MAC verify: OK"
+
                         context [
                             type: msg-type
                             length: len
@@ -795,31 +846,37 @@ parse-messages: func [
 
                 append ctx/handshake-messages copy/part data len + 4
 
-                data: skip data len + either ctx/encrypted? [
-                    ; check the MAC
+                skip-amount: either ctx/encrypted? [
                     mac: copy/part skip data len + 4 ctx/hash-size
-                    if mac <> checksum/method/key join-all [
-                            to-bin ctx/seq-num-r 8                  ; sequence number (64-bit int in R3)
-                            #{16}                                   ; msg type
-                            ctx/version                             ; version
-                            to-bin len + 4 2                        ; msg content length
-                            copy/part data len + 4
-                        ] ctx/hash-method decode 'text ctx/server-mac-key
-                    [
+
+                    mac-check: checksum/method/key join-all [
+                        to-bin ctx/seq-num-r 8  ; 64-bit sequence number
+                        #{16}                   ; msg type
+                        ctx/version             ; version
+                        to-bin len + 4 2        ; msg content length
+                        copy/part data len + 4
+                    ] ctx/hash-method decode 'text ctx/server-mac-key
+
+                    if mac <> mac-check [
                         fail "Bad handshake record MAC"
                     ]
+
                     4 + ctx/hash-size
-                ] [
+                ][
                     4
                 ]
+
+                data: skip data (len + skip-amount) 
             ]
         ]
+
         change-cipher-spec [
             ctx/encrypted?: true
             append result context [
                 type: 'ccs-message-type
             ]
         ]
+
         application [
             append result msg-obj: context [
                 type: 'app-data
@@ -827,37 +884,42 @@ parse-messages: func [
             ]
             len: length msg-obj/content
             mac: copy/part skip data len ctx/hash-size
-            ; check the MAC
-            if mac <> checksum/method/key join-all [
+            mac-check: checksum/method/key join-all [
                 to-bin ctx/seq-num-r 8  ; sequence number (64-bit int in R3)
                 #{17}                   ; msg type
                 ctx/version             ; version
                 to-bin len 2            ; msg content length
                 msg-obj/content         ; content
             ] ctx/hash-method decode 'text ctx/server-mac-key
-            [
+
+            if mac <> mac-check [
                 fail "Bad application record MAC"
             ]
         ]
     ]
+
     ctx/seq-num-r: ctx/seq-num-r + 1
     return result
 ]
 
-parse-response: func [
+
+parse-response: function [
     ctx [object!]
     msg [binary!]
-    /local
-        proto messages
-] [
+][
     proto: parse-protocol msg
-    either empty? messages: parse-messages ctx proto [
-        fail "unknown/invalid protocol message"
-    ] [
-        proto/messages: messages
-    ]
+    messages: parse-messages ctx proto
 
-    debug ["processed protocol type:" proto/type "messages:" length proto/messages]
+    if empty? messages [
+        fail "unknown/invalid protocol message"
+    ]
+    
+    proto/messages: messages
+
+    debug [
+        "processed protocol type:" proto/type
+        "messages:" length proto/messages
+    ]
 
     unless tail? skip msg proto/size + 5 [
         fail "invalid length of response fragment"
@@ -866,14 +928,13 @@ parse-response: func [
     return proto
 ]
 
-prf: func [
+
+prf: function [
     secret [binary!]
     label [string! binary!]
     seed [binary!]
     output-length [integer!]
-    /local
-        len mid s-1 s-2 a p-sha1 p-md5
-] [
+][
     len: length secret
     mid: to integer! (.5 * (len + either odd? len [1] [0]))
 
@@ -899,9 +960,10 @@ prf: func [
     return ((copy/part p-md5 output-length) xor+ copy/part p-sha1 output-length)
 ]
 
-make-key-block: func [
+
+make-key-block: function [
     ctx [object!]
-] [
+][
     ctx/key-block: prf
         ctx/master-secret
         "key expansion"
@@ -912,10 +974,11 @@ make-key-block: func [
         ) * 2
 ]
 
-make-master-secret: func [
+
+make-master-secret: function [
     ctx [object!]
     pre-master-secret [binary!]
-] [
+][
     ctx/master-secret: prf
         pre-master-secret
         "master secret"
@@ -923,21 +986,22 @@ make-master-secret: func [
         48
 ]
 
-do-commands: func [
+
+do-commands: function [
     ctx [object!]
     commands [block!]
     /no-wait
-    /local arg cmd
-] [
+][
     clear ctx/msg
     parse commands [
         some [
-            set cmd [
+            set cmd: [
                 'client-hello (client-hello ctx)
                 | 'client-key-exchange (client-key-exchange ctx)
                 | 'change-cipher-spec (change-cipher-spec ctx)
                 | 'finished (encrypted-handshake-msg ctx finished ctx)
-                | 'application  set arg [string! | binary!] (application-data ctx arg)
+                | 'application set arg: [string! | binary!]
+                    (application-data ctx arg)
                 | 'close-notify (alert-close-notify ctx)
             ] (
                 debug [ctx/seq-num-r ctx/seq-num-w "WRITE -->" cmd]
@@ -956,11 +1020,15 @@ do-commands: func [
     ctx/resp
 ]
 
-; TLS scheme
 
-tls-init: proc [
+;
+; TLS SCHEME
+;
+
+
+tls-init: procedure [
     ctx [object!]
-] [
+][
     ctx/seq-num-r: 0
     ctx/seq-num-w: 0
     ctx/protocol-state: _
@@ -978,18 +1046,16 @@ tls-init: proc [
     ]
 ]
 
-tls-read-data: func [
+
+tls-read-data: function [
     ctx [object!]
     port-data [binary!]
-    /local len data fragment next-state
-] [
+][
     debug ["tls-read-data:" length port-data "bytes"]
     data: append ctx/data-buffer port-data
     clear port-data
 
-    while [
-        5 = length copy/part data 5
-    ] [
+    while [5 = length copy/part data 5] [
         len: 5 + to-integer/unsigned copy/part at data 4 2
 
         debug ["reading bytes:" len]
@@ -1005,7 +1071,7 @@ tls-read-data: func [
 
         append ctx/resp parse-response ctx fragment
 
-        next-state: get-next-proto-state ctx
+        next-state: get-next-read-state ctx
 
         debug ["State:" ctx/protocol-state "-->" next-state]
 
@@ -1028,6 +1094,7 @@ tls-read-data: func [
     return false
 ]
 
+
 tls-awake: function [event [event!]] [
     debug ["TLS Awake-event:" event/type]
     port: event/port
@@ -1037,7 +1104,7 @@ tls-awake: function [event [event!]] [
     if all [
         tls-port/state/protocol-state = 'application
         not port/data
-    ] [
+    ][
         ; reset the data field when interleaving port r/w states
         tls-port/data: _
     ]
@@ -1046,9 +1113,13 @@ tls-awake: function [event [event!]] [
         lookup [
             open port
             tls-init tls-port/state
-            insert system/ports/system make event! [type: 'lookup port: tls-port]
+            insert system/ports/system make event! [
+                type: 'lookup
+                port: tls-port
+            ]
             return false
         ]
+
         connect [
             do-commands tls-port/state [client-hello]
 
@@ -1059,32 +1130,47 @@ tls-awake: function [event [event!]] [
                     finished
                 ]
             ]
-            insert system/ports/system make event! [type: 'connect port: tls-port]
+            insert system/ports/system make event! [
+                type: 'connect
+                port: tls-port
+            ]
             return false
         ]
+
         wrote [
             switch tls-port/state/protocol-state [
                 close-notify [
                     return true
                 ]
                 application [
-                    insert system/ports/system make event! [type: 'wrote port: tls-port]
+                    insert system/ports/system make event! [
+                        type: 'wrote
+                        port: tls-port
+                    ]
                     return false
                 ]
             ]
             read port
             return false
         ]
+
         read [
-            debug ["Read" length port/data "bytes proto-state:" tls-port/state/protocol-state]
+            debug [
+                "Read" length port/data
+                "bytes proto-state:" tls-port/state/protocol-state
+            ]
+
             complete?: tls-read-data tls-port/state port/data
             application?: false
+            
             for-each proto tls-port/state/resp [
                 switch proto/type [
                     application [
                         for-each msg proto/messages [
                             if msg/type = 'app-data [
-                                unless tls-port/data [tls-port/data: clear tls-port/state/port-data]
+                                unless tls-port/data [
+                                    tls-port/data: clear tls-port/state/port-data
+                                ]
                                 append tls-port/data msg/content
                                 application?: true
                                 msg/type: _
@@ -1095,30 +1181,41 @@ tls-awake: function [event [event!]] [
                         for-each msg proto/messages [
                             if msg/description = "Close notify" [
                                 do-commands tls-port/state [close-notify]
-                                insert system/ports/system make event! [type: 'read port: tls-port]
+                                insert system/ports/system make event! [
+                                    type: 'read
+                                    port: tls-port
+                                ]
                                 return true
                             ]
                         ]
                     ]
                 ]
             ]
+            
             debug ["data complete?:" complete? "application?:" application?]
+            
             either application? [
-                insert system/ports/system make event! [type: 'read port: tls-port]
-            ] [
+                insert system/ports/system make event! [
+                    type: 'read
+                    port: tls-port
+                ]
+            ][
                 read port
             ]
             return complete?
         ]
+
         close [
-            insert system/ports/system make event! [type: 'close port: tls-port]
+            insert system/ports/system make event! [
+                type: 'close
+                port: tls-port
+            ]
             return true
         ]
-    ] else [
-        close port
-        fail ["Unexpected TLS event:" (event/type)]
     ]
-    false
+
+    close port
+    fail ["Unexpected TLS event:" (event/type)]
 ]
 
 
@@ -1131,7 +1228,7 @@ sys/make-scheme [
             port [port!]
             /local
                 resp data msg
-        ] [
+        ][
             debug ["READ" open? port/state/connection]
             read port/state/connection
             return port
@@ -1188,7 +1285,10 @@ sys/make-scheme [
                 seq-num-w: 0
 
                 msg: make binary! 4096
-                handshake-messages: make binary! 4096 ; all messages from Handshake records except 'HelloRequest's
+
+                ; all messages from Handshake records except "HelloRequest"
+                ;
+                handshake-messages: make binary! 4096
 
                 encrypted?: false
 
@@ -1229,11 +1329,9 @@ sys/make-scheme [
             ; The symmetric ciphers used by TLS are able to encrypt chunks of
             ; data one at a time.  It keeps the progressive state of the
             ; encryption process in the -stream variables, which under the
-            ; hood are memory-allocated items stored as a HANDLE!.  The
-            ; memory they represent will not be automatically freed by
-            ; garbage collection.
+            ; hood are memory-allocated items stored as a HANDLE!.
             ;
-            ; Calling the encryption functions with NONE! as the data to
+            ; Calling the encryption functions with BLANK! as the data to
             ; input will assume you are done, and will free the handle.
             ;
             ; !!! Is there a good reason for not doing this with an ordinary
