@@ -150,10 +150,22 @@ emit-fsymb {#include "sys-core.h"
 // !!! Also, void pointers and function pointers are not guaranteed to be
 // the same size, even if TCC assumes so for these symbol purposes.
 //
-#define SYM_FUNC(x) #x, ((void*)x)
-#define SYM_DATA(x) #x, &x
+#define SYM_FUNC(x) {#x, cast(CFUNC*, x)}
+#define SYM_DATA(x) {#x, &x}
 
-const void *rebol_symbols [] = ^{}
+struct rebol_sym_func_t {
+    const char *name;
+    CFUNC *func;
+};
+
+struct rebol_sym_data_t {
+    const char *name;
+    void *data;
+};
+
+// in C++ _const_ variables have internal linkage by default
+// so extern is required here
+extern const struct rebol_sym_func_t rebol_sym_funcs [] = ^{}
 
 emit {
 // When building as C++, the linkage on these functions should be done without
@@ -288,11 +300,14 @@ sys-globals.parser: context [
 
 ]
 
+emit-fsymb "^/    {NULL, NULL} //Terminator^/};"
 emit-fsymb "^/// Globals from sys-globals.h^/"
+emit-fsymb "^/extern const struct rebol_sym_data_t rebol_sym_data [] = {^/"
+
 the-file: %sys-globals.h
 sys-globals.parser/process read/string %../include/sys-globals.h
 
-emit-fsymb "^/    NULL, NULL //Terminator^/};"
+emit-fsymb "^/    {NULL, NULL} //Terminator^/};"
 write output-dir/core/:fsymbol-file fsymbol-buffer
 
 ;-------------------------------------------------------------------------

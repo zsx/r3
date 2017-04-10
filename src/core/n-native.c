@@ -62,7 +62,19 @@
 #include "libtcc.h"
 
 extern const REBYTE core_header_source[];
-extern const void *rebol_symbols[];
+
+struct rebol_sym_func_t {
+    const char *name;
+    CFUNC *func;
+};
+
+struct rebol_sym_data_t {
+    const char *name;
+    void *data;
+};
+
+extern const struct rebol_sym_func_t rebol_sym_funcs[];
+extern const struct rebol_sym_data_t rebol_sym_data[];
 extern
 #ifdef __cplusplus
 "C"
@@ -584,14 +596,25 @@ REBNATIVE(compile)
     // Rebol available to the dynamically loaded code on all platforms, so
     // this uses `tcc_add_symbol()` to work the same way on Windows/Linux/OSX
     //
-    const void **sym = &rebol_symbols[0];
-    for (; *sym != NULL; sym += 2) {
-        if (tcc_add_symbol(state, cast(const char*, *sym), *(sym + 1)) < 0)
+    const struct rebol_sym_data_t *sym_data = &rebol_sym_data[0];
+    for (; sym_data->name != NULL; sym_data ++) {
+        if (tcc_add_symbol(state, sym_data->name, sym_data->data) < 0)
+            fail (Error_Tcc_Relocate_Raw());
+    }
+
+    const struct rebol_sym_func_t *sym_func = &rebol_sym_funcs[0];
+    for (; sym_func->name != NULL; sym_func ++) {
+        // ISO C++ forbids casting between pointer-to-function and
+        // pointer-to-object, use memcpy to circumvent.
+        void *ptr;
+        assert(sizeof(ptr) == sizeof(sym_func->func));
+        memcpy(&ptr, &sym_func->func, sizeof(ptr));
+        if (tcc_add_symbol(state, sym_func->name, ptr) < 0)
             fail (Error_Tcc_Relocate_Raw());
     }
 
     // Add symbols in libtcc1, to avoid bundling with libtcc1.a
-    sym = &r3_libtcc1_symbols[0];
+    const void **sym = &r3_libtcc1_symbols[0];
     for (; *sym != NULL; sym += 2) {
         if (tcc_add_symbol(state, cast(const char*, *sym), *(sym + 1)) < 0)
             fail (Error_Tcc_Relocate_Raw());
@@ -636,13 +659,15 @@ REBNATIVE(compile)
         REBCNT index;
         REBSER *utf8 = Temp_Bin_Str_Managed(name, &index, 0);
 
-        REBNAT c_func = cast(
-            REBNAT,
-            tcc_get_symbol(state, cs_cast(BIN_AT(utf8, index)))
-        );
-
-        if (!c_func)
+        void *sym = tcc_get_symbol(state, cs_cast(BIN_AT(utf8, index)));
+        if (sym == NULL)
             fail (Error_Tcc_Sym_Not_Found_Raw(name));
+
+        // ISO C++ forbids casting between pointer-to-function and
+        // pointer-to-object, use memcpy to circumvent.
+        REBNAT c_func;
+        assert(sizeof(c_func) == sizeof(void*));
+        memcpy(&c_func, &sym, sizeof(c_func));
 
         FUNC_DISPATCHER(VAL_FUNC(var)) = c_func;
         Move_Value(stored_state, handle);
