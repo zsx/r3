@@ -59,7 +59,7 @@
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  DEBUG PROBE
+//  DEBUG PROBE <== **THIS IS VERY USEFUL**
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -77,6 +77,35 @@
 #if !defined(NDEBUG)
     #define PROBE(v) \
         Probe_Core_Debug((v), __FILE__, __LINE__)
+#endif
+
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  TRACKING PAYLOAD <== **THIS IS VERY USEFUL**
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// In the debug build, "Trash" cells (NODE_FLAG_FREE) can use their payload to
+// store where and when they were initialized.  This also applies to some
+// datatypes like BLANK!, BAR!, LOGIC!, or void--since they only use their
+// header bits, they can also use the payload for this in the debug build.
+//
+// (Note: The release build does not canonize unused bits of payloads, so
+// they are left as random data in that case.)
+//
+// View this information in the debugging watchlist under the `track` union
+// member of a value's payload.  It is also reported by panic().
+//
+
+#if !defined NDEBUG
+    inline static void Set_Track_Payload_Debug(
+        RELVAL *v, const char *file, int line
+    ){
+        v->payload.track.filename = file;
+        v->payload.track.line = line;
+        v->extra.do_count = TG_Do_Count;
+    }
 #endif
 
 
@@ -275,43 +304,6 @@
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  TRACKING PAYLOAD (for types that don't use their payloads)
-//
-//=////////////////////////////////////////////////////////////////////////=//
-//
-// Some datatypes like BLANK! or LOGIC!, or a void cell, can be communicated
-// entirely by their header bits.  Though this "wastes" 3/4 of the space of
-// the value cell, it also means the cell can be written and tested quickly.
-//
-// The release build does not canonize the remaining bits of the payload so
-// they are left as random data.  But the debug build can take advantage of
-// it to store some tracking information about the point and moment of
-// initialization.  This data can be viewed in the debugging watchlist
-// under the `track` component of payload, and is also used by panic().
-//
-
-#if !defined NDEBUG
-    inline static void Set_Track_Payload_Debug(
-        RELVAL *v, const char *file, int line
-    ){
-        v->payload.track.filename = file;
-        v->payload.track.line = line;
-        v->extra.do_count = TG_Do_Count;
-    }
-
-    inline static const char* VAL_TRACK_FILE(const RELVAL *v)
-        { return v->payload.track.filename; }
-
-    inline static int VAL_TRACK_LINE(const REBVAL *v)
-        { return v->payload.track.line; }
-
-    inline static REBUPT VAL_TRACK_COUNT(const REBVAL *v)
-        { return v->extra.do_count; }
-#endif
-
-
-//=////////////////////////////////////////////////////////////////////////=//
-//
 //  CELL WRITABILITY AND SETUP
 //
 //=////////////////////////////////////////////////////////////////////////=//
@@ -415,9 +407,6 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
 //
 // The garbage collector is not tolerant of trash.
 //
-// Doesn't need payload...so the debug build adds information in Reb_Track
-// which can be viewed in the debug watchlist (or shown by panic())
-//
 
 #ifdef NDEBUG
     #define SET_TRASH_IF_DEBUG(v) \
@@ -465,9 +454,6 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
 // that is one past the range of valid REB_XXX values in the enumeration
 // created for the actual types.
 //
-// Doesn't need payload...so the debug build adds information in Reb_Track
-// which can be viewed in the debug watchlist (or shown by panic())
-//
 
 #define VOID_CELL \
     c_cast(const REBVAL*, &PG_Void_Cell[0])
@@ -495,9 +481,6 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
 //     append [a b c] first [|]                 ;-- is legal
 //     append [a b c] '|                        ;-- is legal
 //
-// Doesn't need payload...so the debug build adds information in Reb_Track
-// which can be viewed in the debug watchlist (or shown by panic())
-//
 
 #define BAR_VALUE \
     c_cast(const REBVAL*, &PG_Bar_Value[0])
@@ -511,7 +494,7 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  BLANK! (unit type - fits in header bits, may use `struct Reb_Track`)
+//  BLANK!
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -534,10 +517,6 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
 // in a slot temporarily where the code knows it's supposed to come back and
 // fill in the correct thing later...where the asserts serve as a reminder
 // if that fill in never happens.
-//
-// Doesn't need payload...so the debug build adds information in Reb_Track
-// which can be viewed in the debug watchlist (or shown by panic()).
-// This is particularly useful when getting an assertion on UNREADABLE blanks.
 //
 
 #define BLANK_VALUE \
@@ -618,24 +597,17 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  LOGIC! AND "CONDITIONAL TRUTH"
+//  LOGIC!
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // A logic can be either true or false.  For purposes of optimization, logical
 // falsehood is indicated by one of the value option bits in the header--as
-// opposed to in the value payload.  This means it can be tested quickly and
+// opposed to in the value payload.  This means it can be tested quickly, and
 // that a single check can test for both BLANK! and logic false.
 //
 // Conditional truth and falsehood allows an interpretation where a BLANK!
-// is a "falsey" value as well as logic false.  Voids are neither
-// conditionally true nor conditionally false, and so debug builds will
-// complain if you try to determine which it is.  (It likely means a mistake
-// was made in skipping a formal decision-point regarding whether an unset
-// should represent an "opt out" or an error.)
-//
-// Doesn't need payload...so the debug build adds information in Reb_Track
-// which can be viewed in the debug watchlist (or shown by panic())
+// is a "falsey" value as well.
 //
 
 #define FALSE_VALUE \
@@ -1204,10 +1176,8 @@ inline static void SET_EVENT_KEY(RELVAL *v, REBCNT k, REBCNT c) {
 //
 // The monolithic structure of Rebol had made it desirable to take advantage
 // of the memory pooling to quickly allocate, free, and garbage collect
-// these.  If the GOB! is to become part of an extension mechanism for
-// user-defined types (and hence not present in minimalist configurations)
-// then this would require either exporting the memory pools as part of
-// the service or expecting clients to use malloc or do their own pooling.
+// these.  With GOB! being moved to an extension, it is not likely that it
+// would hook the memory pools directly.
 //
 
 #define VAL_GOB(v) \
