@@ -163,9 +163,12 @@ struct rebol_sym_data_t {
     void *data;
 };
 
+#ifdef __cplusplus
 // in C++ _const_ variables have internal linkage by default
-// so extern is required here
-extern const struct rebol_sym_func_t rebol_sym_funcs [] = ^{}
+// So extern is required
+extern
+#endif
+const struct rebol_sym_func_t rebol_sym_funcs [] = ^{}
 
 emit {
 // When building as C++, the linkage on these functions should be done without
@@ -302,7 +305,12 @@ sys-globals.parser: context [
 
 emit-fsymb "^/    {NULL, NULL} //Terminator^/};"
 emit-fsymb "^/// Globals from sys-globals.h^/"
-emit-fsymb "^/extern const struct rebol_sym_data_t rebol_sym_data [] = {^/"
+emit-fsymb {#ifdef __cplusplus
+// in C++ _const_ variables have internal linkage by default
+// So extern is required
+extern
+#endif
+const struct rebol_sym_data_t rebol_sym_data [] = ^{^/}
 
 the-file: %sys-globals.h
 sys-globals.parser/process read/string %../include/sys-globals.h
