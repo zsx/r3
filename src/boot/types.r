@@ -35,13 +35,12 @@ REBOL [
 [name       class       path    make    typesets]
 
 ; 0 is not a real data type.  It is reserved for internal purposes.
-;
+
 0           0           -       -       -
 
-function    function    *       *       -
+; There is only one FUNCTION! type in Ren-C
 
-bar         unit        -       *       -
-lit-bar     unit        -       *       -
+function    function    *       *       -
 
 ; ANY-WORD!, order matters (tests like ANY_WORD use >= REB_WORD, <= REB_ISSUE)
 ;
@@ -59,10 +58,6 @@ set-path    array       *       *       [series path array]
 get-path    array       *       *       [series path array]
 lit-path    array       *       *       [series path array]
 group       array       *       *       [series array]
-;
-; ^--above this line MAY have "evaluator behavior", below types are "inert"--v
-;    (basically types are compared as >= REB_BLOCK and not dispatched)
-;
 block       array       *       *       [series array]
 
 ; ANY-SERIES!, order matters (and contiguous with ANY-ARRAY above matters!)
@@ -78,11 +73,27 @@ bitset      bitset      *       *       -
 image       image       *       *       [series]
 vector      vector      *       *       [series]
 
-; Note: BLANK! is a "unit type" https://en.wikipedia.org/wiki/Unit_type
-;
+map         map         *       *       -
+
+varargs     varargs     -       *       -
+
+object      context     *       *       context
+frame       context     *       *       context
+module      context     *       *       context
+error       context     *       *       context
+port        port        context *       context
+
+; ^-------- Everything above is a "bindable" type, see Is_Bindable() --------^
+
+; v------- Everything below is an "unbindable" type, see Is_Bindable() ------v
+
+; "unit types" https://en.wikipedia.org/wiki/Unit_type
+
+bar         unit        -       *       -
+lit-bar     unit        -       *       -
 blank       unit        -       *       -
 
-;-- Scalars
+; scalars
 
 logic       logic       -       *       -
 integer     integer     -       *       [number scalar]
@@ -95,18 +106,12 @@ tuple       tuple       *       *       scalar
 time        time        *       *       scalar
 date        date        *       *       -
 
-map         map         *       *       -
+; type system
 
 datatype    datatype    -       *       -
 typeset     typeset     -       *       -
 
-varargs     varargs     -       *       -
-
-object      context     *       *       context
-frame       context     *       *       context
-module      context     *       *       context
-error       context     *       *       context
-port        port        context *       context
+; things likely to become user-defined types or extensions
 
 gob         gob         *       *       -
 event       event       *       *       -

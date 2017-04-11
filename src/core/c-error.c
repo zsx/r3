@@ -259,17 +259,10 @@ ATTRIBUTE_NO_RETURN void Fail_Core(const void *p)
         error = CTX(s);
         break; }
 
-    case DETECTED_AS_FREED_SERIES:
-        panic (p);
-
     case DETECTED_AS_VALUE: {
         const REBVAL *v = cast(const REBVAL*, p);
         error = Error(RE_INVALID_ARG, v, END);
         break; }
-
-    case DETECTED_AS_END:
-    case DETECTED_AS_TRASH_CELL:
-        panic (p);
 
     default:
         panic (p); // suppress compiler error from non-smart compilers

@@ -278,7 +278,7 @@ static REBARR *Startup_Datatypes(REBARR *boot_types, REBARR *boot_typespecs)
         // a limited sense.)
         //
         assert(value == Get_Type(cast(enum Reb_Kind, n)));
-        SET_VAL_FLAG(CTX_VAR(Lib_Context, 1), VALUE_FLAG_PROTECTED);
+        SET_VAL_FLAG(CTX_VAR(Lib_Context, n), VALUE_FLAG_PROTECTED);
 
         Append_Value(catalog, KNOWN(word));
     }

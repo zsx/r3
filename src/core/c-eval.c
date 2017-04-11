@@ -470,6 +470,10 @@ reevaluate:;
 
     switch (f->eval_type) {
 
+    case REB_0:
+        assert(FALSE); // internal type.
+        break;
+
 //==//////////////////////////////////////////////////////////////////////==//
 //
 // [FUNCTION!] (lookback or non-lookback)
@@ -482,10 +486,6 @@ reevaluate:;
 // which jumps in at the `do_function_in_current_gotten` label.
 //
 //==//////////////////////////////////////////////////////////////////////==//
-
-    case REB_0:
-        assert(FALSE); // internal type.
-        break;
 
     case REB_FUNCTION: // literal function in a block
         current_gotten = const_KNOWN(current);
@@ -1451,61 +1451,6 @@ reevaluate:;
 
 //==//////////////////////////////////////////////////////////////////////==//
 //
-// [BAR!]
-//
-// If an expression barrier is seen in-between expressions (as it will always
-// be if hit in this switch), it evaluates to void.  It only errors in
-// argument fulfillment during the switch case for ANY-FUNCTION!.
-//
-// Note that `DO/NEXT [| | | | 1 + 2]` will skip the bars and yield 3.  This
-// helps give BAR!s their lightweight character.  It also means that code
-// doing DO/NEXTs will not see them as generating voids, which might have
-// a specific meaning to the caller.  (They can check for BAR!s explicitly
-// if they want to give BAR!s a meaning.)
-//
-// Note also that natives and dialects frequently do their own interpretation
-// of BAR!--rather than just evaluate it and let it mean something equivalent
-// to an unset.  For instance:
-//
-//     case [false [print "F"] | true [print ["T"]]
-//
-// If CASE did not specially recognize BAR!, it would complain that the
-// "second condition" had no value.  So if you are looking for a BAR! behavior
-// and it's not passing through here, check the construct you are using.
-//
-//==//////////////////////////////////////////////////////////////////////==//
-
-    case REB_BAR:
-        assert(IS_BAR(current));
-
-        if (NOT_END(f->value)) {
-            SET_END(f->out); // skipping the post loop where this is done
-            f->eval_type = VAL_TYPE(f->value);
-            goto do_next; // quickly process next item, no infix test needed
-        }
-
-        SET_VOID(f->out); // no VALUE_FLAG_UNEVALUATED
-        break;
-
-//==//////////////////////////////////////////////////////////////////////==//
-//
-// [LIT-BAR!]
-//
-// LIT-BAR! decays into an ordinary BAR! if seen here by the evaluator.
-//
-// !!! Considerations of the "lit-bit" proposal would add a literal form
-// for every type, which would make this datatype unnecssary.
-//
-//==//////////////////////////////////////////////////////////////////////==//
-
-    case REB_LIT_BAR:
-        assert(IS_LIT_BAR(current));
-
-        SET_BAR(f->out); // no VALUE_FLAG_UNEVALUATED
-        break;
-
-//==//////////////////////////////////////////////////////////////////////==//
-//
 // [WORD!]
 //
 // A plain word tries to fetch its value through its binding.  It will fail
@@ -1830,16 +1775,124 @@ reevaluate:;
 
 //==//////////////////////////////////////////////////////////////////////==//
 //
-// Treat everything else as inert
+// Treat all the other Is_Bindable() types as inert
 //
 //==//////////////////////////////////////////////////////////////////////==//
 
-    default:
+    case REB_BLOCK:
+        //
+    case REB_BINARY:
+    case REB_STRING:
+    case REB_FILE:
+    case REB_EMAIL:
+    case REB_URL:
+    case REB_TAG:
+        //
+    case REB_BITSET:
+    case REB_IMAGE:
+    case REB_VECTOR:
+        //
+    case REB_MAP:
+        //
+    case REB_VARARGS:
+        //
+    case REB_OBJECT:
+    case REB_FRAME:
+    case REB_MODULE:
+    case REB_ERROR:
+    case REB_PORT:
+        goto inert;
+
+//==//////////////////////////////////////////////////////////////////////==//
+//
+// [BAR!]
+//
+// If an expression barrier is seen in-between expressions (as it will always
+// be if hit in this switch), it evaluates to void.  It only errors in
+// argument fulfillment during the switch case for ANY-FUNCTION!.
+//
+// Note that `DO/NEXT [| | | | 1 + 2]` will skip the bars and yield 3.  This
+// helps give BAR!s their lightweight character.  It also means that code
+// doing DO/NEXTs will not see them as generating voids, which might have
+// a specific meaning to the caller.  (They can check for BAR!s explicitly
+// if they want to give BAR!s a meaning.)
+//
+// Note also that natives and dialects frequently do their own interpretation
+// of BAR!--rather than just evaluate it and let it mean something equivalent
+// to an unset.  For instance:
+//
+//     case [false [print "F"] | true [print ["T"]]
+//
+// If CASE did not specially recognize BAR!, it would complain that the
+// "second condition" had no value.  So if you are looking for a BAR! behavior
+// and it's not passing through here, check the construct you are using.
+//
+//==//////////////////////////////////////////////////////////////////////==//
+
+    case REB_BAR:
+        assert(IS_BAR(current));
+
+        if (NOT_END(f->value)) {
+            SET_END(f->out); // skipping the post loop where this is done
+            f->eval_type = VAL_TYPE(f->value);
+            goto do_next; // quickly process next item, no infix test needed
+        }
+
+        SET_VOID(f->out); // no VALUE_FLAG_UNEVALUATED
+        break;
+
+//==//////////////////////////////////////////////////////////////////////==//
+//
+// [LIT-BAR!]
+//
+// LIT-BAR! decays into an ordinary BAR! if seen here by the evaluator.
+//
+// !!! Considerations of the "lit-bit" proposal would add a literal form
+// for every type, which would make this datatype unnecssary.
+//
+//==//////////////////////////////////////////////////////////////////////==//
+
+    case REB_LIT_BAR:
+        assert(IS_LIT_BAR(current));
+
+        SET_BAR(f->out); // no VALUE_FLAG_UNEVALUATED
+        break;
+
+//==//////////////////////////////////////////////////////////////////////==//
+//
+// Treat all the other NOT(Is_Bindable()) types as inert
+//
+//==//////////////////////////////////////////////////////////////////////==//
+
+    case REB_BLANK:
+        //
+    case REB_LOGIC:
+    case REB_INTEGER:
+    case REB_DECIMAL:
+    case REB_PERCENT:
+    case REB_MONEY:
+    case REB_CHAR:
+    case REB_PAIR:
+    case REB_TUPLE:
+    case REB_TIME:
+    case REB_DATE:
+        //
+    case REB_DATATYPE:
+    case REB_TYPESET:
+        //
+    case REB_GOB:
+    case REB_EVENT:
+    case REB_HANDLE:
+    case REB_STRUCT:
+    case REB_LIBRARY:
+        //
     inert:
-        assert(f->eval_type < REB_MAX);
         Derelativize(f->out, current, f->specifier);
         SET_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED);
         break;
+
+    default:
+        panic ("Invalid value kind found in Do_Core");
     }
 
     //==////////////////////////////////////////////////////////////////==//
