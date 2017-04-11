@@ -825,11 +825,10 @@ REBTYPE(Array)
 
         REBU64 types = 0;
         REBCNT tail = 0;
-        index = VAL_INDEX(value);
 
         UNUSED(REF(part));
-        Partial1(value, ARG(limit), &tail);
-        tail += index;
+        Partial1(value, ARG(limit), &tail); // may change VAL_INDEX
+        tail += VAL_INDEX(value);
 
         if (REF(deep))
             types |= REF(types) ? 0 : TS_STD_SERIES;
