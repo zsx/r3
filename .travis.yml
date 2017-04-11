@@ -19,7 +19,7 @@ matrix:
         - os: linux
           sudo: false #Force new container-based infrastructure.
           language: c
-          env: OS_ID=0.4.4 DEBUG=none STANDARD=gnu89 RIGOROUS=yes STATIC=yes BUILD_FFI_CFLAGS=-m32
+          env: OS_ID=0.4.4 DEBUG=none STANDARD=gnu89 RIGOROUS=yes STATIC=yes TCC=i386-tcc ARCH_CFLAGS=-m32
 
         # Linux x64, debug, gcc
         #
@@ -27,7 +27,7 @@ matrix:
           dist: trusty #gcc on Ubuntu 12.04 does not support sanitizers
           sudo: false #Force new container-based infrastructure.
           language: c
-          env: OS_ID=0.4.40 DEBUG=asserts STANDARD=c RIGOROUS=yes STATIC=yes
+          env: OS_ID=0.4.40 DEBUG=asserts STANDARD=c RIGOROUS=yes STATIC=yes TCC=tcc
 
         # Linux x64, debug, g++
         #
@@ -38,28 +38,28 @@ matrix:
           dist: trusty #gcc on Ubuntu 12.04 does not support sanitizers
           sudo: false #Force new container-based infrastructure.
           language: cpp
-          env: OS_ID=0.4.40 DEBUG=asserts STANDARD=c++0x RIGOROUS=yes STATIC=yes
+          env: OS_ID=0.4.40 DEBUG=asserts STANDARD=c++0x RIGOROUS=yes STATIC=yes TCC=tcc
 
         # Linux x64, release, gcc
         #
         - os: linux
           sudo: false #Force new container-based infrastructure.
           language: c
-          env: OS_ID=0.4.40 DEBUG=none STANDARD=gnu99 RIGOROUS=yes STATIC=yes
+          env: OS_ID=0.4.40 DEBUG=none STANDARD=gnu99 RIGOROUS=yes STATIC=yes TCC=tcc
 
         # Windows x86, release, gcc
         #
         - os: linux
           sudo: false #Force new container-based infrastructure.
           language: c
-          env: OS_ID=0.3.1 DEBUG=none TOOLS=i686-w64-mingw32- STANDARD=c RIGOROUS=yes STATIC=yes HOST=i686-w64-mingw32 BUILD_FFI_CFLAGS=-m32
+          env: OS_ID=0.3.1 DEBUG=none TOOLS=i686-w64-mingw32- STANDARD=c RIGOROUS=yes STATIC=yes TCC=i386-win32-tcc TCC_CPP_EXTRA_FLAGS='-I../external/tcc/win32/include -DPVAR=TVAR -DTVAR="extern __attribute__((dllimport))"' HOST=i686-w64-mingw32 ARCH_CFLAGS=-m32
         
         # Windows x64, debug, gcc
         #
         - os: linux
           sudo: false #Force new container-based infrastructure.
           language: c
-          env: OS_ID=0.3.40 DEBUG=asserts TOOLS=x86_64-w64-mingw32- STANDARD=c RIGOROUS=yes STATIC=yes HOST=x86_64-w64-mingw32
+          env: OS_ID=0.3.40 DEBUG=asserts TOOLS=x86_64-w64-mingw32- STANDARD=c RIGOROUS=yes STATIC=yes TCC=x86_64-win32-tcc TCC_CPP_EXTRA_FLAGS='-I../external/tcc/win32/include -DPVAR=TVAR -DTVAR="extern __attribute__((dllimport))"' HOST=x86_64-w64-mingw32
 
         # Windows x64, debug, g++
         #
@@ -68,16 +68,18 @@ matrix:
         - os: linux
           sudo: false #Force new container-based infrastructure.
           language: cpp
-          env: OS_ID=0.3.40 DEBUG=asserts TOOLS=x86_64-w64-mingw32- STANDARD=c++ RIGOROUS=yes STATIC=yes HOST=x86_64-w64-mingw32
+          env: OS_ID=0.3.40 DEBUG=asserts TOOLS=x86_64-w64-mingw32- STANDARD=c++ RIGOROUS=yes STATIC=yes TCC=x86_64-win32-tcc TCC_CPP_EXTRA_FLAGS='-I../external/tcc/win32/include -DPVAR=TVAR -DTVAR="extern __attribute__((dllimport))"' HOST=x86_64-w64-mingw32
         
         # Windows x64, release, gcc
         #
         - os: linux
           sudo: false #Force new container-based infrastructure.
           language: cpp
-          env: OS_ID=0.3.40 DEBUG=none TOOLS=x86_64-w64-mingw32- STANDARD=c RIGOROUS=yes STATIC=yes
+          env: OS_ID=0.3.40 DEBUG=none TOOLS=x86_64-w64-mingw32- STANDARD=c RIGOROUS=yes STATIC=yes TCC=x86_64-win32-tcc TCC_CPP_EXTRA_FLAGS='-I../external/tcc/win32/include -DPVAR=TVAR -DTVAR="extern __attribute__((dllimport))"' HOST=x86_64-w64-mingw32
 
         # OSX x64, debug, gcc
+        #
+        # TCC currently doesn't quite support OSX yet
         #
         # !!! Also, does not honor GCC's static linking flag for libc.
         #
@@ -178,7 +180,7 @@ script:
           ./autogen.sh
           cd ${TOP_DIR}/build
           if [[ -z ${HOST} ]]; then
-              ${TOP_DIR}/external/libffi/configure --prefix=$PWD/fakeroot CFLAGS=${BUILD_FFI_CFLAGS}
+              ${TOP_DIR}/external/libffi/configure --prefix=$PWD/fakeroot CFLAGS=${ARCH_CFLAGS}
           else #cross-compiling
               ${TOP_DIR}/external/libffi/configure --prefix=$PWD/fakeroot --host=${HOST}
           fi
@@ -198,6 +200,71 @@ script:
       fi
 
     - cd ${TOP_DIR}/make/
+
+    # Build TCC
+    - |
+      if [[ ! -z ${TCC} ]]; then
+          mkdir tcc
+          cd tcc
+          if [[ ${OS_ID} != "0.4.40" ]]; then
+              #generate cross-compiler (on x86_64 host and target for i386)
+              echo "Generating the cross-compiler"
+              ${TOP_DIR}/external/tcc/configure --enable-cross --extra-cflags="-DEMBEDDED_IN_R3"
+              make
+              mkdir bin
+              cp *tcc bin #save cross-compilers
+              ls bin/ #take a look at the cross-compilers
+              make clean
+              #generate libtcc.a
+              # libtcc.a requires --enable-mingw32, or it doesn't think it's a native compiler and disables tcc_run
+              echo "Generating libtcc.a"
+              if [[ ${OS_ID} = "0.4.4" ]]; then
+                  ${TOP_DIR}/external/tcc/configure --cpu=x86 --extra-cflags="-DEMBEDDED_IN_R3 ${ARCH_CFLAGS}"
+              elif [[ ${OS_ID} == "0.3.1" ]]; then #x86-win32
+                  ${TOP_DIR}/external/tcc/configure --cpu=x86 --extra-cflags="-DEMBEDDED_IN_R3" --enable-mingw32 --cross-prefix=${TOOLS}
+              else #x86_64-win32
+                  ${TOP_DIR}/external/tcc/configure --enable-mingw32 --cpu=x86_64 --extra-cflags="-DEMBEDDED_IN_R3" --cross-prefix=${TOOLS}
+              fi
+              make libtcc.a && cp libtcc.a libtcc.a.bak
+
+              #generate libtcc1.a
+              # --enable-mingw32 must be turned off, or it will try to compile with tcc.exe
+              make clean
+
+              echo "Generating libtcc1.a"
+              if [[ ${OS_ID} = "0.4.4" ]]; then
+                  ${TOP_DIR}/external/tcc/configure --cpu=x86 --extra-cflags="-DEMBEDDED_IN_R3 ${ARCH_CFLAGS}"
+              elif [[ ${OS_ID} == "0.3.1" ]]; then #x86-win32
+                  ${TOP_DIR}/external/tcc/configure --cpu=x86 --extra-cflags="-DEMBEDDED_IN_R3" --cross-prefix=${TOOLS}
+              else #x86_64-win32
+                  ${TOP_DIR}/external/tcc/configure --cpu=x86_64 --extra-cflags="-DEMBEDDED_IN_R3" --cross-prefix=${TOOLS}
+              fi
+
+              echo "make libtcc1.a"
+              make libtcc1.a || echo "ignoring error in building libtcc1.a" #this could fail to build tcc due to lack of '-ldl' on Windows
+              cp bin/* . #restore cross-compilers, libtcc1.a depends on tcc
+              touch tcc #update the timestamp so it won't be rebuilt
+              echo "ls"
+              ls #take a look at files under current directory
+              echo "make libtcc1.a"
+              make libtcc1.a
+
+              echo "Looking for symbol r3_tcc_alloca"
+              if [[ ${OS_ID} == "0.3.1" ]]; then #x86-win32
+                ${TOOLS}objdump -t lib/i386/alloca86.o |grep alloca
+              elif [[ ${OS_ID} == "0.3.40" ]]; then
+                ${TOOLS}objdump -t lib/x86_64/alloca86_64.o |grep alloca
+              fi
+
+              #restore libtcc.a
+              # make libtcc1.a could have generated a new libtcc.a
+              cp libtcc.a.bak libtcc.a
+          else
+              ${TOP_DIR}/external/tcc/configure --extra-cflags="-DEMBEDDED_IN_R3 ${ARCH_CFLAGS}"
+          fi
+          make
+          cd ${TOP_DIR}/make
+      fi
 
     # Grab the abbreviated and full git commit ID into environment variables.
     # The full commit is passed to make to build into the binary, and the
@@ -242,7 +309,13 @@ script:
     # On the second build of building twice, or just building once, include
     # the GIT_COMMIT
     #
-    - make -f makefile.boot REBOL_TOOL=r3-make STANDARD="${STANDARD}" OS_ID="${OS_ID}" DEBUG="${DEBUG}" GIT_COMMIT="${GIT_COMMIT}" RIGOROUS="${RIGOROUS}" STATIC="${STATIC}" WITH_FFI="dynamic"
+    - |
+      if [[ -z ${TCC} ]]; then
+          make -f makefile.boot REBOL_TOOL=r3-make STANDARD="${STANDARD}" OS_ID="${OS_ID}" DEBUG="${DEBUG}" GIT_COMMIT="${GIT_COMMIT}" RIGOROUS="${RIGOROUS}" STATIC="${STATIC}" WITH_FFI="dynamic" WITH_TCC="no"
+      else
+          make -f makefile.boot REBOL_TOOL=r3-make STANDARD="${STANDARD}" OS_ID="${OS_ID}" DEBUG="${DEBUG}" GIT_COMMIT="${GIT_COMMIT}" RIGOROUS="${RIGOROUS}" STATIC="${STATIC}" WITH_FFI="dynamic" WITH_TCC="${PWD}/tcc/${TCC}"
+      fi
+
 
     # output the needed libraries
     - |
