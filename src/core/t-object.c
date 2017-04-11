@@ -389,7 +389,6 @@ void MAKE_Context(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
         //
         REBCTX *context = Make_Selfish_Context_Detect(
             kind, // type
-            NULL, // body
             END, // values to scan for toplevel set-words (empty)
             NULL // parent
         );
@@ -886,7 +885,6 @@ REBNATIVE(construct)
         //
         context = Make_Selfish_Context_Detect(
             target, // type
-            NULL, // binding
             // scan for toplevel set-words
             IS_BLANK(body)
                 ? cast(const RELVAL*, END) // needed by gcc/g++ 2.95 (bug)

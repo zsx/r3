@@ -312,13 +312,17 @@ void Collect_Keys_Start(REBFLGS flags)
         NOOP; // flags not paid attention to for now
     }
 
-    // Leave the [0] slot empty while collecting.  This will become the
+    // Leave the [0] slot blank while collecting.  This will become the
     // "rootparam" in function paramlists (where the FUNCTION! archetype
     // value goes), the [0] slot in varlists (where the ANY-CONTEXT! archetype
     // goes), and the [0] slot in keylists (which sometimes are FUNCTION! if
     // it's a FRAME! context...and not yet used in other context types)
-
-    SET_TRASH_IF_DEBUG(ARR_HEAD(BUF_COLLECT));
+    //
+    // The reason it is set to an unreadable blank is because if it were trash
+    // then the copy routine that grabs the varlist as a copy of this array would
+    // have to support copying trash--which they do not allow.
+    //
+    SET_UNREADABLE_BLANK(ARR_HEAD(BUF_COLLECT));
     SET_ARRAY_LEN_NOTERM(BUF_COLLECT, 1);
 }
 
@@ -626,7 +630,6 @@ REBARR *Collect_Keylist_Managed(
     // !!! Usages of the rootkey for non-FRAME! contexts is open for future.
     //
     REBARR *keylist = Grab_Collected_Keylist_Managed(prior);
-    SET_BLANK(ARR_HEAD(keylist));
 
     Collect_Keys_End(&binder);
 
@@ -743,7 +746,6 @@ void Rebind_Context_Deep(
 //
 REBCTX *Make_Selfish_Context_Detect(
     enum Reb_Kind kind,
-    REBARR *binding,
     const RELVAL *head,
     REBCTX *opt_parent
 ) {
@@ -777,7 +779,7 @@ REBCTX *Make_Selfish_Context_Detect(
     VAL_RESET_HEADER(var, kind);
     var->payload.any_context.varlist = varlist;
     var->payload.any_context.phase = NULL;
-    var->extra.binding = binding;
+    var->extra.binding = NULL;
 
     ++var;
 
@@ -875,7 +877,6 @@ REBCTX *Construct_Context(
 ) {
     REBCTX *context = Make_Selfish_Context_Detect(
         kind, // type
-        NULL, // binding
         head, // values to scan for toplevel set-words
         opt_parent // parent
     );
@@ -1379,7 +1380,16 @@ void Assert_Context_Core(REBCTX *c)
     }
 
     REBVAL *rootkey = CTX_ROOTKEY(c);
-    if (IS_FUNCTION(rootkey)) {
+    if (IS_BLANK_RAW(rootkey)) {
+        //
+        // Note that in the future the rootkey for ordinary OBJECT! or ERROR!
+        // PORT! etc. may be more interesting than BLANK.  But it uses that
+        // for now--unreadable.
+        //
+        if (IS_FRAME(rootvar))
+            panic (c);
+    }
+    else if (IS_FUNCTION(rootkey)) {
         //
         // At the moment, only FRAME! is able to reuse a FUNCTION!'s keylist.
         // There may be reason to relax this, if you wanted to make an
@@ -1404,15 +1414,6 @@ void Assert_Context_Core(REBCTX *c)
                 panic (frame_fun);
             }
         }*/
-    }
-    else if (IS_BLANK(rootkey)) {
-        //
-        // Note that in the future the rootkey for ordinary OBJECT! or ERROR!
-        // PORT! etc. may be more interesting than BLANK.  But it uses that
-        // for now.
-        //
-        if (IS_FRAME(rootvar))
-            panic (c);
     }
     else
         panic (rootkey);

@@ -225,21 +225,7 @@ REBOOL Do_Path_Throws_Core(
     // in which case we should use the specifier in the value to process
     // its array contents.
     //
-    if (IS_RELATIVE(path)) {
-    #if !defined(NDEBUG)
-        assert(specifier != SPECIFIED);
-
-        REBCTX *context = CTX(specifier);
-        if (VAL_RELATIVE(path) != VAL_FUNC(CTX_FRAME_FUNC_VALUE(context))) {
-            printf("Specificity mismatch in path dispatch, expected:\n");
-            PROBE(CTX_FRAME_FUNC_VALUE(context));
-            printf("Panic on actual path\n");
-            panic (path);
-        }
-    #endif
-        pvs.item_specifier = specifier;
-    }
-    else pvs.item_specifier = VAL_SPECIFIER(const_KNOWN(path));
+    pvs.item_specifier = Derive_Specifier(specifier, path);
 
     // Seed the path evaluation process by looking up the first item (to
     // get a datatype to dispatch on for the later path items)

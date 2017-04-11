@@ -587,7 +587,6 @@ REBOOL Make_Error_Object_Throws(
 
         error = Make_Selfish_Context_Detect(
             REB_ERROR, // type
-            NULL, // body
             VAL_ARRAY_AT(arg), // values to scan for toplevel set-words
             root_error // parent
         );
