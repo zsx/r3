@@ -156,7 +156,7 @@ void set_vect(REBCNT bits, REBYTE *data, REBCNT n, REBI64 i, REBDEC f) {
 }
 
 
-void Set_Vector_Row(REBSER *ser, REBVAL *blk)
+void Set_Vector_Row(REBSER *ser, const REBVAL *blk)
 {
     REBCNT idx = VAL_INDEX(blk);
     REBCNT len = VAL_LEN_AT(blk);
@@ -352,15 +352,15 @@ REBSER *Make_Vector(REBINT type, REBINT sign, REBINT dims, REBINT bits, REBINT s
 //           size:       integer units
 //           init:        block of values
 //
-REBVAL *Make_Vector_Spec(RELVAL *bp, REBSPC *specifier, REBVAL *value)
+REBOOL Make_Vector_Spec(REBVAL *out, const RELVAL *head, REBSPC *specifier)
 {
     REBINT type = -1; // 0 = int,    1 = float
     REBINT sign = -1; // 0 = signed, 1 = unsigned
     REBINT dims = 1;
     REBINT bits = 32;
     REBCNT size = 1;
-    REBSER *vect;
-    REBVAL *iblk = 0;
+
+    const RELVAL *item = head;
 
     if (specifier) {
         //
@@ -370,77 +370,91 @@ REBVAL *Make_Vector_Spec(RELVAL *bp, REBSPC *specifier, REBVAL *value)
     }
 
     // UNSIGNED
-    if (IS_WORD(bp) && VAL_WORD_SYM(bp) == SYM_UNSIGNED) {
+    if (IS_WORD(item) && VAL_WORD_SYM(item) == SYM_UNSIGNED) {
         sign = 1;
-        bp++;
+        ++item;
     }
 
     // INTEGER! or DECIMAL!
-    if (IS_WORD(bp)) {
-        if (SAME_SYM_NONZERO(VAL_WORD_SYM(bp), SYM_FROM_KIND(REB_INTEGER)))
+    if (IS_WORD(item)) {
+        if (SAME_SYM_NONZERO(VAL_WORD_SYM(item), SYM_FROM_KIND(REB_INTEGER)))
             type = 0;
         else if (
-            SAME_SYM_NONZERO(VAL_WORD_SYM(bp), SYM_FROM_KIND(REB_DECIMAL))
+            SAME_SYM_NONZERO(VAL_WORD_SYM(item), SYM_FROM_KIND(REB_DECIMAL))
         ){
             type = 1;
-            if (sign > 0) return 0;
+            if (sign > 0)
+                return FALSE;
         }
-        else return 0;
-        bp++;
+        else
+            return FALSE;
+        ++item;
     }
 
-    if (type < 0) type = 0;
-    if (sign < 0) sign = 0;
+    if (type < 0)
+        type = 0;
+    if (sign < 0)
+        sign = 0;
 
     // BITS
-    if (IS_INTEGER(bp)) {
-        bits = Int32(KNOWN(bp));
+    if (IS_INTEGER(item)) {
+        bits = Int32(item);
         if (
             (bits == 32 || bits == 64)
-            ||
-            (type == 0 && (bits == 8 || bits == 16))
-        ) bp++;
-        else return 0;
-    } else return 0;
+            || (type == 0 && (bits == 8 || bits == 16))
+        ){
+            ++item;
+        }
+        else
+            return FALSE;
+    }
+    else
+        return FALSE;
 
     // SIZE
-    if (NOT_END(bp) && IS_INTEGER(bp)) {
-        if (Int32(KNOWN(bp)) < 0) return 0;
-        size = Int32(KNOWN(bp));
-        bp++;
+    if (NOT_END(item) && IS_INTEGER(item)) {
+        if (Int32(item) < 0)
+            return FALSE;
+        size = Int32(item);
+        ++item;
     }
 
     // Initial data:
-    if (NOT_END(bp) && (IS_BLOCK(bp) || IS_BINARY(bp))) {
-        REBCNT len = VAL_LEN_AT(bp);
-        if (IS_BINARY(bp) && type == 1) return 0;
-        if (len > size) size = len;
-        iblk = KNOWN(bp);
-        bp++;
-    }
 
-    VAL_RESET_HEADER(value, REB_VECTOR);
+    const REBVAL *iblk;
+    if (NOT_END(item) && (IS_BLOCK(item) || IS_BINARY(item))) {
+        REBCNT len = VAL_LEN_AT(item);
+        if (IS_BINARY(item) && type == 1)
+            return FALSE;
+        if (len > size)
+            size = len;
+        iblk = const_KNOWN(item);
+        ++item;
+    }
+    else
+        iblk = NULL;
 
     // Index offset:
-    if (NOT_END(bp) && IS_INTEGER(bp)) {
-        VAL_INDEX(value) = (Int32s(KNOWN(bp), 1) - 1);
-        bp++;
+    REBCNT index;
+    if (NOT_END(item) && IS_INTEGER(item)) {
+        index = (Int32s(item, 1) - 1);
+        ++item;
     }
-    else VAL_INDEX(value) = 0;
+    else
+        index = 0;
 
-    if (NOT_END(bp)) return 0;
+    if (NOT_END(item))
+        return FALSE;
 
-    vect = Make_Vector(type, sign, dims, bits, size);
-    if (!vect) return 0;
+    REBSER *vect = Make_Vector(type, sign, dims, bits, size);
+    if (vect == NULL)
+        return FALSE;
 
-    if (iblk) Set_Vector_Row(vect, iblk);
+    if (iblk != NULL)
+        Set_Vector_Row(vect, iblk);
 
-    INIT_VAL_SERIES(value, vect);
-    MANAGE_SERIES(vect);
-
-    // index set earlier
-
-    return value;
+    Init_Any_Series_At(out, REB_VECTOR, vect, index);
+    return TRUE;
 }
 
 
@@ -472,7 +486,7 @@ bad_make:
 void TO_Vector(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 {
     if (IS_BLOCK(arg)) {
-        if (Make_Vector_Spec(VAL_ARRAY_AT(arg), VAL_SPECIFIER(arg), out))
+        if (Make_Vector_Spec(out, VAL_ARRAY_AT(arg), VAL_SPECIFIER(arg)))
             return;
     }
     fail (Error_Bad_Make(kind, arg));
