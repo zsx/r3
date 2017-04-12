@@ -26,6 +26,27 @@ mkdir/deep output-dir/core
 inp: read fix-win32-path to file! output-dir/include/sys-core.i
 replace/all inp "// #define" "#define"
 replace/all inp "// #undef" "#undef"
+replace/all inp "<ce>" "##" ;bug in tcc??
+
+;remove "#define __BASE_FILE__" to avoid duplicates
+remove-macro: func [
+    macro [any-string!]
+    /local pos-m inc eol
+][
+    unless binary? macro [macro: to binary! macro]
+    pos-m: find inp macro
+    if pos-m [
+        inc: find/reverse pos-m to binary! "#define"
+        eol: find pos-m to binary! newline
+        remove/part inc (index? eol) - (index? inc)
+    ]
+]
+
+remove-macro "__BASE_FILE__"
+
+;remove everything up to REN_C_STDIO_OK
+;they all seem to be builtin macros
+remove/part inp -1 + index? find inp to binary! "#define REN_C_STDIO_OK"
 
 ;write %/tmp/sys-core.i inp
 out: make binary! 2048

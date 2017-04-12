@@ -573,8 +573,7 @@ REBNATIVE(compile)
     tcc_set_error_func(state, NULL, tcc_error_report);
 
     if (options) {
-        if (tcc_set_options(state, CHAR_HEAD(VAL_SERIES(options))) < 0)
-            fail (Error_Tcc_Set_Options_Raw());
+        tcc_set_options(state, CHAR_HEAD(VAL_SERIES(options)));
     }
 
     REBCTX *err = NULL;

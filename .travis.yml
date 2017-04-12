@@ -241,13 +241,13 @@ script:
               fi
 
               echo "make libtcc1.a"
-              make libtcc1.a || echo "ignoring error in building libtcc1.a" #this could fail to build tcc due to lack of '-ldl' on Windows
+              make libtcc1.a XCC=${TOOLS}gcc XAR=${TOOLS}ar || echo "ignoring error in building libtcc1.a" #this could fail to build tcc due to lack of '-ldl' on Windows
               cp bin/* . #restore cross-compilers, libtcc1.a depends on tcc
               touch tcc #update the timestamp so it won't be rebuilt
               echo "ls"
               ls #take a look at files under current directory
               echo "make libtcc1.a"
-              make libtcc1.a
+              make libtcc1.a XCC=${TOOLS}gcc XAR=${TOOLS}ar
 
               echo "Looking for symbol r3_tcc_alloca"
               if [[ ${OS_ID} == "0.3.1" ]]; then #x86-win32
