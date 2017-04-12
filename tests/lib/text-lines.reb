@@ -11,7 +11,7 @@ REBOL [
         See: http://www.apache.org/licenses/LICENSE-2.0
     }
     Author: "Brett Handley"
-    Purpose: {Transition load/next from Rebol 2 to Rebol 3.}
+    Purpose: {Functions operating on lines of text.}
 ]
 
 decode-lines: function [
@@ -82,7 +82,7 @@ for-each-line: func [
 ]
 
 lines-exceeding: function [
-    {Return the line numbers of lines exceeding line-length}
+    {Return the line numbers of lines exceeding line-length.}
     line-length [integer!]
     text [string!]
 ] [

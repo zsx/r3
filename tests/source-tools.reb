@@ -57,6 +57,12 @@ rebsource: context [
         %os/windows/
     ]
 
+    extensions: [
+        %.c c
+        %.r rebol
+        %.reb rebol
+    ]
+
     whitelisted: [
         %core/u-bmp.c
         %core/u-compress.c
@@ -74,13 +80,17 @@ rebsource: context [
         files: function [
             {Analyse the source files of REBOL.}
         ][
-            file-list: list/c-files
+            listing: list/source-files
 
             files-analysis: make block! []
 
-            for-each filepath file-list [
-                analysis: analyse/file filepath
-                append files-analysis analysis
+            for-each source listing [
+                if not whitelisted? source [
+                    analysis: analyse/file source
+                    if analysis [
+                        append files-analysis analysis
+                    ]
+                ]
             ]
 
             files-analysis
@@ -88,163 +98,250 @@ rebsource: context [
 
         file: function [
             {Analyse a file returning facts.}
+            return: [block! blank!]
             file
         ][
-            if whitelisted? file [return blank]
-
-            analysis: make block! []
-
-            emit: function [body][
-                insert position: tail analysis compose/only body
-                new-line position true
-            ]
-
-            add-line: function [list][
-                if blank? buffer: get list [
-                    set list buffer: copy []
-                ]
-                append buffer line-of file-text position
-            ]
-
-            text: read/string src-folder/:file
-
             all [
-                non-std-lines: lines-exceeding standard/std-line-length text
-                    |
-                emit [
-                    line-exceeds
-                    (standard/std-line-length) (file) (non-std-lines)
+                filetype: filetype-of file
+                to-value if type: in source filetype [
+                    data: read src-folder/:file
+                    evaluate: get type
+                    evaluate file data
                 ]
             ]
+        ]
 
-            all [
-                overlength-lines: lines-exceeding standard/max-line-length text
-                    |
-                emit [
-                    line-exceeds
-                    (standard/max-line-length) (file) (overlength-lines)
-                ]
-            ]
+        source: context [
 
-            wsp-not-eol: exclude c.lexical/charsets/ws-char charset {^/}
-            wsp-not-tabeol: exclude wsp-not-eol charset {^-}
+            c: function [
+                {Analyse a C file returning facts.}
+                file
+                data
+            ] [
 
-            eol-wsp: malloc: tabbed: _
-            file-text: text
+                ;
+                ; This analysis is at a token level (c preprocessing token).
 
-            do bind [
+                analysis: analyse/text file data
 
-                is-identifier: [and identifier]
+                data: to string! data
 
-                wsp-eol: [some wsp-not-eol eol]
+                identifier: c.lexical/grammar/identifier
+                c-pp-token: c.lexical/grammar/c-pp-token
 
-                trimmed-comment: [{//} some [not eol not wsp-eol skip]]
-
-                eol-wsp-check: [
-                    wsp-eol (add-line 'eol-wsp)
-                ]
+                malloc-found: make block! []
 
                 malloc-check: [
-                    is-identifier "malloc" (add-line 'malloc)
+                    and identifier "malloc" (append malloc-found line-of head position position)
                 ]
 
-                tab-check: [
-                    #"^-" (add-line 'tabbed)
-                ]
-
-                parse/case file-text [
+                parse/case data [
                     some [
                         position:
                         malloc-check
-                        | trimmed-comment
-                        | eol-wsp-check
-                        | some wsp-not-tabeol | tab-check
                         | c-pp-token
                     ]
                 ]
 
-            ] c.lexical/grammar
-
-            foreach list [eol-wsp malloc tabbed][
-                if not blank? get list [
-                    emit [(list) (file) (get list)]
+                if not empty? malloc-found [
+                    emit analysis [malloc (file) (malloc-found)]
                 ]
-            ]
 
-            if all [
-                not tail? file-text
-                not equal? newline last file-text
-            ][
-                emit [eof-eol-missing (file)]
-            ]
-
-            emit-proto: procedure [proto][
                 if all [
-                    'format2015 = proto-parser/style
-                    block? proto-parser/data
-                ][
-                    do bind [
-                        if last-func-end [
-                            if not all [
-                                parse last-func-end [
-                                    function-spacing-rule
-                                    position:
-                                    to end
-                                ]
-                                same? position proto-parser/parse.position
-                            ][
-                                line: line-of text proto-parser/parse.position
-                                append any [
-                                    non-std-func-space
-                                    set 'non-std-func-space copy []
-                                ] line-of file-text proto-parser/parse.position
-                            ]
-                        ]
-                    ] parser-extension
+                    not tail? data
+                    not equal? newline last data
+                ] [
+                    emit analysis [eof-eol-missing (file)]
+                ]
 
-                    either find/match mold proto-parser/data/2 {native} [
-                        ;
-                        ; It's a `some-name?: native [...]`, so we expect
-                        ; `REBNATIVE(some_name_q)` to be correctly lined up
-                        ; as the "to-c-name" of the Rebol set-word
-                        ;
-                        unless (
-                            equal?
+                emit-proto: procedure [proto] [
+                    if all [
+                        'format2015 = proto-parser/style
+                        block? proto-parser/data
+                    ] [
+                        do bind [
+                            if last-func-end [
+                                if not all [
+                                    parse last-func-end [
+                                        function-spacing-rule
+                                        position:
+                                        to end
+                                    ]
+                                    same? position proto-parser/parse.position
+                                ] [
+                                    line: line-of data proto-parser/parse.position
+                                    append any [
+                                        non-std-func-space
+                                        set 'non-std-func-space copy []
+                                    ] line-of data proto-parser/parse.position
+                                ]
+                            ]
+                        ] c-parser-extension
+
+                        either find/match mold proto-parser/data/2 {native} [
+                            ;
+                            ; It's a `some-name?: native [...]`, so we expect
+                            ; `REBNATIVE(some_name_q)` to be correctly lined up
+                            ; as the "to-c-name" of the Rebol set-word
+                            ;
+                            unless (
+                                equal?
                                 proto-parser/proto.arg.1
                                 (to-c-name to word! proto-parser/data/1)
-                        ) [
-                            line: line-of text proto-parser/parse.position
-                            emit [
-                                id-mismatch
-                                (mold proto-parser/data/1) (file) (line)
+                            ) [
+                                line: line-of data proto-parser/parse.position
+                                emit analysis [
+                                    id-mismatch
+                                    (mold proto-parser/data/1) (file) (line)
+                                ]
                             ]
-                        ]
-                    ][
-                        ;
-                        ; ... ? (not a native)
-                        ;
-                        unless (
-                            equal?
+                        ] [
+                            ;
+                            ; ... ? (not a native)
+                            ;
+                            unless (
+                                equal?
                                 proto-parser/proto.id
                                 form to word! proto-parser/data/1
-                        ) [
-                            line: line-of text proto-parser/parse.position
-                            emit [
-                                id-mismatch
-                                (mold proto-parser/data/1) (file) (line)
+                            ) [
+                                line: line-of data proto-parser/parse.position
+                                emit analysis [
+                                    id-mismatch
+                                    (mold proto-parser/data/1) (file) (line)
+                                ]
                             ]
                         ]
                     ]
+
                 ]
 
+                non-std-func-space: _
+                proto-parser/emit-proto: :emit-proto
+                proto-parser/process data
+
+                if non-std-func-space [
+                    emit analysis [non-std-func-space (file) (non-std-func-space)]
+                ]
+
+                if all [
+                    not tail? data
+                    not equal? newline last data
+                ] [
+                    emit analysis [eof-eol-missing (file) (reduce [line-of data tail data])]
+                ]
+
+                analysis
             ]
 
-            non-std-func-space: _
-            proto-parser/emit-proto: :emit-proto
-            proto-parser/process text
+            rebol: function [
+                {Analyse a Rebol file returning facts.}
+                file
+                data
+            ][
+                analysis: analyse/text file data
+                analysis
+            ]
+        ]
 
-            if non-std-func-space [
-                emit [non-std-func-space (file) (non-std-func-space)]
+        text: function [
+            {Analyse a source file returning facts.}
+            file
+            data
+        ] [
+
+            ;
+            ; In this analysis we are interested in textual formatting irrespective of language.
+
+            analysis: make block! []
+
+            data: read src-folder/:file
+
+            bol: _
+            line: _
+
+            stop-char: charset { ^-^M^/}
+            ws-char: charset { ^-}
+            wsp: [some ws-char]
+
+            eol: [line-ending | alt-ending (append inconsistent-eol line)]
+            line-ending: _
+
+            ;
+            ; Identify line termination.
+
+            either all [
+                position: find data #{0a}
+                1 < index-of position
+                13 = first back position
+            ] [
+                set [line-ending alt-ending] reduce [crlf newline]
+            ][
+                set [line-ending alt-ending] reduce [newline crlf]
+            ]
+
+            count-line: [
+                (
+                    line-len: subtract index-of position index-of bol 
+                    if line-len > standard/std-line-length [
+                        append over-std-len line
+                        if line-len > standard/max-line-length [
+                            append over-max-len line
+                        ]
+                    ]
+                    line: 1 + line
+                )
+                bol:
+            ]
+
+            tabbed: make block! []
+            eol-wsp: make block! []
+            over-std-len: make block! []
+            over-max-len: make block! []
+            inconsistent-eol: make block! []
+
+            parse/case data [
+
+                last-pos:
+
+                opt [bol: skip (line: 1) :bol]
+
+                any [
+                    to stop-char
+                    position:
+                    [
+                        eol count-line
+                        | #"^-" (append 'tabbed line)
+                        | wsp and [line-ending | alt-ending] (append eol-wsp line)
+                        | skip
+                    ]
+                ]
+                position:
+
+                to end
+            ]
+
+            if not empty? over-std-len [
+                emit analysis [
+                    line-exceeds
+                    (standard/std-line-length) (file) (over-std-len)
+                ]
+            ]
+
+            if not empty? over-max-len [
+                emit analysis [
+                    line-exceeds
+                    (standard/max-line-length) (file) (over-max-len)
+                ]
+            ]
+
+            foreach list [tabbed eol-wsp] [
+                if not empty? get list [
+                    emit analysis [(list) (file) (get list)]
+                ]
+            ]
+
+            if not empty? inconsistent-eol [
+                emit analysis [inconsistent-eol (file) (inconsistent-eol)]
             ]
 
             analysis
@@ -253,26 +350,29 @@ rebsource: context [
 
     list: context [
 
-        c-files: function [
-            {Retrieves a list of .c scripts (relative paths).}
+        source-files: function [
+            {Retrieves a list of source files (relative paths).}
         ][
             if not src-folder [fail {Configuration required.}]
 
-            files: make block! []
+            files: make block! 1 + (2 * length fixed-source-paths)
+
             for-each path fixed-source-paths [
                 for-each file read join-of src-folder path [
-                    append files join-of path file
+                    if find extensions extension-of file [
+                        append files join-of path file
+                    ]
                 ]
             ]
 
-            remove-each file files [not parse file [thru {.c}]]
             sort files
+            new-line/all files true
 
             files
         ]
     ]
 
-    parser-extension: context bind bind [
+    c-parser-extension: context bind bind [
 
         ; Extend parser to support checking of function spacing.
 
@@ -298,6 +398,25 @@ rebsource: context [
         ]
 
     ] proto-parser c.lexical/grammar
+
+    emit: function [log body] [
+        insert position: tail log new-line/all compose/only body false
+        new-line position true
+    ]
+
+    extension-of: function [
+        {Return file extension for file.}
+        file
+    ][
+        copy any [find/last file #"." {}]
+    ]
+
+    filetype-of: function [
+        {Return filetype for file.}
+        file
+    ][
+        to-value select extensions extension-of file
+    ]
 
     whitelisted?: function [
         {Returns true if file should not be analysed.}
