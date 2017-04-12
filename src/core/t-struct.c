@@ -606,7 +606,7 @@ static void parse_attr (REBVAL *blk, REBINT *raw_size, REBUPT *raw_addr)
             ++ attr;
             if (!IS_INTEGER(attr))
                 fail (attr);
-                
+
             alignment = VAL_INT64(attr);
             break;
         */

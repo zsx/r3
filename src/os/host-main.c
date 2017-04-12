@@ -847,7 +847,7 @@ int main(int argc, char **argv_ansi)
         // and let that go through WRITE-STDOUT.  Hence any part of the
         // startup that can error should be TRAP'd by the startup code itself
         // and handled or PRINT'd in some way.
-        // 
+        //
         // The exception is a halt with Ctrl-C, which can currently only be
         // handled by C code that ran PUSH_UNHALTABLE_TRAP().
         //

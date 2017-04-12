@@ -41,7 +41,7 @@ REBOL [
 ;
 echo: procedure [
     {Copies console I/O to a file.}
-    
+
     'instruction [file! string! block! word!]
         {File or template with * substitution, or command: [ON OFF RESET].}
 
@@ -172,7 +172,7 @@ host-repl: function [
         {If at a breakpoint, the function frame where the breakpoint was hit}
 ][
     source: copy "" ;-- source code potentially built of multiple lines
-    
+
     ; The LOADed and bound code.  It's initialized to empty block so that if
     ; there is no input text (just newline at a prompt) , it will be treated
     ; as DO [].

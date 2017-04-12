@@ -365,7 +365,7 @@ REBINT PD_Function(REBPVS *pvs)
         //
         // Leave the function value as-is, and continue processing.  This
         // enables things like `append/(all [foo 'dup])/only`...
-        // 
+        //
         return PE_OK;
     }
 

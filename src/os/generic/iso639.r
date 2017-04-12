@@ -67,7 +67,7 @@ parse cnt [
                 |
             (emit "NULL")
         ]
-        
+
         (emit ", ")
 
         ; Language name in English

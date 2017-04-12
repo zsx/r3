@@ -438,7 +438,7 @@ static void Queue_Mark_Opt_Value_Deep(const RELVAL *v)
             // REBSER node that contains exactly one handle, and the actual
             // data for the handle lives in that shared location.  There is
             // nothing the GC needs to see inside a handle.
-            // 
+            //
             SER(singular)->header.bits |= NODE_FLAG_MARKED;
 
         #if !defined(NDEBUG)
@@ -548,7 +548,7 @@ static void Queue_Mark_Opt_Value_Deep(const RELVAL *v)
         else {
             // !!! Should also assert that this is a frame in mid-fulfillment
             // on the stack.
-            // 
+            //
             assert(GET_SER_FLAG(feed, ARRAY_FLAG_VARLIST));
         }
         break; }
@@ -836,7 +836,7 @@ static void Propagate_All_GC_Marks(void)
 // variadic "va_list").
 //
 // http://en.cppreference.com/w/c/variadic
-// 
+//
 // Although it's a list of REBVAL*, these call frames have no REBARR series
 // behind.  Yet they still need to be enumerated to protect the values coming
 // up in the later DO/NEXTs.  But enumerating a C va_list can't be undone.
@@ -1271,7 +1271,7 @@ static REBCNT Sweep_Series(void)
 
             case 13:
                 // 0x8 + 0x4 + 0x1: "free unmanaged marked node" (?!)
-                // 
+                //
                 panic (s);
 
             case 14:

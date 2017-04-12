@@ -105,7 +105,7 @@ boot-banner: [
     = Version:  system/version
     = Platform: system/platform
     = Build:    system/build
-    = Commit:   system/commit 
+    = Commit:   system/commit
     -
     = Language: system/locale/language*
     = Locale:   system/locale/locale*
@@ -391,7 +391,7 @@ host-start: function [
             )
         |
             [["--" copy option to end] | ["-" copy option to end]] (
-                fail ["Unknown command line option:" option] 
+                fail ["Unknown command line option:" option]
             )
         ]
 
@@ -402,14 +402,14 @@ host-start: function [
 
     ; As long as there was no `--script` pased on the command line explicitly,
     ; the first item after the options is implicitly the script.
-    ; 
+    ;
     if all [not o/script | not tail? argv] [
         o/script: to file! take argv
         quit-when-done: default true
     ]
 
     ; Whatever is left is the positional arguments, available to the script.
-    ; 
+    ;
     o/args: argv ;-- whatever's left is positional args
 
     if all [

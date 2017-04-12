@@ -348,7 +348,7 @@ reevaluate:;
     // the memory location where x had been found before may have moved due
     // to expansion.  Basically any function call invalidates f->gotten, as
     // does obviously any Fetch_Next_In_Frame (because the position changes)
-    // 
+    //
     // !!! Review how often gotten has hits vs. misses, and what the benefit
     // of the feature actually is.
 
@@ -1569,7 +1569,7 @@ reevaluate:;
     case REB_LIT_WORD:
         //
         // Derelativize will clear VALUE_FLAG_UNEVALUATED
-        //  
+        //
         Derelativize(f->out, current, f->specifier);
         VAL_SET_TYPE_BITS(f->out, REB_WORD);
         break;

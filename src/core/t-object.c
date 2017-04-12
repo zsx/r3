@@ -397,7 +397,7 @@ void MAKE_Context(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
         // will be more basic and look like this.
         //
         /*
-        REBINT n = Int32s(arg, 0); 
+        REBINT n = Int32s(arg, 0);
         context = Alloc_Context(kind, n);
         VAL_RESET_HEADER(CTX_VALUE(context), target);
         CTX_SPEC(context) = NULL;
