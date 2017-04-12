@@ -317,7 +317,7 @@ script:
       fi
 
     # take a look at the preprocess header file
-    - cat ../src/include/sys-core.i
+    - cat ../src/include/sys-core.i || true
 
     # output the needed libraries
     - |
@@ -326,7 +326,6 @@ script:
       elif [[ "${OS_ID}" = "0.2.40" ]]; then
           otool -L ./r3
       fi
-
 
     # Run once but don't pipe output, in case it prints out useful crash msg
     # that we want to see in the Travis log (especially helpful for failures
@@ -352,6 +351,16 @@ script:
     - |
       if [[ "${OS_ID}" = "0.4.40" || "${OS_ID}" = "0.4.4" ]]; then
           ./r3 ../tests/misc/qsort_r.r
+          R3_EXIT_STATUS=$?;
+      else
+          R3_EXIT_STATUS=0;
+      fi
+    - echo ${R3_EXIT_STATUS}
+
+    # Run basic testing with user natives
+    - |
+      if [[ ! -z "$TCC" && "$TCC" != "no" && ( "${OS_ID}" = "0.4.40" || "${OS_ID}" = "0.4.4" ) ]]; then
+          ./r3 ../tests/misc/fib.r
           R3_EXIT_STATUS=$?;
       else
           R3_EXIT_STATUS=0;
