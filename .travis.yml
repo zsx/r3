@@ -316,6 +316,8 @@ script:
           make -f makefile.boot REBOL_TOOL=r3-make STANDARD="${STANDARD}" OS_ID="${OS_ID}" DEBUG="${DEBUG}" GIT_COMMIT="${GIT_COMMIT}" RIGOROUS="${RIGOROUS}" STATIC="${STATIC}" WITH_FFI="dynamic" WITH_TCC="${PWD}/tcc/${TCC}"
       fi
 
+    # take a look at the preprocess header file
+    - cat ../src/include/sys-core.i
 
     # output the needed libraries
     - |
