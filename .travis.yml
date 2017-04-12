@@ -373,7 +373,7 @@ script:
     # Note: -z tests if a variable is undefined
     #
     - NEW_NAME=${OS_ID}/r3-${GIT_COMMIT_SHORT}
-    - if [[ "${DEBUG}" = "yes" ]]; then NEW_NAME+="-debug"; fi 
+    - if [[ "${DEBUG}" != "none" ]]; then NEW_NAME+="-debug"; fi
     - |
       if [[ "${STANDARD}" = "c++" || "${STANDARD}" = "c++0x" || "${STANDARD}" = "c++11" || "${STANDARD}" = "c++14" || "${STANDARD}" = "c++17" ]]; then
           NEW_NAME+="-cpp";
