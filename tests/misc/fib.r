@@ -28,7 +28,6 @@ compile/options [
     "const int one = 1;"
     c-fib
 ] compose [
-    runtime-path (join-of (first split-path system/options/boot) %tcc)
     options "-nostdlib"
 ]
 
@@ -48,15 +47,18 @@ fib: func [
     i1
 ]
 
-print ["c-fib 30:" c-fib 30]
-print ["fib 30:" fib 30]
+print ["c-fib 30:" c-r: c-fib 30]
+print ["fib 30:" r: fib 30]
+assert [r = c-r]
 
-n-loop: 10000
+if find system/options/args "bench" [
+    n-loop: 10000
 
-c-t: dt [
-    loop n-loop [c-fib 30]
+    c-t: dt [
+        loop n-loop [c-fib 30]
+    ]
+    r-t: dt [
+        loop n-loop [fib 30]
+    ]
+    print ["c-t:" c-t "r-t:" r-t "improvement:" r-t / c-t]
 ]
-r-t: dt [
-    loop n-loop [fib 30]
-]
-print ["c-t:" c-t "r-t:" r-t "improvement:" r-t / c-t]
