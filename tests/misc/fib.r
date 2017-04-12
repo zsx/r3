@@ -29,6 +29,7 @@ compile/options [
     c-fib
 ] compose [
     runtime-path (join-of (first split-path system/options/boot) %tcc)
+    options "-nostdlib"
 ]
 
 fib: func [
