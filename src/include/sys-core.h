@@ -100,6 +100,7 @@
 // code hardens.
 //
 #include <assert.h>
+#include "assert-fixes.h"
 
 
 //

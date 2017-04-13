@@ -277,6 +277,9 @@ script:
     - GIT_COMMIT_SHORT="$(git show --format="%h" --no-patch)" 
     - echo ${GIT_COMMIT_SHORT}
 
+    # Take a look at assert.h
+    # - find /usr/include -name assert.h | xargs cat
+    
     # We have to set REBOL_TOOL explicitly to circumvent the automatic r3-make
     # filename inference, as we always use Linux "r3-make" (not "r3-make.exe")
     # even when doing windows builds, since this is a cross-compilation.
@@ -317,7 +320,7 @@ script:
       fi
 
     # take a look at the preprocess header file
-    - cat ../src/include/sys-core.i || true
+    # - cat ../src/include/sys-core.i || true
 
     # output the needed libraries
     - |
