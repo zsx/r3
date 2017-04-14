@@ -226,8 +226,6 @@ host-start: function [
         {If integer, host should exit with that status; else a REPL FUNCTION!}
     argv [block!]
         {Raw command line argument block received by main() as STRING!s}
-    boot-embedded [binary! string! blank!]
-        {Embedded user script inside this host instance (e.g. encapping)}
     boot-exts [block! blank!]
         {Extensions (modules) loaded at boot}
     <with> host-prot
@@ -423,6 +421,8 @@ host-start: function [
         ]
     ]
 
+    boot-embedded: get-encap system/options/boot
+
     if any [boot-embedded o/script] [o/quiet: true]
 
     ;-- Set up option/paths for /path, /boot, /home, and script path (for SECURE):
@@ -481,7 +481,30 @@ comment [
     boot-print ""
 
     unless blank? boot-embedded [
-        code: load/header/type boot-embedded 'unbound
+        case [
+            binary? boot-embedded [ ; single script
+                code: load/header/type boot-embedded 'unbound
+            ]
+            block? boot-embedded [
+                ;
+                ; The encapping is an embedded zip archive.  get-encap did
+                ; the unzipping into a block, and this information must be
+                ; made available somehow.  It shouldn't be part of the "core"
+                ; but just responsibility of the host that supports encap
+                ; based loading.
+                ;
+                o/encap: boot-embedded
+
+                main: select boot-embedded %main.reb
+                unless binary? main [
+                    fail "Could not find %main.reb in encapped zip file"
+                ]
+                code: load/header/type main 'unbound
+            ]
+        ] else [
+            fail "Bad embedded boot data (not a BLOCK! or a BINARY!)"
+        ]
+
         ;boot-print ["executing embedded script:" mold code]
         system/script: construct system/standard/script [
             title: select first code 'title

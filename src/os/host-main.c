@@ -775,13 +775,17 @@ int main(int argc, char **argv_ansi)
     //
     PG_Breakpoint_Quitting_Hook = &Host_Breakpoint_Quitting_Hook;
 
+    // !!! Note that the first element of the argv_value block is used to
+    // initialize system/options/boot by the startup code.  The real way to
+    // get the path to the executable varies by OS, and should either be
+    // passed in independently (with no argv[0]) or substituted in the first
+    // element of the array:
+    //
+    // http://stackoverflow.com/a/933996/211160
+    //
     DECLARE_LOCAL (argv_value);
     Init_Block(argv_value, argv);
     PUSH_GUARD_VALUE(argv_value);
-
-#ifdef TEST_EXTENSIONS
-    Init_Ext_Test();
-#endif
 
 #ifdef TO_WINDOWS
     // no console, we must be the child process
@@ -910,36 +914,6 @@ int main(int argc, char **argv_ansi)
 
         Free_Series(startup);
 
-        REBSER *embedded = NULL;
-        REBI64 embedded_size = 0;
-        REBYTE *embedded_utf8 = OS_READ_EMBEDDED(&embedded_size);
-        if (embedded_utf8 != NULL) {
-            if (embedded_size <= 4)
-                panic ("No 4-byte long payload at start of embedded script");
-
-            i32 ptype = 0;
-            REBYTE *data = embedded_utf8 + sizeof(ptype);
-            embedded_size -= sizeof(ptype);
-
-            memcpy(&ptype, embedded_utf8, sizeof(ptype));
-
-            if (ptype == 1) { // COMPRESSed data
-                embedded = Decompress(data, embedded_size, -1, FALSE, FALSE);
-            }
-            else {
-                embedded = Make_Binary(embedded_size);
-                memcpy(BIN_HEAD(embedded), data, embedded_size);
-            }
-
-            OS_FREE(embedded_utf8);
-        }
-
-        DECLARE_LOCAL (embedded_value);
-        if (embedded == NULL)
-            SET_BLANK(embedded_value);
-        else
-            Init_Block(embedded_value, embedded);
-
         DECLARE_LOCAL (ext_value);
         SET_BLANK(ext_value);
         LOAD_BOOT_EXTENSIONS(ext_value);
@@ -955,7 +929,6 @@ int main(int argc, char **argv_ansi)
             fully,
             host_start, // startup function, implicit GC guard
             argv_value, // argv parameter, implicit GC guard
-            embedded_value, // embedded-script parameter, implicit GC guard
             ext_value,
             END
         )) {
