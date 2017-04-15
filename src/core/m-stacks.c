@@ -154,7 +154,10 @@ void Expand_Data_Stack_May_Fail(REBCNT amount)
     // is at its end.  Sanity check that.
     //
 #if !defined(NDEBUG)
-    REBVAL *end_top = DS_AT(DSP); // DS_TOP would assert on END
+    //
+    // Note: DS_TOP or DS_AT(DSP) would assert on END, calculate directly
+    //
+    REBVAL *end_top = DS_Movable_Base + DSP;
     assert(IS_END(end_top));
     assert(end_top == KNOWN(ARR_TAIL(DS_Array))); // can't push RELVALs
     assert(end_top - KNOWN(ARR_HEAD(DS_Array)) == cast(int, len_old));

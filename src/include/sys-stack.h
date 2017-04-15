@@ -100,18 +100,17 @@
 
 // DS_AT accesses value at given stack location
 //
-#define DS_AT(d) \
-    (DS_Movable_Base + (d))
+inline static REBVAL *DS_AT(REBDSP d) {
+    REBVAL *v = DS_Movable_Base + d;
+    if (IS_END_MACRO(v))
+        assert(FALSE);
+    return v;
+}
 
 // DS_TOP is the most recently pushed item
 //
-inline static REBVAL *DS_TOP_Core() {
-    assert(NOT(IS_END_MACRO(DS_AT(DSP))));
-    return DS_AT(DSP);
-}
-
 #define DS_TOP \
-    DS_TOP_Core()
+    DS_AT(DSP)
 
 #if !defined(NDEBUG)
     #define IN_DATA_STACK_DEBUG(v) \
@@ -133,10 +132,12 @@ inline static REBVAL *DS_TOP_Core() {
 
 #define STACK_EXPAND_BASIS 128
 
+// Note: DS_Movable_Base + DSP is just DS_TOP, but it asserts on ENDs.
+//
 #define DS_PUSH_TRASH \
-    (++DSP, IS_END(DS_TOP) \
+    (++DSP, IS_END(DS_Movable_Base + DSP) \
         ? Expand_Data_Stack_May_Fail(STACK_EXPAND_BASIS) \
-        : SET_TRASH_IF_DEBUG(DS_TOP))
+        : SET_TRASH_IF_DEBUG(DS_Movable_Base + DSP))
 
 inline static void DS_PUSH(const REBVAL *v) {
     ASSERT_VALUE_MANAGED(v); // would fail on END marker

@@ -349,7 +349,7 @@ CD?=} space (either flag? -SP [""] ["./"]) newline
 
 newline
 
-{STRIP?=} space (
+(
     either symbols [
         ;
         ; Easier in the rules below to have something that just takes a
@@ -633,8 +633,8 @@ emit [
 
 unless any [blank? args/WITH_TCC | args/WITH_TCC = "no"] [
     emit [
-	{    $(TCC) -E -dD -nostdlib -DREN_C_STDIO_OK -UHAVE_ASAN_INTERFACE_H -o ../src/include/sys-core.i $(TCC_CPP_FLAGS) $(TCC_CPP_EXTRA_FLAGS) -I../external/tcc/include ../src/include/sys-core.h} newline
-	{    $(REBOL) $T/make-embedded-header.r} newline
+    {    $(TCC) -E -dD -nostdlib -DREN_C_STDIO_OK -UHAVE_ASAN_INTERFACE_H -o ../src/include/sys-core.i $(TCC_CPP_FLAGS) $(TCC_CPP_EXTRA_FLAGS) -I../external/tcc/include ../src/include/sys-core.h} newline
+    {    $(REBOL) $T/make-embedded-header.r} newline
 ]
 
     append file-base/generated [tmp-symbols.c e-embedded-header.c]
