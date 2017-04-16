@@ -130,7 +130,6 @@
 // this is asserted by VAL_TYPE_Debug.
 //
 
-
 #define FLAGIT_KIND(t) \
     (cast(REBU64, 1) << (t)) // makes a 64-bit bitflag
 
@@ -158,7 +157,7 @@
     inline static enum Reb_Kind VAL_TYPE_Debug(
         const RELVAL *v, const char *file, int line
     ){
-        if (IS_END_MACRO(v)) {
+        if (v->header.bits & NODE_FLAG_END) {
             printf("VAL_TYPE() called on END marker\n");
             panic_at (v, file, line);
         }
@@ -316,18 +315,19 @@
 // been set if the value is stack-based (e.g. on the C stack or in a frame),
 // so that is left as-is also.
 //
-
+// Asserting writiablity helps avoid very bad catastrophies that might ensue
+// if "implicit end markers" could be overwritten.  These are the ENDs that
+// are actually other bitflags doing double duty inside a data structure, and
+// there is no REBVAL storage backing the position.
+//
+// (A fringe benefit is catching writes to other unanticipated locations.)
+//
 inline static void VAL_RESET_HEADER_common( // don't call directly
     RELVAL *v,
     enum Reb_Kind kind,
     REBUPT extra_flags
 ) {
     v->header.bits &= CELL_MASK_RESET;
-
-    // !!! Should NODE_FLAG_CELL be forced on the OR='ing side?  May cover up
-    // bugs somehow, which may be arguably good in a release build, but do it
-    // without for now and assume it was set and the AND= above kept it.
-    //
     v->header.bits |= HEADERIZE_KIND(kind) | extra_flags;
 }
 
@@ -342,6 +342,23 @@ inline static void VAL_RESET_HEADER_common( // don't call directly
     #define INIT_CELL(v) \
         (v)->header.bits = NODE_FLAG_NODE | NODE_FLAG_FREE | NODE_FLAG_CELL
 #else
+    inline static void Assert_Cell_Writable(
+        const RELVAL *v,
+        const char *file,
+        int line
+    ){
+        // REBVALs should not be written at addresses that do not match the
+        // alignment of the processor.  Checks modulo the size of an unsigned
+        // integer the same size as a platform pointer (REBUPT => uintptr_t)
+        //
+        assert(cast(REBUPT, v) % sizeof(REBUPT) == 0);
+
+        if (NOT(v->header.bits & NODE_FLAG_CELL)) {
+            printf("Non-cell passed to writing routine\n");
+            panic_at (v, file, line);
+        }
+    }
+
     #define ASSERT_CELL_WRITABLE(v,file,line) \
         Assert_Cell_Writable((v), (file), (line))
 
@@ -372,7 +389,9 @@ inline static void VAL_RESET_HEADER_common( // don't call directly
     ){
         // Note: no VALUE_FLAG_STACK
         //
-        v->header.bits = NODE_FLAG_NODE | NODE_FLAG_FREE | NODE_FLAG_CELL;
+        v->header.bits =
+            NODE_FLAG_NODE | NODE_FLAG_FREE | NODE_FLAG_CELL
+            | HEADERIZE_KIND(REB_MAX + 1);
         Set_Track_Payload_Debug(v, file, line);
     }
 
@@ -420,7 +439,7 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
         ASSERT_CELL_WRITABLE(v, file, line);
 
         v->header.bits &= CELL_MASK_RESET;
-        v->header.bits |= NODE_FLAG_FREE;
+        v->header.bits |= NODE_FLAG_FREE | HEADERIZE_KIND(REB_MAX + 1);
 
         Set_Track_Payload_Debug(v, file, line);
     }
@@ -433,10 +452,109 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
         if (NOT(v->header.bits & NODE_FLAG_FREE))
             return FALSE;
         assert(LEFT_8_BITS(v->header.bits) == TRASH_CELL_BYTE); // bad UTF-8
-        assert(VAL_TYPE_RAW(v) == REB_0);
+        assert(VAL_TYPE_RAW(v) == REB_MAX + 1);
         return TRUE;
     }
 #endif
+
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  END marker (not a value type, only writes `struct Reb_Value_Flags`)
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Historically Rebol arrays were always one value longer than their maximum
+// content, and this final slot was used for a REBVAL type called END!.
+// Like a null terminator in a C string, it was possible to start from one
+// point in the series and traverse to find the end marker without needing
+// to look at the length (though the length in the series header is maintained
+// in sync, also).
+//
+// Ren-C changed this so that end is not a data type, but a header bit.
+// See NODE_FLAG_END for an explanation of this choice--and how it means
+// a full cell's worth of size is not needed to terminate.
+//
+// VAL_TYPE() and many other operations will panic if they are used on an END
+// cell.  Yet the special unwritable system value END is the size of a REBVAL,
+// but does not carry NODE_FLAG_CELL.  Since it is a node, it can be more
+// useful to return from routines that return REBVAL* than a NULL, because it
+// can have its header dereferenced to check its type in a single test...
+// as VAL_TYPE_OR_0() will return REB_0 for the system END marker.  (It's
+// actually possible if you're certain you have a NODE_FLAG_CELL to know that
+// the type of an end marker is REB_0, but one can rarely exploit that.)
+//
+
+#ifdef NDEBUG
+    #define IS_END(v) \
+        LOGICAL((v)->header.bits & NODE_FLAG_END)
+
+    inline static void SET_END(RELVAL *v) {
+        v->header.bits &= CELL_MASK_RESET; // leaves flags _CELL, _NODE, etc.
+        v->header.bits |= NODE_FLAG_END | HEADERIZE_KIND(REB_0);
+    }
+
+    // Warning: Only use on valid non-END REBVAL -or- on global END value
+    //
+    #define VAL_TYPE_OR_0(v) \
+        VAL_TYPE_RAW(v)
+#else
+    inline static REBOOL IS_END_Debug(
+        const RELVAL *v,
+        const char *file,
+        int line
+    ){
+        if (v->header.bits & NODE_FLAG_FREE) {
+            printf("IS_END() called on garbage\n");
+            panic_at(v, file, line);
+        }
+
+        if (v->header.bits & NODE_FLAG_END) {
+            if (v->header.bits & NODE_FLAG_CELL)
+                assert(VAL_TYPE_RAW(v) == REB_0);
+            return TRUE;
+        }
+        return FALSE;
+    }
+
+    #define IS_END(v) \
+        IS_END_Debug((v), __FILE__, __LINE__)
+
+    inline static void SET_END_Debug(RELVAL *v, const char *file, int line) {
+        ASSERT_CELL_WRITABLE(v, file, line);
+        v->header.bits &= CELL_MASK_RESET; // leaves NODE_FLAG_CELL, etc.
+        v->header.bits |= NODE_FLAG_END | HEADERIZE_KIND(REB_0);
+        Set_Track_Payload_Debug(v, file, line);
+    }
+
+    #define SET_END(v) \
+        SET_END_Debug((v), __FILE__, __LINE__)
+
+    inline static enum Reb_Kind VAL_TYPE_OR_0_Debug(
+        const RELVAL *v,
+        const char *file,
+        int line
+    ){
+        if (v->header.bits & NODE_FLAG_END) {
+            if (v != END) {
+                printf("VAL_TYPE_OR_0 called on end that isn't -the- END");
+                panic_at(v, file, line);
+            }
+            return VAL_TYPE_RAW(v); // asserted as REB_0 at startup for END
+        }
+
+        return VAL_TYPE_Debug(v, file, line);
+    }
+
+    // Warning: Only use on valid non-END REBVAL -or- on global END value
+    //
+    #define VAL_TYPE_OR_0(v) \
+        VAL_TYPE_OR_0_Debug((v), __FILE__, __LINE__)
+#endif
+
+#define NOT_END(v) \
+    NOT(IS_END(v))
+
 
 
 //=////////////////////////////////////////////////////////////////////////=//

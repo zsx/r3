@@ -360,15 +360,13 @@ reevaluate:;
     f->gotten = END;
     Fetch_Next_In_Frame(f);
 
-    // VAL_TYPE_RAW is used to avoid a separate check for IS_END().
-    //
     // !!! We never want to do infix processing if the args aren't evaluating
     // (e.g. arguments in a va_list from a C function calling into Rebol)
     // But this is distinct from DO_FLAG_NO_LOOKAHEAD (which Apply_Only also
     // sets), which really controls the after lookahead step.  Consider this
     // edge case.
     //
-    if (VAL_TYPE_RAW(f->value) == REB_WORD && args_evaluate) {
+    if (NOT_END(f->value) && IS_WORD(f->value) && args_evaluate) {
         //
         // While the next item may be a WORD! that looks up to an enfixed
         // function, and it may want to quote what's on its left...there
@@ -386,7 +384,7 @@ reevaluate:;
                 );
 
             if (
-                VAL_TYPE_RAW(current_gotten) == REB_FUNCTION // fast w/out END
+                VAL_TYPE_OR_0(current_gotten) == REB_FUNCTION // END is REB_0
                 && NOT_VAL_FLAG(current_gotten, VALUE_FLAG_ENFIXED)
                 && GET_VAL_FLAG(current_gotten, FUNC_FLAG_QUOTES_FIRST_ARG)
             ){
@@ -417,7 +415,7 @@ reevaluate:;
         f->gotten = Get_Opt_Var_Else_End(f->value, f->specifier);
 
         if (
-            VAL_TYPE_RAW(f->gotten) == REB_FUNCTION // faster w/o END check
+            VAL_TYPE_OR_0(f->gotten) == REB_FUNCTION // END is REB_0
             && ALL_VAL_FLAGS(
                 f->gotten, VALUE_FLAG_ENFIXED | FUNC_FLAG_QUOTES_FIRST_ARG
             )
@@ -1941,7 +1939,7 @@ reevaluate:;
         START_NEW_EXPRESSION_MAY_THROW(f, goto finished);
         // ^-- sets args_evaluate, do_count, Ctrl-C may abort
 
-        if (VAL_TYPE_RAW(f->gotten) != REB_FUNCTION) { // faster w/o END check
+        if (VAL_TYPE_OR_0(f->gotten) != REB_FUNCTION) { // END is REB_0
             current = f->value;
             current_gotten = f->gotten; // if END, the word will error
             f->gotten = END;

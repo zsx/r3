@@ -93,7 +93,7 @@ inline static REB_R Vararg_Op_If_No_Advance(
 
         const REBVAL *child_gotten = Get_Opt_Var_Else_End(look, specifier);
 
-        if (VAL_TYPE_RAW(child_gotten) == REB_FUNCTION) {
+        if (VAL_TYPE_OR_0(child_gotten) == REB_FUNCTION) {
             if (GET_VAL_FLAG(child_gotten, VALUE_FLAG_ENFIXED)) {
                 if (
                     pclass == PARAM_CLASS_TIGHT

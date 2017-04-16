@@ -87,66 +87,6 @@ ATTRIBUTE_NO_RETURN void Panic_Value_Debug(const RELVAL *v) {
 
 
 //
-//  Assert_Cell_Writable: C
-//
-// The check helps avoid very bad catastrophies that might ensue if "implicit
-// end markers" could be overwritten.  These are the ENDs that are actually
-// pointers doing double duty inside a data structure, and there is no REBVAL
-// storage backing the position.
-//
-// (A fringe benefit is catching writes to other unanticipated locations.)
-//
-void Assert_Cell_Writable(const RELVAL *v, const char *file, int line)
-{
-    // REBVALs should not be written at addresses that do not match the
-    // alignment of the processor.  This checks modulo the size of an unsigned
-    // integer the same size as a platform pointer (REBUPT => uintptr_t)
-    //
-    assert(cast(REBUPT, (v)) % sizeof(REBUPT) == 0);
-
-    if (NOT((v)->header.bits & NODE_FLAG_CELL)) {
-        printf("Non-cell passed to writing routine\n");
-        panic_at (v, file, line);
-    }
-}
-
-
-//
-//  SET_END_Debug: C
-//
-// Uses REB_0 for the type, to help cue debugging.
-//
-// When SET_END is used, it uses the whole cell.  Implicit termination is
-// done by the raw creation of a Reb_Header in the containing structure,
-// see Init_Endlike_Header().
-//
-void SET_END_Debug(RELVAL *v, const char *file, int line) {
-    ASSERT_CELL_WRITABLE(v, file, line);
-    v->header.bits &= CELL_MASK_RESET; // leaves NODE_FLAG_CELL, etc.
-    v->header.bits |= NODE_FLAG_NODE | NODE_FLAG_END;
-    Set_Track_Payload_Debug(v, file, line);
-}
-
-
-//
-//  IS_END_Debug: C
-//
-REBOOL IS_END_Debug(const RELVAL *v, const char *file, int line) {
-    if (v->header.bits & NODE_FLAG_FREE) {
-        printf("IS_END() called on garbage\n");
-        panic_at(v, file, line);
-    }
-
-    if (IS_END_MACRO(v)) {
-        if (v->header.bits & NODE_FLAG_CELL)
-            assert(VAL_TYPE_RAW(v) == REB_0);
-        return TRUE;
-    }
-    return FALSE;
-}
-
-
-//
 //  VAL_SPECIFIC_Debug: C
 //
 REBCTX *VAL_SPECIFIC_Debug(const REBVAL *v)

@@ -786,65 +786,6 @@ struct Reb_Value
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  END marker (not a value type, only writes `struct Reb_Value_Flags`)
-//
-//=////////////////////////////////////////////////////////////////////////=//
-//
-// Historically Rebol arrays were always one value longer than their maximum
-// content, and this final slot was used for a special REBVAL called END!.
-// Like a null terminator in a C string, it was possible to start from one
-// point in the series and traverse to find the end marker without needing
-// to maintain a count.  (Rebol series store their length also--but it's
-// faster and more general to do traversals using the terminator.)
-//
-// Ren-C changed this so that end is not a data type, but a header bit.
-// (See NODE_FLAG_END for an explanation of this choice.)  This means not only
-// is a full REBVAL not needed to terminate, the sunk cost of an existing
-// 32-bit or 64-bit number (depending on platform) can be used to avoid
-// needing even 1/4 of a REBVAL for a header to terminate.
-//
-// !!! Because Rebol Arrays (REBARR) have both a length and a terminator, it
-// is important to keep these in sync.  R3-Alpha sought to give code the
-// freedom to work with unterminated arrays if the cost of writing terminators
-// was not necessary.  Ren-C pushed back against this to try and be more
-// uniform to get the invariants under control.  A formal balance is still
-// being sought of when terminators will be required and when they will not.
-//
-
-#define END \
-    ((const REBVAL*)&PG_End_Node) // not a value or a full cell...just a node!
-
-#define IS_END_MACRO(v) \
-    LOGICAL((v)->header.bits & NODE_FLAG_END)
-
-#ifdef NDEBUG
-    #define IS_END(v) \
-        IS_END_MACRO(v)
-
-    inline static void SET_END(RELVAL *v) {
-        v->header.bits &= CELL_MASK_RESET; // leaves flags _CELL, _NODE, etc.
-        v->header.bits |= NODE_FLAG_END;
-    }
-#else
-    // Note: These must be macros (that don't need IS_END_Debug or
-    // SET_END_Debug defined until used at a callsite) because %tmp-funcs.h
-    // cannot be included until after REBSER and other definitions that
-    // depend on %sys-rebval.h have been defined.  (Or they could be manually
-    // forward-declared here.)
-    //
-    #define IS_END(v) \
-        IS_END_Debug((v), __FILE__, __LINE__)
-
-    #define SET_END(v) \
-        SET_END_Debug((v), __FILE__, __LINE__)
-#endif
-
-#define NOT_END(v) \
-    NOT(IS_END(v))
-
-
-//=////////////////////////////////////////////////////////////////////////=//
-//
 //  REBVAL ("fully specified" value) and RELVAL ("possibly relative" value)
 //
 //=////////////////////////////////////////////////////////////////////////=//
@@ -894,7 +835,11 @@ struct Reb_Value
             assert(header.bits & NODE_FLAG_CELL);
 
             enum Reb_Kind kind = cast(enum Reb_Kind, RIGHT_8_BITS(header.bits));
-            assert(kind <= REB_MAX_VOID);
+            assert(
+                header.bits & NODE_FLAG_FREE
+                    ? kind == REB_MAX_VOID + 1
+                    : kind <= REB_MAX_VOID
+            );
         }
 
         // Overwriting one REBVAL* with another REBVAL* cannot be done with

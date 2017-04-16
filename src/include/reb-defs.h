@@ -103,6 +103,9 @@
     typedef struct Reb_Node REBNOD;
 
     typedef struct Reb_Node REBSPC;
+
+    #define END \
+        ((const REBVAL*)&PG_End_Node) // sizeof(REBVAL) but not NODE_FLAG_CELL
 #else
     // The %reb-xxx.h files define structures visible to host code (client)
     // which don't also require pulling in all of the %sys-xxx.h files and

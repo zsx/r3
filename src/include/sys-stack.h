@@ -98,12 +98,16 @@
 #define DSP \
     DS_Index
 
-// DS_AT accesses value at given stack location
+// DS_AT accesses value at given stack location.  Test that it's not an END
+// and that it's a cell, but, don't use the IS_END() test because that does
+// not tolerate trash.
 //
 inline static REBVAL *DS_AT(REBDSP d) {
     REBVAL *v = DS_Movable_Base + d;
-    if (IS_END_MACRO(v))
-        assert(FALSE);
+    assert(
+        v->header.bits & NODE_FLAG_CELL
+        && NOT(v->header.bits & NODE_FLAG_END)
+    );
     return v;
 }
 
