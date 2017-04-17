@@ -176,7 +176,7 @@ binary-to-c: function [
 
     data [binary!]
 ][
-    out: make string! 6 * (length data)
+    out: make string! 6 * (length-of data)
     while [not tail? data] [
         append out spaced-tab
 
@@ -196,7 +196,7 @@ binary-to-c: function [
 
     ;-- Sanity check (should be one more byte in source than commas out)
     parse out [(comma-count: 0) some [thru "," (++ comma-count)] to end]
-    assert [(comma-count + 1) = (length head data)]
+    assert [(comma-count + 1) = (length-of head data)]
 
     out
 ]
@@ -232,7 +232,7 @@ for-each-record: procedure [
     table: next table
 
     while [not tail? table] [
-        if (length headings) > (length table) [
+        if (length-of headings) > (length-of table) [
             fail {Element count isn't even multiple of header count}
         ]
 

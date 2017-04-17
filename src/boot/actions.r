@@ -124,12 +124,12 @@ even?: action [
 
 ;-- Series Navigation
 
-head: action [
+head-of: action [
     {Returns the series at its beginning.}
     series [any-series! gob! port!]
 ]
 
-tail: action [
+tail-of: action [
     {Returns the series just past its end.}
     series [any-series! gob! port!]
 ]
@@ -167,7 +167,7 @@ index-of: action [
     /xy {Returns index as an XY pair offset}
 ]
 
-length: action [
+length-of: action [
     {Returns the length (from the current position for series.)}
     series [any-series! port! map! tuple! bitset! object! gob! struct! any-word! blank!]
 ]

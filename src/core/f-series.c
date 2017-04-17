@@ -55,11 +55,11 @@ REB_R Series_Common_Action_Maybe_Unhandled(
 
     //-- Navigation:
 
-    case SYM_HEAD:
+    case SYM_HEAD_OF:
         VAL_INDEX(value) = 0;
         break;
 
-    case SYM_TAIL:
+    case SYM_TAIL_OF:
         VAL_INDEX(value) = cast(REBCNT, tail);
         break;
 
@@ -92,7 +92,7 @@ REB_R Series_Common_Action_Maybe_Unhandled(
         SET_INTEGER(D_OUT, cast(REBI64, index) + 1);
         return R_OUT; // handled
 
-    case SYM_LENGTH:
+    case SYM_LENGTH_OF:
         SET_INTEGER(D_OUT, tail > index ? tail - index : 0);
         return R_OUT; // handled
 

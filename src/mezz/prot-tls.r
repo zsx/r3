@@ -281,7 +281,7 @@ client-hello: function [
 
     cs-data: join-all values-of cipher-suites
 
-    beg: length ctx/msg
+    beg: length-of ctx/msg
     emit ctx [
         #{16}                       ; protocol type (22=Handshake)
         ctx/version                 ; protocol version (3|1 = TLS1.0)
@@ -291,7 +291,7 @@ client-hello: function [
         ctx/version                 ; max supported version by client (TLS1.0)
         ctx/client-random           ; 4 bytes gmt unix time + 28 random bytes
         #{00}                       ; session ID length
-        to-bin length cs-data 2     ; cipher suites length
+        to-bin length-of cs-data 2  ; cipher suites length
         cs-data                     ; cipher suites list
         #{01}                       ; compression method length
         #{00}                       ; no compression
@@ -299,7 +299,7 @@ client-hello: function [
 
     ; set the correct msg lengths
     ;
-    change at ctx/msg beg + 7 to-bin len: length at ctx/msg beg + 10 3
+    change at ctx/msg beg + 7 to-bin len: length-of at ctx/msg beg + 10 3
     change at ctx/msg beg + 4 to-bin len + 4 2
 
     append clear ctx/handshake-messages copy at ctx/msg beg + 6
@@ -340,19 +340,19 @@ client-key-exchange: function [
         ]
     ]
 
-    beg: length ctx/msg
+    beg: length-of ctx/msg
     emit ctx [
         #{16}                       ; protocol type (22=Handshake)
         ctx/version                 ; protocol version (3|1 = TLS1.0)
         #{00 00}                    ; length of SSL record data
         #{10}                       ; message type (16=ClientKeyExchange)
         #{00 00 00}                 ; protocol message length
-        to-bin length key-data 2    ; length of the key (2 bytes)
+        to-bin length-of key-data 2 ; length of the key (2 bytes)
         key-data
     ]
 
     ; set the correct msg lengths
-    change at ctx/msg beg + 7 to-bin len: length at ctx/msg beg + 10 3
+    change at ctx/msg beg + 7 to-bin len: length-of at ctx/msg beg + 10 3
     change at ctx/msg beg + 4 to-bin len + 4 2
 
     ; make all secure data
@@ -399,7 +399,7 @@ encrypted-handshake-msg: function [
     emit ctx [
         #{16}                       ; protocol type (22=Handshake)
         ctx/version                 ; protocol version (3|1 = TLS1.0)
-        to-bin length message 2 ; length of SSL record data
+        to-bin length-of message 2  ; length of SSL record data
         message
     ]
     append ctx/handshake-messages plain-msg
@@ -415,7 +415,7 @@ application-data: function [
     emit ctx [
         #{17}                       ; protocol type (23=Application)
         ctx/version                 ; protocol version (3|1 = TLS1.0)
-        to-bin length message 2     ; length of SSL record data
+        to-bin length-of message 2  ; length of SSL record data
         message
     ]
     return ctx/msg
@@ -429,7 +429,7 @@ alert-close-notify: function [
     emit ctx [
         #{15}                       ; protocol type (21=Alert)
         ctx/version                 ; protocol version (3|1 = TLS1.0)
-        to-bin length message 2     ; length of SSL record data
+        to-bin length-of message 2  ; length of SSL record data
         message
     ]
     return ctx/msg
@@ -467,14 +467,14 @@ encrypt-data: function [
             to-bin ctx/seq-num-w 8              ; sequence number (64-bit int)
             any [:msg-type #{17}]               ; msg type
             ctx/version                         ; version
-            to-bin length data 2                ; msg content length
+            to-bin length-of data 2             ; msg content length
             data                                ; msg content
         ] ctx/hash-method decode 'text ctx/client-mac-key
     ]
 
     if ctx/block-size [
         ; add the padding data in CBC mode
-        padding: ctx/block-size - ((1 + (length data)) // ctx/block-size)
+        padding: ctx/block-size - ((1 + (length-of data)) // ctx/block-size)
         len: 1 + padding
         append data head insert/dup make binary! len to-bin padding 1 len
     ]
@@ -606,7 +606,7 @@ parse-messages: function [
         if ctx/block-size [
             ; deal with padding in CBC mode
             data: copy/part data (
-                ((length data) - 1) - (to-integer/unsigned last data)
+                ((length-of data) - 1) - (to-integer/unsigned last data)
             )
             debug ["depadding..."]
         ]
@@ -880,9 +880,9 @@ parse-messages: function [
         application [
             append result msg-obj: context [
                 type: 'app-data
-                content: copy/part data (length data) - ctx/hash-size
+                content: copy/part data (length-of data) - ctx/hash-size
             ]
-            len: length msg-obj/content
+            len: length-of msg-obj/content
             mac: copy/part skip data len ctx/hash-size
             mac-check: checksum/method/key join-all [
                 to-bin ctx/seq-num-r 8  ; sequence number (64-bit int in R3)
@@ -918,7 +918,7 @@ parse-response: function [
 
     debug [
         "processed protocol type:" proto/type
-        "messages:" length proto/messages
+        "messages:" length-of proto/messages
     ]
 
     unless tail? skip msg proto/size + 5 [
@@ -935,7 +935,7 @@ prf: function [
     seed [binary!]
     output-length [integer!]
 ][
-    len: length secret
+    len: length-of secret
     mid: to integer! (.5 * (len + either odd? len [1] [0]))
 
     s-1: copy/part secret mid
@@ -945,7 +945,7 @@ prf: function [
 
     p-md5: copy #{}
     a: seed ; A(0)
-    while [output-length > length p-md5] [
+    while [output-length > length-of p-md5] [
         a: checksum/method/key a 'md5 decode 'text s-1 ; A(n)
         append p-md5 checksum/method/key join-all [a seed] 'md5 decode 'text s-1
 
@@ -953,7 +953,7 @@ prf: function [
 
     p-sha1: copy #{}
     a: seed ; A(0)
-    while [output-length > length p-sha1] [
+    while [output-length > length-of p-sha1] [
         a: checksum/method/key a 'sha1 decode 'text s-2 ; A(n)
         append p-sha1 checksum/method/key join-all [a seed] 'sha1 decode 'text s-2
     ]
@@ -1010,7 +1010,7 @@ do-commands: function [
             )
         ]
     ]
-    debug ["writing bytes:" length ctx/msg]
+    debug ["writing bytes:" length-of ctx/msg]
     ctx/resp: copy []
     write ctx/connection ctx/msg
 
@@ -1051,23 +1051,26 @@ tls-read-data: function [
     ctx [object!]
     port-data [binary!]
 ][
-    debug ["tls-read-data:" length port-data "bytes"]
+    debug ["tls-read-data:" length-of port-data "bytes"]
     data: append ctx/data-buffer port-data
     clear port-data
 
-    while [5 = length copy/part data 5] [
+    while [5 = length-of copy/part data 5] [
         len: 5 + to-integer/unsigned copy/part at data 4 2
 
         debug ["reading bytes:" len]
 
         fragment: copy/part data len
 
-        if len > length fragment [
-            debug ["incomplete fragment: read" length fragment "of" len "bytes"]
+        if len > length-of fragment [
+            debug [
+                "incomplete fragment:"
+                "read" length-of fragment "of" len "bytes"
+            ]
             break
         ]
 
-        debug ["received bytes:" length fragment newline "parsing response..."]
+        debug ["received bytes:" length-of fragment | "parsing response..."]
 
         append ctx/resp parse-response ctx fragment
 
@@ -1077,10 +1080,10 @@ tls-read-data: function [
 
         data: skip data len
 
-        if all [tail? data find next-state #complete] [
+        if all [tail? data | find next-state #complete] [
             debug [
                 "READING FINISHED"
-                length head ctx/data-buffer
+                length-of head ctx/data-buffer
                 index-of data
                 same? tail ctx/data-buffer data
             ]
@@ -1156,7 +1159,7 @@ tls-awake: function [event [event!]] [
 
         read [
             debug [
-                "Read" length port/data
+                "Read" length-of port/data
                 "bytes proto-state:" tls-port/state/protocol-state
             ]
 
@@ -1370,9 +1373,9 @@ sys/make-scheme [
             all [port/state query port/state/connection]
         ]
 
-        length: func [port [port!]] [
+        length-of: func [port [port!]] [
             ; actor is not an object!, so this isn't a recursive length call
-            either port/data [length port/data] [0]
+            either port/data [length-of port/data] [0]
         ]
     ]
 ]

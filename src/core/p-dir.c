@@ -337,7 +337,7 @@ static REB_R Dir_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
     //-- Port Series Actions (only called if opened as a port)
 
-    case SYM_LENGTH:
+    case SYM_LENGTH_OF:
         len = IS_BLOCK(state) ? VAL_ARRAY_LEN_AT(state) : 0;
         SET_INTEGER(D_OUT, len);
         break;

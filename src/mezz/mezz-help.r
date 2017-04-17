@@ -31,7 +31,7 @@ dump-obj: function [
 
     form-val: func [val [any-value!]] [
         ; Form a limited string from the value provided.
-        if any-block? :val [return spaced ["length:" length val]]
+        if any-block? :val [return spaced ["length:" length-of val]]
         if image? :val [return spaced ["size:" val/size]]
         if datatype? :val [return form val] 
         if function? :val [
@@ -47,7 +47,7 @@ dump-obj: function [
     form-pad: func [val size] [
         ; Form a value with fixed size (space padding follows).
         val: form val
-        insert/dup tail val #" " size - length val
+        insert/dup tail val #" " size - length-of val
         val
     ]
 
@@ -84,7 +84,7 @@ dump-obj: function [
             ][
                 str: form-pad word 15
                 append str #" "
-                append str form-pad type 10 - ((length str) - 15)
+                append str form-pad type 10 - ((length-of str) - 15)
                 keep spaced [
                     "  " str
                     if type [form-val :val]
@@ -103,7 +103,7 @@ dump: proc [
         dump-one dump-val clip-string item
 ][
    clip-string: function [str len][
-      either len < length str [
+      either len < length-of str [
          delimit [ copy/part str len - 3 "..." ] _
       ][
          str
@@ -668,7 +668,7 @@ what: procedure [
                 title-of :val
             ]
             append list reduce [word arg]
-            size: max size length to-string word
+            size: max size length-of to-string word
         ]
     ]
 

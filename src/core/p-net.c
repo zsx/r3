@@ -365,7 +365,7 @@ static REB_R Transport_Actor(
         Move_Value(D_OUT, CTX_VALUE(port));
         return R_OUT; }
 
-    case SYM_LENGTH: {
+    case SYM_LENGTH_OF: {
         REBVAL *port_data = CTX_VAR(port, STD_PORT_DATA);
         SET_INTEGER(
             D_OUT,

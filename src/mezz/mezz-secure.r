@@ -135,7 +135,7 @@ secure: function [
     ]
 
     if policy = 'query [
-        out: make block! 2 * length pol-obj
+        out: make block! 2 * length-of pol-obj
         for-each [target pol] pol-obj [
             case [
                 ; file 0.0.0 (policies)

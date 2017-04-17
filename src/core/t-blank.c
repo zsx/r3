@@ -71,7 +71,7 @@ REBTYPE(Unit)
         return R_TRUE;
 
     case SYM_INDEX_OF:
-    case SYM_LENGTH:
+    case SYM_LENGTH_OF:
     case SYM_SELECT_P:
     case SYM_FIND:
     case SYM_REMOVE:

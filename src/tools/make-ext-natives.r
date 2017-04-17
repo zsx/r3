@@ -153,7 +153,7 @@ emit-lines [
     [{int Module_Quit_} m-name {(void);}]
     ["#if !defined(MODULE_INCLUDE_DECLARATION_ONLY)"]
     ["#define EXT_NUM_NATIVES_" u-m-name space num-native]
-    ["#define EXT_NAT_COMPRESSED_SIZE_" u-m-name space length comp-data]
+    ["#define EXT_NAT_COMPRESSED_SIZE_" u-m-name space length-of comp-data]
     [
         "const REBYTE Ext_Native_Specs_" m-name
         "[EXT_NAT_COMPRESSED_SIZE_" u-m-name "] = {"
@@ -232,7 +232,7 @@ emit-native-include-params-macro native-list
 ; words
 emit-lines [
     ["//  Local words"]
-    ["#define NUM_EXT_" u-m-name "_WORDS" space length word-list]
+    ["#define NUM_EXT_" u-m-name "_WORDS" space length-of word-list]
 ]
 
 either empty? word-list [

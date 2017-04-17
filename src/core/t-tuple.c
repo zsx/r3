@@ -434,7 +434,7 @@ REBTYPE(Tuple)
     }
 
     switch (action) {
-    case SYM_LENGTH:
+    case SYM_LENGTH_OF:
         len = MAX(len, 3);
         SET_INTEGER(D_OUT, len);
         return R_OUT;

@@ -210,12 +210,12 @@ speed?: function [
                 random tmp
                 decompress compress tmp
             ]
-            calc: [(length tmp) * 10 / secs / 1900]
+            calc: [(length-of tmp) * 10 / secs / 1900]
         ][
             repeat n 40 [
                 change/dup tmp to-char n 500'000
             ]
-            calc: [(length tmp) * 40 / secs / 1024 / 1024]
+            calc: [(length-of tmp) * 40 / secs / 1024 / 1024]
         ][
             unless no-io [
                 write file: %tmp-junk.txt "" ; force security request before timer
@@ -226,7 +226,7 @@ speed?: function [
                     read file
                 ]
                 delete file
-                calc: [(length tmp) * 100 * 2 / secs / 1024 / 1024]
+                calc: [(length-of tmp) * 100 * 2 / secs / 1024 / 1024]
             ]
         ]
     ][

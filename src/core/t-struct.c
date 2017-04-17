@@ -1557,7 +1557,7 @@ REBTYPE(Struct)
         }
         break; }
 
-    case SYM_LENGTH:
+    case SYM_LENGTH_OF:
         SET_INTEGER(D_OUT, VAL_STRUCT_DATA_LEN(val));
         break;
 

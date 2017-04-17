@@ -664,7 +664,7 @@ set_bits:
         INIT_BITS_NOT(VAL_SERIES(D_OUT), BITS_NOT(VAL_SERIES(value)));
         return R_OUT; }
 
-    case SYM_LENGTH:
+    case SYM_LENGTH_OF:
         len = VAL_LEN_HEAD(value) * 8;
         SET_INTEGER(value, len);
         break;

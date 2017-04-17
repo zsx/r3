@@ -177,7 +177,7 @@ make-scheme: function [
 
     ; If actor is block build a non-contextual actor object:
     if block? :scheme/actor [
-        actor: make object! (length scheme/actor) / 4
+        actor: make object! (length-of scheme/actor) / 4
         for-each [name func* args body] scheme/actor [
             ; !!! Comment here said "Maybe PARSE is better here", though
             ; knowing would depend on understanding precisely what the goal

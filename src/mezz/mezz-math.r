@@ -255,7 +255,7 @@ math: function [
     either only [res] [
         ret: reduce res
         unless all [
-            1 = length ret
+            1 = length-of ret
             any-number? ret/1
         ][
             fail unspaced [

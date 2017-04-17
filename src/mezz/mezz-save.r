@@ -148,7 +148,7 @@ save: function [
         ]
 
         length_SAVE [
-            change find/tail header-data 'length (length data)
+            change find/tail header-data 'length (length-of data)
         ]
 
         header-data [

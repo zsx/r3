@@ -42,7 +42,7 @@ clean-path: function [
 
     if all [dir not dir? file] [append file #"/"]
 
-    out: make type-of file length file ; same datatype
+    out: make type-of file length-of file ; same datatype
     cnt: 0 ; back dir counter
 
     parse reverse file [
@@ -106,7 +106,7 @@ confirm: function [
     /with
     choices [string! block!]
 ][
-    if all [block? choices | 2 < length choices] [
+    if all [block? choices | 2 < length-of choices] [
         cause-error 'script 'invalid-arg mold choices
     ]
 
@@ -117,7 +117,7 @@ confirm: function [
     case [
         empty? choices [true]
         string? choices [find?/match response choices]
-        2 > length choices [find?/match response first choices]
+        2 > length-of choices [find?/match response first choices]
         find? first choices response [true]
         find? second choices response [false]
     ]
@@ -168,8 +168,8 @@ list-dir: procedure [
 
         either string? l [
             append l file
-            append/dup l #" " 15 - remainder length l 15
-            if greater? length l 60 [print l clear l]
+            append/dup l #" " 15 - remainder length-of l 15
+            if greater? length-of l 60 [print l clear l]
         ][
             info: get query file
             change info second split-path info/1

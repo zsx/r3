@@ -561,20 +561,20 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         SET_INTEGER(D_OUT, file->index + 1);
         return R_OUT;
 
-    case SYM_LENGTH:
+    case SYM_LENGTH_OF:
         //
         // Comment said "clip at zero"
         ///
         SET_INTEGER(D_OUT, file->size - file->index);
         return R_OUT;
 
-    case SYM_HEAD: {
+    case SYM_HEAD_OF: {
         file->index = 0;
         SET_FLAG(req->modes, RFM_RESEEK);
         Move_Value(D_OUT, CTX_VALUE(port));
         return R_OUT; }
 
-    case SYM_TAIL: {
+    case SYM_TAIL_OF: {
         file->index = file->size;
         SET_FLAG(req->modes, RFM_RESEEK);
         Move_Value(D_OUT, CTX_VALUE(port));

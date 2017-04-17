@@ -42,7 +42,7 @@ intern: function [
     data [block! any-word!] "Word or block of words to be added (deeply)"
 ][
     ; for optimization below (index for resolve)
-    index: 1 + length usr: system/contexts/user
+    index: 1 + length-of usr: system/contexts/user
 
     ; Extend the user context with new words
     data: bind/new :data usr
@@ -398,7 +398,7 @@ load: function [
             all_LOAD
             header
             empty? data
-            1 < length data
+            1 < length-of data
         ][
             data: first data
         ]
@@ -443,7 +443,7 @@ do-needs: function [
                     cause-error 'syntax 'needs reduce ['core needs]
                 ]
 
-                3 >= length needs [ ; no platform id
+                3 >= length-of needs [ ; no platform id
                     blank
                 ]
 
@@ -462,7 +462,7 @@ do-needs: function [
     ]
 
     ; Parse the needs dialect [source <version> <checksum-hash>]
-    mods: make block! length needs
+    mods: make block! length-of needs
     name: vers: hash: _
     unless parse needs [
         here:
@@ -543,7 +543,7 @@ load-ext-module: function [
             :f
         ]
     ]
-    mod: make module! (length code) / 2
+    mod: make module! (length-of code) / 2
     set-meta mod hdr
     if errors: find code to set-word! 'errors [
         eo: construct make object! [
@@ -703,7 +703,7 @@ load-module: function [
                 cause-error 'script 'bad-refines blank
             ]
 
-            data: make block! length source
+            data: make block! length-of source
 
             unless parse source [
                 any [

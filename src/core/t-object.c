@@ -636,7 +636,7 @@ REBTYPE(Context)
         Move_Value(D_OUT, D_ARG(1));
         return R_OUT;
 
-    case SYM_LENGTH:
+    case SYM_LENGTH_OF:
         if (!IS_OBJECT(value))
             fail (Error_Illegal_Action(VAL_TYPE(value), action));
         SET_INTEGER(D_OUT, CTX_LEN(VAL_CONTEXT(value)));

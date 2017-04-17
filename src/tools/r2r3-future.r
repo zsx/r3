@@ -333,7 +333,7 @@ any-array!: get 'any-block!
 ; Renamings to conform to ?-means-returns-true-false rule
 ; https://trello.com/c/BxLP8Nch
 ;
-length: get 'length?
+length: length-of: get 'length?
 index-of: get 'index?
 offset-of: get 'offset?
 type-of: get 'type?

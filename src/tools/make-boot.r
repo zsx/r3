@@ -48,7 +48,7 @@ either args/GIT_COMMIT = "unknown" [
     ]
 ][
     git-commit: args/GIT_COMMIT
-    if (length git-commit) != (length first-rebol-commit) [
+    if (length-of git-commit) != (length-of first-rebol-commit) [
         print ["GIT_COMMIT should be a full hash, e.g." first-rebol-commit]
         print ["Invalid hash was:" git-commit]
         quit
@@ -1005,8 +1005,8 @@ write-emitted src/tmp-boot-block.c
 
 ;-- Output stats:
 print [
-    "Compressed" length data "to" length comp-data "bytes:"
-    to-integer ((length comp-data) / (length data) * 100)
+    "Compressed" length-of data "to" length-of comp-data "bytes:"
+    to-integer ((length-of comp-data) / (length-of data) * 100)
     "percent of original"
 ]
 
@@ -1022,8 +1022,8 @@ emit-header "Bootstrap Structure and Root Module" %boot.h
 emit newline
 
 emit-line ["#define NUM_NATIVES" space num-natives]
-emit-line ["#define NAT_UNCOMPRESSED_SIZE" space (length data)]
-emit-line ["#define NAT_COMPRESSED_SIZE" space (length comp-data)]
+emit-line ["#define NAT_UNCOMPRESSED_SIZE" space (length-of data)]
+emit-line ["#define NAT_COMPRESSED_SIZE" space (length-of comp-data)]
 emit-line ["#define CHECK_TITLE" space (checksum to binary! title)]
 
 emit {

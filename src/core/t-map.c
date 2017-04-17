@@ -719,7 +719,7 @@ REBTYPE(Map)
         Move_Value(D_OUT, ARG(value));
         return R_OUT; }
 
-    case SYM_LENGTH:
+    case SYM_LENGTH_OF:
         SET_INTEGER(D_OUT, Length_Map(map));
         return R_OUT;
 

@@ -32,7 +32,7 @@ last?: single?: func [
     "Returns TRUE if the series length is 1."
     series [any-series! port! map! tuple! bitset! object! gob! any-word!]
 ][
-    1 = length series
+    1 = length-of series
 ]
 
 
@@ -84,23 +84,21 @@ remold: func [
 ]
 
 
-charset: func [
+charset: function [
     "Makes a bitset of chars for the parse function."
     chars [string! block! binary! char! integer!]
     /length "Preallocate this many bits"
     len [integer!] "Must be > 0"
-    /local charset-length length-of
 ][
     ;-- CHARSET function historically has a refinement called /LENGTH, that
     ;-- is used to preallocate bits.  Yet the LENGTH? function has been
     ;-- changed to use just the word LENGTH.  We could change this to
     ;-- /CAPACITY SIZE or something similar, but keep it working for now.
     ;--
-    charset-length: length      ; refinement passed in
-    length-of: :lib/length      ; traditional LENGTH function
+    length_CHARSET: length      ; refinement passed in
     unset 'length               ; helps avoid overlooking the ambiguity
 
-    either charset-length [append make bitset! len chars] [make bitset! chars]
+    either length_CHARSET [append make bitset! len chars] [make bitset! chars]
 ]
 
 
@@ -176,16 +174,16 @@ replace: function [
 
         any-string? target [
             unless string? :pattern [pattern: form :pattern]
-            length :pattern
+            length-of :pattern
         ]
 
         binary? target [
             ; Target is binary, pattern is not, make pattern a binary
             unless binary? :pattern [pattern: to-binary :pattern]
-            length :pattern
+            length-of :pattern
         ]
 
-        any-block? :pattern [length :pattern]
+        any-block? :pattern [length-of :pattern]
     ] else 1
 
     while [pos: find/(all [case_REPLACE 'case]) target :pattern] [
@@ -237,7 +235,7 @@ reword: function [
     case_REWORD: case
     case: :lib/case
 
-    unless into [output: make (type-of source) length source]
+    unless into [output: make (type-of source) length-of source]
 
     prefix: _
     suffix: _
@@ -446,14 +444,14 @@ extract: func [
 ][  ; Default value is "" for any-string! output
     if zero? width [return any [output make series 0]]  ; To avoid an infinite loop
     len: either positive? width [  ; Length to preallocate
-        divide length series width  ; Forward loop, use length
+        divide (length-of series) width  ; Forward loop, use length
     ][
         divide index-of series negate width  ; Backward loop, use position
     ]
     unless index [pos: 1]
     either block? pos [
         unless parse pos [some [any-number! | logic!]] [cause-error 'Script 'invalid-arg reduce [pos]]
-        if void? :output [output: make series len * length pos]
+        if void? :output [output: make series len * length-of pos]
         if all [not default any-string? output] [value: copy ""]
         for-skip series width [for-next pos [
             if void? val: pick series pos/1 [val: value]
@@ -564,7 +562,7 @@ format: function [
 
         val: val + (switch type-of :rule [
             :integer! [abs rule]
-            :string! [length rule]
+            :string! [length-of rule]
             :char! [1]
         ] else 0)
     ]
@@ -582,9 +580,9 @@ format: function [
                 val: form first+ values
                 clear at val 1 + abs rule
                 if negative? rule [
-                    pad: rule + length val
+                    pad: rule + length-of val
                     if negative? pad [out: skip out negate pad]
-                    pad: length val
+                    pad: length-of val
                 ]
                 change out :val
                 out: skip out pad ; spacing (remainder)
@@ -636,7 +634,9 @@ split: function [
                 all [integer? size | into] [
                     if size < 1 [cause-error 'Script 'invalid-arg size]
                     count: size - 1
-                    piece-size: to integer! round/down divide length series size
+                    piece-size: (
+                        to integer! round/down divide length-of series size
+                    )
                     if zero? piece-size [piece-size: 1]
                     [
                         count [copy series piece-size skip (keep/only series)]
@@ -678,8 +678,8 @@ split: function [
                 ;
                 ; We loop here as insert/dup doesn't copy the value inserted.
                 ;
-                if size > length res [
-                    loop (size - length res) [add-fill-val]
+                if size > length-of res [
+                    loop (size - length-of res) [add-fill-val]
                 ]
             ]
             integer? dlm []

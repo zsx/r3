@@ -193,7 +193,7 @@ act_blk:
         CLR_SIGNAL(SIG_EVENT_PORT);
         break;
 
-    case SYM_LENGTH:
+    case SYM_LENGTH_OF:
         SET_INTEGER(D_OUT, VAL_LEN_HEAD(state));
         break;
 

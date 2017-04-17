@@ -147,7 +147,7 @@ REBTYPE(Word)
     REBVAL *val = D_ARG(1);
 
     switch (action) {
-    case SYM_LENGTH: {
+    case SYM_LENGTH_OF: {
         const REBYTE *bp = STR_HEAD(VAL_WORD_SPELLING(val));
         REBCNT len = 0;
         while (TRUE) {

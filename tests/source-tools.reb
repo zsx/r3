@@ -355,7 +355,7 @@ rebsource: context [
         ][
             if not src-folder [fail {Configuration required.}]
 
-            files: make block! 1 + (2 * length fixed-source-paths)
+            files: make block! 1 + (2 * length-of fixed-source-paths)
 
             for-each path fixed-source-paths [
                 for-each file read join-of src-folder path [

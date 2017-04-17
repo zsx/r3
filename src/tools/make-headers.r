@@ -217,7 +217,7 @@ for-each item file-base/core [
     ;
     either block? item [
         either all [
-            2 <= length item
+            2 <= length-of item
             <no-make-header> = item/2
         ][; skip this file
             continue

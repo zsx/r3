@@ -59,7 +59,7 @@ write-c-file: function [
     insert tail data make char! 0 ; zero termination required
 
     comp-data: compress data
-    comp-size: length comp-data
+    comp-size: length-of comp-data
 
     emit-line ["#define REB_INIT_SIZE" space comp-size]
 
@@ -73,8 +73,8 @@ write-c-file: function [
     ;-- Output stats:
     print [
         newline
-        "Compressed" length data "to" comp-size "bytes:"
-        to-integer (comp-size / (length data) * 100)
+        "Compressed" length-of data "to" comp-size "bytes:"
+        to-integer (comp-size / (length-of data) * 100)
         "percent of original"
     ]
 

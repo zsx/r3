@@ -975,11 +975,11 @@ REBTYPE(Image)
     // Dispatch action:
     switch (action) {
 
-    case SYM_HEAD:
+    case SYM_HEAD_OF:
         VAL_INDEX(value) = 0;
         break;
 
-    case SYM_TAIL:
+    case SYM_TAIL_OF:
         VAL_INDEX(value) = (REBCNT)tail;
         break;
 
@@ -1012,7 +1012,7 @@ REBTYPE(Image)
             return R_OUT;
         }}
         // fallthrough
-    case SYM_LENGTH:
+    case SYM_LENGTH_OF:
         SET_INTEGER(D_OUT, tail > index ? tail - index : 0);
         return R_OUT;
 

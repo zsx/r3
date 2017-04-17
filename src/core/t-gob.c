@@ -1123,11 +1123,11 @@ REBTYPE(Gob)
         index += VAL_INT32(arg);
         goto set_index;
 
-    case SYM_HEAD:
+    case SYM_HEAD_OF:
         index = 0;
         goto set_index;
 
-    case SYM_TAIL:
+    case SYM_TAIL_OF:
         index = tail;
         goto set_index;
 
@@ -1147,7 +1147,7 @@ REBTYPE(Gob)
         SET_INTEGER(D_OUT, index + 1);
         break;
 
-    case SYM_LENGTH:
+    case SYM_LENGTH_OF:
         index = (tail > index) ? tail - index : 0;
         SET_INTEGER(D_OUT, index);
         break;

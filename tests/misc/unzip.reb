@@ -390,7 +390,7 @@ ctx-zip: context [
                             throw blank
                         ]
 
-                        if uncompressed-size != length data [
+                        if uncompressed-size != length-of data [
                             info "^- -> failed [wrong output size]^/"
                             throw blank
                         ]

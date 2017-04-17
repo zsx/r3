@@ -105,8 +105,9 @@ comment [
 
 ; Semi-controversial choice to take a noun to avoid "lengthening LENGTH?"
 ; https://trello.com/c/4OT7qvdu
+; Due to controversy, LENGTH-OF is used in the mezzanine
 ;
-length?: :length
+length: length?: :length-of
 
 
 ; FOREACH isn't being taken for anything else, may stay a built-in synonym
@@ -1011,7 +1012,7 @@ set 'r3-legacy* func [<local> if-flags] [
                 {The value to insert}
             /part
                 {Limits to a given length or position}
-            length [number! series! pair!]
+            limit [number! series! pair!]
             /only
                 {Inserts a series as a series}
             /dup
@@ -1023,7 +1024,7 @@ set 'r3-legacy* func [<local> if-flags] [
             apply :append [
                 | series: series
                 | value: either block? :value [reduce :value] [value]
-                | if part: part [limit: length]
+                | if part: part [limit: limit]
                 | only: only
                 | if dup: dup [count: count]
             ]

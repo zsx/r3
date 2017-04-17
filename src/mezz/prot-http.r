@@ -136,7 +136,10 @@ http-awake: function [event] [
                     awake make event! [type: 'error port: http-port]
                 ]
                 reading-data [
-                    either any [integer? state/info/headers/content-length state/info/headers/transfer-encoding = "chunked"] [
+                    either any [
+                        integer? state/info/headers/content-length
+                        state/info/headers/transfer-encoding = "chunked"
+                    ][
                         state/error: make-http-error "Server closed connection"
                         awake make event! [type: 'error port: http-port]
                     ] [
@@ -222,7 +225,7 @@ make-http-request: func [
     ]
     if content [
         content: to binary! content
-        join result ["Content-Length: " length content CRLF]
+        join result ["Content-Length:" space (length-of content) CRLF]
     ]
     append result CRLF
     result: to binary! result
@@ -489,7 +492,7 @@ check-data: func [port /local headers res data out chunk-size mk1 mk2 trailer st
         headers/transfer-encoding = "chunked" [
             data: conn/data
             ;clear the port data only at the beginning of the request --Richard
-            unless port/data [port/data: make binary! length data]
+            unless port/data [port/data: make binary! length-of data]
             out: port/data
             loop-until [
                 either parse data [
@@ -536,7 +539,7 @@ check-data: func [port /local headers res data out chunk-size mk1 mk2 trailer st
         ]
         integer? headers/content-length [
             port/data: conn/data
-            either headers/content-length <= length port/data [
+            either headers/content-length <= length-of port/data [
                 state/state: 'ready
                 conn/data: make binary! 32000
                 res: state/awake make event! [
@@ -721,11 +724,11 @@ sys/make-scheme [
             ]
         ]
 
-        length: func [
+        length-of: func [
             port [port!]
         ][
             ; actor is not an object!, so this isn't a recursive length call
-            either port/data [length port/data] [0]
+            either port/data [length-of port/data] [0]
         ]
     ]
 ]

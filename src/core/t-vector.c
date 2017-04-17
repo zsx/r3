@@ -639,7 +639,7 @@ REBTYPE(Vector)
         Move_Value(D_OUT, D_ARG(3));
         return R_OUT;
 
-    case SYM_LENGTH:
+    case SYM_LENGTH_OF:
         //bits = 1 << (vect->size & 3);
         SET_INTEGER(D_OUT, SER_LEN(vect));
         return R_OUT;

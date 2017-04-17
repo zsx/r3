@@ -92,7 +92,7 @@ make-action: func [
         new-body exclusions locals defaulters statics
 ][
     exclusions: copy []
-    new-spec: make block! length spec
+    new-spec: make block! length-of spec
     new-body: _
     statics: _
     defaulters: _

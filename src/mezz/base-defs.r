@@ -28,6 +28,14 @@ REBOL [
 blank: _
 bar: '|
 
+; Despite being very "noun-like", HEAD and TAIL have classically been "verbs"
+; in Rebol.  Ren-C defines the core operations as HEAD-OF and TAIL-OF, but
+; establishes quick synonyms.  The synonym of LENGTH for LENGTH-OF is a
+; controversial idea, and so it is not done until much later in the bootstrap. 
+;
+head: :head-of
+tail: :tail-of
+
 next: specialize 'skip [offset: 1]
 back: specialize 'skip [offset: -1]
 
