@@ -1522,21 +1522,27 @@ reevaluate:;
             fail (Error_Need_Value_Raw(specific)); // `do [a:]` is illegal
         }
 
-        // f->value is guarded implicitly by the frame, but `current` is a
-        // transient local pointer that might be to a va_list REBVAL* that
-        // has already been fetched.  The bits will stay live until va_end(),
-        // but a GC wouldn't see it.
-        //
-        DS_PUSH_RELVAL(current, f->specifier);
-
-        if (Do_Next_Mid_Frame_Throws(f)) { // lightweight reuse of `f`
-            DS_DROP;
-            goto finished;
+        if (NOT(args_evaluate)) { // e.g. `eval/only quote x: 1 + 2`, x => 1
+            Derelativize(f->out, f->value, f->specifier);
+            Move_Value(Sink_Var_May_Fail(current, f->specifier), f->out);
         }
+        else {
+            // f->value is guarded implicitly by the frame, but `current` is a
+            // transient local pointer that might be to a va_list REBVAL* that
+            // has already been fetched.  The bits will stay live until
+            // va_end(), but a GC wouldn't see it.
+            //
+            DS_PUSH_RELVAL(current, f->specifier);
 
-        Move_Value(Sink_Var_May_Fail(DS_TOP, SPECIFIED), f->out);
+            if (Do_Next_Mid_Frame_Throws(f)) { // lightweight reuse of `f`
+                DS_DROP;
+                goto finished;
+            }
 
-        DS_DROP;
+            Move_Value(Sink_Var_May_Fail(DS_TOP, SPECIFIED), f->out);
+
+            DS_DROP;
+        }
         break;
 
 //==//////////////////////////////////////////////////////////////////////==//
@@ -1688,41 +1694,63 @@ reevaluate:;
             fail (Error_Need_Value_Raw(specific)); // `do [a/b:]` is illegal
         }
 
-        // f->value is guarded implicitly by the frame, but `current` is a
-        // transient local pointer that might be to a va_list REBVAL* that
-        // has already been fetched.  The bits will stay live until va_end(),
-        // but a GC wouldn't see it.
-        //
-        DS_PUSH_RELVAL(current, f->specifier);
+        if (NOT(args_evaluate)) {
+            Derelativize(f->out, f->value, f->specifier);
 
-        if (Do_Next_Mid_Frame_Throws(f)) { // lighweight reuse of `f`
+            // !!! Due to the way this is currently designed, throws need to
+            // be written to a location distinct from the path and also
+            // distinct from the value being set.  Review.
+            //
+            DECLARE_LOCAL (temp);
+
+            if (Do_Path_Throws_Core(
+                temp, // output location if thrown
+                NULL, // not requesting symbol means refinements not allowed
+                current, // still holding SET-PATH! we got in
+                f->specifier, // specifier for current
+                f->out // value to set (already in f->out)
+            )) {
+                fail (Error_No_Catch_For_Throw(temp));
+            }
+        }
+        else {
+            // f->value is guarded implicitly by the frame, but `current` is a
+            // transient local pointer that might be to a va_list REBVAL* that
+            // has already been fetched.  The bits will stay live until
+            // va_end(), but a GC wouldn't see it.
+            //
+            DS_PUSH_RELVAL(current, f->specifier);
+
+            if (Do_Next_Mid_Frame_Throws(f)) { // lighweight reuse of `f`
+                DS_DROP;
+                goto finished;
+            }
+
+            // The path cannot be executed directly from the data stack, so
+            // it has to be popped.  This could be changed by making the core
+            // Do_Path_Throws take a VAL_ARRAY, index, and kind.  By moving
+            // it into the f->cell, it is guaranteed garbage collected.
+            //
+            Move_Value(&f->cell, DS_TOP);
             DS_DROP;
-            goto finished;
+
+            // !!! Due to the way this is currently designed, throws need to
+            // be written to a location distinct from the path and also
+            // distinct from the value being set.  Review.
+            //
+            DECLARE_LOCAL (temp);
+
+            if (Do_Path_Throws_Core(
+                temp, // output location if thrown
+                NULL, // not requesting symbol means refinements not allowed
+                &f->cell, // still holding SET-PATH! we got in
+                SPECIFIED, // current derelativized when pushed to DS_TOP
+                f->out // value to set (already in f->out)
+            )) {
+                fail (Error_No_Catch_For_Throw(temp));
+            }
         }
 
-        // The path cannot be executed directly from the data stack, so
-        // it has to be popped.  This could be changed by making the core
-        // Do_Path_Throws take a VAL_ARRAY, index, and kind.  By moving
-        // it into the f->cell, it is guaranteed garbage collected.
-        //
-        Move_Value(&f->cell, DS_TOP);
-        DS_DROP;
-
-        // !!! Due to the way this is currently designed, throws need to be
-        // written to a location distinct from the path and also distinct from
-        // the value being set.  Review.
-        //
-        DECLARE_LOCAL (temp);
-
-        if (Do_Path_Throws_Core(
-            temp, // output location if thrown
-            NULL, // not requesting symbol means refinements not allowed
-            &f->cell, // still holding SET-PATH! we got in
-            SPECIFIED, // current derelativized when pushed to DS_TOP
-            f->out // value to set (already in f->out)
-        )) {
-            fail (Error_No_Catch_For_Throw(temp));
-        }
         break; }
 
 //==//////////////////////////////////////////////////////////////////////==//
@@ -1888,6 +1916,26 @@ reevaluate:;
         Derelativize(f->out, current, f->specifier);
         SET_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED);
         break;
+
+    case REB_MAX_VOID:
+        if (NOT(args_evaluate)) {
+            //
+            // This is legal if you do something like Apply_Only_Throws, and
+            // pass a void...non-evaluative, so it's ok.
+            //
+            SET_VOID(f->out);
+        }
+        else {
+            //
+            // Should only be happen if you do something like `eval ()`,
+            // since evaluative voids cannot appear in blocks or va_lists.
+            //
+            assert(current == &f->cell);
+
+            // Although it can happen, voids cannot be meaningfully evaluated.
+            //
+            fail (Error_Evaluate_Void_Raw());
+        }
 
     default:
         panic ("Invalid value kind found in Do_Core");
