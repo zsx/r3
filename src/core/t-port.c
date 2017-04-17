@@ -112,6 +112,7 @@ REB_R Retrigger_Append_As_Write(REBFRM *frame_) {
     // this, e.g. PICK, where they can't do the automatic conversion.
     //
     assert(IS_PORT(ARG(series))); // !!! poorly named
+    UNUSED(ARG(series));
     if (NOT(
         IS_BINARY(ARG(value))
         || IS_STRING(ARG(value))
