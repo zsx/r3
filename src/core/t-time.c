@@ -224,68 +224,94 @@ REBINT CT_Time(const RELVAL *a, const RELVAL *b, REBINT mode)
 //
 REBI64 Make_Time(const REBVAL *val)
 {
-    REBI64 secs = 0;
-
     if (IS_TIME(val)) {
-        secs = VAL_TIME(val);
+        return VAL_TIME(val);
     }
     else if (IS_STRING(val)) {
         REBCNT len;
         REBYTE *bp = Temp_Byte_Chars_May_Fail(val, MAX_SCAN_TIME, &len, FALSE);
+
         DECLARE_LOCAL (temp);
         if (Scan_Time(temp, bp, len) == NULL)
             goto no_time;
-        secs = VAL_TIME(temp);
+
+        return VAL_TIME(temp);
     }
     else if (IS_INTEGER(val)) {
         if (VAL_INT64(val) < -MAX_SECONDS || VAL_INT64(val) > MAX_SECONDS)
             fail (Error_Out_Of_Range(val));
-        secs = VAL_INT64(val) * SEC_SEC;
+
+        return VAL_INT64(val) * SEC_SEC;
     }
     else if (IS_DECIMAL(val)) {
-        if (VAL_DECIMAL(val) < (REBDEC)(-MAX_SECONDS) || VAL_DECIMAL(val) > (REBDEC)MAX_SECONDS)
+        if (
+            VAL_DECIMAL(val) < cast(REBDEC, -MAX_SECONDS)
+            || VAL_DECIMAL(val) > cast(REBDEC, MAX_SECONDS)
+        ){
             fail (Error_Out_Of_Range(val));
-        secs = DEC_TO_SECS(VAL_DECIMAL(val));
+        }
+        return DEC_TO_SECS(VAL_DECIMAL(val));
     }
     else if (ANY_ARRAY(val) && VAL_ARRAY_LEN_AT(val) <= 3) {
-        REBOOL neg = FALSE;
-        REBI64 i;
-        RELVAL *item;
+        RELVAL *item = VAL_ARRAY_AT(val);
+        if (NOT(IS_INTEGER(item)))
+            goto no_time;
 
-        item = VAL_ARRAY_AT(val);
-        if (!IS_INTEGER(val)) goto no_time;
-        i = Int32(KNOWN(item));
-        if (i < 0) i = -i, neg = TRUE;
-        secs = i * 3600;
-        if (secs > MAX_SECONDS) goto no_time;
+        REBOOL neg;
+        REBI64 i = Int32(item);
+        if (i < 0) {
+            i = -i;
+            neg = TRUE;
+        }
+        else
+            neg = FALSE;
+
+        REBI64 secs = i * 3600;
+        if (secs > MAX_SECONDS)
+            goto no_time;
 
         if (NOT_END(++item)) {
-            if (!IS_INTEGER(item)) goto no_time;
-            if ((i = Int32(KNOWN(item))) < 0) goto no_time;
+            if (NOT(IS_INTEGER(item)))
+                goto no_time;
+
+            if ((i = Int32(item)) < 0)
+                goto no_time;
+
             secs += i * 60;
-            if (secs > MAX_SECONDS) goto no_time;
+            if (secs > MAX_SECONDS)
+                goto no_time;
 
             if (NOT_END(++item)) {
                 if (IS_INTEGER(item)) {
-                    if ((i = Int32(KNOWN(item))) < 0) goto no_time;
+                    if ((i = Int32(KNOWN(item))) < 0)
+                        goto no_time;
+
                     secs += i;
                     if (secs > MAX_SECONDS) goto no_time;
                 }
                 else if (IS_DECIMAL(item)) {
-                    if (secs + (REBI64)VAL_DECIMAL(item) + 1 > MAX_SECONDS) goto no_time;
+                    if (secs + cast(REBI64, VAL_DECIMAL(item)) + 1 > MAX_SECONDS)
+                        goto no_time;
+
                     // added in below
                 }
-                else goto no_time;
+                else
+                    goto no_time;
             }
         }
-        secs *= SEC_SEC;
-        if (IS_DECIMAL(item)) secs += DEC_TO_SECS(VAL_DECIMAL(item));
-        if (neg) secs = -secs;
-    }
-    else
-        no_time: return NO_TIME;
 
-    return secs;
+        secs *= SEC_SEC;
+        if (IS_DECIMAL(item))
+            secs += DEC_TO_SECS(VAL_DECIMAL(item));
+
+        if (neg)
+            secs = -secs;
+
+        return secs;
+    }
+
+no_time:
+    return NO_TIME;
 }
 
 

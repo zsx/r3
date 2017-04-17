@@ -405,25 +405,23 @@ void MAKE_Date(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
     }
 
     if (ANY_ARRAY(arg) && VAL_ARRAY_LEN_AT(arg) >= 3) {
-        REBI64 secs = NO_TIME;
-        REBINT tz = 0;
-        REBDAT date;
-        REBCNT year, month, day;
-
         const RELVAL *item = VAL_ARRAY_AT(arg);
-        if (!IS_INTEGER(item))
+        if (NOT(IS_INTEGER(item)))
             goto bad_make;
-        day = Int32s(item, 1);
+
+        REBCNT day = Int32s(item, 1);
 
         ++item;
-        if (!IS_INTEGER(item))
+        if (NOT(IS_INTEGER(item)))
             goto bad_make;
-        month = Int32s(item, 1);
+
+        REBCNT month = Int32s(item, 1);
 
         ++item;
-        if (!IS_INTEGER(item))
+        if (NOT(IS_INTEGER(item)))
             goto bad_make;
 
+        REBCNT year;
         if (day > 99) {
             year = day;
             day = Int32s(item, 1);
@@ -450,25 +448,39 @@ void MAKE_Date(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
         day--;
         month--;
 
-        if (IS_TIME(item)) {
+        REBI64 secs;
+        REBINT tz;
+        if (IS_END(item)) {
+            secs = 0;
+            tz = 0;
+        }
+        else {
+            if (NOT(IS_TIME(item)))
+                goto bad_make;
+
             secs = VAL_TIME(item);
             ++item;
+
+            if (IS_END(item))
+                tz = 0;
+            else {
+                if (NOT(IS_TIME(item)))
+                    goto bad_make;
+
+                tz = cast(REBINT, VAL_TIME(item) / (ZONE_MINS * MIN_SEC));
+                if (tz < -MAX_ZONE || tz > MAX_ZONE)
+                    fail (Error_Out_Of_Range(const_KNOWN(item)));
+                ++item;
+            }
         }
 
-        if (IS_TIME(item)) {
-            tz = cast(REBINT, VAL_TIME(item) / (ZONE_MINS * MIN_SEC));
-            if (tz < -MAX_ZONE || tz > MAX_ZONE)
-                fail (Error_Out_Of_Range(const_KNOWN(item)));
-            ++item;
-        }
-
-        if (NOT_END(item)) goto bad_make;
+        if (NOT_END(item))
+            goto bad_make;
 
         Normalize_Time(&secs, &day);
-        date = Normalize_Date(day, month, year, tz);
 
         VAL_RESET_HEADER(out, REB_DATE);
-        VAL_DATE(out) = date;
+        VAL_DATE(out) = Normalize_Date(day, month, year, tz);
         VAL_TIME(out) = secs;
         Adjust_Date_Zone(out, TRUE);
         return;
