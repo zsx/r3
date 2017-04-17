@@ -90,6 +90,65 @@ void TO_Port(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 
 
 //
+//  Retrigger_Append_As_Write: C
+//
+// !!! In R3-Alpha, for the convenience of being able to APPEND to something
+// that may be a FILE!-based PORT! or a BINARY! or STRING! with a unified
+// interface, the APPEND command was re-interpreted as a WRITE/APPEND.  But
+// it was done with presumption that APPEND and WRITE had compatible frames,
+// which generally speaking they do not.
+//
+// This moves the functionality to an actual retriggering which calls whatever
+// WRITE/APPEND would do in a generic fashion with a new frame.  Not all
+// ports do this, as some have their own interpretation of APPEND.  It's
+// hacky, but still not as bad as it was.  Review.
+//
+REB_R Retrigger_Append_As_Write(REBFRM *frame_) {
+    INCLUDE_PARAMS_OF_APPEND;
+
+    // !!! Something like `write/append %foo.txt "data"` knows to convert
+    // %foo.txt to a port before trying the write, but if you say
+    // `append %foo.txt "data"` you get `%foo.txtdata`.  Some actions are like
+    // this, e.g. PICK, where they can't do the automatic conversion.
+    //
+    assert(IS_PORT(ARG(series))); // !!! poorly named
+    if (NOT(
+        IS_BINARY(ARG(value))
+        || IS_STRING(ARG(value))
+        || IS_BLOCK(ARG(value)))
+    ){
+        fail (ARG(value));
+    }
+
+    if (REF(part)) {
+        UNUSED(ARG(limit));
+        fail (Error_Bad_Refines_Raw());
+    }
+    if (REF(only))
+        fail (Error_Bad_Refines_Raw());
+    if (REF(dup)) {
+        UNUSED(ARG(count));
+        fail (Error_Bad_Refines_Raw());
+    }
+
+    REBARR *a = Make_Array(2);
+    Move_Value(Alloc_Tail_Array(a), &PG_Write_Action);
+    Init_Word(Alloc_Tail_Array(a), Canon(SYM_APPEND));
+
+    DECLARE_LOCAL (write_append);
+    Init_Path(write_append, a);
+
+    if (Apply_Only_Throws(
+        D_OUT, TRUE, write_append, D_ARG(1), D_ARG(2), END
+    )){
+        return R_OUT_IS_THROWN;
+    }
+
+    return R_OUT;
+}
+
+
+//
 //  REBTYPE: C
 //
 // !!! The concept of port dispatch from R3-Alpha is that it delegates to a

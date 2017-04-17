@@ -361,6 +361,18 @@ REBNATIVE(action)
     //
     Move_Value(Sink_Var_May_Fail(ARG(verb), SPECIFIED), FUNC_VALUE(fun));
     Move_Value(D_OUT, FUNC_VALUE(fun));
+
+    // !!! A very hacky (yet less hacky than R3-Alpha) re-dispatch of APPEND
+    // as WRITE/APPEND on ports requires knowing what the WRITE action is.
+    // Rather than track an entire table of all the actions in order to
+    // support that and thus endorse this hack being used other places, just
+    // save the write action into a global.
+    //
+    if (VAL_WORD_SYM(ARG(verb)) == SYM_WRITE) {
+        INIT_CELL(&PG_Write_Action);
+        Move_Value(&PG_Write_Action, D_OUT);
+    }
+
     return R_OUT;
 }
 

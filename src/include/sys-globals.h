@@ -114,6 +114,9 @@ PVAR REBFLGS Eval_Signals;   // Signal flags
 //
 PVAR REBBRK PG_Breakpoint_Quitting_Hook;
 
+// !!! See bad hack in %t-port.c that uses this for the moment.
+//
+PVAR REBVAL PG_Write_Action;
 
 /***********************************************************************
 **

@@ -347,14 +347,14 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
         return R_OUT; }
 
-    case SYM_APPEND: {
-        if (!(IS_BINARY(D_ARG(2)) || IS_STRING(D_ARG(2)) || IS_BLOCK(D_ARG(2))))
-            fail (D_ARG(2));
-        file->index = file->size;
-        SET_FLAG(req->modes, RFM_RESEEK); }
+    case SYM_APPEND:
         //
-        // Fall through
+        // !!! This is hacky, but less hacky than falling through to SYM_WRITE
+        // assuming the frame is the same for APPEND and WRITE (which is what
+        // R3-Alpha did).  Review.
         //
+        return Retrigger_Append_As_Write(frame_);
+
     case SYM_WRITE: {
         INCLUDE_PARAMS_OF_WRITE;
 
