@@ -893,7 +893,7 @@ REB_R Routine_Dispatcher(REBFRM *f)
     // HANDLE! is changed to support sizes.
     //
     ffi_cif *cif; // pre-made if not variadic, built for this call otherwise
-    ffi_type **args_fftypes; // ffi_type*[] if num_variable > 0
+    ffi_type **args_fftypes = NULL; // ffi_type*[] if num_variable > 0
 
     if (num_variable == 0) {
         cif = RIN_CIF(rin);
