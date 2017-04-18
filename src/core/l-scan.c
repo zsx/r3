@@ -407,49 +407,52 @@ static const REBYTE *Scan_Quote_Push_Mold(
     const REBYTE *src,
     SCAN_STATE *scan_state
 ) {
-    REBINT nest = 0;
-    REBUNI term;
-    REBUNI chr;
-    REBCNT lines = 0;
+    assert(scan_state != NULL);
 
     Push_Mold(mo);
 
-    term = (*src++ == '{') ? '}' : '"'; // pick termination
+    REBUNI term = (*src == '{') ? '}' : '"'; // pick termination
+    ++src;
 
+    REBINT nest = 0;
+    REBCNT lines = 0;
     while (*src != term || nest > 0) {
-
-        chr = *src;
+        REBUNI chr = *src;
 
         switch (chr) {
 
         case 0:
-            return 0; // Scan_state shows error location.
+            return NULL; // Scan_state shows error location.
 
         case '^':
-            if (!(src = Scan_UTF8_Char_Escapable(&chr, src))) return NULL;
-            src--;
+            if ((src = Scan_UTF8_Char_Escapable(&chr, src)) == NULL)
+                return NULL;
+            --src;
             break;
 
         case '{':
-            if (term != '"') nest++;
+            if (term != '"')
+                ++nest;
             break;
 
         case '}':
-            if (term != '"' && nest > 0) nest--;
+            if (term != '"' && nest > 0)
+                --nest;
             break;
 
         case CR:
             if (src[1] == LF) src++;
             // fall thru
         case LF:
-            if (term == '"') return 0;
+            if (term == '"')
+                return NULL;
             lines++;
             chr = LF;
             break;
 
         default:
             if (chr >= 0x80) {
-                if (!(src = Back_Scan_UTF8_Char(&chr, src, NULL)))
+                if ((src = Back_Scan_UTF8_Char(&chr, src, NULL)) == NULL)
                     return NULL;
             }
         }
@@ -466,7 +469,7 @@ static const REBYTE *Scan_Quote_Push_Mold(
 
     src++; // Skip ending quote or brace.
 
-    if (scan_state) scan_state->line_count += lines;
+    scan_state->line_count += lines;
 
     TERM_UNI(mo->series);
 
@@ -1365,7 +1368,8 @@ static void Init_Scan_State(
     REBSTR *filename,
     REBUPT start_line
 ) {
-    scan_state->head_line = scan_state->begin = scan_state->end = utf8;
+    scan_state->head_line = scan_state->begin = utf8;
+    TRASH_POINTER_IF_DEBUG(scan_state->end);
     scan_state->limit = utf8 + limit;
     scan_state->line_count = start_line;
     scan_state->filename = filename;
