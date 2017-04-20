@@ -50,6 +50,7 @@
 
 #define EVAL_DOSE 10000
 
+REBARR* Make_Boot_Array(void);
 
 //
 //  Assert_Basics: C
@@ -1182,27 +1183,12 @@ void Startup_Core(void)
 //==//////////////////////////////////////////////////////////////////////==//
 
     // The %make-boot.r process takes all the various definitions and
-    // mezzanine code and packs it into one compressed string in
-    // %tmp-boot-block.c which gets embedded into the executable.  This
+    // mezzanine code and that block will be created by Make_Boot_Array. This
     // includes the type list, word list, error message templates, system
     // object, mezzanines, etc.
 
-    REBSER *utf8 = Decompress(
-        Native_Specs, NAT_COMPRESSED_SIZE, NAT_UNCOMPRESSED_SIZE, FALSE, FALSE
-    );
-    if (utf8 == NULL || SER_LEN(utf8) != NAT_UNCOMPRESSED_SIZE)
-        panic ("decompressed native specs size mismatch (try `make clean`)");
-
-    const char *tmp_boot_utf8 = "tmp-boot.r";
-    REBSTR *tmp_boot_filename = Intern_UTF8_Managed(
-        cb_cast(tmp_boot_utf8), strlen(tmp_boot_utf8)
-    );
-    REBARR *boot_array = Scan_UTF8_Managed(
-        BIN_HEAD(utf8), NAT_UNCOMPRESSED_SIZE, tmp_boot_filename
-    );
+    REBARR *boot_array = Make_Boot_Array();
     PUSH_GUARD_ARRAY(boot_array); // managed, so must be guarded
-
-    Free_Series(utf8); // don't need decompressed text after it's scanned
 
     BOOT_BLK *boot = cast(BOOT_BLK*, VAL_ARRAY_HEAD(ARR_HEAD(boot_array)));
 

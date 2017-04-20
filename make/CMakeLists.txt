@@ -529,7 +529,8 @@ set (BOOT_HEADER
     )
 set(BOOT_OUTPUT
     ${BOOT_HEADER}
-    ${CORE_GENERATED_DIR}/tmp-boot-block.c
+    ${CORE_GENERATED_DIR}/tmp-natives.c
+    ${CORE_GENERATED_DIR}/tmp-boot-code.c
     ${CORE_GENERATED_DIR}/tmp-evaltypes.c
     ${CORE_GENERATED_DIR}/tmp-maketypes.c
     ${CORE_GENERATED_DIR}/tmp-comptypes.c
@@ -617,7 +618,8 @@ add_custom_command(OUTPUT
     )
 
 set (GENERATED_CORE_SOURCE
-    ${CORE_GENERATED_DIR}/tmp-boot-block.c
+    ${CORE_GENERATED_DIR}/tmp-natives.c
+    ${CORE_GENERATED_DIR}/tmp-boot-code.c
     ${CORE_GENERATED_DIR}/tmp-evaltypes.c
     ${CORE_GENERATED_DIR}/tmp-maketypes.c
     ${CORE_GENERATED_DIR}/tmp-comptypes.c

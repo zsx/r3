@@ -27,6 +27,7 @@ do %common.r
 do %common-emitter.r
 
 do %form-header.r
+do %make-rebol-code.r
 
 do %systems.r
 args: parse-args system/options/args
@@ -931,7 +932,7 @@ write-emitted inc/tmp-sysctx.h
 ;
 ;----------------------------------------------------------------------------
 
-emit-header "Natives and Bootstrap" %tmp-boot-block.c
+emit-header "Natives" %tmp-natives.c
 emit newline
 emit-line {#include "sys-core.h"}
 emit newline
@@ -979,36 +980,9 @@ boot-types: new-types
 boot-root: load %root.r
 boot-task: load %task.r
 
-write boot/tmp-boot-block.r mold reduce sections
-data: mold/flat reduce sections
-insert data reduce ["; Copyright (C) REBOL Technologies " now newline]
-insert tail data make char! 0 ; scanner requires zero termination
+;write boot/tmp-boot-block.r mold reduce sections
 
-comp-data: compress data: to-binary data
-
-emit {
-// Native_Specs contains data which is the DEFLATE-algorithm-compressed
-// representation of the textual function specs for Rebol's native
-// routines.  Though DEFLATE includes the compressed size in the payload,
-// NAT_UNCOMPRESSED_SIZE is also defined to be used as a sanity check
-// on the decompression process.
-}
-emit newline
-
-emit-line ["const REBYTE Native_Specs[NAT_COMPRESSED_SIZE] = {"]
-
-;-- Convert UTF-8 binary to C-encoded string:
-emit binary-to-c comp-data
-emit-line "};" ;-- EMIT-END would erase the last comma, but there's no extra
-
-write-emitted src/tmp-boot-block.c
-
-;-- Output stats:
-print [
-    "Compressed" length-of data "to" length-of comp-data "bytes:"
-    to-integer ((length-of comp-data) / (length-of data) * 100)
-    "percent of original"
-]
+write-emitted src/tmp-natives.c
 
 
 ;----------------------------------------------------------------------------
@@ -1022,15 +996,9 @@ emit-header "Bootstrap Structure and Root Module" %boot.h
 emit newline
 
 emit-line ["#define NUM_NATIVES" space num-natives]
-emit-line ["#define NAT_UNCOMPRESSED_SIZE" space (length-of data)]
-emit-line ["#define NAT_COMPRESSED_SIZE" space (length-of comp-data)]
 emit-line ["#define CHECK_TITLE" space (checksum to binary! title)]
 
 emit {
-// Compressed data of the native specifications.  This is uncompressed during
-// boot and executed.
-//
-extern const REBYTE Native_Specs[NAT_COMPRESSED_SIZE];
 
 // Raw C function pointers for natives.
 //
@@ -1115,3 +1083,6 @@ for-each word boot-task [
 emit-line ["#define TASK_MAX" space n]
 
 write-emitted inc/tmp-boot.h
+
+make-block reduce [reduce sections] "Boot Code" "Make_Boot_Array" src/tmp-boot-code.c
+

@@ -155,7 +155,8 @@ core: [
 ; Files created by the make-boot process
 ;
 generated: [
-    tmp-boot-block.c
+    tmp-natives.c
+    tmp-boot-code.c
     tmp-evaltypes.c
     tmp-maketypes.c
     tmp-comptypes.c
@@ -199,7 +200,7 @@ extensions: [
 ]
 
 made: [
-    make-boot.r         core/tmp-boot-block.c
+    make-boot.r         core/tmp-natives.c
     make-headers.r      include/tmp-funcs.h
 
     make-host-init.r    include/host-init.h

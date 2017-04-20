@@ -871,7 +871,7 @@ emit-file-deps: function [
 
 emit {
 ### File build targets:
-tmp-boot-block.c: $(SRC)/boot/tmp-boot-block.r
+tmp-natives.c:
     $(REBOL) -sqw $(SRC)/tools/make-boot.r
 }
 emit newline
