@@ -1121,9 +1121,11 @@ inline static void SET_TIME(RELVAL *v, REBI64 nanoseconds) {
 #define VAL_TUPLE_DATA(v) \
     ((v)->payload.tuple.tuple)
 
-inline static void SET_TUPLE(RELVAL *v, const void *data) {
+inline static void SET_TUPLE(RELVAL *v, const void *data, REBCNT len) {
     VAL_RESET_HEADER(v, REB_TUPLE);
-    memcpy(VAL_TUPLE_DATA(v), data, sizeof(VAL_TUPLE_DATA(v)));
+    if (len > sizeof(VAL_TUPLE_DATA(v))) len = sizeof(VAL_TUPLE_DATA(v));
+    VAL_TUPLE_LEN(v) = len;
+    memcpy(VAL_TUPLE(v), data, len);
 }
 
 
