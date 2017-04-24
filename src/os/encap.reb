@@ -694,6 +694,13 @@ get-encap: function [
     rebol-path [file!]
         {The executable to search for the encap information in}
 ][
+    trap/with [
+        read/part rebol-path 1
+    ] func [e] [
+        print ["Can't check for embedded code in Rebol path:" rebol-path]
+        return blank
+    ]
+
     unless compressed-data: any [
         elf-format/get-embedding rebol-path
             |
