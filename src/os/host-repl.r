@@ -300,8 +300,9 @@ host-repl: function [
         break ;-- Exit FOREVER if no additional input to be gathered
     ]
 
-    either block? code [
-        ;
+    if not error? code [
+        assert [block? code]
+
         ; If we're focused on a debug frame, try binding into it
         ;
         if focus-frame [
@@ -314,28 +315,29 @@ host-repl: function [
         ; a special type of function which does not lock its source.
         ;
         lock code
-    ][
-        assert [error? code]
-    ]
 
-    if all [1 = length code | shortcut: select repl/shortcuts code/1] [
-        ;
-        ; One word shortcuts.
-        ; builtin: 
-        ;               q   => quit   
-        ;
-        if all [bound? code/1 | set? code/1] [
+        if all [1 = length-of code | shortcut: select repl/shortcuts code/1] [
             ;
-            ; Help the confused user who might not know about the shortcut not
-            ; panic by giving them a message.  Reduce noise for the casual
-            ; shortcut by only doing so when there's a bound SHORTCUT variable.
+            ; One word shortcuts.  Built-ins are:
             ;
-            repl/print-warning [
-                (uppercase to-string code/1) "interpreted by console as:" form shortcut
+            ;     q => quit
+            ;
+            if all [bound? code/1 | set? code/1] [
+                ;
+                ; Help confused user who might not know about the shortcut not
+                ; panic by giving them a message.  Reduce noise for the casual
+                ; shortcut by only doing so a bound variable exists.
+                ;
+                repl/print-warning [
+                    (uppercase to-string code/1)
+                        "interpreted by console as:" form shortcut
+                ]
+                repl/print-warning [
+                    "use" form to-get-word code/1 "to get variable."
+                ]
             ]
-            repl/print-warning ["use" form to-get-word code/1 "to get variable."]
+            code: shortcut
         ]
-        code: shortcut
     ]
 
     code: repl/dialect-hook code
