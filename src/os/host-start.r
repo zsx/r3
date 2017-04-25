@@ -575,21 +575,26 @@ comment [
 
     boot-print boot-help
 
-    ; set-up repl object
+    ; Set up REPL object.  This object is used in skinning the REPL
+    ; See /os/host-repl.r where this object is called from
+    ; %repl-skin.reb if found in system/user/rebol is loaded on REPL start
+    ;
     system/repl: make object! [
-        ; This object is used in skinning the REPL
-        ; see /os/host-repl.r where this object is called from
-        ; %repl-skin.reb if found in system/user/rebol is loaded on REPL start
-
         counter: 0
-        last-result: _    ;-- stores last evaluated result (sent by host-repl func)
+        last-result: _ ;-- last evaluated result (sent by HOST-REPL)
 
-        ;-- Allowing for multiple skins in future.  For now just user/rebol skin
-        skins: does [reduce [join-of system/user/rebol %repl-skin.reb]]
+        ; Block to allow for multiple skins in the future, max of one for now.
+        ;
+        skins: either system/user/rebol [
+            reduce [join-of system/user/rebol %repl-skin.reb]
+        ][
+            []
+        ]
 
+        ; Called on every line of input by HOST-REPL in %os/host-repl.r
+        ;
         cycle: does [
-            ;; this is called on every line of input (by host-repl function in os/host-repl.r)
-            if zero? ++ counter [load-skin]     ;-- only load skin on first cycle
+            if zero? ++ counter [load-skin] ;-- only load skin on first cycle
             counter
         ]
 
@@ -609,8 +614,10 @@ comment [
                     ]
                 ] func [error] [
                     print [
-                        "  Error loading skin" "-" skin-file newline newline 
-                        error newline newline
+                        "  Error loading skin" "-" skin-file |
+                            |
+                        error |
+                            |
                         "  Fix error and enter repl/load-skin to reload"
                     ]
                 ]
@@ -619,10 +626,8 @@ comment [
             print-greeting
         ]
 
-        ; Below are methods we can override (ie. "skin")
-        ;
-        
-        ;; appearance
+        ;; APPEARANCE (can be overridden)
+
         prompt:   {>> }
         result:   {== }
         warning:  {!! }
@@ -632,16 +637,29 @@ comment [
         print-warning:  proc [s] [print unspaced [warning reduce s]]
         print-gap:      proc []  [print-newline]
 
-        ;; behaviour 
-        input-hook:   func [s] [s]  ;-- receives line input, parse/transform, send back to repl eval
-        dialect-hook: func [s] [s]  ;-- receives code block, parse/transform, send back to repl eval
+        ;; BEHAVIOR (can be overridden)
+        
+        input-hook: func [
+            {Receives line input, parse/transform, send back to repl eval}
+            s
+        ][
+            s
+        ]
+
+        dialect-hook: func [
+            {Receives code block, parse/transform, send back to repl eval}
+            s
+        ][
+            s
+        ]
+
         shortcuts: make object! [
-            ;; default REPL shortcuts
             q: [quit]
             list-shortcuts: [print system/repl/shortcuts]
         ]
 
-        ;; helpers
+        ;; HELPERS (can be overridden)
+
         add-shortcut: proc [
             {Add/Change REPL shortcut}
             name  [any-word!]   {shortcut name}
@@ -650,7 +668,6 @@ comment [
             extend shortcuts name block
         ]
     ]
-
 
 
     ; Rather than have the host C code look up the REPL function by name, it

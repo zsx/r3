@@ -696,7 +696,7 @@ get-encap: function [
 ][
     trap/with [
         read/part rebol-path 1
-    ] func [e] [
+    ] func [e <with> return] [
         print ["Can't check for embedded code in Rebol path:" rebol-path]
         return blank
     ]
