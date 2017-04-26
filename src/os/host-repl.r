@@ -180,7 +180,7 @@ host-repl: function [
 ][
     ; REPL is an external object for skinning the behaviour & appearance
     ;
-    ; /cycle - updates internal counter and loads repl-skin on first rotation (ie. once)
+    ; /cycle - updates internal counter and print greeting on first rotation (ie. once)
     ;
     repl: system/repl
     repl/cycle
@@ -203,10 +203,10 @@ host-repl: function [
 
         last-failed [
             assert [error? :last-result]
-            print last-result
+            repl/print-error last-result
 
             unless system/state/last-error [
-                print "** Note: use WHY for more error information"
+                repl/print-info "Note: use WHY for more error information"
             ]
 
             system/state/last-error: last-result
@@ -279,7 +279,7 @@ host-repl: function [
                 ; and needs to be closed.  Invert the symbol.
                 ;
                 unclosed: switch error/arg1 [
-                    "}" ["{"]
+                    "}" ["^{"]
                     ")" ["("]
                     "]" ["["]
                 ]
