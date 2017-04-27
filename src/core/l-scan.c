@@ -1634,17 +1634,16 @@ static REBARR *Scan_Array(
     SCAN_STATE *ss,
     REBYTE mode_char
 ) {
-    REBDSP dsp_orig = DSP;
-    REBOOL line = FALSE;
+    const REBDSP dsp_orig = DSP;
 
     // just_once for load/next see Load_Script for more info.
-    REBOOL just_once = GET_FLAG(ss->opts, SCAN_NEXT);
-
-    REB_MOLD mo;
-    CLEARS(&mo);
+    const REBOOL just_once = GET_FLAG(ss->opts, SCAN_NEXT);
 
     struct Reb_State state;
     REBCTX *error;
+
+    if (C_STACK_OVERFLOWING(&state))
+        Trap_Stack_Overflow();
 
     if (GET_FLAG(ss->opts, SCAN_RELAX)) {
         PUSH_TRAP(&error, &state);
@@ -1658,8 +1657,11 @@ static REBARR *Scan_Array(
         }
     }
 
-    if (C_STACK_OVERFLOWING(&dsp_orig))
-        Trap_Stack_Overflow();
+    REBOOL line; // goto would cross init, moving up gets clobber warning
+    line = FALSE;
+
+    REB_MOLD mo;
+    CLEARS(&mo);
 
     if (just_once)
         CLR_FLAG(ss->opts, SCAN_NEXT); // no deeper
