@@ -323,9 +323,30 @@ static void Queue_Mark_Opt_Value_Deep(const RELVAL *v)
             Queue_Mark_Array_Subclass_Deep(VAL_BINDING(v));
 
     #if !defined(NDEBUG)
+        //
+        // Make sure the [0] slot of the paramlist holds an archetype that is
+        // consistent with the paramlist itself.
+        //
         REBVAL *archetype = FUNC_VALUE(func);
         assert(FUNC_PARAMLIST(func) == VAL_FUNC_PARAMLIST(archetype));
         assert(FUNC_BODY(func) == VAL_FUNC_BODY(archetype));
+
+        // It would be prohibitive to do validity checks on the facade of
+        // a function on each call to FUNC_FACADE, so it is checked here.
+        //
+        // Though a facade *may* be a paramlist, it could just be an array
+        // that *looks* like a paramlist, holding the underlying function the
+        // facade is "fronting for" in the head slot.  The facade must always
+        // hold the same number of parameters as the underlying function.
+        //
+        REBARR *facade = SER(FUNC_PARAMLIST(func))->misc.facade;
+        assert(IS_FUNCTION(ARR_HEAD(facade)));
+        REBARR *underlying = ARR_HEAD(facade)->payload.function.paramlist;
+        if (underlying != facade) {
+            assert(NOT_SER_FLAG(facade, ARRAY_FLAG_PARAMLIST));
+            assert(GET_SER_FLAG(underlying, ARRAY_FLAG_PARAMLIST));
+            assert(ARR_LEN(facade) == ARR_LEN(underlying));
+        }
     #endif
         break; }
 

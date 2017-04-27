@@ -101,13 +101,11 @@ inline static RELVAL *ARR_LAST(REBARR *a)
     { return SER_LAST(RELVAL, SER(a)); }
 
 // As with an ordinary REBSER, a REBARR has separate management of its length
-// and its terminator.  Many routines seek to control these independently for
-// performance reasons (for better or worse).
+// and its terminator.  Many routines seek to choose the precise moment to
+// sync these independently for performance reasons (for better or worse).
 //
-inline static REBCNT ARR_LEN(REBARR *a) {
-    assert(GET_SER_FLAG(a, SERIES_FLAG_ARRAY));
-    return SER_LEN(SER(a));
-}
+#define ARR_LEN(a) \
+    SER_LEN(SER(a))
 
 
 // TERM_ARRAY_LEN sets the length and terminates the array, and to get around

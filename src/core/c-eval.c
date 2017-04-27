@@ -693,7 +693,8 @@ reevaluate:;
                         // consume lines up.  Make a note of the param
                         // and arg and poke them into the stack value.
                         //
-                        VAL_RESET_HEADER(f->refine, REB_0_PICKUP);
+                        f->refine->header.bits &= CELL_MASK_RESET;
+                        f->refine->header.bits |= HEADERIZE_KIND(REB_0_PICKUP);
                         f->refine->payload.pickup.param
                             = const_KNOWN(f->param);
                         f->refine->payload.pickup.arg = f->arg;

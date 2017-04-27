@@ -151,12 +151,35 @@
     #define VAL_TYPE(v) \
         VAL_TYPE_RAW(v)
 #else
+    // To help speed up VAL_TYPE_Debug, we push the blank flag into the
+    // farthest right value bit...on a 32-bit architecture, this is going
+    // to be the 24th flag...pushing up against the rightmost 8-bits used
+    // for the value's type.  The odds are on any given value this flag will
+    // not be set, but we still don't completely reserve it.
+    //
     #define BLANK_FLAG_UNREADABLE_DEBUG \
-        FLAGIT_LEFT(TYPE_SPECIFIC_BIT + 0)
+        FLAGIT_LEFT(23)
 
     inline static enum Reb_Kind VAL_TYPE_Debug(
         const RELVAL *v, const char *file, int line
     ){
+        // VAL_TYPE is called *a lot*, and this makes it a great place to do
+        // sanity checks in the debug build.  But a debug build will not
+        // inline this function, and makes *no* optimizations.  Using no
+        // stack space e.g. no locals) is ideal, and this front-loaded test
+        // keeps naive branching implementations from taking > 20% of runtime.
+        //
+        if (
+            (v->header.bits & (
+                NODE_FLAG_END
+                | NODE_FLAG_CELL
+                | NODE_FLAG_FREE
+                | BLANK_FLAG_UNREADABLE_DEBUG
+            )) == NODE_FLAG_CELL
+        ){
+            return VAL_TYPE_RAW(v);
+        }
+
         if (v->header.bits & NODE_FLAG_END) {
             printf("VAL_TYPE() called on END marker\n");
             panic_at (v, file, line);
@@ -172,17 +195,19 @@
             panic_at (v, file, line);
         }
 
-        enum Reb_Kind kind = VAL_TYPE_RAW(v);
+        assert(v->header.bits & BLANK_FLAG_UNREADABLE_DEBUG);
 
-        if (
-            kind == REB_BLANK
-            && (v->header.bits & BLANK_FLAG_UNREADABLE_DEBUG)
-        ) {
+        if (VAL_TYPE_RAW(v) == REB_BLANK) {
             printf("VAL_TYPE() called on unreadable BLANK!\n");
             panic_at (v, file, line);
         }
 
-        return kind;
+        // Hopefully rare case... some other type that is using the same
+        // 24th-from-the-left bit as BLANK_FLAG_UNREADABLE_DEBUG, and it's
+        // set, but doesn't mean the type is actually unreadable.  Avoid
+        // making this a common case, as it slows the debug build.
+        // 
+        return VAL_TYPE_RAW(v);
     }
 
     #define VAL_TYPE(v) \
@@ -202,28 +227,58 @@
 //
 
 #ifdef NDEBUG
-    inline static void SET_VAL_FLAGS(RELVAL *v, REBUPT f) {
-        v->header.bits |= f;
-    }
+    #define SET_VAL_FLAGS(v,f) \
+        (v)->header.bits |= (f)
 
-    #define SET_VAL_FLAG(v,f) \
-        SET_VAL_FLAGS((v), (f))
+    #if defined(__cplusplus) && __cplusplus >= 201103L
+        //
+        // In the C++ release build we sanity check that only one bit is set.
+        // The assert is done at compile-time, you must use a constant flag.
+        // If you need dynamic flag checking, use GET_VAL_FLAGS even for one.
+        //
+        // Note this is not included as a runtime assert because it is costly,
+        // and it's not included in the debug build because the flags are
+        // "contaminated" with additional data that's hard to mask out at
+        // compile-time due to the weirdness of CLEAR_8_RIGHT_BITS.  This
+        // pattern does not catch bad flag checks in asserts.  Review.
 
-    inline static REBOOL GET_VAL_FLAG(const RELVAL *v, REBUPT f) {
-        return LOGICAL(v->header.bits & f);
-    }
+        template <REBUPT f>
+        inline static void SET_VAL_FLAG_cplusplus(RELVAL *v) {
+            static_assert(
+                f && (f & (f - 1)) == 0, // only one bit is set
+                "use SET_VAL_FLAGS() to set multiple bits"
+            );
+            v->header.bits |= f;
+        }
+        #define SET_VAL_FLAG(v,f) \
+            SET_VAL_FLAG_cplusplus<f>(v)
+        
+        template <REBUPT f>
+        inline static REBOOL GET_VAL_FLAG_cplusplus(const RELVAL *v) {
+            static_assert(
+                f && (f & (f - 1)) == 0, // only one bit is set
+                "use ANY_VAL_FLAGS() or ALL_VAL_FLAGS() to test multiple bits"
+            );
+            return LOGICAL(v->header.bits & f);
+        }
+        #define GET_VAL_FLAG(v,f) \
+            GET_VAL_FLAG_cplusplus<f>(v)
+    #else
+        #define SET_VAL_FLAG(v,f) \
+            SET_VAL_FLAGS((v), (f))
 
-    inline static REBOOL ANY_VAL_FLAGS(const RELVAL *v, REBUPT f) {
-        return LOGICAL((v->header.bits & f) != 0);
-    }
+        #define GET_VAL_FLAG(v, f) \
+            LOGICAL((v)->header.bits & (f))
+    #endif
 
-    inline static REBOOL ALL_VAL_FLAGS(const RELVAL *v, REBUPT f) {
-        return LOGICAL((v->header.bits & f) == f);
-    }
+    #define ANY_VAL_FLAGS(v,f) \
+        LOGICAL(((v)->header.bits & (f)) != 0)
 
-    inline static void CLEAR_VAL_FLAGS(RELVAL *v, REBUPT f) {
-        v->header.bits &= ~f;
-    }
+    #define ALL_VAL_FLAGS(v,f) \
+        LOGICAL(((v)->header.bits & (f)) == (f))
+
+    #define CLEAR_VAL_FLAGS(v,f) \
+        ((v)->header.bits &= ~(f))
 
     #define CLEAR_VAL_FLAG(v,f) \
         CLEAR_VAL_FLAGS((v), (f))
@@ -239,6 +294,7 @@
     //
     #define CHECK_VALUE_FLAGS_EVIL_MACRO_DEBUG(flags) \
         REBUPT category = RIGHT_8_BITS(flags); \
+        assert(kind > REB_0 && kind <= REB_MAX); \
         if (category != REB_0) { \
             if (kind != category) { \
                 if (category == REB_WORD) \
@@ -252,45 +308,43 @@
         } \
 
     inline static void SET_VAL_FLAGS(RELVAL *v, REBUPT f) {
-        enum Reb_Kind kind = VAL_TYPE(v);
+        enum Reb_Kind kind = VAL_TYPE_RAW(v);
         CHECK_VALUE_FLAGS_EVIL_MACRO_DEBUG(f);
         v->header.bits |= f;
     }
 
     inline static void SET_VAL_FLAG(RELVAL *v, REBUPT f) {
-        enum Reb_Kind kind = VAL_TYPE(v);
+        enum Reb_Kind kind = VAL_TYPE_RAW(v);
         CHECK_VALUE_FLAGS_EVIL_MACRO_DEBUG(f);
-        assert(f && (f & (f - 1)) == 0); // checks that only one bit is set
         v->header.bits |= f;
     }
 
     inline static REBOOL GET_VAL_FLAG(const RELVAL *v, REBUPT f) {
-        enum Reb_Kind kind = VAL_TYPE(v);
+        enum Reb_Kind kind = VAL_TYPE_RAW(v);
         CHECK_VALUE_FLAGS_EVIL_MACRO_DEBUG(f);
-        assert(f && (f & (f - 1)) == 0); // checks that only one bit is set
         return LOGICAL(v->header.bits & f);
     }
 
     inline static REBOOL ANY_VAL_FLAGS(const RELVAL *v, REBUPT f) {
-        enum Reb_Kind kind = VAL_TYPE(v);
+        enum Reb_Kind kind = VAL_TYPE_RAW(v);
         CHECK_VALUE_FLAGS_EVIL_MACRO_DEBUG(f);
         return LOGICAL((v->header.bits & f) != 0);
     }
 
     inline static REBOOL ALL_VAL_FLAGS(const RELVAL *v, REBUPT f) {
-        enum Reb_Kind kind = VAL_TYPE(v);
+        enum Reb_Kind kind = VAL_TYPE_RAW(v);
         CHECK_VALUE_FLAGS_EVIL_MACRO_DEBUG(f);
         return LOGICAL((v->header.bits & f) == f);
     }
 
     inline static void CLEAR_VAL_FLAGS(RELVAL *v, REBUPT f) {
-        enum Reb_Kind kind = VAL_TYPE(v);
+        enum Reb_Kind kind = VAL_TYPE_RAW(v);
         CHECK_VALUE_FLAGS_EVIL_MACRO_DEBUG(f);
         v->header.bits &= ~f;
     }
 
     inline static void CLEAR_VAL_FLAG(RELVAL *v, REBUPT f) {
-        enum Reb_Kind kind = VAL_TYPE(v);
+        enum Reb_Kind kind = VAL_TYPE_RAW(v);
         CHECK_VALUE_FLAGS_EVIL_MACRO_DEBUG(f);
         assert(f && (f & (f - 1)) == 0); // checks that only one bit is set
         v->header.bits &= ~f;
@@ -509,11 +563,26 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
             panic_at(v, file, line);
         }
 
+        // Do a fast common case.  We check for freeness but not cellness, as
+        // not all END markers are full cells.
+        //
+        if ((v->header.bits & (NODE_FLAG_FREE | NODE_FLAG_END)) == 0)
+            return FALSE;
+
         if (v->header.bits & NODE_FLAG_END) {
             if (v->header.bits & NODE_FLAG_CELL)
                 assert(VAL_TYPE_RAW(v) == REB_0);
+            else {
+                // Can't make any guarantees about what's in the type slot of
+                // non-cell ENDs, they only commit a bit or two and use the
+                // rest how they wish!  See Init_Endlike_Header()
+            }
             return TRUE;
         }
+
+        // Anything that's not an END called by this routine *must* be a cell
+        //
+        assert(v->header.bits & NODE_FLAG_CELL);
         return FALSE;
     }
 

@@ -87,21 +87,25 @@ case [
         asserts: false
         symbols: false
         sanitize: false
+        optimize: true
     ]
     any [blank? args/DEBUG | args/DEBUG = "asserts"] [
         asserts: true
         symbols: false
         sanitize: false
+        optimize: true
     ]
     args/DEBUG = "symbols" [
         asserts: true
         symbols: true
         sanitize: false
+        optimize: false
     ]
     args/DEBUG = "sanitize" [
         asserts: true
         symbols: true
         sanitize: true
+        optimize: false
     ]
     true [
         fail [
@@ -181,16 +185,10 @@ newline
 newline
 
 {DEBUG_FLAGS?=} space (
-    either asserts [
-        either symbols [
-            "-g -O0"
-        ][
-            "-O0"
-        ]
-    ][
-        ; http://stackoverflow.com/questions/9229978/
-        ;
-        "-DNDEBUG -O2"
+    unspaced [
+        either symbols ["-g "] [""]
+        either asserts [""] ["-DNDEBUG "] ; http://stackoverflow.com/q/9229978/
+        either optimize ["-O2"] ["-O0"]
     ]
 ) newline
 

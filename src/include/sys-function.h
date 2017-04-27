@@ -92,33 +92,21 @@ inline static REBCTX *FUNC_META(REBFUN *f) {
     return SER(FUNC_PARAMLIST(f))->link.meta;
 }
 
-inline static REBARR *FUNC_FACADE(REBFUN *f) {
-    REBARR *facade = SER(FUNC_PARAMLIST(f))->misc.facade;
-    
-    // Although a facade *may* be a paramlist, it also could just be an array
-    // that *looks* like a paramlist, holding the underlying function the
-    // facade is "fronting for" in the head slot.  The facade must always
-    // hold the same number of parameters as the underlying function.
-    //
-#if !defined(NDEBUG)
-    assert(IS_FUNCTION(ARR_HEAD(facade)));
-    REBARR *underlying = ARR_HEAD(facade)->payload.function.paramlist;
-    if (underlying != facade) {
-        assert(NOT_SER_FLAG(facade, ARRAY_FLAG_PARAMLIST));
-        assert(GET_SER_FLAG(underlying, ARRAY_FLAG_PARAMLIST));
-        assert(ARR_LEN(facade) == ARR_LEN(underlying));
-    }
-#endif
-    return facade;
-}
+// *** These FUNC_FACADE fetchers are called VERY frequently, so it is best
+// to keep them light (as the debug build does not inline).  Integrity checks
+// of the function facades are deferred to the GC, see the REB_FUNCTION case
+// in the switch(), and don't turn these into inline functions without a
+// really good reason...and seeing the impact on the debug build!!! ***
 
-inline static REBCNT FUNC_FACADE_NUM_PARAMS(REBFUN *f) {
-    return ARR_LEN(FUNC_FACADE(f)) - 1;
-}
+#define FUNC_FACADE(f) \
+    SER(FUNC_PARAMLIST(f))->misc.facade
 
-inline static REBVAL *FUNC_FACADE_HEAD(REBFUN *f) {
-    return KNOWN(ARR_AT(FUNC_FACADE(f), 1));
-}
+#define FUNC_FACADE_NUM_PARAMS(f) \
+    (ARR_LEN(FUNC_FACADE(f)) - 1)
+
+#define FUNC_FACADE_HEAD(f) \
+    KNOWN(ARR_AT(FUNC_FACADE(f), 1))
+
 
 // The concept of the "underlying" function is that which has the right
 // number of arguments for the frame to be built--and which has the actual
