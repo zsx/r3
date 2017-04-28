@@ -219,6 +219,7 @@ host-script-pre-load: procedure [
     ]
 ]
 
+
 host-start: function [
     "Loads extras, handles args, security, scripts."
     return: [integer! function!]
@@ -227,7 +228,7 @@ host-start: function [
         {Raw command line argument block received by main() as STRING!s}
     boot-exts [block! blank!]
         {Extensions (modules) loaded at boot}
-    <with> host-prot
+    <with> host-prot repl!
     <has>
         o (system/options) ;-- shorthand since options are often read/written
 ][
@@ -575,99 +576,48 @@ comment [
 
     boot-print boot-help
 
-    ; Set up REPL object.  This object is used in skinning the REPL
+
+    ; REPL skinning:
+    ; Instantiate REPL! object into system/repl
+    ; This object can be updated from %repl-skin.reb (if found in system/user/rebol)
     ; See /os/host-repl.r where this object is called from
-    ; %repl-skin.reb if found in system/user/rebol is loaded on REPL start
     ;
-    system/repl: make object! [
-        counter: 0
-        last-result: _ ;-- last evaluated result (sent by HOST-REPL)
 
-        ; Block to allow for multiple skins in the future, max of one for now.
-        ;
-        skins: either system/user/rebol [
-            reduce [join-of system/user/rebol %repl-skin.reb]
-        ][
-            []
-        ]
+    proto-skin: []
+    skin-file: if system/user/rebol [join-of system/user/rebol %repl-skin.reb]
 
-        ; Called on every line of input by HOST-REPL in %os/host-repl.r
-        ;
-        cycle: does [
-            if zero? ++ counter [load-skin] ;-- only load skin on first cycle
-            counter
-        ]
+    if skin-file [
+        boot-print [newline "REPL skinning:" newline]
+        trap/with [
+            ;; load & run skin if found
+            if loaded-skin?: exists? skin-file [
+                new-skin: do load skin-file
 
-        load-skin: does [
-            if empty? skins [return false]
-
-            print [newline "REPL skinning:" newline]
-            foreach skin-file skins [
-                trap/with [
-                    print [
-                        space space
-                        either exists? skin-file [
-                            do load skin-file
-                            "Loaded skin"
-                        ]["Skin does not exist"]
-                        "-" skin-file
-                    ]
-                ] func [error] [
-                    print [
-                        "  Error loading skin" "-" skin-file |
-                            |
-                        error |
-                            |
-                        "  Fix error and enter repl/load-skin to reload"
-                    ]
-                ]
+                ;; if loaded skin returns REPL! object then use as prototype
+                if all [
+                    object? new-skin
+                    true? select new-skin 'repl    ;; quacks like a REPL!
+                ] [proto-skin: new-skin]
             ]
 
-            print-greeting
+            boot-print [
+                space space
+                either/only loaded-skin? {Loaded skin} {Skin does not exist}
+                "-" skin-file
+                unspaced ["(" if/only empty? proto-skin {not } "updated REPL)"]
+            ]
+        ] func [error] [
+            boot-print [
+                {  Error loading skin  -} skin-file | |
+                error | |
+                {  Fix error and restart REPL}
+            ]
         ]
 
-        ;; APPEARANCE (can be overridden)
-
-        prompt:   {>> }
-        result:   {== }
-        warning:  {!! }
-        print-greeting: _
-        print-prompt:   proc []  [print/only prompt]
-        print-result:   proc []  [print unspaced [result last-result]]
-        print-warning:  proc [s] [print unspaced [warning reduce s]]
-        print-gap:      proc []  [print-newline]
-
-        ;; BEHAVIOR (can be overridden)
-        
-        input-hook: func [
-            {Receives line input, parse/transform, send back to repl eval}
-            s
-        ][
-            s
-        ]
-
-        dialect-hook: func [
-            {Receives code block, parse/transform, send back to repl eval}
-            s
-        ][
-            s
-        ]
-
-        shortcuts: make object! [
-            q: [quit]
-            list-shortcuts: [print system/repl/shortcuts]
-        ]
-
-        ;; HELPERS (can be overridden)
-
-        add-shortcut: proc [
-            {Add/Change REPL shortcut}
-            name  [any-word!]   {shortcut name}
-            block [block!]      {command(s) expanded to}
-        ][
-            extend shortcuts name block
-        ]
+        boot-print {}
     ]
+
+    system/repl: make repl! proto-skin
 
 
     ; Rather than have the host C code look up the REPL function by name, it
@@ -678,3 +628,66 @@ comment [
     return :host-repl
 ]
 
+
+; Define REPL! object for skinning - stub for elsewhere?
+;
+
+repl!: make object! [
+    repl: true
+    counter: 0
+    last-result: _ ;-- last evaluated result (sent by HOST-REPL)
+
+    ; Called on every line of input by HOST-REPL in %os/host-repl.r
+    ;
+    cycle: does [
+        if zero? ++ counter [print-greeting] ;-- only load skin on first cycle
+        counter
+    ]
+
+    ;; APPEARANCE (can be overridden)
+
+    prompt:   {>> }
+    result:   {== }
+    warning:  {!! }
+    error:    {** }                ;; not used yet
+    info:     to-string #{e29398}  ;; info sign!
+    greeting: _
+    print-prompt:   proc []  [print/only prompt]
+    print-result:   proc []  [print unspaced [result last-result]]
+    print-warning:  proc [s] [print unspaced [warning reduce s]]
+    print-error:    proc [e] [print e]
+    print-info:     proc [s] [print [info space space reduce s]]
+    print-greeting: proc []  [boot-print greeting]
+    print-gap:      proc []  [print-newline]
+
+    ;; BEHAVIOR (can be overridden)
+    
+    input-hook: func [
+        {Receives line input, parse/transform, send back to repl eval}
+        s
+    ][
+        s
+    ]
+
+    dialect-hook: func [
+        {Receives code block, parse/transform, send back to repl eval}
+        s
+    ][
+        s
+    ]
+
+    shortcuts: make object! [
+        q: [quit]
+        list-shortcuts: [print system/repl/shortcuts]
+    ]
+
+    ;; HELPERS (could be overridden!)
+
+    add-shortcut: proc [
+        {Add/Change REPL shortcut}
+        name  [any-word!]   {shortcut name}
+        block [block!]      {command(s) expanded to}
+    ][
+        extend shortcuts name block
+    ]
+]
