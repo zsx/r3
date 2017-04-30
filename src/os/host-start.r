@@ -588,7 +588,12 @@ comment [
     ;
 
     proto-skin: make console! [
-        skin-file: if system/user/rebol [join-of system/user/rebol %console-skin.reb]
+        skin-file: either all [
+            system/user/rebol 
+            exists? join-of system/user/rebol %console-skin.reb
+        ][
+            join-of system/user/rebol %console-skin.reb
+        ][_]
     ]
 
     if skin-file: proto-skin/skin-file [
