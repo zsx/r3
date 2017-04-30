@@ -276,6 +276,20 @@ host-start: function [
     ;
     ; TBD - check perms are correct (SECURITY)
     ;
+    all [
+	    any [
+		    home: get-env 'HOME
+		    home: default [get-env 'HOMEPATH]
+		]
+        exists? home: dirize to-rebol-file home
+        system/user/home: home
+        rebol-dir: join-of home switch/default system/platform/1 [
+            'Windows [%REBOL/]
+        ][%.rebol/]              ;; default *nix (Linux, MacOS & UNIX)
+        exists? rebol-dir 
+        system/user/rebol: rebol-dir
+     ]
+
     if exists? home: dirize to-file get-env 'HOME [
         system/user/home: home
         rebol-dir: join-of home switch/default system/platform/1 [
