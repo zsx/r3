@@ -62,7 +62,6 @@ loud-print: procedure [
     ]
 ]
 
-
 make-banner: function [
     "Build startup banner."
     fmt [block!]
@@ -188,7 +187,6 @@ license: procedure [
     print system/license
 ]
 
-
 load-boot-exts: function [
     "INIT: Load boot-based extensions."
     boot-exts [block! blank!]
@@ -203,7 +201,6 @@ load-boot-exts: function [
     boot-exts: 'done
     set 'load-boot-exts 'done ; only once
 ]
-
 
 host-script-pre-load: procedure [
     {Code registered as a hook when a module or script are loaded}
@@ -275,10 +272,10 @@ host-start: function [
     ;   * Windows                      - $HOME/REBOL
     ;
     ; TBD - check perms are correct (SECURITY)
-    ;
+
     all [
         any [
-	    home: get-env 'HOME
+            home: get-env 'HOME
             home: default [get-env 'HOMEPATH]
         ]
         exists? home: dirize to-rebol-file home
@@ -582,7 +579,6 @@ comment [
 
     boot-print boot-help
 
-
     ; CONSOLE skinning:
     ;
     ; Instantiate console! object into system/console
@@ -592,7 +588,6 @@ comment [
     ;
     ; See /os/host-console.r where this object is called from
     ;
-
     proto-skin: make console! [
         skin-file: either all [
             system/user/rebol 
@@ -605,7 +600,7 @@ comment [
     if skin-file: proto-skin/skin-file [
         boot-print [newline "CONSOLE skinning:" newline]
         trap/with [
-            ;; load & run skin if found
+                ;; load & run skin if found
             if exists? skin-file [
                 new-skin: do load skin-file
 
@@ -639,10 +634,7 @@ comment [
 
         boot-print {}
     ]
-
     system/console: proto-skin
-
-
     ; Rather than have the host C code look up the CONSOLE function by name, it
     ; is returned as a function value from calling the start.  It's a bit of
     ; a hack, and might be better with something like the SYS_FUNC table that
@@ -719,4 +711,3 @@ console!: make object! [
         extend shortcuts name block
     ]
 ]
-
