@@ -529,6 +529,566 @@ elf-format: context [
     ]
 ]
 
+; The Portable Executable (PE) format is a file format for executables, object
+; code, DLLs, FON Font files, and others used in 32-bit and 64-bit versions of
+; Windows operating systems.
+;
+; The official specification is at:
+; https://msdn.microsoft.com/en-us/library/windows/desktop/ms680547(v=vs.85).aspx
+;
+pe-format: context [
+    encap-section-name: ".rebolE" ;limited to 8 bytes
+
+    b1: b2: b3: b4: b5: b6: b7: b8: u16: u32: u64: uintptr: _
+    err: _
+    fail-at: _
+
+    byte: complement charset []
+    u16-le: [copy b1 byte copy b2 byte
+            (u16: (shift to-integer/unsigned b2 8)
+            or+ to-integer/unsigned b1)]
+    u32-le: [copy b1 byte copy b2 byte
+            copy b3 byte copy b4 byte
+            (u32: (shift to-integer/unsigned b4 24)
+            or+ (shift to-integer/unsigned b3 16)
+            or+ (shift to-integer/unsigned b2 8)
+            or+ to-integer/unsigned b1)]
+    u64-le: [copy b1 byte copy b2 byte
+            copy b3 byte copy b4 byte
+            copy b5 byte copy b6 byte
+            copy b7 byte copy b8 byte
+            (u64: (shift to-integer/unsigned b8 56)
+            or+ (shift to-integer/unsigned b7 48)
+            or+ (shift to-integer/unsigned b3 40)
+            or+ (shift to-integer/unsigned b5 32)
+            or+ (shift to-integer/unsigned b4 24)
+            or+ (shift to-integer/unsigned b3 16)
+            or+ (shift to-integer/unsigned b2 8)
+            or+ to-integer/unsigned b1)]
+
+    uintptr-le:
+    uintptr-32-le: [u32-le (uintptr: u32)]
+    uintptr-64-le: [u64-le (uintptr: u64)]
+
+    gen-rule: function [
+        "Collect all set-words in @rule and make an object out of them and save it in @name"
+        rule [block!]
+        'name [word!]
+        /skip
+            words [word! block!] "Do not collect these words"
+        <local>
+        word
+        skips
+        def
+        find-a-word
+    ][
+        find-a-word: proc [
+            word [any-word!]
+        ][
+            unless any [
+                find? words to word! word
+                find? def to set-word! word
+            ][
+                append def reduce [to set-word! word]
+            ]
+        ]
+
+        either skip [
+            if word? words [
+                words: reduce [words]
+            ]
+            if locked? words [
+                words: copy words
+            ]
+            append words [err]
+        ][
+            words: [err]
+        ]
+
+        def: make block! 1
+        group-rule: [
+            any [
+                set word set-word!
+                (find-a-word word)
+                | and block! into block-rule ;recursively look into the array
+                | skip
+            ]
+        ]
+        block-rule: [
+            any [
+                and group! into group-rule
+                | and block! into block-rule
+                | ['copy | 'set] set word word! (find-a-word word)
+                | skip
+            ]
+        ]
+
+        parse rule block-rule
+
+        ;dump def
+        set name make object! append def _
+        bind rule get name
+    ]
+
+    DOS-header: _
+    pos: _
+
+    DOS-header-rule: gen-rule [
+        ["MZ" | fail-at: (err: 'missing-dos-signature) fail]
+        u16-le (last-size: u16)
+        u16-le (n-blocks: u16)
+        u16-le (n-reloc: u16)
+        u16-le (header-size: u16)
+        u16-le (min-alloc: u16)
+        u16-le (max-alloc: u16)
+        u16-le (ss: u16)
+        u16-le (sp: u16)
+        u16-le (checksum: u16)
+        u16-le (ip: u16)
+        u16-le (cs: u16)
+        u16-le (reloc-pos: u16)
+        u16-le (n-overlay: u16)
+        copy reserved1 4 u16-le
+        u16-le (oem-id: u16)
+        u16-le (oem-info: u16)
+        copy reserved2 10 u16-le
+        u32-le (e-lfanew: u32)
+    ] DOS-header
+
+    PE-header-rule: [
+        "PE^@^@" | fail-at: (err: 'missing-PE-signature) fail
+    ]
+
+    COFF-header: _
+    COFF-header-rule: gen-rule/skip [
+        and [
+            #{4c01} (machine: 'i386)
+            | #{6486} (machine: 'x86-64 uintptr-le: uintptr-64-le)
+            | #{6201} (machine: 'MIPS-R3000)
+            | #{6801} (machine: 'MIPS-R10000)
+            | #{6901} (machine: 'MIPS-le-WCI-v2)
+            | #{8301} (machine: 'old-alpha-AXP)
+            | #{8401} (machine: 'alpha-AXP)
+            | #{0002} (machine: 'IA64 uintptr-le: uintptr-64-le)
+            | #{6602} (machine: 'MIPS16)
+        ]
+        u16-le (machine-value: u16)
+        pos: u16-le (
+            number-of-sections: u16
+            number-of-sections-offset: (index-of pos) - 1
+        )
+        u32-le (time-date-stamp: u32)
+        u32-le (pointer-to-symbol-table: u32)
+        u32-le (number-of-symbols: u32)
+        u16-le (size-of-optional-headers: u16)
+        u16-le (chracteristics: u16)
+    ] COFF-header 'uintptr-le
+
+    data-directories: make block! 16
+    sections: make block! 8
+    PE-optional-header: _
+
+    PE-optional-header-rule: gen-rule [
+        and [#{0b01} (signature: 'exe-32)
+             | #{0b02} (signature: 'exe-64)
+             | #{0701} (signature: 'ROM)
+             | fail-at: (err: 'missing-image-signature) fail
+        ]
+        u16-le (signature-value: u16)
+        copy major-linker-version byte
+        copy minor-linker-version byte
+        u32-le (size-of-code: u32)
+        u32-le (size-of-initialized-data: u32)
+        u32-le (size-of-uninialized-data: u32)
+        u32-le (address-of-entry-point: u32)
+        u32-le (code-base: u32)
+        u32-le (data-base: u32)
+        u32-le (image-base: u32
+            if signature = 'exe-64 [
+                image-base: code-base or+ shift image-base 32
+                code-base: _
+            ])
+        u32-le (section-alignment: u32)
+        u32-le (file-alignment: u32)
+        u16-le (major-OS-version: u16)
+        u16-le (minor-OS-version: u16)
+        u16-le (major-image-version: u16)
+        u16-le (minor-image-version: u16)
+        u16-le (major-subsystem-version: u16)
+        u16-le (minor-subsystem-version: u16)
+        u32-le (win32-version-value: u32)
+        pos: u32-le (image-size: u32
+                image-size-offset: (index-of pos) - 1)
+        u32-le (size-of-headers: u32)
+        u32-le (checksum: u32)
+        and [
+            #{0000} (subsystem: 'unknown)
+            | #{0100} (subsystem: 'native)
+            | #{0200} (subsystem: 'Widnows-GUI)
+            | #{0300} (subsystem: 'Windows-CUI)
+            | #{0500} (subsystem: 'OS2-CUI)
+            | #{0700} (subsystem: 'POSIX-CUI)
+            | #{0900} (subsystem: 'Widnows-CE-GUI)
+            | #{1000} (subsystem: 'EFI-application)
+            | #{1100} (subsystem: 'EFI-boot-service-driver)
+            | #{1200} (subsystem: 'EFI-runtime-driver)
+            | #{1300} (subsystem: 'EFI-ROM)
+            | #{1400} (subsystem: 'Xbox)
+            | #{1600} (subsystem: 'Windows-Boot-application)
+            | fail-at: (err: 'unrecoginized-subsystem) fail
+        ]
+        u16-le (subsystem-value: u16)
+        u16-le (dll-characteristics: u16)
+        uintptr-le (size-of-stack-reserve: uintptr)
+        uintptr-le (size-of-stack-commit: uintptr)
+        uintptr-le (size-of-heap-reserve: uintptr)
+        uintptr-le (size-of-heap-commit: uintptr)
+        u32-le (loader-flags: u32)
+        u32-le (number-of-RVA-and-sizes: u32)
+    ] PE-optional-header
+
+    data-directory: _
+    data-directory-rule: gen-rule [
+        u32-le (RVA: u32)
+        u32-le (size: u32)
+        (append data-directories copy data-directory)
+    ] data-directory
+
+    section: _
+    section-rule: gen-rule [
+        copy name [8 byte]
+        u32-le (virtual-size: u32)
+        u32-le (virtual-offset: u32)
+        u32-le (physical-size: u32)
+        u32-le (physical-offset: u32)
+        copy reserved [12 byte]
+        u32-le (flags: u32)
+        (append sections copy section)
+    ] section
+
+    garbage: _
+    start-of-section-header: _
+    end-of-section-header: _
+
+    exe-rule: [
+        DOS-header-rule pos: (garbage: DOS-header/e-lfanew + 1 - index-of pos)
+        garbage skip
+        PE-header-rule
+        COFF-header-rule
+        PE-optional-header-rule
+        PE-optional-header/number-of-RVA-and-sizes data-directory-rule
+        start-of-section-header:
+        COFF-header/number-of-sections section-rule
+        end-of-section-header:
+    ]
+    size-of-section-header: 40 ;size of one entry
+
+    to-u32-le: func [
+        i [integer!]
+    ][
+        reverse skip (to binary! i) 4
+    ]
+
+    to-u16-le: func [
+        i [integer!]
+    ][
+        reverse skip (to binary! i) 6
+    ]
+
+    align-to: function [
+        offset [integer!]
+        align [integer!]
+    ][
+        either zero? rem: offset // align [
+            offset
+        ][
+            offset + align - rem
+        ]
+    ]
+
+    reset: does [
+        err: _
+        fail-at: _
+        start-of-section-header:
+        end-of-section-header:
+        garbage: _
+        ;DOS-header: _
+        pos: _
+        ;PE-optional-header: _
+        clear sections
+        clear data-directories
+    ]
+
+    parse-exe: function [
+        exe-data [binary!]
+    ][
+        reset
+        parse exe-data exe-rule
+        if err [
+            fail unspaced ["err: " err ", at: " copy/part fail-at 16]
+        ]
+        true
+    ]
+
+    update-section-header: procedure [
+        pos [binary!]
+        section [object!]
+    ][
+        change pos new-section: rejoin [
+            copy/part (head insert/dup tail to binary! copy section/name #{00} 8) 8 ;name, must be 8-byte long
+            to-u32-le section/virtual-size
+            to-u32-le section/virtual-offset
+            to-u32-le section/physical-size
+            to-u32-le section/physical-offset
+            copy/part (head insert/dup tail to binary! copy section/reserved #{00} 12) 12 ;reserved, must be 12-byte long
+            either binary? section/flags [section/flags][to-u32-le section/flags]
+        ]
+
+        ;dump new-section
+        assert [size-of-section-header = length new-section]
+    ]
+
+    add-section: function [
+        "Add a new section to the exe, modify in place"
+        exe-data [binary!]
+        section-name [string!]
+        section-data [binary!]
+    ][
+        parse-exe exe-data
+
+        ;dump DOS-header
+        ;dump PE-optional-header
+
+        ;check if there's section name conflicts
+        for-each sec sections [
+            if section-name = to string! trim/with sec/name #{00} [
+                fail unspaced ["There is already a section named " section-name ":^/" mold sec]
+            ]
+        ]
+
+        ;print ["Section headers end at:" index-of end-of-section-header]
+        sort/compare sections func [a b][a/physical-offset < b/physical-offset]
+        secs: sections
+        first-section-by-phy-offset: secs/1
+        for-next secs [
+            unless zero? secs/1/physical-offset [
+                first-section-by-phy-offset: secs/1
+                break
+            ]
+        ]
+        ;dump first-section-by-phy-offset
+        gap: first-section-by-phy-offset/physical-offset - (index-of end-of-section-header)
+        if gap < size-of-section-header [
+            fail "Not enough room for a new section header"
+        ]
+
+        ; increment the "number of sections"
+        change skip exe-data COFF-header/number-of-sections-offset
+            to-u16-le (COFF-header/number-of-sections + 1)
+
+        last-section-by-phy-offset: sections/(COFF-header/number-of-sections)
+        ;dump last-section-by-phy-offset
+
+        sort/compare sections func [a b][a/virtual-offset < b/virtual-offset]
+        last-section-by-virt-offset: sections/(COFF-header/number-of-sections)
+        last-virt-offset: align-to last-section-by-virt-offset/virtual-offset + last-section-by-virt-offset/virtual-size 4096
+
+        new-section-size: align-to (length section-data) PE-optional-header/file-alignment;physical size
+        new-section-offset: last-section-by-phy-offset/physical-offset + last-section-by-phy-offset/physical-size
+        assert [zero? new-section-offset // PE-optional-header/file-alignment]
+
+        ; set the image size
+        ; image size has to be mulitple of section-alignment
+        change skip exe-data PE-optional-header/image-size-offset
+            to-u32-le align-to (PE-optional-header/image-size + new-section-size) PE-optional-header/section-alignment
+
+        ; add a new section header
+        new-section-header: make section [
+            name: section-name
+            virtual-size: length section-data
+            virtual-offset: last-virt-offset
+            physical-size: new-section-size
+            physical-offset: new-section-offset
+            flags: #{40000040} ; initialized read-only exe-data
+        ]
+
+        update-section-header end-of-section-header new-section-header
+
+        ;print ["current exe-data length" length exe-data]
+        if new-section-offset > length exe-data [
+            print "Last section has been truncated, filling with garbage"
+            insert/dup garbage: copy #{} #{00} (new-section-offset - length exe-data)
+            print ["length of filler:" length garbage]
+            append exe-data garbage
+        ]
+
+        if new-section-size > length section-data [
+            insert/dup garbage: copy #{} #{00} (new-section-size - length section-data)
+            section-data: join-of to binary! section-data garbage
+        ]
+
+        assert [zero? (length section-data) // PE-optional-header/file-alignment]
+
+        ; add the section
+        case [
+            new-section-offset < length exe-data [
+                print ["There's extra exe-data at the end"]
+                insert (skip exe-data new-section-offset) section-data
+            ]
+            new-section-offset = length exe-data [
+                print ["Appending exe-data"]
+                append exe-data section-data
+            ]
+        ] else [
+            fail "Last section has been truncated"
+        ]
+
+        head exe-data
+    ]
+
+    find-section: function [
+        "Find a section to the exe"
+        exe-data [binary!]
+        section-name [string!]
+        /header "Return only the section header"
+        /data "Return only the section data"
+    ][
+        trap/with [
+            parse-exe exe-data
+        ][
+            ;print ["Failed to parse exe:" err]
+            return _
+        ]
+
+        ;check if there's section name conflicts
+        target-sec: _
+        for-each sec sections [
+            if section-name = to string! trim/with sec/name #{00} [
+                target-sec: sec
+                break
+            ]
+        ]
+        unless target-sec [
+            ;fail spaced ["Couldn't find the section" section-name]
+            return _
+        ]
+
+        case [
+            header [
+                target-sec
+            ]
+            data [
+                copy/part (skip exe-data target-sec/physical-offset) target-sec/physical-size
+            ]
+            'else [
+                reduce [
+                    target-sec
+                    copy/part (skip exe-data target-sec/physical-offset) target-sec/physical-size
+                ]
+            ]
+        ]
+    ]
+
+    update-section: function [
+        exe-data [binary!]
+        section-name [string!]
+        section-data [binary!]
+    ][
+        target-sec: find-section/header exe-data section-name; this will parse exe-data
+        ;dump target-sec
+        if blank? target-sec [
+            return add-section exe-data section-name section-data
+        ]
+        new-section-size: align-to (length section-data) PE-optional-header/file-alignment
+        section-size-diff: new-section-size - target-sec/physical-size
+        unless zero? section-size-diff [
+            new-image-size: to-u32-le align-to (PE-optional-header/image-size + section-size-diff) PE-optional-header/section-alignment
+            if new-image-size != PE-optional-header/image-size [
+                change skip exe-data PE-optional-header/image-size-offset new-image-size
+            ]
+        ]
+        pos: start-of-section-header
+        for-each sec sections [
+            if sec/physical-offset > target-sec/physical-size [
+                ;update the offset affected sections
+                sec/physical-offset: sec/physical-offset + section-size-diff
+                update-section-header pos sec
+            ]
+            pos: skip pos size-of-section-header
+        ]
+        remove/part pos: skip exe-data target-sec/physical-offset target-sec/physical-size
+        if new-section-size > length section-data [;padding with #{00}
+            insert/dup garbage: copy #{} #{00} (new-section-size - length section-data)
+            section-data: join-of to binary! section-data garbage
+        ]
+        insert pos section-data
+
+        head exe-data
+    ]
+
+    remove-section: function [
+        exe-data [binary!]
+        section-name [string!]
+    ][
+        target-sec: find-section/header exe-data section-name; this will parse exe-data
+        ;dump target-sec
+
+        ;dump COFF-header
+        ;dump PE-optional-header
+        ; decrement the "number of sections"
+        change skip exe-data COFF-header/number-of-sections-offset
+            to-u16-le (COFF-header/number-of-sections - 1)
+
+        image-size-diff: align-to target-sec/physical-size PE-optional-header/section-alignment
+        unless zero? image-size-diff [
+            change skip exe-data PE-optional-header/image-size-offset
+                to-u32-le (PE-optional-header/image-size - image-size-diff)
+        ]
+
+        pos: start-of-section-header
+        for-each sec sections [
+            print to string! sec/name
+            ;dump sec
+            case [
+                sec/physical-offset = target-sec/physical-offset [
+                    assert [sec/name = target-sec/name]
+                    ;target sec, replace with all #{00}
+                    change pos head (insert/dup copy #{} #{00} size-of-section-header)
+                    ; do not skip @pos, so that the next section will overwrite this one if it's not the last section
+                ]
+                sec/physical-offset > target-sec/physical-offset [
+                    ;update the offset affected sections
+                    sec/physical-offset: sec/physical-offset - target-sec/physical-size
+                    update-section-header pos sec
+                    pos: skip pos size-of-section-header
+                ]
+                'else [;unchanged
+                    pos: skip pos size-of-section-header
+                ]
+            ]
+        ]
+
+        unless target-sec/physical-offset + 1 = index-of pos [
+            ;if the section to remove is not the last section, the last section
+            ;must have moved forward, so erase the old section
+            change pos head (insert/dup copy #{} #{00} size-of-section-header)
+        ]
+
+        remove/part skip exe-data target-sec/physical-offset target-sec/physical-size
+
+        head exe-data
+    ]
+
+    update-embedding: specialize 'update-section [section-name: encap-section-name]
+    get-embedding: function [
+        return: [binary! blank!]
+        file [file!]
+    ][
+        ;print ["Geting embedded from" mold file]
+        exe-data: read file
+        find-section/data exe-data encap-section-name
+    ]
+]
 
 generic-format: context [
     signature: to-binary "ENCAP000"
@@ -621,7 +1181,13 @@ encap: function [
     ]
 
     in-rebol-path: default [system/options/boot]
-    out-rebol-path: join-of in-rebol-path "-encap"
+    if base-name: find/last in-rebol-path ".exe" [
+        out-rebol-path: join-of
+            copy/part in-rebol-path (index-of base-name) - 1
+            "-encap.exe"
+    ][
+        out-rebol-path: join-of in-rebol-path "-encap"
+    ]
 
     print ["Encapping from original executable:" in-rebol-path]
 
@@ -661,6 +1227,10 @@ encap: function [
         ][
             print "ELF format found"
             elf-format/update-embedding executable compressed
+        ]
+        pe-format/parse-exe executable [
+            print "PE format found"
+            pe-format/update-embedding executable compressed
         ]
         true [
             print "Unidentified executable format, using naive concatenation."
@@ -704,6 +1274,8 @@ get-encap: function [
 
     unless compressed-data: any [
         elf-format/get-embedding rebol-path
+            |
+        pe-format/get-embedding rebol-path
             |
         generic-format/get-embedding rebol-path
     ][
