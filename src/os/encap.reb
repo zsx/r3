@@ -583,6 +583,7 @@ generic-format: context [
     ]
 
     get-embedding: function [
+        return: [binary! blank!]
         file [file!]
 
         <in> self
