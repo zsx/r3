@@ -1181,7 +1181,7 @@ encap: function [
     ]
 
     in-rebol-path: default [system/options/boot]
-    if base-name: find/last in-rebol-path ".exe" [
+    either ".exe" = base-name: skip tail in-rebol-path -4 [
         out-rebol-path: join-of
             copy/part in-rebol-path (index-of base-name) - 1
             "-encap.exe"
