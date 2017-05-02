@@ -65,10 +65,6 @@ REBOOL Next_Path_Throws(REBPVS *pvs)
     REBPEF dispatcher = Path_Dispatch[VAL_TYPE(pvs->value)];
     assert(dispatcher != NULL); // &PD_Fail is used instead of NULL
 
-    if (IS_FUNCTION(pvs->value) && pvs->label_out && *pvs->label_out == NULL)
-        if (IS_WORD(pvs->item))
-            *pvs->label_out = VAL_WORD_SPELLING(pvs->item);
-
     pvs->item++;
 
     // Calculate the "picker" into the GC guarded cell.
@@ -128,7 +124,12 @@ REBOOL Next_Path_Throws(REBPVS *pvs)
         assert(FALSE);
     }
 
-    if (NOT_END(pvs->item + 1)) return Next_Path_Throws(pvs);
+    if (IS_FUNCTION(pvs->value) && pvs->label_out != NULL)
+        if (IS_WORD(pvs->item))
+            *pvs->label_out = VAL_WORD_SPELLING(pvs->item);
+
+    if (NOT_END(pvs->item + 1))
+        return Next_Path_Throws(pvs);
 
     return FALSE;
 }
@@ -233,8 +234,12 @@ REBOOL Do_Path_Throws_Core(
     if (IS_WORD(pvs.item)) {
         pvs.value = Get_Mutable_Var_May_Fail(pvs.item, pvs.item_specifier);
         pvs.value_specifier = SPECIFIED;
+
         if (IS_VOID(pvs.value))
             fail (Error_No_Value_Core(pvs.item, pvs.item_specifier));
+
+        if (IS_FUNCTION(pvs.value) && pvs.label_out != NULL)
+            *pvs.label_out = VAL_WORD_SPELLING(pvs.item);
     }
     else {
         // !!! Ideally there would be some way to deal with writes to
