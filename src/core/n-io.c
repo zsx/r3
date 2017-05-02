@@ -1240,6 +1240,8 @@ REBNATIVE(request_file)
 //
 //  {Returns the value of an OS environment variable (for current process).}
 //
+//      return: [string! blank!]
+//          {The string of the environment variable, or blank if not set}
 //      var [any-string! any-word!]
 //  ]
 //
@@ -1259,13 +1261,17 @@ REBNATIVE(get_env)
     // !!! By passing NULL we don't get backing series to protect!
     REBCHR *os_var = Val_Str_To_OS_Managed(NULL, var);
 
-    REBINT lenplus = OS_GET_ENV(os_var, NULL, 0);
-    if (lenplus == 0) return R_BLANK;
-    if (lenplus < 0) return R_VOID;
+    REBINT lenplus = OS_GET_ENV(NULL, os_var, 0);
+    if (lenplus < 0)
+        return R_BLANK;
+    if (lenplus == 0) {
+        Init_String(D_OUT, Copy_Sequence(VAL_SERIES(EMPTY_STRING)));
+        return R_OUT;
+    }
 
     // Two copies...is there a better way?
     REBCHR *buf = ALLOC_N(REBCHR, lenplus);
-    OS_GET_ENV(os_var, buf, lenplus);
+    OS_GET_ENV(buf, os_var, lenplus);
     Init_String(D_OUT, Copy_OS_Str(buf, lenplus - 1));
     FREE_N(REBCHR, lenplus, buf);
 

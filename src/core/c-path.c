@@ -161,7 +161,7 @@ REBOOL Do_Path_Throws_Core(
     REBSTR **label_out,
     const RELVAL *path,
     REBSPC *specifier,
-    REBVAL *opt_setval
+    const REBVAL *opt_setval
 ) {
     // The pvs contains a cell for the selector into which evaluations are
     // done, e.g. `foo/(1 + 2)`.  Because Next_Path() doesn't commit to not

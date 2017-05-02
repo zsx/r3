@@ -424,19 +424,20 @@ REBCHR *OS_Get_Locale(int what)
 //
 // Get a value from the environment.
 // Returns size of retrieved value for success or zero if missing.
-// If return size is greater than valsize then value contents
+//
+// If return size is greater than capacity then value contents
 // are undefined, and size includes null terminator of needed buf
 //
-REBINT OS_Get_Env(REBCHR *envname, REBCHR* envval, REBINT valsize)
+REBINT OS_Get_Env(REBCHR* buffer, const REBCHR *key, REBINT capacity)
 {
     // Note: The Windows variant of this API is NOT case-sensitive
 
-    REBINT result = GetEnvironmentVariable(envname, envval, valsize);
+    REBINT result = GetEnvironmentVariable(key, buffer, capacity);
     if (result == 0) { // some failure...
         if (GetLastError() == ERROR_ENVVAR_NOT_FOUND) {
-            return 0; // not found
+            return -1; // not found
         }
-        return -1; // other error
+        return -2; // other error... fail?
     }
     return result;
 }

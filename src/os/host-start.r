@@ -274,16 +274,16 @@ host-start: function [
     ; TBD - check perms are correct (SECURITY)
 
     all [
-        any [
-            home: get-env 'HOME
-            home: default [get-env 'HOMEPATH]
+        home: any [
+            get-env 'HOME
+            get-env 'HOMEPATH
         ]
         exists? home: dirize to-rebol-file home
         system/user/home: home
         rebol-dir: join-of home switch/default system/platform/1 [
             'Windows [%REBOL/]
         ][%.rebol/]              ;; default *nix (Linux, MacOS & UNIX)
-        exists? rebol-dir 
+        exists? rebol-dir
         system/user/rebol: rebol-dir
      ]
 
@@ -582,7 +582,7 @@ comment [
     ; CONSOLE skinning:
     ;
     ; Instantiate console! object into system/console
-    ; This object can be updated from console!/skin-file 
+    ; This object can be updated from console!/skin-file
     ;  - default is  %console-skin.reb
     ;  - if found in system/user/rebol
     ;
@@ -590,14 +590,14 @@ comment [
     ;
     proto-skin: make console! [
         skin-file: either all [
-            system/user/rebol 
+            system/user/rebol
             exists? join-of system/user/rebol %console-skin.reb
         ][
             join-of system/user/rebol %console-skin.reb
         ][_]
     ]
 
-    if skin-file: proto-skin/skin-file [
+    if skin-file: get 'proto-skin/skin-file [
         boot-print [newline "CONSOLE skinning:" newline]
         trap/with [
                 ;; load & run skin if found
@@ -679,7 +679,7 @@ console!: make object! [
     print-gap:      proc []  [print-newline]
 
     ;; BEHAVIOR (can be overridden)
-    
+
     input-hook: func [
         {Receives line input, parse/transform, send back to CONSOLE eval}
         s

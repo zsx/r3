@@ -78,26 +78,27 @@ REBOOL OS_Get_Boot_Path(REBCHR *name)
 //  OS_Get_Env: C
 //
 // Get a value from the environment.
-// Returns size of retrieved value for success or zero if missing.
-// If return size is greater than valsize then value contents
+// Returns size of retrieved value for success or -1 if missing.
+//
+// If return size is greater than capacity then value contents
 // are undefined, and size includes null terminator of needed buf
 //
-REBINT OS_Get_Env(REBCHR *envname, REBCHR* envval, REBINT valsize)
+REBINT OS_Get_Env(REBCHR* buffer, const REBCHR *key, REBINT capacity)
 {
     // Note: The Posix variant of this API is case-sensitive
 
-    REBINT len;
-    const char* value = getenv(envname);
-    if (value == 0) return 0;
+    const char* value = getenv(key);
+    if (value == NULL)
+        return -1;
 
-    len = strlen(value);
-    if (len == 0) return -1; // shouldn't have saved an empty env string
+    REBINT len = strlen(value);
+    if (len == 0)
+        return 0;
 
-    if (len + 1 > valsize) {
+    if (len + 1 > capacity)
         return len + 1;
-    }
 
-    strncpy(envval, value, len);
+    strncpy(buffer, value, len);
     return len;
 }
 
