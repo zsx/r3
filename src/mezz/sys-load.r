@@ -139,7 +139,7 @@ load-header: function [
     ;    bad-checksum
     ;    bad-compress
     ;
-    ; Note: set/opt and :var used - prevent malicious code errors.
+    ; Note: set and :var used - prevent malicious code errors.
     ; Commented assert statements are for documentation and testing.
     ;
     end: _ ;-- locals are now unset by default, added after that change
@@ -154,10 +154,10 @@ load-header: function [
         ]
 
         ; get 'rebol keyword
-        set/opt [key: rest:] transcode/only data blank
+        set* [key: rest:] transcode/only data blank
 
         ; get header block
-        set/opt [hdr: rest:] transcode/next/relax rest blank
+        set* [hdr: rest:] transcode/next/relax rest blank
 
         not block? :hdr [
             ; header block is incomplete
@@ -743,7 +743,7 @@ load-module: function [
             delay: no-share: _ hdr: meta-of mod
             ensure [block! blank!] hdr/options
         ]
-        block? mod [set/opt [hdr: code:] mod]
+        block? mod [set* [hdr: code:] mod]
 
         ; module/block mod used later for override testing
 
@@ -774,7 +774,7 @@ load-module: function [
                 hdr/options: append any [hdr/options make block! 1] 'private
             ]
         ]
-        not tuple? set/opt 'modver :hdr/version [
+        not tuple? set* 'modver :hdr/version [
             modver: 0.0.0 ; get version
         ]
 

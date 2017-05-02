@@ -225,7 +225,12 @@ get: function [
     opt_ANY: opt
     lib-set/any 'opt () ;-- doesn't exist in R3-Alpha
 
-    apply :lib-get [source (any [opt_ANY set_ANY])]
+    lib-set/any (quote temp:) lib-get/any source
+    either any [opt_ANY set_ANY] [
+        :temp ;-- voids okay
+    ][
+        either void? :temp [blank] [:temp]
+    ]
 ]
 
 
@@ -396,17 +401,17 @@ any-number!: number!
 
 ; "optional" (a.k.a. void) handling
 opt: func [
-    {BLANK! to a void, all other value types pass through.}
+    {Turns blanks to voids, all other value types pass through.}
     value [*opt-legacy* any-value!]
 ][
-    either blank? :value [()][get/opt 'value]
+    either* blank? :value [()] [:value]
 ]
 
 to-value: func [
-    {Turns unset to NONE, with ANY-VALUE! passing through. (See: OPT)}
+    {Turns voids to blank, with ANY-VALUE! passing through. (See: OPT)}
     value [*opt-legacy* any-value!]
 ][
-    either void? get/opt 'value [blank][:value]
+    get 'value
 ]
 
 something?: func [value [*opt-legacy* any-value!]] [

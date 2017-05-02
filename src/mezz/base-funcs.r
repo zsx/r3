@@ -469,6 +469,33 @@ redescribe [
 ] :procedure
 
 
+get*: redescribe [
+    {Variation of GET which returns void if the source is not set}
+](
+    specialize 'get [opt: true]
+)
+
+get-value: redescribe [
+    {Variation of GET which fails if the value is not set (vs. void or blank)}
+](
+    chain [
+        :get*
+            |
+        func [x [<opt> any-value!]] [
+            unless set? 'x [
+                fail "GET-VALUE requires source variable to be set"
+            ]
+            :x
+        ]
+    ]
+)
+
+set*: redescribe [
+    {Variation of SET where voids are tolerated for unsetting variables.}
+](
+    specialize 'set [opt: true]
+)
+
 ; LOGIC VERSIONS OF CONTROL STRUCTURES
 ;
 ; Control structures evaluate to either void (if no branches taken) or the

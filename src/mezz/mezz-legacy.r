@@ -302,12 +302,12 @@ set: function [
 
     return: [<opt> any-value!]
         {Just chains the input value (unmodified)}
-    target [any-word! any-path! block! any-context!]
+    target [blank! any-word! any-path! block! any-context!]
         {Word, block of words, path, or object to be set (modified)}
     value [<opt> any-value!]
         "Value or block of values"
     /opt
-        "Value is optional, and if no value is provided then unset the word"
+        "Treat void values as unsetting the target instead of an error"
     /pad
         {For objects, set remaining words to NONE if block is too short}
     /lookback
@@ -320,42 +320,51 @@ set: function [
     set_OPT: opt
     opt: :lib/opt
 
-    apply 'lib-set [
-        target: target
-        value: :value
-        opt: any? [set_ANY set_OPT]
-        pad: pad
-        lookback: lookback
+    either any-context? target [
+        unless block? value [
+            fail "Legacy SET of ANY-CONTEXT! support requires block of values"
+        ]
+
+        item: value
+        for-each key target [
+            apply 'lib-set [
+                target: key
+                value: :item/1
+                opt: any? [set_ANY set_OPT]
+                pad: pad
+                lookback: lookback
+            ]
+
+            item: next item
+        ]
+        :value
+    ][
+        apply 'lib-set [
+            target: target
+            value: :value
+            opt: any? [set_ANY set_OPT]
+            pad: pad
+            lookback: lookback
+        ]
     ]
 ]
 
 
-; This version of get supports the legacy /ANY switch that has been replaced
-; by /OPT (but since the switch is new, it would be disruptive to remove it
-; entirely immediately... /ANY will be moved to the r3-legacy mode after
-; more codebases have adapted to /OPT.  If it is to stay even longer, it may
-; need to be done via a thinner legacy proxy which can rename refinements but
-; not cost a function body execution.)
+; This version of get supports the legacy /ANY switch.
 ;
 ; Historical GET in Rebol allowed any type that wasn't UNSET!.  If you said
 ; something like `get 1` this would be passed through as `1`.  Both Ren-C and
-; Red have removed that feature, so it's only enabled in legacy mode.  R3-Gui
-; was dependent on the fallthrough behavior and other legacy clients may be
-; also, so this is a more tolerant variant of LIB/GET for now.
-;
-; Note: It is questionable to use it as a way of getting the fields of an
-; object (likely better suited to reflection)--the SET parallel actually
-; assumes a positional ordering of fields, disallowed in PICK (should be the
-; same rule, probably neither should work.)
+; Red have removed that feature, it is not carried forward in legacy at this
+; time.
 ;
 lib-get: :get
 get: function [
     {Gets the value of a word or path, or values of a context.}
     return: [<opt> any-value!]
-    source
+    source [blank! any-word! any-path! any-context! block!]
         "Word, path, context to get"
     /opt
-        "The source may optionally have no value (allows returning void)"
+        "Return void if no value instead of blank"
     /any
         "Deprecated legacy synonym for /OPT"
 ][
@@ -364,15 +373,36 @@ get: function [
     opt_GET: opt
     opt: :lib/opt
 
-    either* maybe? [blank! any-word! any-path! any-context! block!] :source [
-        lib-get/(all [any [opt_GET any_GET] 'opt]) :source
-    ][
-        unless system/options/get-will-get-anything [
-            fail [
-                "GET takes ANY-WORD!, ANY-PATH!, ANY-CONTEXT!, not" (:source)
+    either* any-context? source [
+        ;
+        ; !!! This is a questionable feature, a shallow copy of the vars of
+        ; the context being put into a BLOCK!:
+        ;
+        ;     >> get make object! [[a b][a: 10 b: 20]]
+        ;     == [10 20]
+        ;
+        ; Certainly an oddity for GET.  Should either be turned into a
+        ; VARS-OF reflector or otherwise gotten rid of.  It is also another
+        ; potentially "order-dependent" exposure of the object's fields,
+        ; which may lead to people expecting an order.
+
+        collect [
+            for-each [key var] source [
+                either set? 'var [
+                    keep/only :var
+                ][
+                    if any? [any_GET opt_GET] [
+                        fail ["Field" key "not set, can't use /OPT in block"]
+                    ]
+                    keep blank
+                ]
             ]
         ]
-        :source
+    ][
+        apply 'lib-get [
+            source: source
+            opt: any? [any_GET opt_GET]
+        ]
     ]
 ]
 
@@ -448,7 +478,7 @@ r3-alpha-apply: function [
             using-args: set (in frame params/1) true? :arg
         ][
             if using-args [
-                set/opt (in frame params/1) :arg
+                set* (in frame params/1) :arg
             ]
         ]
 

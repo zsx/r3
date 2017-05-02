@@ -537,60 +537,24 @@ REBNATIVE(collect_words)
 //  {Gets the value of a word or path, or values of a context.}
 //
 //      return: [<opt> any-value!]
-//      source [blank! any-word! any-path! any-context! block!]
-//          {Word, path, context to get}
+//          {If the source looks up to a value, that value--else void}
+//      source [blank! any-word! any-path! block!]
+//          {Word or path to get, or block of words or paths (blank is no-op)}
 //      /opt
-//          "Optionally return no value if the source is not SET?"
+//          {Return void if no value instead of blank}
 //  ]
 //
 REBNATIVE(get)
 //
-// !!! Review if handling ANY-CONTEXT! is a good idea, or if that should be
-// an independent reflector like VALUES-OF.
+// Note: GET* cannot be the fundamental operation, because GET could not be
+// written for blocks (since voids can't be put in blocks, so they couldn't
+// be "blankified")
 {
     INCLUDE_PARAMS_OF_GET;
 
     RELVAL *source;
     REBVAL *dest;
     REBSPC *specifier;
-
-    if (ANY_CONTEXT(ARG(source))) {
-        //
-        // !!! This is a questionable feature, a shallow copy of the vars of
-        // the context being put into a BLOCK!:
-        //
-        //     >> get make object! [[a b][a: 10 b: 20]]
-        //     == [10 20]
-        //
-        // Certainly an oddity for GET.  Should either be turned into a
-        // VARS-OF reflector or otherwise gotten rid of.  It is also another
-        // potentially "order-dependent" exposure of the object's fields,
-        // which may lead to people expecting an order.
-
-        // !!! The array we create may have extra unused capacity, due to
-        // the LEN including hidden fields which aren't going to be copied.
-        //
-        source = ARG(source);
-        REBARR *array = Make_Array(CTX_LEN(VAL_CONTEXT(source)));
-        REBVAL *dest = SINK(ARR_HEAD(array));
-
-        REBVAL *key = CTX_KEYS_HEAD(VAL_CONTEXT(source));
-        REBVAL *var = CTX_VARS_HEAD(VAL_CONTEXT(source));
-
-        for (; NOT_END(key); key++, var++) {
-            if (GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN))
-                continue;
-
-            // This only copies the value bits, so this is a "shallow" copy
-            //
-            Move_Value(dest, var);
-            ++dest;
-        }
-
-        TERM_ARRAY_LEN(array, cast(RELVAL*, dest) - ARR_HEAD(array));
-        Init_Block(D_OUT, array);
-        return R_OUT;
-    }
 
     // Move the argument into the single cell in the frame if it's not a
     // block, so the same enumeration-up-to-an-END marker can work on it
@@ -602,10 +566,10 @@ REBNATIVE(get)
         //
         // If a BLOCK! of gets are performed, voids cannot be put into the
         // resulting BLOCK!.  Hence for /OPT to be legal, it would have to
-        // give back a BLANK! or other placeholder.  For now, error.
-        //
-        if (REF(opt))
-            fail (Error_Bad_Refines_Raw());
+        // give back a BLANK! or other placeholder.  However, since GET-VALUE
+        // is built on GET/OPT, we defer the error until we actually encounter
+        // an unset variable...which produces that error case that could not
+        // be done by "checking the block for voids"
 
         source = VAL_ARRAY_AT(ARG(source));
         specifier = VAL_SPECIFIER(ARG(source));
@@ -622,7 +586,7 @@ REBNATIVE(get)
         results = NULL; // wasteful but avoids maybe-used-uninitalized warning
     }
 
-    DECLARE_LOCAL (temp);
+    DECLARE_LOCAL (get_path_hack); // runs prep code, don't put inside loop
 
     for (; NOT_END(source); ++source, ++dest) {
         if (IS_BAR(source)) {
@@ -635,42 +599,55 @@ REBNATIVE(get)
             SET_BAR(dest);
         }
         else if (IS_BLANK(source)) {
-            //
-            // R3-Alpha had the notion of "none propagation" where a routine
-            // that it didn't make sense to take a non-value would use that
-            // to allow a pass-thru to chain "failure" to other routines.
-            // Ren-C has routines that tolerate blank inputs but that give
-            // back a void, which avoids an immediate error alert but which
-            // is more of a "hot potato" that needs to be handled.
-            //
-            SET_VOID(dest);
+            SET_VOID(dest); // may be turned to blank after loop, or error
         }
         else if (ANY_WORD(source)) {
             Copy_Opt_Var_May_Fail(dest, source, specifier);
         }
         else if (ANY_PATH(source)) {
             //
+            // Make sure the path does not contain any GROUP!s, because that
+            // would trigger evaluations.  GET does not sound like something
+            // that should have such a side-effect, the user should go with
+            // a REDUCE operation if that's what they want.
+            //
+            RELVAL *temp = VAL_ARRAY_AT(source);
+            for (; NOT_END(temp); ++temp)
+                if (IS_GROUP(temp))
+                    fail ("GROUP! can't be in paths with GET, use REDUCE");
+
             // Piggy-back on the GET-PATH! mechanic by copying to a temp
             // value and changing its type bits.
             //
             // !!! Review making a more efficient method of doing this.
             //
-            Derelativize(temp, source, specifier);
-            VAL_SET_TYPE_BITS(temp, REB_GET_PATH);
+            Derelativize(get_path_hack, source, specifier);
+            VAL_SET_TYPE_BITS(get_path_hack, REB_GET_PATH);
 
-            // Here we DO it, which means that `get 'foo/bar` will act the same
-            // as `:foo/bar` for all types.
+            // Here we DO it, which means that `get 'foo/bar` will act the
+            // same as `:foo/bar` for all types.
             //
-            if (Do_Path_Throws_Core(dest, NULL, temp, specifier, NULL))
-                return R_OUT_IS_THROWN;
-
-            // !!! Should this prohibit GROUP! evaluations?  Failure to do so
-            // could make a GET able to have side-effects, which may not be
-            // desirable, at least without a refinement.
+            if (Do_Path_Throws_Core(
+                dest,
+                NULL,
+                get_path_hack,
+                SPECIFIED,
+                NULL
+            )){
+                // Should not be possible if there's no GROUP!
+                //
+                fail (Error_No_Catch_For_Throw(dest));
+            }
         }
 
-        if (NOT(REF(opt)) && IS_VOID(dest))
-            fail (Error_No_Value_Core(source, specifier));
+        if (IS_VOID(dest)) {
+            if (REF(opt)) {
+                if (IS_BLOCK(ARG(source))) // can't put voids in blocks
+                    fail (Error_No_Value_Core(source, specifier));
+            }
+            else
+                SET_BLANK(dest);
+        }
     }
 
     if (IS_BLOCK(ARG(source)))
@@ -847,327 +824,153 @@ REBNATIVE(resolve)
 //  {Sets a word, path, block of words, or context to specified value(s).}
 //
 //      return: [<opt> any-value!]
-//      target [any-word! any-path! block! any-context!]
-//          {Word, block of words, path, or object to be set (modified)}
+//          {Will be the values set to, or void if any set values are void}
+//      target [blank! any-word! any-path! block!]
+//          {Word or path, or block of words and paths (blanks are no-ops)}
 //      value [<opt> any-value!]
 //          "Value or block of values"
 //      /opt
-//          "Value is optional, and if no value is provided unset the target"
+//          {Treat void values as unsetting the target instead of an error}
 //      /pad
-//          {For objects, set remaining words to NONE if block is too short}
+//          {Set remaining words to BLANK! if block is too short}
 //      /lookback
 //          {Function uses evaluator lookahead to "look back" (see SET-INFIX)}
 //  ]
 //
 REBNATIVE(set)
 //
+// Blocks are supported as:
+//
+//     >> set [a b] [1 2]
+//     >> print a
+//     1
+//     >> print b
+//     2
+//
 // !!! Should the /LOOKBACK refinement be called /ENFIX?
 {
     INCLUDE_PARAMS_OF_SET;
 
-    if (NOT(REF(opt)) && IS_VOID(ARG(value)))
-        fail (Error_Need_Value_Raw( ARG(target)));
-
-    if (REF(lookback)) {
-        if (!IS_FUNCTION(ARG(value)))
-            fail ("Attempt to SET/LOOKBACK on a non-function");
-
-        // SET-INFIX checks for properties of the function to ensure it is
-        // actually infix, and INFIX? tests specifically for that.  The only
-        // things that should be checked here are to make sure things that
-        // are impossible aren't being requested... e.g. a "look back quote
-        // of a WORD!" (the word can't be quoted because it's evaluated
-        // before the evaluator lookahead that would see the infix function).
-        //
-        // !!! Should arity 0 functions be prohibited?
-    }
-
-    // Simple request to set a word variable.  Allows ANY-WORD, which means
-    // for instance that `set quote x: (expression)` would mean that the
-    // locals gathering facility of FUNCTION would still gather x.
-    //
-    if (ANY_WORD(ARG(target))) {
-        REBVAL *var = Get_Var_Core(ARG(target), SPECIFIED, GETVAR_MUTABLE);
-        Move_Value(var, ARG(value));
-        if (REF(lookback))
-            SET_VAL_FLAG(var, VALUE_FLAG_ENFIXED);
-
-        goto return_value_arg;
-    }
-
-    // !!! For starters, just the word form is supported for lookback.  Though
-    // you can't dispatch a lookback from a path, you should be able to set
-    // a word in a context to one.
-    //
-    if (REF(lookback))
-        fail ("Cannot currently SET/LOOKBACK on a PATH!");
-
-    if (ANY_PATH(ARG(target))) {
-        DECLARE_LOCAL (dummy);
-        if (
-            Do_Path_Throws_Core(
-                dummy, NULL, ARG(target), SPECIFIED, ARG(value)
-            )
-        ) {
-            fail (Error_No_Catch_For_Throw(dummy));
-        }
-
-        // If not a throw, then there is no result out of a setting a path,
-        // we should return the value we passed in to set with.
-        //
-        goto return_value_arg;
-    }
-
-    // If the target is either a context or a block, and the value used
-    // to set with is ablock, then we want to do the assignments in
-    // corresponding order to the elements:
-    //
-    //     >> set [a b] [1 2]
-    //     >> print a
-    //     1
-    //     >> print b
-    //     2
-    //
-    // Extract the value from the block at its index position.  (It may
-    // be recovered again with `value = VAL_ARRAY_AT(ARG(value))` if
-    // it is changed.)
-    //
-    REBOOL set_with_block; // goto would cross initialization
-    set_with_block = IS_BLOCK(ARG(value));
-
     const RELVAL *value;
     REBSPC *value_specifier;
-    if (set_with_block) {
+
+    const RELVAL *target;
+    REBSPC *target_specifier;
+
+    if (IS_BLOCK(ARG(target))) {
+        if (NOT(IS_BLOCK(ARG(value))))
+            fail (ARG(value)); // value must be a block if setting a block
+
+        target = VAL_ARRAY_AT(ARG(target));
+        target_specifier = VAL_SPECIFIER(ARG(target));
+
+        // There is no need to check values for voidness in this case, since
+        // arrays cannot contain voids.
+        //
         value = VAL_ARRAY_AT(ARG(value));
         value_specifier = VAL_SPECIFIER(ARG(value));
-
-        // If it's an empty block it's just going to be a no-op, so go ahead
-        // and return now so the later code doesn't have to check for it.
-        //
-        if (IS_END(value))
-            goto return_value_arg;
     }
     else {
+        // Use the fact that D_CELL is implicitly terminated so that the
+        // loop below can share code between `set [a b] x` and `set a x`, by
+        // incrementing the target pointer and hitting an END marker
+        //
+        assert(
+            ANY_WORD(ARG(target))
+            || ANY_PATH(ARG(target))
+            || IS_BLANK(ARG(target))
+        );
+
+        Move_Value(D_CELL, ARG(target));
+        target = D_CELL;
+        target_specifier = SPECIFIED;
+
+        // The target is used in the incrementation, so there's no need to
+        // terminate the value for iteration.
+        //
+        if (IS_VOID(ARG(value)) && NOT(REF(opt)))
+            fail (Error_No_Value(ARG(value)));
+
         value = ARG(value);
         value_specifier = SPECIFIED;
     }
 
-    if (ANY_CONTEXT(ARG(target))) {
-        //
-        // !!! The functionality of using a block to set ordered arguments
-        // in an object depends on a notion of the object retaining a
-        // guaranteed ordering of keys.  This is a somewhat restrictive
-        // model which might need review.  Also, the idea that something
-        // like `set object [a: 0 b: 0 c: 0] 1020` will set all the fields
-        // to 1020 is a bit of a strange feature for the primitive.
+    DECLARE_LOCAL (get_path_hack); // runs prep code, don't put inside loop
 
-        REBVAL *key = CTX_KEYS_HEAD(VAL_CONTEXT(ARG(target)));
-        REBVAL *var = CTX_VARS_HEAD(VAL_CONTEXT(ARG(target)));
+    for (; NOT_END(target); ++target) {
+        if (IS_END(value) && NOT(REF(pad)))
+            break;
 
-        // To make SET somewhat atomic, before setting any of the object's
-        // vars we make sure none of them are protected...and if we're not
-        // tolerating unsets we check that the value being assigned is set.
-        //
-        for (; NOT_END(key); ++key, ++var) {
-            //
-            // Hidden words are not shown in the WORDS-OF, and should not
-            // count for consideration in positional setting.  Just skip.
-            //
-            if (GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN))
-                continue;
-
-            // Protected words cannot be modified, so a SET should error
-            // instead of going ahead and changing them
-            //
-            if (GET_VAL_FLAG(var, VALUE_FLAG_PROTECTED))
-                fail (Error_Protected_Key(key));
-
-            // If we're setting to a single value and not a block, then
-            // we only need to check protect status (have to check all the
-            // keys because all of them are set to the value).  We also
-            // have to check all keys if we are going to pad the object.
-            //
-            if (!set_with_block) continue;
-
-            if (NOT(REF(opt)) && IS_VOID(value)) {
-                DECLARE_LOCAL (key_name);
-                Init_Word(key_name, VAL_KEY_SPELLING(key));
-
-                fail (Error_Need_Value_Raw( key_name));
-            }
-
-            // We knew it wasn't an end from the earlier check, but when we
-            // increment it then it may become one.
-            //
-            value++;
-            if (IS_END(value)) {
-                if (REF(pad)) continue;
-                break;
-            }
+        if (IS_BAR(target)) {
+            if (NOT_END(value) || NOT(IS_BAR(value)))
+                fail ("BAR! can only line up with other BAR! in SET");
         }
-
-        // Refresh value from the arg data if we changed it during checking
-        //
-        if (set_with_block)
-            value = VAL_ARRAY_AT(ARG(value));
-        else
-            assert(value == VAL_ARRAY_AT(ARG(value))); // didn't change
-
-        // Refresh the key so we can check and skip hidden fields
-        //
-        key = CTX_KEYS_HEAD(VAL_CONTEXT(ARG(target)));
-        var = CTX_VARS_HEAD(VAL_CONTEXT(ARG(target)));
-
-        // With the assignments validated, set the variables in the object,
-        // padding to NONE if requested
-        //
-        for (; NOT_END(key); key++, var++) {
-            if (GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN))
-                continue;
-
-            if (IS_END(value)) {
-                if (NOT(REF(pad)))
-                    break;
-                SET_BLANK(var);
-                continue;
-            }
-            Derelativize(var, value, value_specifier);
-            if (set_with_block) value++;
+        else if (IS_BLANK(target)) {
+            //
+            // Just skip it
         }
+        else if (ANY_WORD(target)) {
+            if (REF(lookback) && NOT(IS_FUNCTION(ARG(value))))
+                fail ("Attempt to SET/LOOKBACK on a non-function");
 
-        goto return_value_arg;
-    }
+            REBVAL *var = Sink_Var_May_Fail(target, target_specifier);
+            Derelativize(var, IS_END(value) ? BLANK_VALUE : value, value_specifier);
+            if (REF(lookback))
+                SET_VAL_FLAG(var, VALUE_FLAG_ENFIXED);
+        }
+        else if (ANY_PATH(target)) {
+            //
+            // Make sure the path does not contain any GROUP!s, because that
+            // would trigger evaluations.  SET does sound like it has a
+            // side effect (unlike GET), but you don't expect the side effect
+            // to do things like PRINT, which arbitrary code can do.
+            //
+            RELVAL *temp = VAL_ARRAY_AT(target);
+            for (; NOT_END(temp); ++temp)
+                if (IS_GROUP(temp))
+                    fail ("GROUP! can't be in paths with SET");
 
-    // Otherwise, it must be a BLOCK!... extract the value at index position
-    //
-    assert(IS_BLOCK(ARG(target)));
+            // !!! For starters, just the word form is supported for lookback.
+            // Though you can't dispatch a lookback from a path, you should be
+            // able to set a word in a context to one.
+            //
+            if (REF(lookback))
+                fail ("Cannot currently SET/LOOKBACK on a PATH!");
 
-    RELVAL *target; // goto would cross initialization
-    target = VAL_ARRAY_AT(ARG(target));
+            DECLARE_LOCAL (specific);
+            if (IS_END(value))
+                SET_BLANK(specific);
+            else
+                Derelativize(specific, value, value_specifier);
 
-    REBSPC *target_specifier; // goto would cross initialization
-    target_specifier = VAL_SPECIFIER(ARG(target));
+            // Currently we have to tweak the bits of the path so that it's a
+            // GET-PATH!, since Do_Path is sensitive to the path type, and we
+            // want all to act the same.
+            //
+            Derelativize(get_path_hack, target, target_specifier);
+            VAL_SET_TYPE_BITS(get_path_hack, REB_GET_PATH);
 
-    // SET should be somewhat atomic.  So if we're setting a block of
-    // words and giving an alert on unsets, check for any unsets before
-    // setting half the values and interrupting.
-    //
-    if (NOT(REF(opt))) {
-        for (; NOT_END(target) && NOT_END(value); target++) {
-            assert(!IS_VOID(value)); // blocks may not contain voids
-
-            if (IS_BAR(value))
-                if (!IS_BAR(target))
-                    fail ("BAR! can only line up with other BAR! in SET");
-
-            switch (VAL_TYPE(target)) {
-            case REB_BLANK:
-                //
-                // Throws away whatever value is there
-                //
-            case REB_WORD:
-            case REB_SET_WORD:
-            case REB_LIT_WORD:
-                break;
-
-            case REB_GET_WORD:
-                //
-                // In this case, even if we're setting all the block
-                // elements to the same value, it makes a difference if
-                // it's a get-word for the !set_with_block too.
-                //
-                if (IS_WORD(value)) // !!! why just WORD!, and not ANY-WORD!
-                    if (IS_VOID(Get_Opt_Var_May_Fail(value, value_specifier)))
-                        fail (Error_Need_Value_Raw( target));
-                break;
-
-            case REB_BAR:
-                //
-                // A BAR! must match a BAR!, e.g. `set [a | b] [1 | 2]` is
-                // legal but `set [a | b] [1 2 3]` is not.
-                //
-                if (!IS_BAR(value))
-                    fail ("BAR! can only line up with other BAR! in SET");
-                break;
-
-            default:
-                // !!! Error is not caught here, but in the second loop...
-                // Why two passes if the first pass isn't going to screen
-                // for all errors?
-                break;
+            if (
+                Do_Path_Throws_Core(
+                    D_OUT,
+                    NULL,
+                    get_path_hack,
+                    SPECIFIED,
+                    specific
+                )
+            ){
+                fail (Error_No_Catch_For_Throw(D_OUT));
             }
 
-            if (set_with_block)
-                value++;
-        }
-
-        // Refresh the target and data pointers from the function args
-        //
-        target = VAL_ARRAY_AT(ARG(target));
-        if (set_with_block)
-            value = VAL_ARRAY_AT(ARG(value));
-        else
-            assert(value == ARG(value)); // didn't change
-    }
-
-    // With the assignments checked, do them
-    //
-    for (; NOT_END(target); target++) {
-        if (IS_BAR(target) || IS_BLANK(target)) {
-            //
-            // Just skip it (bars have already been checked that they line
-            // up with other bars)
-            //
-        }
-        else if (
-            IS_WORD(target)
-            || IS_SET_WORD(target)
-            || IS_LIT_WORD(target)
-        ) {
-            Derelativize(
-                Sink_Var_May_Fail(target, target_specifier),
-                value,
-                value_specifier
-            );
-        }
-        else if (IS_GET_WORD(target)) {
-            //
-            // !!! Does a get of a WORD!, but what about of a PATH!?
-            // Should parens be evaluated?  (They are in the function
-            // arg handling of get-words as "hard quotes", for instance)
-            // Not exactly the same thing, but worth contemplating.
-            //
-            if (IS_WORD(value)) {
-                Copy_Opt_Var_May_Fail(
-                    Sink_Var_May_Fail(target, target_specifier),
-                    value,
-                    value_specifier
-                );
-            }
-            else {
-                Derelativize(
-                    Sink_Var_May_Fail(target, target_specifier),
-                    value,
-                    value_specifier
-                );
-            }
+            // If not a throw, then there is no result out of a setting a path
         }
         else
             fail (Error_Invalid_Arg_Core(target, target_specifier));
 
-        if (set_with_block) {
-            value++;
-            if (IS_END(value)) {
-                if (NOT(REF(pad)))
-                    break;
-                set_with_block = FALSE;
-                value = BLANK_VALUE;
-                value_specifier = SPECIFIED;
-            }
-        }
+        if (NOT_END(value))
+            ++value; // may not have terminator, incrementation unused then
     }
 
-return_value_arg:
     Move_Value(D_OUT, ARG(value));
     return R_OUT;
 }
