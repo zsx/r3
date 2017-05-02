@@ -321,23 +321,13 @@ set: function [
     opt: :lib/opt
 
     either any-context? target [
-        unless block? value [
-            fail "Legacy SET of ANY-CONTEXT! support requires block of values"
+        apply 'lib-set [
+            target: words-of target
+            value: value
+            opt: any? [set_ANY set_OPT]
+            pad: pad
+            lookback: lookback
         ]
-
-        item: value
-        for-each key target [
-            apply 'lib-set [
-                target: key
-                value: :item/1
-                opt: any? [set_ANY set_OPT]
-                pad: pad
-                lookback: lookback
-            ]
-
-            item: next item
-        ]
-        :value
     ][
         apply 'lib-set [
             target: target
@@ -375,28 +365,18 @@ get: function [
 
     either* any-context? source [
         ;
-        ; !!! This is a questionable feature, a shallow copy of the vars of
-        ; the context being put into a BLOCK!:
+        ; In R3-Alpha, this was the vars of the context put into a BLOCK!:
         ;
         ;     >> get make object! [[a b][a: 10 b: 20]]
         ;     == [10 20]
         ;
-        ; Certainly an oddity for GET.  Should either be turned into a
-        ; VARS-OF reflector or otherwise gotten rid of.  It is also another
-        ; potentially "order-dependent" exposure of the object's fields,
-        ; which may lead to people expecting an order.
+        ; Presumes order, and has strange semantics.  Was written as native
+        ; code but is expressible more flexibily in usermode as getting the
+        ; WORDS-OF block, which covers things like hidden fields etc.
 
-        collect [
-            for-each [key var] source [
-                either set? 'var [
-                    keep/only :var
-                ][
-                    if any? [any_GET opt_GET] [
-                        fail ["Field" key "not set, can't use /OPT in block"]
-                    ]
-                    keep blank
-                ]
-            ]
+        apply 'lib-get [
+            source: words-of source
+            opt: any? [any_GET opt_GET] ;-- will error if voids found
         ]
     ][
         apply 'lib-get [
