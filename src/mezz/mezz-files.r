@@ -246,3 +246,17 @@ to-relative-file: function [
     
     file
 ]
+
+
+; !!! Probably should not be in the "core" mezzanine.  But to make it easier
+; for people who seem to be unable to let go of the tabbing/CR past, this
+; helps them turn their files into sane ones :-/
+;
+; http://www.rebol.com/r3/docs/concepts/scripts-style.html#section-4
+;
+detab-file: procedure [
+    "detabs a disk file"
+    filename [file!]
+][
+    write filename detab to string! read filename
+]
