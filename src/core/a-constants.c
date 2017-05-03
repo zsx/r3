@@ -54,7 +54,7 @@ const char Str_Panic_Directions[] = {
     "If you need to file a bug in the issue tracker, please give thorough\n"
     "details on how to reproduce the problem:\n"
     "\n"
-    "    http://github.com/rebol/rebol-issues/issues\n"
+    "    https://github.com/metaeducation/ren-c/issues\n"
     "\n"
     "Include the following information in the report:\n\n"
 };
