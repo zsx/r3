@@ -60,8 +60,6 @@ struct Reb_Array {
 // one kind of pointer as the other (and they are both Reb_Series)
 //
 #if defined(__cplusplus) && __cplusplus >= 201103L
-    #include <type_traits>
-
     template <class T>
     inline REBARR *ARR(T *p) {
         static_assert(

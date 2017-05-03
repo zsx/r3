@@ -70,6 +70,26 @@
 
 
 //
+// TYPE TRAITS
+//
+// One of the most powerful tools you can get from allowing a C codebase to
+// compile as C++ comes from type_traits:
+//
+// http://en.cppreference.com/w/cpp/header/type_traits
+//
+// This is essentially an embedded query language for types, allowing one to
+// create compile-time errors for any C construction that isn't being used
+// in the way one might want.  While some static analysis tools for C offer
+// their own plugins for such checks, the prevalance of the C++ standard
+// acd compilers that implement it make it a perfect tool for checking a C
+// codebase on the fly to see if it follows certain rules.
+//
+#if defined(__cplusplus) && __cplusplus >= 201103L
+    #include <type_traits>
+#endif
+
+
+//
 // STATIC ASSERT
 //
 // Some conditions can be checked at compile-time, instead of deferred to a
@@ -145,7 +165,6 @@
      * static_cast otherwise.  We ensure c_cast added a const and m_cast
      * removed one, and that neither affected volatility.
      */
-    #include <type_traits>
     template<typename T, typename V>
     T m_cast_helper(V v) {
         static_assert(!std::is_const<T>::value,
@@ -334,11 +353,30 @@ typedef unsigned long   REBUPT;     // unsigned counterpart of void*
 //
 // BOOLEAN DEFINITION
 //
-// There is a <stdbool.h> available in C99, but not in C89.  So unless the
-// code abandons C89 support, a custom definition of boolean must be used,
-// which is named REBOOL and uses the values TRUE and FALSE.
+// The C language defines the value 0 as false, while all non-zero things are
+// considered logically true.  Yet the language standard mandates that the
+// comparison operators (==, !=, >, <, etc) will return either 0 or 1, and
+// the C++ language standard defines conversion of its built-in boolean type
+// to an integral value as either 0 or 1.
 //
-// The code takes advantage of the custom definition with a mode to build in
+// This could be exploited by optimized code *IF* it could truly trust a true
+// "boolean" is exactly 0 or 1. But unfortunately, C only standardized an
+// actual boolean type in C99 with <stdbool.h>.  Older compilers have to use
+// integral types for booleans, and may wind up in situations like this:
+//
+//     #define REBOOL int
+//     int My_Optimized_Function(REBOOL logic) {
+//         return is_true << 4; // should be 16 if logic is TRUE, 0 if FALSE
+//     }
+//     int zero_or_sixteen = My_Optimized_Function(flags & SOME_BIT_FLAG);
+//
+// The caller may feel they are passing something that is validly "truthy" or
+// "falsey", yet if the bit flag is shifted at all then the optimization won't
+// be able to work.  The type system will not catch the mistake, and hence
+// anyone who needs logics to be 0 or 1 must inject code to enforce that
+// translation, which the optimizer cannot leave out.
+// 
+// This code takes advantage of the custom definition with a mode to build in
 // that makes assignments to REBOOL reject integers entirely.  It still
 // allows testing via if() and the logic operations, but merely disables
 // direct assignments or passing integers as parameters to bools:
@@ -439,10 +477,35 @@ typedef unsigned long   REBUPT;     // unsigned counterpart of void*
     #endif
 #endif
 
-#define LOGICAL(x) \
-    ((x) ? TRUE : FALSE)
-#define NOT(x) \
-    ((x) ? FALSE : TRUE)
+#if defined(__cplusplus) && __cplusplus >= 199711L
+    //
+    // In the C++ build, we can help reduce confusion by making sure that
+    // LOGICAL and NOT are only applied to integral types.  Using it on
+    // pointers to test if they are NULL is somewhat unclear for readability
+    // at the callsite, and one certainly doesn't want it on floating point.
+    //
+    template <typename T>
+    inline static REBOOL LOGICAL(T x) {
+        static_assert(
+            std::is_same<T, REBOOL>::value || std::is_integral<T>::value,
+            "LOGICAL(x) can only be used on integral types"
+        );
+        return x ? TRUE : FALSE;
+    }
+    template <typename T>
+    inline static REBOOL NOT(T x) {
+        static_assert(
+            std::is_same<T, REBOOL>::value || std::is_integral<T>::value,
+            "NOT(x) can only be used on integral types"
+        );
+        return x ? FALSE : TRUE;
+    }
+#else
+    #define LOGICAL(x) \
+        ((x) ? TRUE : FALSE)
+    #define NOT(x) \
+        ((x) ? FALSE : TRUE)
+#endif
 
 typedef i8 REBOOL8; // Small for struct packing (memory optimization vs CPU)
 

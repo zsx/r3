@@ -100,8 +100,6 @@
 //
 
 #if !defined(NDEBUG) && defined(__cplusplus) && __cplusplus >= 201103L
-    #include <type_traits>
-
     template <class T>
     inline REBSER *SER(T *p) {
         static_assert(

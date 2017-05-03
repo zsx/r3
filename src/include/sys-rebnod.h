@@ -422,8 +422,6 @@ typedef struct rebol_mem_pool REBPOL;
     cast(t *, memset(ALLOC_N(t, (n)), '\0', sizeof(t) * (n)))
 
 #if defined(__cplusplus) && __cplusplus >= 201103L
-    #include <type_traits>
-
     #define FREE(t,p) \
         do { \
             static_assert( \

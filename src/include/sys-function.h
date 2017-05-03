@@ -38,8 +38,6 @@ struct Reb_Func {
 };
 
 #if !defined(NDEBUG) && defined(__cplusplus) && __cplusplus >= 201103L
-    #include <type_traits>
-
     template <class T>
     inline REBFUN *AS_FUNC(T *p) {
         static_assert(
