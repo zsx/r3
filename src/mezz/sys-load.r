@@ -783,7 +783,7 @@ load-module: function [
             ; set to false later if existing module is used
             override?: not no-lib
 
-            set [name0: mod0: sum0:] pos: find/skip system/modules name 3
+            set/pad [name0: mod0: sum0:] pos: find/skip system/modules name 3
         ] [
             ; Get existing module's info
             case/all [

@@ -858,17 +858,41 @@ REBNATIVE(set)
     REBSPC *target_specifier;
 
     if (IS_BLOCK(ARG(target))) {
-        if (NOT(IS_BLOCK(ARG(value))))
+        //
+        // R3-Alpha and Red let you write `set [a b] 10`, since the thing
+        // you were setting to was not a block, would assume you meant to set
+        // all the values to that.  BUT since you can set things to blocks,
+        // this has a bad characteristic of `set [a b] [10]` being treated
+        // differently, which can bite you if you `set [a b] value` for some
+        // generic value.
+        //
+        // Ren-C does not carry forward the behavior, rather it allows only
+        // one case...to pass in a blank value with /PAD and handle that blank
+        // as if it were an empty block, return blanks.  This permits things
+        // like `if set [a b] find data 'whatever [...]` to do a blank
+        // propagation. 
+        //
+        // !!! Should there be a SET/ONLY to allow for `set/only [a b] [10]`
+        // such that a and b would be set to 10?  Seems to add complexity for
+        // a case that is not that compelling.
+        //
+        if (IS_BLANK(ARG(value)) && REF(pad)) {
+            value = ARR_HEAD(EMPTY_ARRAY); // don't change ARG(value)
+            value_specifier = SPECIFIED;
+        }
+        else if (IS_BLOCK(ARG(value))) {
+            //
+            // There is no need to check values for voidness in this case,
+            // since arrays cannot contain voids.
+            //
+            value = VAL_ARRAY_AT(ARG(value));
+            value_specifier = VAL_SPECIFIER(ARG(value));
+        }
+        else
             fail (ARG(value)); // value must be a block if setting a block
 
         target = VAL_ARRAY_AT(ARG(target));
         target_specifier = VAL_SPECIFIER(ARG(target));
-
-        // There is no need to check values for voidness in this case, since
-        // arrays cannot contain voids.
-        //
-        value = VAL_ARRAY_AT(ARG(value));
-        value_specifier = VAL_SPECIFIER(ARG(value));
     }
     else {
         // Use the fact that D_CELL is implicitly terminated so that the
