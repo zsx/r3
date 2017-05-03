@@ -517,41 +517,48 @@ REBNATIVE(to_local_file)
 //
 REBNATIVE(what_dir)
 {
-    REBSER *ser;
-    REBCHR *lpath;
-    REBINT len;
-
     REBVAL *current_path = Get_System(SYS_OPTIONS, OPTIONS_CURRENT_PATH);
 
-    // !!! Because of the need to track a notion of "current path" which
-    // could be a URL! as well as a FILE!, the state is stored in the system
-    // options.  For now--however--it is "duplicate" in the case of a FILE!,
-    // because the OS has its own tracked state.  We let the OS state win
-    // for files if they have diverged somehow--because the code was already
-    // here and it would be more compatible.  But reconsider the duplication.
+    if (IS_FILE(current_path) || IS_BLANK(current_path)) {
+        //
+        // !!! Because of the need to track a notion of "current path" which
+        // could be a URL! as well as a FILE!, the state is stored in the
+        // system options.  For now--however--it is "duplicate" in the case
+        // of a FILE!, because the OS has its own tracked state.  We let the
+        // OS state win for files if they have diverged somehow--because the
+        // code was already here and it would be more compatible.  But
+        // reconsider the duplication.
 
-    if (IS_URL(current_path)) {
-        Move_Value(D_OUT, current_path);
-    }
-    else if (IS_FILE(current_path) || IS_BLANK(current_path)) {
-        len = OS_GET_CURRENT_DIR(&lpath);
+        REBCHR *lpath;
+        REBINT len = OS_GET_CURRENT_DIR(&lpath);
 
         // allocates extra for end `/`
-        ser = To_REBOL_Path(
+        REBSER *ser = To_REBOL_Path(
             lpath, len, PATH_OPT_SRC_IS_DIR | (OS_WIDE ? PATH_OPT_UNI_SRC : 0)
         );
 
         OS_FREE(lpath);
 
-        Init_File(D_OUT, ser);
-        Move_Value(current_path, D_OUT); // !!! refresh if they diverged
+        Init_File(current_path, ser); // refresh in case they diverged
     }
-    else {
+    else if (NOT(IS_URL(current_path))) {
+        //
         // Lousy error, but ATM the user can directly edit system/options.
         // They shouldn't be able to (or if they can, it should be validated)
         //
         fail (current_path);
     }
+
+    // Note the expectation is that WHAT-DIR will return a value that can be
+    // mutated by the caller without affecting future calls to WHAT-DIR, so
+    // the variable holding the current path must be copied.
+    //
+    Init_Any_Series_At(
+        D_OUT,
+        VAL_TYPE(current_path),
+        Copy_Sequence(VAL_SERIES(current_path)),
+        VAL_INDEX(current_path)
+    );
 
     return R_OUT;
 }

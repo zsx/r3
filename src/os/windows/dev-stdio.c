@@ -163,7 +163,6 @@ DEVICE_CMD Write_IO(REBREQ *req)
         return DR_DONE;
     }
 
-    DWORD total = 0;
     BOOL ok = FALSE; // Note: Windows BOOL, not REBOOL
 
     if (Std_Out) {
@@ -177,6 +176,7 @@ DEVICE_CMD Write_IO(REBREQ *req)
                 &total_bytes,
                 0
             );
+            UNUSED(total_bytes);
         }
         else {
             // Convert UTF-8 buffer to Win32 wide-char format for console.
@@ -202,6 +202,7 @@ DEVICE_CMD Write_IO(REBREQ *req)
                     &total_wide_chars,
                     0
                 );
+                UNUSED(total_wide_chars);
             }
         }
 

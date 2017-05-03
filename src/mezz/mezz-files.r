@@ -20,10 +20,12 @@ clean-path: function [
     /dir
         "Add a trailing / if missing"
 ][
-    case [
-        any [only not file? file] [file: copy file]
+    file: case [
+        any [only | not file? file] [
+            copy file
+        ]
         #"/" = first file [
-            ++ file
+            file: next file
             out: next what-dir
             while [
                 all [
@@ -31,31 +33,32 @@ clean-path: function [
                     f: find/tail out #"/"
                 ]
             ][
-                ++ file
+                file: next file
                 out: f
             ]
-            file: append clear out file
+            append clear out file
         ]
     ] else [
-        file: append what-dir file
+        append what-dir file
     ]
 
-    if all [dir not dir? file] [append file #"/"]
+    if all [dir | not dir? file] [append file #"/"]
 
     out: make type-of file length-of file ; same datatype
     cnt: 0 ; back dir counter
 
     parse reverse file [
         some [
-            ;pp: (?? pp)
             "../" (++ cnt)
             | "./"
-            | #"/" (if any [not file? file #"/" <> last out] [append out #"/"])
+            | #"/" (
+                if any [not file? file | #"/" <> last out] [append out #"/"]
+            )
             | copy f [to #"/" | to end] (
                 either cnt > 0 [
                     -- cnt
                 ][
-                    unless find ["" "." ".."] to string! f [append out f]
+                    unless find ["" "." ".."] as string! f [append out f]
                 ]
             )
         ]
