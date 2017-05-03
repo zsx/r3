@@ -108,8 +108,8 @@ DEVICE_CMD Open_IO(REBREQ *req)
         Std_Inp = GetStdHandle(STD_INPUT_HANDLE);
         //Std_Err = GetStdHandle(STD_ERROR_HANDLE);
 
-        Redir_Out = (GetFileType(Std_Out) != 0);
-        Redir_Inp = (GetFileType(Std_Inp) != 0);
+        Redir_Out = (GetFileType(Std_Out) != FILE_TYPE_CHAR);
+        Redir_Inp = (GetFileType(Std_Inp) != FILE_TYPE_CHAR);
 
         if (!Redir_Inp || !Redir_Out) {
             // If either input or output is not redirected, preallocate
@@ -158,19 +158,25 @@ DEVICE_CMD Close_IO(REBREQ *req)
 //
 DEVICE_CMD Write_IO(REBREQ *req)
 {
-    DWORD len;
-    DWORD total = 0;
-    BOOL ok = FALSE;
-
     if (GET_FLAG(req->modes, RDM_NULL)) {
         req->actual = req->length;
         return DR_DONE;
     }
 
+    DWORD total = 0;
+    BOOL ok = FALSE; // Note: Windows BOOL, not REBOOL
+
     if (Std_Out) {
 
         if (Redir_Out) { // Always UTF-8
-            ok = WriteFile(Std_Out, req->common.data, req->length, &total, 0);
+            DWORD total_bytes;
+            ok = WriteFile(
+                Std_Out,
+                req->common.data,
+                req->length,
+                &total_bytes,
+                0
+            );
         }
         else {
             // Convert UTF-8 buffer to Win32 wide-char format for console.
@@ -178,9 +184,25 @@ DEVICE_CMD Write_IO(REBREQ *req)
             // however, if our buffer overflows, it's an error. There's no
             // efficient way at this level to split-up the input data,
             // because its UTF-8 with variable char sizes.
-            len = MultiByteToWideChar(CP_UTF8, 0, s_cast(req->common.data), req->length, Std_Buf, BUF_SIZE);
-            if (len > 0) // no error
-                ok = WriteConsoleW(Std_Out, Std_Buf, len, &total, 0);
+            //
+            DWORD len = MultiByteToWideChar(
+                CP_UTF8,
+                0,
+                s_cast(req->common.data),
+                req->length,
+                Std_Buf,
+                BUF_SIZE
+            );
+            if (len > 0) { // no error
+                DWORD total_wide_chars;
+                ok = WriteConsoleW(
+                    Std_Out,
+                    Std_Buf,
+                    len,
+                    &total_wide_chars,
+                    0
+                );
+            }
         }
 
         if (!ok) {
@@ -188,7 +210,7 @@ DEVICE_CMD Write_IO(REBREQ *req)
             return DR_ERROR;
         }
 
-        req->actual = req->length;  // do not use "total" (can be byte or wide)
+        req->actual = req->length; // want byte count written, assume success
 
         //if (GET_FLAG(req->flags, RRF_FLUSH)) {
         //  FLUSH();
