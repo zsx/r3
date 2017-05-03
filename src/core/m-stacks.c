@@ -183,8 +183,11 @@ void Expand_Data_Stack_May_Fail(REBCNT amount)
     // release build, but will raise an alarm if VAL_TYPE() called on it in
     // the debug build).  In order to serve as a marker for the stack slot
     // being available, it merely must not be IS_END()...
+
+    // again, DS_TOP or DS_AT(DSP) would assert on END, calculate directly
     //
-    REBVAL *value = DS_AT(DSP); // DS_TOP would assert on END
+    REBVAL *value = DS_Movable_Base + DSP;
+
     REBCNT len_new = len_old + amount;
     REBCNT n;
     for (n = len_old; n < len_new; ++n) {
