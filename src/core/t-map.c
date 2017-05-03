@@ -116,11 +116,13 @@ REBINT Find_Key_Hashed(
     if (ANY_WORD(key)) {
         while ((n = hashes[hash])) {
             val = ARR_AT(array, (n - 1) * wide);
-            if (ANY_WORD(val) && VAL_WORD_SPELLING(key) == VAL_WORD_SPELLING(val))
-                return hash;
+            if (ANY_WORD(val)) {
+                if (VAL_WORD_SPELLING(key) == VAL_WORD_SPELLING(val))
+                    return hash; // exact match
 
-            if (!cased && VAL_WORD_CANON(key) == VAL_WORD_CANON(val) && uncased == len) {
-                uncased = hash;
+                if (NOT(cased) && uncased == len) // not cased w/no match yet
+                    if (VAL_WORD_CANON(key) == VAL_WORD_CANON(val))
+                        uncased = hash; // indicate uncased match found
             }
             else if (wide > 1 && IS_VOID(++val) && zombie == len) {
                 zombie = hash;
