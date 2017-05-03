@@ -240,3 +240,22 @@ speed?: function [
     ]
     result
 ]
+
+net-log: func [txt /C /S][txt]
+
+net-trace: procedure [
+    "Switch between using a no-op or a print operation for net-tracing"
+    val [logic!]
+][
+    either val [
+        hijack 'net-log func [txt /C /S][
+            if c [print/only/eval "C: "]
+            if s [print/only/eval "S: "]
+            print/eval txt
+            txt
+        ]
+        print "Net-trace is now on"
+    ][
+        hijack 'net-log func [txt /C /S][txt]
+    ]
+]
