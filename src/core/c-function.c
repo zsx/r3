@@ -676,7 +676,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         VAL_RESET_HEADER(dest, REB_FUNCTION);
         SET_VAL_FLAGS(dest, header_bits);
         dest->payload.function.paramlist = paramlist;
-        dest->extra.binding = NULL;
+        INIT_BINDING(dest, UNBOUND);
         ++dest;
 
         // We want to check for duplicates and a Binder can be used for that
@@ -792,7 +792,8 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         VAL_RESET_HEADER(dest, REB_FRAME);
         dest->payload.any_context.varlist = types_varlist; // canon FRAME!
         dest->payload.any_context.phase = AS_FUNC(paramlist);
-        dest->extra.binding = NULL;
+        INIT_BINDING(dest, UNBOUND);
+
         ++dest;
 
         REBVAL *src = DS_AT(dsp_orig + 2);
@@ -861,7 +862,8 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         VAL_RESET_HEADER(dest, REB_FRAME);
         dest->payload.any_context.varlist = notes_varlist; // canon FRAME!
         dest->payload.any_context.phase = AS_FUNC(paramlist);
-        dest->extra.binding = NULL;
+        INIT_BINDING(dest, UNBOUND);
+
         ++dest;
 
         REBVAL *src = DS_AT(dsp_orig + 3);
@@ -976,7 +978,7 @@ REBFUN *Make_Function(
     RELVAL *rootparam = ARR_HEAD(paramlist);
     assert(IS_FUNCTION(rootparam)); // !!! body not fully formed...
     assert(rootparam->payload.function.paramlist == paramlist);
-    assert(rootparam->extra.binding == NULL); // archetype
+    assert(VAL_BINDING(rootparam) == UNBOUND); // archetype
 
     // Precalculate FUNC_FLAG_DEFERS_LOOKBACK
     //
@@ -1217,11 +1219,10 @@ REBARR *Get_Maybe_Fake_Func_Body(REBOOL *is_fake, const REBVAL *func)
         RELVAL *slot = ARR_AT(fake_body, body_index); // #BODY
         assert(IS_ISSUE(slot));
 
-        VAL_RESET_HEADER(slot, REB_GROUP);
-        SET_VAL_FLAGS(slot, VALUE_FLAG_RELATIVE | VALUE_FLAG_LINE);
+        VAL_RESET_HEADER_EXTRA(slot, REB_GROUP, VALUE_FLAG_LINE);
         INIT_VAL_ARRAY(slot, VAL_ARRAY(VAL_FUNC_BODY(func)));
         VAL_INDEX(slot) = 0;
-        INIT_RELATIVE(slot, VAL_FUNC(func));
+        INIT_BINDING(slot, VAL_FUNC(func)); // relative binding
     }
 
     return fake_body;
@@ -1335,10 +1336,10 @@ REBFUN *Make_Interpreted_Function_May_Fail(
     // relative to a function.  (Init_Block assumes all specific values)
     //
     RELVAL *body = FUNC_BODY(fun);
-    VAL_RESET_HEADER_EXTRA(body, REB_BLOCK, VALUE_FLAG_RELATIVE);
+    VAL_RESET_HEADER(body, REB_BLOCK);
     INIT_VAL_ARRAY(body, body_array);
     VAL_INDEX(body) = 0;
-    INIT_RELATIVE(body, fun);
+    INIT_BINDING(body, fun); // relative binding
 
 #if !defined(NDEBUG)
     //
@@ -1439,8 +1440,8 @@ REBCTX *Make_Frame_For_Function(const REBVAL *value) {
     REBVAL *var = SINK(ARR_HEAD(varlist));
     VAL_RESET_HEADER(var, REB_FRAME);
     var->payload.any_context.varlist = varlist;
-    var->extra.binding = value->extra.binding;
     var->payload.any_context.phase = func;
+    INIT_BINDING(var, VAL_BINDING(value));
 
     // We have to use the keylist of the underlying function, because that
     // is how many values the frame has to have.  So knowing the actual
@@ -1605,7 +1606,7 @@ REBOOL Specialize_Function_Throws(
     assert(VAL_BINDING(FUNC_BODY(fun)) == VAL_BINDING(specializee));
 
     Move_Value(out, FUNC_VALUE(fun));
-    assert(VAL_BINDING(out) == NULL);
+    assert(VAL_BINDING(out) == UNBOUND);
 
     return FALSE;
 }
@@ -1682,7 +1683,7 @@ void Clonify_Function(REBVAL *value)
     // that it's o.k. to tell the frame lookup that it can find variables
     // under the "new paramlist".
     //
-    VAL_RESET_HEADER_EXTRA(body, REB_BLOCK, VALUE_FLAG_RELATIVE);
+    VAL_RESET_HEADER(body, REB_BLOCK);
     INIT_VAL_ARRAY(
         body,
         Copy_Rerelativized_Array_Deep_Managed(
@@ -1692,10 +1693,7 @@ void Clonify_Function(REBVAL *value)
         )
     );
     VAL_INDEX(body) = 0;
-
-    // Remap references in the body from the original function to new
-
-    INIT_RELATIVE(body, AS_FUNC(paramlist));
+    INIT_BINDING(body, paramlist); // relative binding
 
     Move_Value(value, FUNC_VALUE(new_fun));
 }
@@ -1805,7 +1803,7 @@ REB_R Unchecked_Dispatcher(REBFRM *f)
         f->out,
         VAL_ARRAY(body),
         VAL_INDEX(body),
-        AS_SPECIFIER(Context_For_Frame_May_Reify_Managed(f))
+        AS_SPECIFIER(f)
     )){
         return R_OUT_IS_THROWN;
     }
@@ -1830,7 +1828,7 @@ REB_R Voider_Dispatcher(REBFRM *f)
         f->out,
         VAL_ARRAY(body),
         VAL_INDEX(body),
-        AS_SPECIFIER(Context_For_Frame_May_Reify_Managed(f))
+        AS_SPECIFIER(f)
     )){
         return R_OUT_IS_THROWN;
     }
@@ -1855,7 +1853,7 @@ REB_R Returner_Dispatcher(REBFRM *f)
         f->out,
         VAL_ARRAY(body),
         VAL_INDEX(body),
-        AS_SPECIFIER(Context_For_Frame_May_Reify_Managed(f))
+        AS_SPECIFIER(f)
     )){
         return R_OUT_IS_THROWN;
     }
@@ -1949,7 +1947,7 @@ REB_R Adapter_Dispatcher(REBFRM *f)
         f->out,
         VAL_ARRAY(prelude),
         VAL_INDEX(prelude),
-        AS_SPECIFIER(Context_For_Frame_May_Reify_Managed(f))
+        AS_SPECIFIER(f)
     )){
         return R_OUT_IS_THROWN;
     }
@@ -2057,7 +2055,7 @@ void Get_If_Word_Or_Path_Arg(
 REB_R Apply_Def_Or_Exemplar(
     REBVAL *out,
     REBFUN *fun,
-    REBARR *binding,
+    REBNOD *binding,
     REBSTR *label,
     REBNOD *def_or_exemplar // REBVAL of a def block, or REBARR varlist
 ){
@@ -2092,14 +2090,14 @@ REB_R Apply_Def_Or_Exemplar(
     //
     // We may push a data chunk, which is one of the things the snapshot state
     // checks.  It also checks the top of stack, so that has to be set as well.
-    // So this has to come before Push_Or_Alloc_Vars
+    // So this has to come before Push_Args
     //
     SNAP_STATE(&f->state_debug);
 #endif
 
     f->refine = m_cast(REBVAL*, END);
 
-    Push_Or_Alloc_Args_For_Underlying_Func(f, fun, binding);
+    Push_Args_For_Underlying_Func(f, fun, binding);
 
     if (NOT(def_or_exemplar->header.bits & NODE_FLAG_CELL)) {
         //
@@ -2138,9 +2136,10 @@ REB_R Apply_Def_Or_Exemplar(
         // of the frame) but for now, just walk f->param.
         //
         while (NOT_END(f->param)) {
-            //
+            Prep_Stack_Cell(f->arg);
+
             // f->special was initialized to the applicable exemplar by
-            // Push_Or_Alloc_Args_For_Underlying_Func()
+            // Push_Args_For_Underlying_Func()
             //
             if (f->special == END)
                 Init_Void(f->arg);

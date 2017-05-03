@@ -310,20 +310,33 @@ inline static REBARR *Alloc_Singular_Array_Core(REBUPT flags) {
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// See INIT_SPECIFIC and INIT_RELATIVE in %sys-bind.h
+// See %sys-bind.h
 //
 
 #define EMPTY_BLOCK \
     ROOT_EMPTY_BLOCK
 
 #define EMPTY_ARRAY \
-    VAL_ARRAY(ROOT_EMPTY_BLOCK)
+    PG_Empty_Array // Note: initialized from VAL_ARRAY(ROOT_EMPTY_BLOCK)
 
 #define EMPTY_STRING \
     ROOT_EMPTY_STRING
 
-inline static REBSPC* AS_SPECIFIER(REBCTX *context) {
-    return cast(REBSPC*, context);
+inline static REBSPC* AS_SPECIFIER(void *p) {
+    assert(p != NULL);
+    REBSPC *specifier = cast(REBSPC*, p);
+
+#if !defined(NDEBUG)
+    if (specifier->header.bits & NODE_FLAG_CELL) {
+        REBFRM *f = cast(REBFRM*, specifier);
+        assert(f->eval_type == REB_FUNCTION);
+    }
+    else if (NOT(specifier->header.bits & ARRAY_FLAG_VARLIST)) {
+        assert(specifier == SPECIFIED);
+    }
+#endif
+
+    return specifier;
 }
 
 inline static REBSPC *VAL_SPECIFIER(const REBVAL *v) {
@@ -332,7 +345,7 @@ inline static REBSPC *VAL_SPECIFIER(const REBVAL *v) {
 }
 
 inline static void INIT_VAL_ARRAY(RELVAL *v, REBARR *a) {
-    v->extra.binding = (REBARR*)SPECIFIED; // !!! cast() complains, investigate
+    INIT_BINDING(v, UNBOUND);
     v->payload.any_series.series = SER(a);
 }
 

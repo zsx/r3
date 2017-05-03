@@ -203,18 +203,18 @@ void Clonify_Values_Len_Managed(
 ) {
     if (C_STACK_OVERFLOWING(&len)) Trap_Stack_Overflow();
 
-    RELVAL *value = head;
+    RELVAL *v = head;
 
     REBCNT index;
-    for (index = 0; index < len; index++, value++) {
+    for (index = 0; index < len; ++index, ++v) {
         //
         // By the rules, if we need to do a deep copy on the source
         // series then the values inside it must have already been
         // marked managed (because they *might* delve another level deep)
         //
-        ASSERT_VALUE_MANAGED(value);
+        ASSERT_VALUE_MANAGED(v);
 
-        if (types & FLAGIT_KIND(VAL_TYPE(value)) & TS_SERIES_OBJ) {
+        if (types & FLAGIT_KIND(VAL_TYPE(v)) & TS_SERIES_OBJ) {
         #if !defined(NDEBUG)
             REBOOL legacy = FALSE;
         #endif
@@ -222,45 +222,42 @@ void Clonify_Values_Len_Managed(
             // Objects and series get shallow copied at minimum
             //
             REBSER *series;
-            if (ANY_CONTEXT(value)) {
+            if (ANY_CONTEXT(v)) {
             #if !defined(NDEBUG)
                 legacy = GET_SER_INFO(
-                    CTX_VARLIST(VAL_CONTEXT(value)),
+                    CTX_VARLIST(VAL_CONTEXT(v)),
                     SERIES_INFO_LEGACY_DEBUG
                 );
             #endif
 
-                assert(!IS_FRAME(value)); // !!! Don't exist yet...
-                value->payload.any_context.varlist =
-                    CTX_VARLIST(Copy_Context_Shallow(VAL_CONTEXT(value)));
-                series = SER(CTX_VARLIST(VAL_CONTEXT(value)));
+                assert(!IS_FRAME(v)); // !!! Don't exist yet...
+                v->payload.any_context.varlist =
+                    CTX_VARLIST(Copy_Context_Shallow(VAL_CONTEXT(v)));
+                series = SER(CTX_VARLIST(VAL_CONTEXT(v)));
             }
             else {
-                if (GET_SER_FLAG(VAL_SERIES(value), SERIES_FLAG_ARRAY)) {
+                if (GET_SER_FLAG(VAL_SERIES(v), SERIES_FLAG_ARRAY)) {
                 #if !defined(NDEBUG)
                     legacy = GET_SER_INFO(
-                        VAL_ARRAY(value), SERIES_INFO_LEGACY_DEBUG
+                        VAL_ARRAY(v), SERIES_INFO_LEGACY_DEBUG
                     );
                 #endif
 
-                    REBSPC *derived = Derive_Specifier(specifier, value);
+                    REBSPC *derived = Derive_Specifier(specifier, v);
                     series = SER(
-                        Copy_Array_Shallow(
-                            VAL_ARRAY(value),
-                            derived
-                        )
+                        Copy_Array_Shallow(VAL_ARRAY(v), derived)
                     );
 
-                    INIT_VAL_ARRAY(value, ARR(series)); // copies args
+                    INIT_VAL_ARRAY(v, ARR(series)); // copies args
 
                     // If it was relative, then copying with a specifier
                     // means it isn't relative any more.
                     //
-                    INIT_SPECIFIC(value, SPECIFIED);
+                    INIT_BINDING(v, UNBOUND);
                 }
                 else {
-                    series = Copy_Sequence(VAL_SERIES(value));
-                    INIT_VAL_SERIES(value, series);
+                    series = Copy_Sequence(VAL_SERIES(v));
+                    INIT_VAL_SERIES(v, series);
                 }
             }
 
@@ -271,31 +268,32 @@ void Clonify_Values_Len_Managed(
 
             MANAGE_SERIES(series);
 
-            if (!deep) continue;
+            if (NOT(deep))
+                continue;
 
             // If we're going to copy deeply, we go back over the shallow
             // copied series and "clonify" the values in it.
             //
             // Since we had to get rid of the relative bindings in the
             // shallow copy, we can pass in SPECIFIED here...but the recursion
-            // in Clonify_Values will be threading through any updated specificity
-            // through to the new values.
+            // in Clonify_Values will be threading through any updated
+            // specificity through to the new values.
             //
-            if (types & FLAGIT_KIND(VAL_TYPE(value)) & TS_ARRAYS_OBJ) {
-                REBSPC *derived = Derive_Specifier(specifier, value);
+            if (types & FLAGIT_KIND(VAL_TYPE(v)) & TS_ARRAYS_OBJ) {
+                REBSPC *derived = Derive_Specifier(specifier, v);
                 Clonify_Values_Len_Managed(
                      ARR_HEAD(ARR(series)),
                      derived,
-                     VAL_LEN_HEAD(value),
+                     VAL_LEN_HEAD(v),
                      deep,
                      types
                 );
             }
         }
         else if (
-            types & FLAGIT_KIND(VAL_TYPE(value)) & FLAGIT_KIND(REB_FUNCTION)
+            types & FLAGIT_KIND(VAL_TYPE(v)) & FLAGIT_KIND(REB_FUNCTION)
         ) {
-            Clonify_Function(KNOWN(value)); // functions never "relative"
+            Clonify_Function(KNOWN(v)); // functions never "relative"
         }
         else {
             // The value is not on our radar as needing to be processed,
@@ -304,7 +302,7 @@ void Clonify_Values_Len_Managed(
 
         // Value shouldn't be relative after the above processing.
         //
-        assert(!IS_RELATIVE(value));
+        assert(!IS_RELATIVE(v));
     }
 }
 
@@ -437,12 +435,12 @@ REBARR *Copy_Rerelativized_Array_Deep_Managed(
                     VAL_ARRAY(src), before, after
                 )
             );
-            INIT_RELATIVE(dest, after);
+            INIT_BINDING(dest, after); // relative binding
         }
         else {
             assert(ANY_WORD(src));
             *dest = *src; // !!! could copy just fields not overwritten
-            INIT_WORD_FUNC(dest, after);
+            INIT_BINDING(dest, after);
         }
     }
 

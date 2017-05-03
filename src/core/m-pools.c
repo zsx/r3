@@ -689,7 +689,7 @@ static REBOOL Series_Data_Alloc(REBSER *s, REBCNT length) {
         // caller to manage...they do not know about the ->rest
         //
         for (n = 0; n < length; n++)
-            INIT_CELL(ARR_AT(ARR(s), n));
+            Prep_Non_Stack_Cell(ARR_AT(ARR(s), n));
 
         // !!! We should intentionally mark the overage range as not having
         // NODE_FLAG_CELL in the debug build.  Then have the series go through
@@ -705,7 +705,7 @@ static REBOOL Series_Data_Alloc(REBSER *s, REBCNT length) {
         // up front, or only on expansions?
         //
         for(; n < s->content.dynamic.rest - 1; n++) {
-            INIT_CELL(ARR_AT(ARR(s), n));
+            Prep_Non_Stack_Cell(ARR_AT(ARR(s), n));
         }
 
         // The convention is that the *last* cell in the allocated capacity
@@ -924,7 +924,7 @@ REBSER *Make_Series_Core(REBCNT capacity, REBYTE wide, REBUPT flags)
         // be less than a full cell's size.
         //
         assert(NOT_SER_INFO(s, SERIES_INFO_HAS_DYNAMIC));
-        INIT_CELL(&s->content.values[0]);
+        Prep_Non_Stack_Cell(&s->content.values[0]);
     }
     else if (capacity * wide <= sizeof(s->content)) {
         assert(NOT_SER_INFO(s, SERIES_INFO_HAS_DYNAMIC));
@@ -1013,7 +1013,7 @@ REBVAL *Alloc_Pairing(REBCTX *opt_owning_frame) {
     REBVAL *key = cast(REBVAL*, s);
     REBVAL *paired = key + 1;
 
-    INIT_CELL(key);
+    Prep_Non_Stack_Cell(key);
     if (opt_owning_frame) {
         Init_Any_Context(key, REB_FRAME, opt_owning_frame);
         SET_VAL_FLAGS(
@@ -1029,7 +1029,7 @@ REBVAL *Alloc_Pairing(REBCTX *opt_owning_frame) {
         TRASH_CELL_IF_DEBUG(key);
     }
 
-    INIT_CELL(paired);
+    Prep_Non_Stack_Cell(paired);
     TRASH_CELL_IF_DEBUG(paired);
 
 #if !defined(NDEBUG)
@@ -1214,7 +1214,7 @@ void Expand_Series(REBSER *s, REBCNT index, REBCNT delta)
             // but when it is this will be useful.
             //
             for (index = 0; index < delta; index++)
-                INIT_CELL(ARR_AT(ARR(s), index));
+                Prep_Non_Stack_Cell(ARR_AT(ARR(s), index));
         }
     #endif
         return;
@@ -1265,7 +1265,7 @@ void Expand_Series(REBSER *s, REBCNT index, REBCNT delta)
             //
             while (delta != 0) {
                 --delta;
-                INIT_CELL(ARR_AT(ARR(s), index + delta));
+                Prep_Non_Stack_Cell(ARR_AT(ARR(s), index + delta));
             }
         }
     #endif

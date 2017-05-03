@@ -200,7 +200,7 @@ REBOOL Do_Path_Throws_Core(
     // calls, which may still be relevant to why this can't be a C local.
     //
     REBPVS pvs;
-    Prep_Global_Cell(&pvs.picker_cell);
+    Prep_Stack_Cell(&pvs.picker_cell);
     SET_END(&pvs.picker_cell);
     PUSH_GUARD_VALUE(&pvs.picker_cell);
     pvs.picker = KNOWN(&pvs.picker_cell);
@@ -517,7 +517,7 @@ REBNATIVE(pick_p)
     REBPVS pvs_decl;
     REBPVS *pvs = &pvs_decl;
 
-    Prep_Global_Cell(&pvs->picker_cell);
+    Prep_Stack_Cell(&pvs->picker_cell);
     TRASH_CELL_IF_DEBUG(&pvs->picker_cell); // not used
     pvs->picker = picker;
     pvs->store = D_OUT;
@@ -603,7 +603,7 @@ REBNATIVE(poke)
     REBPVS pvs_decl;
     REBPVS *pvs = &pvs_decl;
 
-    Prep_Global_Cell(&pvs->picker_cell);
+    Prep_Stack_Cell(&pvs->picker_cell);
     TRASH_CELL_IF_DEBUG(&pvs->picker_cell); // not used
     pvs->picker = picker;
     pvs->store = D_OUT;

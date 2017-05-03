@@ -197,8 +197,7 @@ inline static REBVAL *CTX_VAR(REBCTX *c, REBCNT n) {
 
     var = CTX_VARS_HEAD(c) + (n) - 1;
 
-    assert(NOT(var->header.bits & VALUE_FLAG_RELATIVE));
-
+    assert(NOT(IS_RELATIVE(cast(RELVAL*, var))));
     return var;
 }
 

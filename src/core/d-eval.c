@@ -220,7 +220,6 @@ static void Do_Core_Shared_Checks_Debug(REBFRM *f) {
 #ifdef BALANCE_CHECK_EVERY_EVALUATION_STEP
     ASSERT_STATE_BALANCED(&f->state_debug);
 #endif
-
     assert(f == FS_TOP);
     assert(f->state_debug.top_chunk == TG_Top_Chunk);
     /* assert(DSP == f->dsp_orig); */ // !!! not true now with push SET-WORD!

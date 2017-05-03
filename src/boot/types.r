@@ -32,7 +32,13 @@ REBOL [
         easier not to forget the importance of the order by keeping the
         macros here.
     }
-    Macros: {
+    Macros: {    
+        #define Is_Bindable(v) \
+            (VAL_TYPE(v) < REB_BAR)
+
+        #define Not_Bindable(v) \
+            (VAL_TYPE(v) >= REB_BAR)
+
         #define IS_ANY_VALUE(v) \
             LOGICAL(VAL_TYPE(v) != REB_MAX_VOID)
 

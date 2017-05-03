@@ -1184,7 +1184,7 @@ REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec, ffi_abi abi) {
     RELVAL *rootparam = ARR_HEAD(paramlist);
     VAL_RESET_HEADER(rootparam, REB_FUNCTION);
     rootparam->payload.function.paramlist = paramlist;
-    rootparam->extra.binding = NULL;
+    INIT_BINDING(rootparam, UNBOUND);
 
     SET_SER_FLAG(paramlist, ARRAY_FLAG_PARAMLIST);
     MANAGE_ARRAY(paramlist);

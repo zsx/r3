@@ -91,7 +91,6 @@ ATTRIBUTE_NO_RETURN void Panic_Value_Debug(const RELVAL *v) {
 //
 REBCTX *VAL_SPECIFIC_Debug(const REBVAL *v)
 {
-    assert(NOT_VAL_FLAG(v, VALUE_FLAG_RELATIVE));
     assert(
         ANY_WORD(v)
         || ANY_ARRAY(v)
@@ -102,7 +101,7 @@ REBCTX *VAL_SPECIFIC_Debug(const REBVAL *v)
 
     REBCTX *specific = VAL_SPECIFIC_COMMON(v);
 
-    if (specific != SPECIFIED) {
+    if (AS_SPECIFIER(specific) != SPECIFIED) {
         //
         // Basic sanity check: make sure it's a context at all
         //

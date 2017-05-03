@@ -696,14 +696,8 @@ REBNATIVE(same_q)
         //
         if (VAL_WORD_SPELLING(value1) != VAL_WORD_SPELLING(value2))
             return R_FALSE;
-        if (IS_WORD_BOUND(value1) != IS_WORD_BOUND(value2))
+        if (NOT(Same_Binding(VAL_BINDING(value1), VAL_BINDING(value2))))
             return R_FALSE;
-        if (IS_WORD_BOUND(value1)) {
-            REBCTX *ctx1 = VAL_WORD_CONTEXT(value1);
-            REBCTX *ctx2 = VAL_WORD_CONTEXT(value2);
-            if (ctx1 != ctx2)
-                return R_FALSE;
-        }
         return R_TRUE;
     }
 

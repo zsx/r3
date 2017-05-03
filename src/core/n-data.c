@@ -196,9 +196,6 @@ REBNATIVE(bind)
     REBVAL *value = ARG(value);
     REBVAL *target = ARG(target);
 
-    REBCTX *context;
-
-    REBARR *array;
     REBCNT flags = REF(only) ? BIND_0 : BIND_DEEP;
 
     REBU64 bind_types = TS_ANY_WORD;
@@ -213,6 +210,10 @@ REBNATIVE(bind)
     else
         add_midstream_types = 0;
 
+    REBCTX *context;
+
+    // !!! For now, force reification before doing any binding.
+
     if (ANY_CONTEXT(target)) {
         //
         // Get target from an OBJECT!, ERROR!, PORT!, MODULE!, FRAME!
@@ -220,17 +221,10 @@ REBNATIVE(bind)
         context = VAL_CONTEXT(target);
     }
     else {
-        //
-        // Extract target from whatever word we were given
-        //
         assert(ANY_WORD(target));
         if (IS_WORD_UNBOUND(target))
             fail (Error_Not_Bound_Raw(target));
 
-        // The word in hand may be a relatively bound one.  To return a
-        // specific frame, this needs to ensure that the Reb_Frame's data
-        // is a real context, not just a chunk of data.
-        //
         context = VAL_WORD_CONTEXT(target);
     }
 
@@ -263,6 +257,8 @@ REBNATIVE(bind)
     // but it should be followed up on.
     //
     Move_Value(D_OUT, value);
+
+    REBARR *array;
     if (REF(copy)) {
         array = Copy_Array_At_Deep_Managed(
             VAL_ARRAY(value), VAL_INDEX(value), VAL_SPECIFIER(value)
@@ -338,7 +334,8 @@ REBNATIVE(context_of)
 {
     INCLUDE_PARAMS_OF_CONTEXT_OF;
 
-    if (IS_WORD_UNBOUND(ARG(word))) return R_BLANK;
+    if (IS_WORD_UNBOUND(ARG(word)))
+        return R_BLANK;
 
     // Requesting the context of a word that is relatively bound may result
     // in that word having a FRAME! incarnated as a REBSER node (if it
@@ -663,8 +660,6 @@ REBNATIVE(in)
                         context, VAL_WORD_CANON(word), FALSE
                     );
                     if (index != 0) {
-                        CLEAR_VAL_FLAG(word, VALUE_FLAG_RELATIVE);
-                        SET_VAL_FLAG(word, WORD_FLAG_BOUND);
                         INIT_WORD_CONTEXT(word, context);
                         INIT_WORD_INDEX(word, index);
                         Move_Value(D_OUT, word);

@@ -55,47 +55,59 @@
 
 
 inline static REBOOL Is_Block_Style_Varargs(
-    REBVAL **position_out,
-    REBVAL *varargs
+    REBVAL **shared_out,
+    RELVAL *vararg
 ){
-    assert(IS_VARARGS(varargs));
+    assert(IS_VARARGS(vararg));
 
-    if (GET_SER_FLAG(varargs->payload.varargs.feed, ARRAY_FLAG_VARLIST)) {
-        assert(varargs->extra.binding != NULL);
+    if (
+        (vararg->extra.binding->header.bits & NODE_FLAG_CELL)
+        || (vararg->extra.binding->header.bits & ARRAY_FLAG_VARLIST)
+    ){
+        TRASH_POINTER_IF_DEBUG(*shared_out);
         return FALSE; // it's an ordinary vararg, representing a FRAME!
     }
-
-    assert(varargs->extra.binding == NULL);
 
     // Came from MAKE VARARGS! on some random block, hence not implicitly
     // filled by the evaluator on a <...> parameter.  Should be a singular
     // array with one BLOCK!, that is the actual array and index to advance.
     //
-    assert(ARR_LEN(varargs->payload.varargs.feed) == 1);
-    *position_out = KNOWN(ARR_HEAD(varargs->payload.varargs.feed));
+    REBARR *array1 = ARR(vararg->extra.binding);
+    *shared_out = KNOWN(ARR_HEAD(array1));
+    assert(
+        IS_END(*shared_out)
+        || (IS_BLOCK(*shared_out) && ARR_LEN(array1) == 1)
+    );
+
     return TRUE;
 }
 
 
 inline static REBOOL Is_Frame_Style_Varargs_May_Fail(
     REBFRM **f,
-    REBVAL *varargs
+    RELVAL *vararg
 ){
-    assert(IS_VARARGS(varargs));
+    assert(IS_VARARGS(vararg));
 
-    if (NOT_SER_FLAG(varargs->payload.varargs.feed, ARRAY_FLAG_VARLIST)) {
-        assert(varargs->extra.binding == NULL);
+    if (
+        NOT(vararg->extra.binding->header.bits & NODE_FLAG_CELL)
+        && NOT(vararg->extra.binding->header.bits & ARRAY_FLAG_VARLIST)
+    ){
+        TRASH_POINTER_IF_DEBUG(*f);
         return FALSE; // it's a block varargs, made via MAKE VARARGS!
     }
 
-    REBCTX *c = CTX(varargs->extra.binding);
-    *f = CTX_FRAME_IF_ON_STACK(c);
+    // "Ordinary" case... use the original frame implied by the VARARGS!
+    // (so long as it is still live on the stack)
 
-    // If the VARARGS! has a call frame, then ensure that the call frame
-    // where the VARARGS! originated is still on the stack.
-    //
-    if (*f == NULL)
-        fail (Error_Varargs_No_Stack_Raw());
+    if (vararg->extra.binding->header.bits & NODE_FLAG_CELL) {
+        *f = cast(REBFRM*, vararg->extra.binding);
+    }
+    else {
+        *f = CTX_FRAME_IF_ON_STACK(CTX(vararg->extra.binding));
+        if (*f == NULL)
+            fail (Error_Varargs_No_Stack_Raw());
+    }
 
     return TRUE;
 }

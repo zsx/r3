@@ -160,7 +160,7 @@ REBNATIVE(make)
         // If there's any chance that the argument could produce voids, we
         // can't guarantee an array can be made out of it.
         //
-        if (arg->extra.binding == NULL) {
+        if (arg->payload.varargs.facade == NULL) {
             //
             // A vararg created from a block AND never passed as an argument
             // so no typeset or quoting settings available.  Can't produce
@@ -168,7 +168,7 @@ REBNATIVE(make)
             //
             assert(
                 NOT_SER_FLAG(
-                    arg->payload.varargs.feed, ARRAY_FLAG_VARLIST
+                    arg->extra.binding, ARRAY_FLAG_VARLIST
                 )
             );
         }

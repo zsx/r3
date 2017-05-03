@@ -327,7 +327,7 @@ void Init_Any_Series_At_Core(
     enum Reb_Kind type,
     REBSER *series,
     REBCNT index,
-    REBSPC *specifier
+    REBNOD *binding
 ) {
     ENSURE_SERIES_MANAGED(series);
 
@@ -351,15 +351,12 @@ void Init_Any_Series_At_Core(
     VAL_RESET_HEADER(out, type);
     out->payload.any_series.series = series;
     VAL_INDEX(out) = index;
-    if (specifier == SPECIFIED)
-        INIT_SPECIFIC(out, SPECIFIED);
-    else
-        INIT_SPECIFIC(out, CTX(specifier));
+    INIT_BINDING(out, binding);
 
 #if !defined(NDEBUG)
-    if (GET_SER_FLAG(series, SERIES_FLAG_ARRAY) && specifier == SPECIFIED) {
+    if (GET_SER_FLAG(series, SERIES_FLAG_ARRAY) && binding == UNBOUND) {
         //
-        // If a SPECIFIED is used for an array, then that top level of the
+        // If UNBOUND is used for an array, then that top level of the
         // array cannot have any relative values in it.  Catch it here vs.
         // waiting until a later assertion.
         //
@@ -455,7 +452,7 @@ void Init_Any_Context_Core(
     // Currently only FRAME! uses the ->binding field, in order to capture the
     // ->binding of the function value it links to (which is in ->phase)
     //
-    assert(VAL_BINDING(out) == NULL || CTX_TYPE(c) == REB_FRAME);
+    assert(VAL_BINDING(out) == UNBOUND || CTX_TYPE(c) == REB_FRAME);
 
     // FRAME!s must always fill in the phase slot, but that piece of the
     // REBVAL is reserved for future use in other context types...so make

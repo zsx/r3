@@ -195,16 +195,19 @@ static REBOOL Subparse_Throws(
     f->args_head = Push_Value_Chunk_Of_Length(2);
 #else
     f->args_head = Push_Value_Chunk_Of_Length(3); // real RETURN: for natives
+    Prep_Stack_Cell(&f->args_head[2]);
     Init_Void(&f->args_head[2]);
 #endif
 
     f->varlist = NULL;
 
+    Prep_Stack_Cell(&f->args_head[0]);
     Derelativize(&f->args_head[0], input, input_specifier);
 
     // We always want "case-sensitivity" on binary bytes, vs. treating as
     // case-insensitive bytes for ASCII characters.
     //
+    Prep_Stack_Cell(&f->args_head[1]);
     Init_Integer(&f->args_head[1], find_flags);
 
     f->label = Canon(SYM_SUBPARSE);
@@ -1531,6 +1534,15 @@ REBNATIVE(subparse)
                         DECLARE_LOCAL (thrown_arg);
                         Init_Integer(thrown_arg, P_POS);
                         Move_Value(P_OUT, NAT_VALUE(parse_accept));
+
+                        // Unfortunately, when the warnings are set all the
+                        // way high for uninitialized variable use, the
+                        // compiler may think this integer's binding will
+                        // be used by the Move_Value() inlined here.  Get
+                        // past that by initializing it.
+                        //
+                        thrown_arg->extra.binding = UNBOUND; // unused by ints
+
                         CONVERT_NAME_TO_THROWN(P_OUT, thrown_arg);
                         return R_OUT_IS_THROWN;
                     }

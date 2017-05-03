@@ -50,6 +50,29 @@
 // matches the set count.
 //
 
+inline static REBOOL Same_Binding(void *a_ptr, void *b_ptr) {
+    REBNOD *a = NOD(a_ptr);
+    REBNOD *b = NOD(b_ptr);
+    if (a == b)
+        return TRUE;
+    if (a->header.bits & NODE_FLAG_CELL) {
+        if (b->header.bits & NODE_FLAG_CELL)
+            return FALSE;
+        REBFRM *f_a = cast(REBFRM*, a);
+        if (f_a->varlist != NULL && NOD(f_a->varlist) == b)
+            return TRUE;
+        return FALSE;
+    }
+    if (b->header.bits & NODE_FLAG_CELL) {
+        REBFRM *f_b = cast(REBFRM*, b);
+        if (f_b->varlist != NULL && NOD(f_b->varlist) == a)
+            return TRUE;
+        return FALSE;
+    }
+    return FALSE;
+}
+
+
 // Modes allowed by Bind related functions:
 enum {
     BIND_0 = 0, // Only bind the words found in the context.
@@ -241,11 +264,32 @@ inline static REBVAL *Get_Var_Core(
     REBSPC *specifier,
     REBFLGS flags
 ) {
-    REBCTX *context;
-
     assert(ANY_WORD(any_word));
 
-    if (GET_VAL_FLAG(any_word, VALUE_FLAG_RELATIVE)) {
+    REBNOD *binding = VAL_BINDING(any_word);
+
+    if (binding->header.bits & NODE_FLAG_CELL) {
+        //
+        // DIRECT BINDING: This will be the case hit when a REBFRM* is used
+        // in a word's binding.  The frame should still be on the stack.
+        //
+        REBFRM *f = cast(REBFRM*, binding);
+        REBVAL *var = FRM_ARG(f, VAL_WORD_INDEX(any_word));
+
+        if (flags & GETVAR_MUTABLE) {
+            if (f->flags.bits & DO_FLAG_NATIVE_HOLD)
+                fail (Error(RE_PROTECTED_WORD, any_word)); // different error?
+            
+            if (GET_VAL_FLAG(var, VALUE_FLAG_PROTECTED))
+                fail (Error(RE_PROTECTED_WORD, any_word));
+        }
+
+        return var;
+    }
+
+    REBCTX *context;
+
+    if (binding->header.bits & ARRAY_FLAG_PARAMLIST) {
         //
         // RELATIVE BINDING: The word was made during a deep copy of the block
         // that was given as a function's body, and stored a reference to that
@@ -253,7 +297,6 @@ inline static REBVAL *Get_Var_Core(
         // find the right function call on the stack (if any) for the word to
         // refer to (the FRAME!)
         //
-        assert(GET_VAL_FLAG(any_word, WORD_FLAG_BOUND)); // should be set too
 
     #if !defined(NDEBUG)
         if (specifier == SPECIFIED) {
@@ -262,13 +305,30 @@ inline static REBVAL *Get_Var_Core(
         }
     #endif
 
-        context = CTX(specifier);
+        if (specifier->header.bits & NODE_FLAG_CELL) {
+            REBFRM *f = cast(REBFRM*, specifier);
 
-        assert(
-            VAL_WORD_FUNC(any_word) == VAL_FUNC(CTX_FRAME_FUNC_VALUE(context))
-        );
+            assert(Same_Binding(FRM_UNDERLYING(f), binding));
+
+            REBVAL *var = FRM_ARG(f, VAL_WORD_INDEX(any_word));
+
+            if (flags & GETVAR_MUTABLE) {
+                if (f->flags.bits & DO_FLAG_NATIVE_HOLD)
+                    fail (Error(RE_PROTECTED_WORD, any_word)); // different?
+            
+                if (GET_VAL_FLAG(var, VALUE_FLAG_PROTECTED))
+                    fail (Error(RE_PROTECTED_WORD, any_word));
+            }
+
+            return var;
+        }
+
+        context = CTX(specifier);
+        REBFUN *frm_func = VAL_FUNC(CTX_FRAME_FUNC_VALUE(context));
+        assert(Same_Binding(binding, frm_func));
+        UNUSED(frm_func);
     }
-    else if (GET_VAL_FLAG(any_word, WORD_FLAG_BOUND)) {
+    else if (binding->header.bits & ARRAY_FLAG_VARLIST) {
         //
         // SPECIFIC BINDING: The context the word is bound to is explicitly
         // contained in the `any_word` REBVAL payload.  Just extract it.
@@ -282,21 +342,9 @@ inline static REBVAL *Get_Var_Core(
     else {
         // UNBOUND: No variable location to retrieve.
 
-        if (flags & GETVAR_END_IF_UNAVAILABLE)
-            return m_cast(REBVAL*, END); // only const callers should use
-
+        assert(binding == UNBOUND);
         fail (Error_Not_Bound_Raw(any_word));
     }
-
-    REBCNT index = VAL_WORD_INDEX(any_word);
-    assert(index != 0);
-
-    REBVAL *key = CTX_KEY(context, index);
-#ifdef NDEBUG
-    UNUSED(key);
-#else
-    assert(VAL_WORD_CANON(any_word) == VAL_KEY_CANON(key));
-#endif
 
     if (CTX_VARS_UNAVAILABLE(context)) {
         //
@@ -321,7 +369,10 @@ inline static REBVAL *Get_Var_Core(
         fail (Error_No_Relative_Raw(unbound));
     }
 
-    REBVAL *var = CTX_VAR(context, index);
+    REBCNT i = VAL_WORD_INDEX(any_word);
+    REBVAL *var = CTX_VAR(context, i);
+
+    assert(VAL_WORD_CANON(any_word) == VAL_KEY_CANON(CTX_KEY(context, i)));
 
     if (flags & GETVAR_MUTABLE) {
         //
@@ -440,36 +491,53 @@ inline static REBVAL *Derelativize(
     ASSERT_CELL_WRITABLE(out, __FILE__, __LINE__);
 
     out->header.bits &= CELL_MASK_RESET;
+    out->header.bits |= v->header.bits & CELL_MASK_COPY;
 
-    if (IS_RELATIVE(v)) {
-    #if !defined(NDEBUG)
+    if (IS_SPECIFIC(v))
+        out->extra = v->extra;
+    else {
         assert(ANY_WORD(v) || ANY_ARRAY(v));
+
+    #if !defined(NDEBUG)
         if (specifier == SPECIFIED) {
             printf("Relative item used with SPECIFIED\n");
             panic (v);
         }
-        else if (
-            VAL_RELATIVE(v)
-            != VAL_FUNC(CTX_FRAME_FUNC_VALUE(CTX(specifier)))
-        ){
-            printf("Function mismatch in specific binding, expected:\n");
-            PROBE(FUNC_VALUE(VAL_RELATIVE(v)));
-            printf("Panic on relative value\n");
-            panic (v);
-        }
     #endif
 
-        out->header.bits |=
-            v->header.bits
-            & CELL_MASK_COPY
-            & ~cast(REBUPT, VALUE_FLAG_RELATIVE); // !!! flag is going away
+        if (specifier->header.bits & NODE_FLAG_CELL) {
+            REBFRM *f = cast(REBFRM*, specifier);
 
-        out->extra.binding = cast(REBARR*, specifier);
+        #if !defined(NDEBUG)
+            if (VAL_RELATIVE(v) != FRM_UNDERLYING(f)) {
+                printf("Function mismatch in specific binding (TBD)\n");
+                printf("Panic on relative value\n");
+                panic(v);
+            }
+        #endif
+
+            // !!! Very conservatively reify.  Should share logic with the
+            // innards of Move_Value().  Should specifier always be passed
+            // in writable so it can be updated too?
+            //
+            INIT_BINDING(out, Context_For_Frame_May_Reify_Managed(f));
+        }
+        else {
+        #if !defined(NDEBUG)
+            if (
+                VAL_RELATIVE(v) !=
+                VAL_FUNC(CTX_FRAME_FUNC_VALUE(CTX(specifier)))
+            ){
+                printf("Function mismatch in specific binding, expected:\n");
+                PROBE(FUNC_VALUE(VAL_RELATIVE(v)));
+                printf("Panic on relative value\n");
+                panic (v);
+            }
+        #endif
+            INIT_BINDING(out, specifier);
+        }
     }
-    else {
-        out->header.bits |= v->header.bits & CELL_MASK_COPY;
-        out->extra.binding = v->extra.binding;
-    }
+
     out->payload = v->payload;
 
     // in case the caller had a relative value slot and wants to use its
@@ -541,3 +609,4 @@ inline static void DS_PUSH_RELVAL(const RELVAL *v, REBSPC *specifier) {
 
 #define Unbind_Values_Deep(values) \
     Unbind_Values_Core((values), NULL, TRUE)
+

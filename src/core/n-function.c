@@ -109,11 +109,14 @@ void Make_Thrown_Exit_Value(
     REBVAL *out,
     const REBVAL *level, // FRAME!, FUNCTION! (or INTEGER! relative to frame)
     const REBVAL *value,
-    REBFRM *frame // only required if level is INTEGER!
+    REBFRM *frame // required if level is INTEGER! or FUNCTION!
 ) {
     Move_Value(out, NAT_VALUE(exit));
 
-    if (IS_INTEGER(level)) {
+    if (IS_FRAME(level)) {
+        INIT_BINDING(out, VAL_CONTEXT(level));
+    }
+    else if (IS_INTEGER(level)) {
         REBCNT count = VAL_INT32(level);
         if (count <= 0)
             fail (Error_Invalid_Exit_Raw());
@@ -127,32 +130,30 @@ void Make_Thrown_Exit_Value(
 
             if (Is_Function_Frame_Fulfilling(f)) continue; // not ready to exit
 
-        #if !defined(NDEBUG)
-            if (LEGACY(OPTIONS_DONT_EXIT_NATIVES))
-                if (NOT(IS_FUNCTION_INTERPRETED(FUNC_VALUE(f->phase))))
-                    continue; // R3-Alpha would exit the first user function
-        #endif
-
             --count;
-
             if (count == 0) {
-                //
-                // We want the integer-based exits to identify frames uniquely.
-                // Without a context varlist, a frame can't be unique.
-                //
-                Context_For_Frame_May_Reify_Managed(f);
-                assert(f->varlist);
-                out->extra.binding = f->varlist;
+                INIT_BINDING(out, f);
                 break;
             }
         }
     }
-    else if (IS_FRAME(level)) {
-        out->extra.binding = CTX_VARLIST(VAL_CONTEXT(level));
-    }
     else {
         assert(IS_FUNCTION(level));
-        out->extra.binding = VAL_FUNC_PARAMLIST(level);
+
+        REBFRM *f = frame->prior;
+        for (; TRUE; f = f->prior) {
+            if (f == NULL)
+                fail (Error_Invalid_Exit_Raw());
+
+            if (NOT(Is_Any_Function_Frame(f))) continue; // only exit functions
+
+            if (Is_Function_Frame_Fulfilling(f)) continue; // not ready to exit
+
+            if (VAL_FUNC(level) == f->original) {
+                INIT_BINDING(out, f);
+                break;
+            }
+        }
     }
 
     CONVERT_NAME_TO_THROWN(out, value);
@@ -208,29 +209,40 @@ REBNATIVE(return)
 {
     INCLUDE_PARAMS_OF_RETURN;
 
-    REBVAL *value = ARG(value);
     REBFRM *f = frame_; // implicit parameter to REBNATIVE()
 
-    if (f->binding == NULL) // raw native, not a variant FUNCTION made
-        fail (Error_Return_Archetype_Raw());
-
     // The frame this RETURN is being called from may well not be the target
-    // function of the return (that's why it's a "definitional return").  So
-    // examine the binding.  Currently it can be either a FRAME!'s varlist or
-    // a FUNCTION! paramlist.
+    // function of the return (that's why it's a "definitional return").  The
+    // binding field of the frame contains a copy of whatever the binding was
+    // in the specific FUNCTION! value that was invoked.
+    //
+    REBFUN *target;
+    if (f->binding->header.bits & NODE_FLAG_CELL) {
+        REBFRM *binding_f = cast(REBFRM*, f->binding);
+        target = binding_f->phase;
+    }
+    else if (f->binding->header.bits & ARRAY_FLAG_VARLIST) {
+        REBCTX *frame_ctx = CTX(f->binding);
+        target = VAL_FUNC(CTX_FRAME_FUNC_VALUE(frame_ctx));
+    }
+    else {
+        assert(f->binding == UNBOUND);
+        fail (Error_Return_Archetype_Raw());
+    }
 
-    REBFUN *target =
-        IS_FUNCTION(ARR_HEAD(f->binding))
-        ? AS_FUNC(f->binding)
-        : AS_FUNC(CTX_KEYLIST(CTX(f->binding)));
-
+    // If it's a definitional return, the associated function's frame must
+    // have a SYM_RETURN in it, which is also a local.  The trick used is
+    // that the type bits in that local are used to store the legal types
+    // for the return value.
+    //
     REBVAL *typeset = FUNC_PARAM(target, FUNC_NUM_PARAMS(target));
     assert(VAL_PARAM_SYM(typeset) == SYM_RETURN);
 
-    // Check to make sure the types match.  If it were not done here, then
-    // the error would not point out the bad call...just the function that
-    // wound up catching it.
+    // Check to make sure the types match.  If we deferred this check and
+    // let Do_Core() check the type when it caught it, then the error would
+    // not indicate the callsite where `return badly-typed-value` happened.
     //
+    REBVAL *value = ARG(value);
     if (!TYPE_CHECK(typeset, VAL_TYPE(value)))
         fail (Error_Bad_Return_Type(
             f->label, // !!! Should climb stack to get real label?
@@ -238,7 +250,7 @@ REBNATIVE(return)
         ));
 
     Move_Value(D_OUT, NAT_VALUE(exit)); // see also Make_Thrown_Exit_Value
-    D_OUT->extra.binding = f->binding;
+    INIT_BINDING(D_OUT, f->binding);
 
     CONVERT_NAME_TO_THROWN(D_OUT, value);
     return R_OUT_IS_THROWN;
@@ -256,11 +268,11 @@ REBNATIVE(leave)
 //
 // See notes on REBNATIVE(return)
 {
-    if (frame_->binding == NULL) // raw native, not a variant PROCEDURE made
+    if (frame_->binding == UNBOUND) // raw native, not variant PROCEDURE made
         fail (Error_Return_Archetype_Raw());
 
     Move_Value(D_OUT, NAT_VALUE(exit)); // see also Make_Thrown_Exit_Value
-    D_OUT->extra.binding = frame_->binding;
+    INIT_BINDING(D_OUT, frame_->binding);
 
     CONVERT_NAME_TO_THROWN(D_OUT, VOID_CELL);
     return R_OUT_IS_THROWN;
@@ -287,7 +299,7 @@ REBNATIVE(typechecker)
     REBVAL *archetype = Alloc_Tail_Array(paramlist);
     VAL_RESET_HEADER(archetype, REB_FUNCTION);
     archetype->payload.function.paramlist = paramlist;
-    archetype->extra.binding = NULL;
+    INIT_BINDING(archetype, UNBOUND);
 
     REBVAL *param = Alloc_Tail_Array(paramlist);
     Init_Typeset(param, ALL_64, Canon(SYM_VALUE));
@@ -437,7 +449,7 @@ REBNATIVE(chain)
     Init_Block(FUNC_BODY(fun), chainees);
 
     Move_Value(D_OUT, FUNC_VALUE(fun));
-    assert(VAL_BINDING(D_OUT) == NULL);
+    assert(VAL_BINDING(D_OUT) == UNBOUND);
 
     return R_OUT;
 }
@@ -533,22 +545,22 @@ REBNATIVE(adapt)
     REBARR *adaptation = Make_Array(2);
 
     REBVAL *block = Alloc_Tail_Array(adaptation);
-    VAL_RESET_HEADER_EXTRA(block, REB_BLOCK, VALUE_FLAG_RELATIVE);
+    VAL_RESET_HEADER(block, REB_BLOCK);
     INIT_VAL_ARRAY(block, prelude);
     VAL_INDEX(block) = 0;
-    INIT_RELATIVE(block, underlying);
+    INIT_BINDING(block, underlying); // relative binding
 
     Append_Value(adaptation, adaptee);
 
     RELVAL *body = FUNC_BODY(fun);
-    VAL_RESET_HEADER_EXTRA(body, REB_BLOCK, VALUE_FLAG_RELATIVE);
+    VAL_RESET_HEADER(body, REB_BLOCK);
     INIT_VAL_ARRAY(body, adaptation);
     VAL_INDEX(body) = 0;
-    INIT_RELATIVE(body, underlying);
+    INIT_BINDING(body, underlying); // relative binding
     MANAGE_ARRAY(adaptation);
 
     Move_Value(D_OUT, FUNC_VALUE(fun));
-    assert(VAL_BINDING(D_OUT) == NULL);
+    assert(VAL_BINDING(D_OUT) == UNBOUND);
 
     return R_OUT;
 }
@@ -650,7 +662,7 @@ REBNATIVE(hijack)
         SER(hijacker_paramlist)->link.meta;
 
     Move_Value(D_OUT, victim);
-    D_OUT->extra.binding = hijacker->extra.binding;
+    INIT_BINDING(D_OUT, VAL_BINDING(hijacker));
 
     return R_OUT;
 }
@@ -723,7 +735,7 @@ REBNATIVE(tighten)
     RELVAL *rootparam = ARR_HEAD(paramlist);
     CLEAR_VAL_FLAGS(rootparam, FUNC_FLAG_CACHED_MASK);
     rootparam->payload.function.paramlist = paramlist;
-    rootparam->extra.binding = NULL;
+    INIT_BINDING(rootparam, UNBOUND);
 
     // !!! This does not make a unique copy of the meta information context.
     // Hence updates to the title/parameter-descriptions/etc. of the tightened
@@ -790,7 +802,7 @@ REBNATIVE(tighten)
     // preserve the binding of the incoming value, which is never present in
     // the canon value of the function.
     //
-    D_OUT->extra.binding = ARG(action)->extra.binding;
+    INIT_BINDING(D_OUT, VAL_BINDING(ARG(action)));
 
     return R_OUT;
 }

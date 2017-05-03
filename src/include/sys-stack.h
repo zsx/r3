@@ -415,18 +415,17 @@ inline static REBVAL* Push_Value_Chunk_Of_Length(REBCNT num_values) {
 
     TG_Top_Chunk = chunk;
 
-
-    // Set all chunk cells writable.
+    // Make the chunk cells completely unformatted space in debug build.
+    // The parameter fulfillment walk has to do its own Prep_Stack_Cell
     //
-    // !!! Should be using VALUE_FLAG_STACK
-    {
+#if !defined(NDEBUG)
     REBCNT index;
     for (index = 0; index < num_values; index++)
-        INIT_CELL(&chunk->values[index]);
-    }
+        chunk->values[index].header.bits = 0;
+#endif
 
     assert(CHUNK_FROM_VALUES(&chunk->values[0]) == chunk);
-    return KNOWN(&chunk->values[0]);
+    return cast(REBVAL*, &chunk->values[0]);
 }
 
 

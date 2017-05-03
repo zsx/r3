@@ -108,7 +108,13 @@
             || std::is_same<T, REBARR>::value,
             "SER works on: void*, REBNOD*, REBSTR*, REBARR*"
         );
-        return cast(REBSER*, p);
+        REBSER *s = cast(REBSER*, p);
+        assert(
+            NOT(s->header.bits & NODE_FLAG_FREE)
+            && NOT(s->header.bits & NODE_FLAG_CELL)
+            && NOT(s->header.bits & NODE_FLAG_END)
+        );
+        return s;
     }
 
     template <>
@@ -658,7 +664,7 @@ inline static REBYTE *VAL_RAW_DATA_AT(const RELVAL *v) {
 }
 
 #define Init_Any_Series_At(v,t,s,i) \
-    Init_Any_Series_At_Core((v), (t), (s), (i), SPECIFIED)
+    Init_Any_Series_At_Core((v), (t), (s), (i), UNBOUND)
 
 #define Init_Any_Series(v,t,s) \
     Init_Any_Series_At((v), (t), (s), 0)

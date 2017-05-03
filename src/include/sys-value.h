@@ -395,9 +395,12 @@ inline static void VAL_RESET_HEADER_common( // don't call directly
     #define VAL_RESET(v,kind,extra) \
         VAL_RESET_HEADER_EXTRA((v), (kind), (extra))
 
-    // Note no VALUE_FLAG_STACK
-    #define INIT_CELL(v) \
+    #define Prep_Non_Stack_Cell(v) \
         (v)->header.bits = NODE_FLAG_NODE | NODE_FLAG_FREE | NODE_FLAG_CELL
+
+    #define Prep_Stack_Cell(v) \
+        (v)->header.bits = (NODE_FLAG_NODE | NODE_FLAG_FREE | NODE_FLAG_CELL \
+            | VALUE_FLAG_STACK)
 #else
     inline static void Assert_Cell_Writable(
         const RELVAL *v,
@@ -438,8 +441,8 @@ inline static void VAL_RESET_HEADER_common( // don't call directly
         ASSERT_CELL_WRITABLE(v, file, line);
 
         // The debug build puts some extra type information onto flags
-        // which needs to be cleared out.  (e.g. WORD_FLAG_BOUND has the bit
-        // pattern for REB_WORD inside of it, to help make sure that flag
+        // which needs to be cleared out.  (e.g. FUNC_FLAG_XXX has the bit
+        // pattern for REB_FUNCTION inside of it, to help make sure that flag
         // doesn't get used with things that aren't words).
         //
         CHECK_VALUE_FLAGS_EVIL_MACRO_DEBUG(extra);
@@ -469,19 +472,28 @@ inline static void VAL_RESET_HEADER_common( // don't call directly
     #define VAL_RESET(v,kind,extra) \
         VAL_RESET_Debug((v), (kind), (extra), __FILE__, __LINE__)
 
-    inline static void INIT_CELL_Debug(
+    inline static void Prep_Non_Stack_Cell_Debug(
         RELVAL *v, const char *file, int line
     ){
-        // Note: no VALUE_FLAG_STACK
-        //
         v->header.bits =
             NODE_FLAG_NODE | NODE_FLAG_FREE | NODE_FLAG_CELL
             | HEADERIZE_KIND(REB_MAX + 1);
         Set_Track_Payload_Debug(v, file, line);
     }
 
-    #define INIT_CELL(v) \
-        INIT_CELL_Debug((v), __FILE__, __LINE__)
+    #define Prep_Non_Stack_Cell(v) \
+        Prep_Non_Stack_Cell_Debug((v), __FILE__, __LINE__)
+
+    inline static void Prep_Stack_Cell_Debug(
+        RELVAL *v, const char *file, int line
+    ){
+        v->header.bits = NODE_FLAG_NODE | NODE_FLAG_FREE | NODE_FLAG_CELL
+            | HEADERIZE_KIND(REB_MAX + 1) | VALUE_FLAG_STACK;
+        Set_Track_Payload_Debug(v, file, line);
+    }
+
+    #define Prep_Stack_Cell(v) \
+        Prep_Stack_Cell_Debug((v), __FILE__, __LINE__)
 #endif
 
 #define VAL_RESET_HEADER(v,t) \
@@ -1319,6 +1331,143 @@ inline static void SET_GOB(RELVAL *v, REBGOB *g) {
 }
 
 
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  RELATIVE AND SPECIFIC VALUES
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Some value types use their `->extra` field in order to store a pointer to
+// a REBNOD which constitutes their notion of "binding".
+//
+// At time of writing, this can be either a pointer to EMPTY_ARRAY (which
+// indicates UNBOUND), or to a function's paramlist (which indicates a
+// relative binding), or to a context's varlist (which indicates a specific
+// binding.)
+//
+// The ordering of %types.r is chosen specially so that all bindable types
+// are at lower values than the unbindable types.
+//
+
+// An ANY-WORD! is relative if it refers to a local or argument of a function,
+// and has its bits resident in the deep copy of that function's body.
+//
+// An ANY-ARRAY! in the deep copy of a function body must be relative also to
+// the same function if it contains any instances of such relative words.
+//
+inline static REBOOL IS_RELATIVE(const RELVAL *v) {
+    if (IS_UNREADABLE_IF_DEBUG(v) || Not_Bindable(v))
+        return FALSE;
+    return LOGICAL(v->extra.binding->header.bits & ARRAY_FLAG_PARAMLIST);
+}
+
+#if defined(__cplusplus)
+    //
+    // Take special advantage of the fact that C++ can help catch when we are
+    // trying to see if a REBVAL is specific or relative (it will always
+    // be specific, so the call is likely in error).  In the C build, they
+    // are the same type so there will be no error.
+    //
+    REBOOL IS_RELATIVE(const REBVAL *v);
+#endif
+
+#define IS_SPECIFIC(v) \
+    NOT(IS_RELATIVE(v))
+
+inline static REBFUN *VAL_RELATIVE(const RELVAL *v) {
+    assert(IS_RELATIVE(v));
+    return cast(REBFUN*, v->extra.binding);
+}
+
+inline static REBCTX *VAL_SPECIFIC_COMMON(const RELVAL *v) {
+    assert(IS_SPECIFIC(v));
+    return cast(REBCTX*, v->extra.binding);
+}
+
+#ifdef NDEBUG
+    #define VAL_SPECIFIC(v) \
+        VAL_SPECIFIC_COMMON(v)
+#else
+    #define VAL_SPECIFIC(v) \
+        VAL_SPECIFIC_Debug(v)
+#endif
+
+// When you have a RELVAL* (e.g. from a REBARR) that you "know" to be specific,
+// the KNOWN macro can be used for that.  Checks to make sure in debug build.
+//
+// Use for: "invalid conversion from 'Reb_Value*' to 'Reb_Specific_Value*'"
+
+inline static const REBVAL *const_KNOWN(const RELVAL *value) {
+    assert(IS_TRASH_DEBUG(value) || IS_END(value) || IS_SPECIFIC(value));
+    return cast(const REBVAL*, value); // we asserted it's actually specific
+}
+
+inline static REBVAL *KNOWN(RELVAL *value) {
+    assert(IS_TRASH_DEBUG(value) || IS_END(value) || IS_SPECIFIC(value));
+    return cast(REBVAL*, value); // we asserted it's actually specific
+}
+
+inline static const RELVAL *const_REL(const REBVAL *v) {
+    return cast(const RELVAL*, v); // cast w/input restricted to REBVAL
+}
+
+inline static RELVAL *REL(REBVAL *v) {
+    return cast(RELVAL*, v); // cast w/input restricted to REBVAL
+}
+
+// Originally a NULL pointer was used to indicate when a value was specified
+// by its nature.  However, by using something that is a valid REBNOD there
+// is an advantage of being able to merely test it for NODE_FLAG_MANAGED
+// in Move_Value() without special-casing the NULL handling.
+//
+#define SPECIFIED \
+    cast(REBSPC*, PG_Empty_Array)
+
+// A WORD! cannot be merely "specified" as its binding, because that is not
+// meaningful.  But in order to avoid having a separate flag, the same idea
+// is used with an EMPTY_ARRAY.
+//
+#define UNBOUND \
+   NOD(PG_Empty_Array)
+
+#ifdef NDEBUG
+    #define ASSERT_NO_RELATIVE(array,deep) NOOP
+#else
+    #define ASSERT_NO_RELATIVE(array,deep) \
+        Assert_No_Relative((array),(deep))
+#endif
+
+inline static REBNOD *VAL_BINDING(const RELVAL *v) {
+    assert(Is_Bindable(v));
+    return v->extra.binding;
+}
+
+inline static void INIT_BINDING(RELVAL *v, void *p) {
+    //
+    // This can be used on a partially initialized value, hence GET_VAL_FLAG
+    // is not appropriate to apply, since it assumes a fully formed value.
+    //
+    assert(Is_Bindable(v));
+
+    REBNOD *binding = NOD(p);
+
+#if !defined(NDEBUG)
+    if (binding->header.bits & NODE_FLAG_CELL) {
+        assert(v->header.bits & VALUE_FLAG_STACK);
+    }
+    else if (NOT(v->header.bits & VALUE_FLAG_STACK)) {
+        assert(binding->header.bits & NODE_FLAG_MANAGED);
+    }
+#endif
+
+    // !!! might be nice to do more checks here, may have to break this out
+    // into a _Debug function in %c-value.c
+
+    v->extra.binding = binding;
+}
+
+
 // !!! Because you cannot assign REBVALs to one another (e.g. `*dest = *src`)
 // a function is used.  The reason that a function is used is because this
 // gives more flexibility in decisions based on the destination cell regarding
@@ -1344,20 +1493,12 @@ inline static REBVAL *Move_Value(RELVAL *out, const REBVAL *v)
     out->header.bits &= CELL_MASK_RESET;
     out->header.bits |= v->header.bits & CELL_MASK_COPY;
 
-    // Note: In theory it would be possible to make payloads that had stack
-    // lifetimes by default, which would be promoted to GC lifetimes using
-    // the same kind of logic that the on-demand reification of FRAME!s
-    // uses.  In practice, this would be very difficult to take advantage of
-    // in C, because it really applies best with things that can live on
-    // the C stack--and Rebol arrays don't have that form of invocation.
-    //
-    out->payload = v->payload;
+    out->payload = v->payload; // payloads cannot hold references to stackvars
 
     if (
-        // NOT(v->header.bits & (VALUE_FLAG_BINDABLE | VALUE_FLAG_STACK))
-        // || v->extra.binding->header.bits & NODE_FLAG_MANAGED
-        //
         NOT(v->header.bits & VALUE_FLAG_STACK)
+        || NOT(Is_Bindable(v))
+        || (v->extra.binding->header.bits & NODE_FLAG_MANAGED)
     ) {
         // If the source value isn't the kind of value that can have a
         // non-reified binding (e.g. an INTEGER! or STRING!), then it is
@@ -1370,6 +1511,13 @@ inline static REBVAL *Move_Value(RELVAL *out, const REBVAL *v)
         // Finally, if it's the kind of thing that can have a non-reified
         // binding but it's managed, then that's also fine.
         //
+        //    
+    #if !defined(NDEBUG)
+        if (Is_Bindable(v)) {
+            if (NOT(v->header.bits & VALUE_FLAG_STACK))
+                assert(NOT(v->extra.binding->header.bits & NODE_FLAG_CELL));
+        }
+    #endif
         out->extra = v->extra;
         return KNOWN(out);
     }
@@ -1378,6 +1526,9 @@ inline static REBVAL *Move_Value(RELVAL *out, const REBVAL *v)
     // binding of some kind.  Check to see if the target stack level will
     // outlive the stack level of the non-reified material in the binding. 
 
+    assert(v->extra.binding->header.bits & NODE_FLAG_CELL);
+    REBFRM *f = cast(REBFRM*, v->extra.binding);
+
     REBCNT bind_depth = 1; // !!! need to determine v's binding stack level
     REBCNT out_depth;
     if (NOT(out->header.bits & VALUE_FLAG_STACK))
@@ -1385,36 +1536,27 @@ inline static REBVAL *Move_Value(RELVAL *out, const REBVAL *v)
     else
         out_depth = 1; // !!! need to determine out's stack level
 
-    if (out_depth >= bind_depth) {
+    if (FALSE && out_depth >= bind_depth) {
         //
         // The non-reified binding will outlive the output slot, so there is
         // no reason to reify it.
         //
-        out->extra = v->extra;
+        INIT_BINDING(out, f);
         return KNOWN(out);
     }
 
     // This is the expensive case, we know the binding as-is will not outlive
     // the target slot.  A reification is necessary.
 
-    // !!! Code is not written yet, but neither are there any actual non
-    // reified bindings in the wild.
+    // !!! For now we very conservatively reify on all cases, and reach
+    // beneath the const of the source in order to update its binding too.
+    
+    REBCTX *reified = Context_For_Frame_May_Reify_Managed(f);
+    INIT_BINDING(out, reified);
+    INIT_BINDING(m_cast(REBVAL*, v), reified);
 
-    out->extra = v->extra;
     return KNOWN(out);
 }
-
-
-// The way globals are currently declared, one cannot use the DECLARE_LOCAL
-// macro...because they run through a strange PVAR and TVAR process.
-// There would also be no FS_TOP in effect to capture when they are being
-// initialized.  This is similar to INIT_CELL, but being tracked separately
-// because the strategy needs more review.
-//
-// (In particular, the frame's miscellaneous `f->cell` needs review)
-//
-#define Prep_Global_Cell(cell) \
-    INIT_CELL(cell)
 
 
 //
@@ -1435,5 +1577,4 @@ inline static REBVAL *Move_Value(RELVAL *out, const REBVAL *v)
     REBSER name##_pair; \
     *cast(RELVAL*, &name##_pair) = *BLANK_VALUE; /* => tbd: FS_TOP FRAME! */ \
     REBVAL * const name = cast(REBVAL*, &name##_pair) + 1; \
-    name->header.bits = (NODE_FLAG_NODE | NODE_FLAG_FREE \
-        | NODE_FLAG_CELL | VALUE_FLAG_STACK)
+    Prep_Stack_Cell(name)

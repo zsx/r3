@@ -72,7 +72,8 @@
     //
     // Note: Taking this number on the command line sounds convenient, though
     // with command line processing in usermode it would throw the number off
-    // between runs.
+    // between runs.  It could be an environment variable, but sometimes it's
+    // just easier to set the number here.
     //
     // Note also there is `Dump_Frame_Location()` if there's a trouble spot
     // and you want to see what the state is.  It will reify C va_list
@@ -159,28 +160,11 @@ static inline void Abort_Function_Args_For_Frame(REBFRM *f) {
 static inline void Link_Vararg_Param_To_Frame(REBFRM *f, REBOOL make) {
     assert(GET_VAL_FLAG(f->param, TYPESET_FLAG_VARIADIC));
 
-    // Note that this varlist is to a context with bad cells in
-    // any unfilled arg slots.  Because of this, there needs to
-    // be special handling in the GC that knows *not* to try
-    // and walk these incomplete arrays sitting in the argument
-    // slots if they're not ready...
-    //
-    if (
-        f->varlist == NULL
-        || NOT_SER_FLAG(f->varlist, ARRAY_FLAG_VARLIST)
-    ){
-        // Don't use ordinary call to Context_For_Frame_May_Reify
-        // because this special case allows reification even
-        // though the frame is pending.
-        //
-        Reify_Frame_Context_Maybe_Fulfilling(f);
-    }
-    f->arg->extra.binding = f->varlist;
-
     // Store the offset so that both the f->arg and f->param locations can
     // be quickly recovered, while using only a single slot in the REBVAL.
     //
     f->arg->payload.varargs.param_offset = f->arg - f->args_head;
+    f->arg->payload.varargs.facade = FUNC_FACADE(f->phase);
 
     // The data feed doesn't necessarily come from the frame
     // that has the parameter and the argument.  A varlist may be
@@ -189,12 +173,10 @@ static inline void Link_Vararg_Param_To_Frame(REBFRM *f, REBOOL make) {
     //
     if (make) {
         VAL_RESET_HEADER(f->arg, REB_VARARGS);
-        f->arg->payload.varargs.feed = f->varlist;
+        INIT_BINDING(f->arg, f); // may reify later
     }
     else
         assert(VAL_TYPE(f->arg) == REB_VARARGS);
-
-    assert(GET_SER_FLAG(f->arg->payload.varargs.feed, SERIES_FLAG_ARRAY));
 }
 
 
@@ -581,9 +563,9 @@ reevaluate:;
         // incrementation, that they are both terminated by END, and
         // that there are an equal number of values in both.
         //
-        // Push_Or_Alloc_Args sets the frame's function, sets args_head...
+        // Push_Args sets f->original, f->phase, f->args_head, f->special
         //
-        Push_Or_Alloc_Args_For_Underlying_Func(
+        Push_Args_For_Underlying_Func(
             f, VAL_FUNC(current_gotten), VAL_BINDING(current_gotten)
         );
 
@@ -610,6 +592,17 @@ reevaluate:;
         // might have a goto from another point, so we check it again here)
         //
         assert(IS_END(f->out) || f->refine == LOOKBACK_ARG);
+
+        // We want the frame's "scratch" cell to be GC safe.  Note this can
+        // only be done after extracting the function properties, as "gotten"
+        // may be f->cell.
+        //
+        // !!! Might it be possible to avoid this initialization if the cell
+        // was used to calculate a temporary or eval, and only initialize it
+        // if not?  This might be more trouble than it's worth, given that
+        // having natives take for granted that it's IS_END() has value.
+        //
+        SET_END(&f->cell);
 
     //==////////////////////////////////////////////////////////////////==//
     //
@@ -687,8 +680,10 @@ reevaluate:;
                         // However, offer a special tolerance here for void
                         // since MAKE FRAME! fills all arg slots with void.
                         //
-                        if (IS_VOID(f->arg))
+                        if (IS_VOID(f->arg)) {
+                            Prep_Stack_Cell(f->arg);
                             Init_Logic(f->arg, FALSE);
+                        }
                     }
                     else {
                         // Voids in specializations mean something different,
@@ -699,6 +694,7 @@ reevaluate:;
                             goto unspecialized_refinement;
                         }
 
+                        Prep_Stack_Cell(f->arg);
                         Move_Value(f->arg, f->special);
                     }
 
@@ -719,6 +715,7 @@ reevaluate:;
             unspecialized_refinement:
 
                 if (f->dsp_orig == DSP) { // no refinements left on stack
+                    Prep_Stack_Cell(f->arg);
                     Init_Logic(f->arg, FALSE);
                     f->refine = ARG_TO_UNUSED_REFINEMENT; // "don't consume"
                     goto continue_arg_loop;
@@ -735,6 +732,7 @@ reevaluate:;
                 ){
                     DS_DROP; // we're lucky: this was next refinement used
 
+                    Prep_Stack_Cell(f->arg);
                     Init_Logic(f->arg, TRUE); // marks refinement used
                     f->refine = f->arg; // "consume args (can be revoked)"
                     goto continue_arg_loop;
@@ -748,6 +746,9 @@ reevaluate:;
                         VAL_WORD_SPELLING(f->refine) // canon when pushed
                         == VAL_PARAM_CANON(f->param) // #2258
                     ){
+                        Prep_Stack_Cell(f->arg);
+                        Init_Logic(f->arg, TRUE); // marks refinement used
+
                         // The call uses this refinement but we'll have to
                         // come back to it when the expression index to
                         // consume lines up.  Make a note of the param
@@ -759,7 +760,6 @@ reevaluate:;
                             = const_KNOWN(f->param);
                         f->refine->payload.pickup.arg = f->arg;
 
-                        Init_Logic(f->arg, TRUE); // marks refinement used
                         // "consume args later" (promise not to change)
                         f->refine = SKIPPING_REFINEMENT_ARGS;
                         goto continue_arg_loop;
@@ -768,6 +768,7 @@ reevaluate:;
 
                 // Wasn't in the path and not specialized, so not present
                 //
+                Prep_Stack_Cell(f->arg);
                 Init_Logic(f->arg, FALSE);
                 f->refine = ARG_TO_UNUSED_REFINEMENT; // "don't consume"
                 goto continue_arg_loop;
@@ -789,6 +790,7 @@ reevaluate:;
 
             switch (pclass) {
             case PARAM_CLASS_LOCAL:
+                Prep_Stack_Cell(f->arg);
                 Init_Void(f->arg); // faster than checking bad specializations
                 if (f->special != END)
                     ++f->special;
@@ -798,16 +800,15 @@ reevaluate:;
                 assert(VAL_PARAM_SYM(f->param) == SYM_RETURN);
 
                 if (NOT_VAL_FLAG(FUNC_VALUE(f->phase), FUNC_FLAG_RETURN)) {
+                    Prep_Stack_Cell(f->arg);
                     Init_Void(f->arg);
                     goto continue_arg_loop;
                 }
 
+                Prep_Stack_Cell(f->arg);
                 Move_Value(f->arg, NAT_VALUE(return));
 
-                if (f->varlist) // !!! in specific binding, always for Plain
-                    f->arg->extra.binding = f->varlist;
-                else
-                    f->arg->extra.binding = FUNC_PARAMLIST(FRM_UNDERLYING(f));
+                INIT_BINDING(f->arg, f); // may reify later
 
                 if (f->special != END)
                     ++f->special; // specialization being overwritten is right
@@ -817,16 +818,15 @@ reevaluate:;
                 assert(VAL_PARAM_SYM(f->param) == SYM_LEAVE);
 
                 if (NOT_VAL_FLAG(FUNC_VALUE(f->phase), FUNC_FLAG_LEAVE)) {
+                    Prep_Stack_Cell(f->arg);
                     Init_Void(f->arg);
                     goto continue_arg_loop;
                 }
 
+                Prep_Stack_Cell(f->arg);
                 Move_Value(f->arg, NAT_VALUE(leave));
 
-                if (f->varlist) // !!! in specific binding, always for Plain
-                    f->arg->extra.binding = f->varlist;
-                else
-                    f->arg->extra.binding = FUNC_PARAMLIST(FRM_UNDERLYING(f));
+                INIT_BINDING(f->arg, f); // may reify later
 
                 if (f->special != END)
                     ++f->special; // specialization being overwritten is right
@@ -841,12 +841,11 @@ reevaluate:;
             if (f->refine == SKIPPING_REFINEMENT_ARGS) {
                 //
                 // The GC will protect values up through how far we have
-                // enumerated, so the argument slot cannot be uninitialized
-                // bits once we pass it.  Use a safe trash so that the debug
-                // build will be able to tell if we don't come back and
-                // overwrite it correctly during the pickups phase.
-                //
-                Init_Unreadable_Blank(f->arg);
+                // enumerated, and though we're leaving trash in this slot
+                // it has special handling to tolerate that, so long as we're
+                // doing pickups.
+
+                Prep_Stack_Cell(f->arg);
 
                 if (f->special != END)
                     ++f->special;
@@ -876,6 +875,7 @@ reevaluate:;
                     ++f->special;
                 }
                 else {
+                    Prep_Stack_Cell(f->arg);
                     Move_Value(f->arg, f->special);
 
                     ++f->special;
@@ -889,6 +889,7 @@ reevaluate:;
             // further processing or checking.  void will always be fine.
             //
             if (f->refine == ARG_TO_UNUSED_REFINEMENT) {
+                Prep_Stack_Cell(f->arg);
                 Init_Void(f->arg);
                 goto continue_arg_loop;
             }
@@ -913,6 +914,8 @@ reevaluate:;
                 // just prohibit it.
                 //
                 assert(NOT_VAL_FLAG(f->param, TYPESET_FLAG_VARIADIC));
+
+                Prep_Stack_Cell(f->arg);
 
                 if (IS_END(f->out)) {
                     //
@@ -996,6 +999,7 @@ reevaluate:;
             //
             if (GET_VAL_FLAG(f->param, TYPESET_FLAG_VARIADIC)) {
                 const REBOOL make = TRUE;
+                Prep_Stack_Cell(f->arg);
                 Link_Vararg_Param_To_Frame(f, make);
                 goto continue_arg_loop; // new value, type guaranteed correct
             }
@@ -1013,6 +1017,7 @@ reevaluate:;
                 if (NOT_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
                     fail (Error_No_Arg(FRM_LABEL(f), f->param));
 
+                Prep_Stack_Cell(f->arg);
                 Init_Void(f->arg);
                 goto continue_arg_loop;
             }
@@ -1020,6 +1025,7 @@ reevaluate:;
     //=//// IF EVAL/ONLY SEMANTICS, TAKE NEXT ARG WITHOUT EVALUATION //////=//
 
             if (NOT(args_evaluate)) {
+                Prep_Stack_Cell(f->arg);
                 Quote_Next_In_Frame(f->arg, f); // has VALUE_FLAG_UNEVALUATED
                 goto check_arg;
             }
@@ -1034,6 +1040,7 @@ reevaluate:;
                 if (NOT_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
                     fail (Error_Expression_Barrier_Raw());
 
+                Prep_Stack_Cell(f->arg);
                 Init_Void(f->arg);
                 goto continue_arg_loop;
             }
@@ -1043,6 +1050,7 @@ reevaluate:;
    //=//// REGULAR ARG-OR-REFINEMENT-ARG (consumes a DO/NEXT's worth) ////=//
 
             case PARAM_CLASS_NORMAL:
+                Prep_Stack_Cell(f->arg);
                 if (Do_Next_In_Subframe_Throws(
                     f->arg,
                     f,
@@ -1063,6 +1071,8 @@ reevaluate:;
                 // `(square 1) + 2`, by not applying lookahead to
                 // see the + during the argument evaluation.
                 //
+                Prep_Stack_Cell(f->arg);
+
                 if (Do_Next_In_Subframe_Throws(
                     f->arg,
                     f,
@@ -1076,18 +1086,21 @@ reevaluate:;
 
     //=//// HARD QUOTED ARG-OR-REFINEMENT-ARG /////////////////////////////=//
 
-            case PARAM_CLASS_HARD_QUOTE: {
+            case PARAM_CLASS_HARD_QUOTE:
+                Prep_Stack_Cell(f->arg);
                 Quote_Next_In_Frame(f->arg, f); // has VALUE_FLAG_UNEVALUATED
-                break; }
+                break;
 
     //=//// SOFT QUOTED ARG-OR-REFINEMENT-ARG  ////////////////////////////=//
 
             case PARAM_CLASS_SOFT_QUOTE:
                 if (!IS_QUOTABLY_SOFT(f->value)) {
+                    Prep_Stack_Cell(f->arg);
                     Quote_Next_In_Frame(f->arg, f); // VALUE_FLAG_UNEVALUATED
                     goto check_arg;
                 }
 
+                Prep_Stack_Cell(f->arg);
                 if (Eval_Value_Core_Throws(f->arg, f->value, f->specifier)) {
                     Move_Value(f->out, f->arg);
                     Abort_Function_Args_For_Frame(f);
@@ -1282,6 +1295,7 @@ reevaluate:;
         // has written the out slot yet or not (e.g. WHILE/? refinement).
         //
         assert(IS_END(f->out));
+        assert(f->out->header.bits & VALUE_FLAG_STACK);
 
         // Running arbitrary native code can manipulate the bindings or cache
         // of a variable.  It's very conservative to say this, but any word
@@ -1328,37 +1342,29 @@ reevaluate:;
         case R_OUT_IS_THROWN: {
             assert(THROWN(f->out));
 
-            if (!IS_FUNCTION(f->out) || VAL_FUNC(f->out) != NAT_FUNC(exit)) {
+            if (
+                IS_FUNCTION(f->out)
+                && VAL_FUNC(f->out) == NAT_FUNC(exit)
+                && Same_Binding(VAL_BINDING(f->out), f)
+            ){
+                // Do_Core catches "definitional exits" to current frame, e.g.
+                // throws where the "/name" is the EXIT native with a binding
+                // to this frame, and the thrown value is the return code.
                 //
-                // Do_Core only catches "definitional exits" to current frame
-                //
-                Abort_Function_Args_For_Frame(f);
-                goto finished;
-            }
-
-            ASSERT_ARRAY(VAL_BINDING(f->out));
-
-            if (VAL_BINDING(f->out) == FUNC_PARAMLIST(FRM_UNDERLYING(f))) {
-                //
-                // The most recent instance of a function on the stack (if
-                // any) will catch a FUNCTION! style exit.
+                // !!! This might be a little more natural if the name of the
+                // throw was a FRAME! value.  But that also would mean throws
+                // named by frames couldn't be taken advantage by the user for
+                // other features, while this only takes one function away.
                 //
                 CATCH_THROWN(f->out, f->out);
                 assert(NOT_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED));
             }
-            else if (VAL_BINDING(f->out) == f->varlist) {
-                //
-                // This identifies an exit from a *specific* function
-                // invocation.  We'll only match it if we have a reified
-                // frame context.  (Note f->varlist may be null here.)
-                //
-                CATCH_THROWN(f->out, f->out);
-            }
             else {
+                // Stay THROWN and let stack levels above try and catch
+                //
                 Abort_Function_Args_For_Frame(f);
-                goto finished; // stay THROWN and try to exit frames above...
+                goto finished;
             }
-            CLEAR_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED);
             break; }
 
         case R_OUT_TRUE_IF_WRITTEN:
@@ -1420,6 +1426,8 @@ reevaluate:;
 
         assert(NOT_END(f->out)); // should have overwritten
         assert(NOT(THROWN(f->out))); // throws must be R_OUT_IS_THROWN
+        if (Is_Bindable(f->out))
+            assert(f->out->extra.binding != NULL);
 
         assert(f->eval_type == REB_FUNCTION); // shouldn't have changed
 
@@ -1429,10 +1437,13 @@ reevaluate:;
     //
     //==////////////////////////////////////////////////////////////////==//
 
-    // Here we know the function finished and did not throw or exit.
+    // Here we know the function finished and nothing threw past it or
+    // FAIL / fail()'d.
+    //
     // Generally the return type is validated by the Returner_Dispatcher()
     // with everything else assumed to return the correct type.  But this
-    // double checks any function marked with RETURN in the debug build.
+    // double checks any function marked with RETURN in the debug build,
+    // so native return types are checked instead of just trusting the C.
 
 #if !defined(NDEBUG)
     if (GET_VAL_FLAG(FUNC_VALUE(f->phase), FUNC_FLAG_RETURN)) {
@@ -1600,7 +1611,7 @@ reevaluate:;
 // [LIT-WORD!]
 //
 // Note we only want to reset the type bits in the header, not the whole
-// header--because header bits contain information like WORD_FLAG_BOUND.
+// header--because header bits may contain other flags.
 //
 //==//////////////////////////////////////////////////////////////////////==//
 

@@ -49,38 +49,35 @@ static void Bind_Values_Inner_Loop(
     REBU64 add_midstream_types,
     REBFLGS flags
 ) {
-    RELVAL *value = head;
-    for (; NOT_END(value); value++) {
-        REBU64 type_bit = FLAGIT_KIND(VAL_TYPE(value));
+    RELVAL *v = head;
+    for (; NOT_END(v); ++v) {
+        REBU64 type_bit = FLAGIT_KIND(VAL_TYPE(v));
 
         if (type_bit & bind_types) {
-            REBSTR *canon = VAL_WORD_CANON(value);
+            REBSTR *canon = VAL_WORD_CANON(v);
             REBCNT n = Try_Get_Binder_Index(binder, canon);
             if (n != 0) {
                 assert(n <= CTX_LEN(context));
 
                 // We're overwriting any previous binding, which may have
                 // been relative.
-                //
-                CLEAR_VAL_FLAG(value, VALUE_FLAG_RELATIVE);
 
-                SET_VAL_FLAG(value, WORD_FLAG_BOUND);
-                INIT_WORD_CONTEXT(value, context);
-                INIT_WORD_INDEX(value, n);
+                INIT_WORD_CONTEXT(v, context);
+                INIT_WORD_INDEX(v, n);
             }
             else if (type_bit & add_midstream_types) {
                 //
                 // Word is not in context, so add it if option is specified
                 //
                 Expand_Context(context, 1);
-                Append_Context(context, value, 0);
-                Add_Binder_Index(binder, canon, VAL_WORD_INDEX(value));
+                Append_Context(context, v, 0);
+                Add_Binder_Index(binder, canon, VAL_WORD_INDEX(v));
             }
         }
-        else if (ANY_ARRAY(value) && (flags & BIND_DEEP)) {
+        else if (ANY_ARRAY(v) && (flags & BIND_DEEP)) {
             Bind_Values_Inner_Loop(
                 binder,
-                VAL_ARRAY_AT(value),
+                VAL_ARRAY_AT(v),
                 context,
                 bind_types,
                 add_midstream_types,
@@ -88,8 +85,8 @@ static void Bind_Values_Inner_Loop(
             );
         }
         else if (
-            IS_FUNCTION(value)
-            && IS_FUNCTION_INTERPRETED(value)
+            IS_FUNCTION(v)
+            && IS_FUNCTION_INTERPRETED(v)
             && (flags & BIND_FUNC)
         ) {
             // !!! Likely-to-be deprecated functionality--rebinding inside the
@@ -97,7 +94,7 @@ static void Bind_Values_Inner_Loop(
             //
             Bind_Values_Inner_Loop(
                 binder,
-                VAL_FUNC_BODY(value),
+                VAL_FUNC_BODY(v),
                 context,
                 bind_types,
                 add_midstream_types,
@@ -161,23 +158,16 @@ void Bind_Values_Core(
 //
 void Unbind_Values_Core(RELVAL head[], REBCTX *context, REBOOL deep)
 {
-    RELVAL *value = head;
-    for (; NOT_END(value); value++) {
+    RELVAL *v = head;
+    for (; NOT_END(v); ++v) {
         if (
-            ANY_WORD(value)
-            && (
-                !context
-                || (
-                    IS_WORD_BOUND(value)
-                    && !IS_RELATIVE(value)
-                    && VAL_WORD_CONTEXT(KNOWN(value)) == context
-                )
-            )
-        ) {
-            Unbind_Any_Word(value);
+            ANY_WORD(v)
+            && (context == NULL || Same_Binding(VAL_BINDING(v), context))
+        ){
+            Unbind_Any_Word(v);
         }
-        else if (ANY_ARRAY(value) && deep)
-            Unbind_Values_Core(VAL_ARRAY_AT(value), context, TRUE);
+        else if (ANY_ARRAY(v) && deep)
+            Unbind_Values_Core(VAL_ARRAY_AT(v), context, TRUE);
     }
 }
 
@@ -192,11 +182,8 @@ REBCNT Try_Bind_Word(REBCTX *context, REBVAL *word)
     REBCNT n = Find_Canon_In_Context(context, VAL_WORD_CANON(word), FALSE);
     if (n != 0) {
         //
-        // Previously may have been bound relative, remove flag.
+        // Previously may have been bound relative.
         //
-        CLEAR_VAL_FLAG(word, VALUE_FLAG_RELATIVE);
-
-        SET_VAL_FLAG(word, WORD_FLAG_BOUND);
         INIT_WORD_CONTEXT(word, context);
         INIT_WORD_INDEX(word, n);
     }
@@ -216,10 +203,10 @@ static void Bind_Relative_Inner_Loop(
     REBARR *paramlist,
     REBU64 bind_types
 ) {
-    RELVAL *value = head;
+    RELVAL *v = head;
 
-    for (; NOT_END(value); value++) {
-        REBU64 type_bit = FLAGIT_KIND(VAL_TYPE(value));
+    for (; NOT_END(v); ++v) {
+        REBU64 type_bit = FLAGIT_KIND(VAL_TYPE(v));
 
         // The two-pass copy-and-then-bind should have gotten rid of all the
         // relative values to other functions during the copy.
@@ -228,37 +215,32 @@ static void Bind_Relative_Inner_Loop(
         // with relative values and run them through the specification
         // process if they were not just getting overwritten.
         //
-        assert(!IS_RELATIVE(value));
+        assert(!IS_RELATIVE(v));
 
         if (type_bit & bind_types) {
-            REBINT n = Try_Get_Binder_Index(binder, VAL_WORD_CANON(value));
+            REBINT n = Try_Get_Binder_Index(binder, VAL_WORD_CANON(v));
             if (n != 0) {
                 //
                 // Word's canon symbol is in frame.  Relatively bind it.
                 // (clear out existing binding flags first).
                 //
-                Unbind_Any_Word(value);
-                SET_VAL_FLAGS(value, WORD_FLAG_BOUND | VALUE_FLAG_RELATIVE);
-                INIT_WORD_FUNC(value, AS_FUNC(paramlist)); // incomplete func
-                INIT_WORD_INDEX(value, n);
+                Unbind_Any_Word(v);
+                INIT_BINDING(v, paramlist); // incomplete func
+                INIT_WORD_INDEX(v, n);
             }
         }
-        else if (ANY_ARRAY(value)) {
+        else if (ANY_ARRAY(v)) {
             Bind_Relative_Inner_Loop(
-                binder, VAL_ARRAY_AT(value), paramlist, bind_types
+                binder, VAL_ARRAY_AT(v), paramlist, bind_types
             );
 
-            // Set the bits in the ANY-ARRAY! REBVAL to indicate that it is
-            // relative to the function.
-            //
             // !!! Technically speaking it is not necessary for an array to
             // be marked relative if it doesn't contain any relative words
             // under it.  However, for uniformity in the near term, it's
             // easiest to debug if there is a clear mark on arrays that are
             // part of a deep copy of a function body either way.
             //
-            SET_VAL_FLAG(value, VALUE_FLAG_RELATIVE);
-            INIT_RELATIVE(value, AS_FUNC(paramlist)); // incomplete func
+            INIT_BINDING(v, paramlist); // incomplete func
         }
     }
 }
@@ -322,27 +304,22 @@ void Rebind_Values_Deep(
     RELVAL head[],
     struct Reb_Binder *opt_binder
 ) {
-    RELVAL *value = head;
-    for (; NOT_END(value); value++) {
-        if (ANY_ARRAY(value)) {
-            Rebind_Values_Deep(src, dst, VAL_ARRAY_AT(value), opt_binder);
+    RELVAL *v = head;
+    for (; NOT_END(v); ++v) {
+        if (ANY_ARRAY(v)) {
+            Rebind_Values_Deep(src, dst, VAL_ARRAY_AT(v), opt_binder);
         }
-        else if (
-            ANY_WORD(value)
-            && GET_VAL_FLAG(value, WORD_FLAG_BOUND)
-            && NOT_VAL_FLAG(value, VALUE_FLAG_RELATIVE)
-            && VAL_WORD_CONTEXT(KNOWN(value)) == src
-        ) {
-            INIT_WORD_CONTEXT(value, dst);
+        else if (ANY_WORD(v) && Same_Binding(VAL_BINDING(v), src)) {
+            INIT_BINDING(v, dst);
 
             if (opt_binder != NULL) {
                 INIT_WORD_INDEX(
-                    value,
-                    Try_Get_Binder_Index(opt_binder, VAL_WORD_CANON(value))
+                    v,
+                    Try_Get_Binder_Index(opt_binder, VAL_WORD_CANON(v))
                 );
             }
         }
-        else if (IS_FUNCTION(value) && IS_FUNCTION_INTERPRETED(value)) {
+        else if (IS_FUNCTION(v) && IS_FUNCTION_INTERPRETED(v)) {
             //
             // !!! Extremely questionable feature--walking into function
             // bodies and changing them.  This R3-Alpha concept was largely
@@ -351,9 +328,7 @@ void Rebind_Values_Deep(
             // copies of all that object's method bodies...each time).
             // Ren-C has a different idea in the works.
             //
-            Rebind_Values_Deep(
-                src, dst, VAL_FUNC_BODY(value), opt_binder
-            );
+            Rebind_Values_Deep(src, dst, VAL_FUNC_BODY(v), opt_binder);
         }
     }
 }

@@ -99,6 +99,8 @@ PVAR REBVAL PG_Bar_Value[2];
 PVAR REBVAL PG_False_Value[2];
 PVAR REBVAL PG_True_Value[2];
 
+PVAR REBARR* PG_Empty_Array; // optimization of VAL_ARRAY(EMPTY_BLOCK)
+
 // Special (but standards-legal) REBVAL* used in the `pending` field of a frame
 // to indicate it fetches its values from a C va_list.
 //

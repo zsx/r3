@@ -151,26 +151,6 @@
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  VALUE_FLAG_RELATIVE
-//
-//=////////////////////////////////////////////////////////////////////////=//
-//
-// This flag is used to indicate a value that needs to have a specific context
-// added into it before it can have its bits copied--or used for some other
-// purposes.
-//
-// An ANY-WORD! is relative if it refers to a local or argument of a function,
-// and has its bits resident in the deep copy of that function's body.
-//
-// An ANY-ARRAY! in the deep copy of a function body must be relative also to
-// the same function if it contains any instances of such relative words.
-//
-#define VALUE_FLAG_RELATIVE \
-    FLAGIT_LEFT(GENERAL_VALUE_BIT + 2)
-
-
-//=////////////////////////////////////////////////////////////////////////=//
-//
 //  VALUE_FLAG_UNEVALUATED
 //
 //=////////////////////////////////////////////////////////////////////////=//
@@ -192,7 +172,7 @@
 // That has a lot of impact for the new user experience.
 //
 #define VALUE_FLAG_UNEVALUATED \
-    FLAGIT_LEFT(GENERAL_VALUE_BIT + 3)
+    FLAGIT_LEFT(GENERAL_VALUE_BIT + 2)
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -218,7 +198,7 @@
 // !!! This feature is a work in progress.
 //
 #define VALUE_FLAG_STACK \
-    FLAGIT_LEFT(GENERAL_VALUE_BIT + 4)
+    FLAGIT_LEFT(GENERAL_VALUE_BIT + 3)
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -247,7 +227,7 @@
 //
 
 #define VALUE_FLAG_ENFIXED \
-    FLAGIT_LEFT(GENERAL_VALUE_BIT + 5)
+    FLAGIT_LEFT(GENERAL_VALUE_BIT + 4)
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -263,14 +243,14 @@
 //
 
 #define VALUE_FLAG_PROTECTED \
-    FLAGIT_LEFT(GENERAL_VALUE_BIT + 6)
+    FLAGIT_LEFT(GENERAL_VALUE_BIT + 5)
 
 
 // v-- BEGIN TYPE SPECIFIC BITS HERE
 
 
 #define TYPE_SPECIFIC_BIT \
-    (GENERAL_VALUE_BIT + 7)
+    (GENERAL_VALUE_BIT + 6)
 
 
 // Technically speaking, this only needs to use 6 bits of the rightmost byte
@@ -524,11 +504,13 @@ struct Reb_Varargs {
     //
     REBCNT param_offset;
 
-    // Data source for the VARARGS!.  This can come from a frame (and is often
-    // the same as extra->binding), or from an array if MAKE ARRAY! is the
-    // source of the variadic data.
-    // 
-    REBARR *feed;
+    // The "facade" (see FUNC_FACADE) is a paramlist-shaped entity that may
+    // or may not be the actual paramlist of a function.  It allows for the
+    // ability of phases of functions to have modified typesets or parameter
+    // classes from those of the underlying frame.  This is where to look
+    // up the parameter by its offset.
+    //
+    REBARR *facade;
 };
 
 
@@ -656,8 +638,9 @@ struct Reb_All {
 union Reb_Value_Extra {
     //
     // The binding will be either a REBFUN (relative to a function) or a
-    // REBCTX (specific to a context).  ARRAY_FLAG_VARLIST can be
-    // used to tell which it is.
+    // REBCTX (specific to a context), or simply a plain REBARR such as
+    // EMPTY_ARRAY which indicates UNBOUND.  ARRAY_FLAG_VARLIST and
+    // ARRAY_FLAG_PARAMLIST can be used to tell which it is.
     //
     // ANY-WORD!: binding is the word's binding
     //
@@ -674,11 +657,11 @@ union Reb_Value_Extra {
     // of RETURN, the keylist only indicates the archetype RETURN.  Putting
     // the binding back together can indicate the instance.
     //
-    // VARARGS!: the binding is the frame context where the variadic parameter
-    // lives (or NULL if it was made with MAKE VARARGS! and hasn't been
-    // passed through a parameter yet).
+    // VARARGS!: the binding identifies the feed from which the values are
+    // coming.  It can be an ordinary singular array which was created with
+    // MAKE VARARGS! and has its index updated for all shared instances.
     //
-    REBARR *binding;
+    REBNOD *binding;
 
     // The remaining properties are the "leftovers" of what won't fit in the
     // payload for other types.  If those types have a quanitity that requires
@@ -878,75 +861,3 @@ struct Reb_Value
     };
 #endif
 
-inline static REBOOL IS_RELATIVE(const RELVAL *v) {
-    return LOGICAL(v->header.bits & VALUE_FLAG_RELATIVE);
-}
-
-#if defined(__cplusplus)
-    //
-    // Take special advantage of the fact that C++ can help catch when we are
-    // trying to see if a REBVAL is specific or relative (it will always
-    // be specific, so the call is likely in error).  In the C build, they
-    // are the same type so there will be no error.
-    //
-    REBOOL IS_RELATIVE(const REBVAL *v);
-#endif
-
-#define IS_SPECIFIC(v) \
-    NOT(IS_RELATIVE(v))
-
-inline static REBFUN *VAL_RELATIVE(const RELVAL *v) {
-    assert(IS_RELATIVE(v));
-    //assert(NOT(GET_SER_FLAG(v->extra.binding, ARRAY_FLAG_VARLIST)));
-    return cast(REBFUN*, v->extra.binding);
-}
-
-inline static REBCTX *VAL_SPECIFIC_COMMON(const RELVAL *v) {
-    assert(IS_SPECIFIC(v));
-    //assert(
-    //    v->extra.binding == SPECIFIED
-    //    || GET_SER_FLAG(v->extra.binding, ARRAY_FLAG_VARLIST)
-    //);
-    return cast(REBCTX*, v->extra.binding);
-}
-
-#ifdef NDEBUG
-    #define VAL_SPECIFIC(v) \
-        VAL_SPECIFIC_COMMON(v)
-#else
-    #define VAL_SPECIFIC(v) \
-        VAL_SPECIFIC_Debug(v)
-#endif
-
-// When you have a RELVAL* (e.g. from a REBARR) that you "know" to be specific,
-// the KNOWN macro can be used for that.  Checks to make sure in debug build.
-//
-// Use for: "invalid conversion from 'Reb_Value*' to 'Reb_Specific_Value*'"
-
-inline static const REBVAL *const_KNOWN(const RELVAL *value) {
-    assert(IS_SPECIFIC(value));
-    return cast(const REBVAL*, value); // we asserted it's actually specific
-}
-
-inline static REBVAL *KNOWN(RELVAL *value) {
-    assert(IS_SPECIFIC(value));
-    return cast(REBVAL*, value); // we asserted it's actually specific
-}
-
-inline static const RELVAL *const_REL(const REBVAL *v) {
-    return cast(const RELVAL*, v); // cast w/input restricted to REBVAL
-}
-
-inline static RELVAL *REL(REBVAL *v) {
-    return cast(RELVAL*, v); // cast w/input restricted to REBVAL
-}
-
-#define SPECIFIED NULL
-
-
-#ifdef NDEBUG
-    #define ASSERT_NO_RELATIVE(array,deep) NOOP
-#else
-    #define ASSERT_NO_RELATIVE(array,deep) \
-        Assert_No_Relative((array),(deep))
-#endif

@@ -28,32 +28,6 @@
 //
 
 
-//
-// Relative and specific values
-//
-
-inline static REBARR *VAL_BINDING(const RELVAL *v) {
-    assert(
-        ANY_ARRAY(v)
-        || IS_FUNCTION(v)
-        || ANY_CONTEXT(v)
-        || IS_VARARGS(v)
-        || ANY_WORD(v)
-    );
-    return v->extra.binding;
-}
-
-inline static void INIT_RELATIVE(RELVAL *v, REBFUN *func) {
-    assert(GET_VAL_FLAG(v, VALUE_FLAG_RELATIVE));
-    v->extra.binding = FUNC_PARAMLIST(func);
-}
-
-inline static void INIT_SPECIFIC(RELVAL *v, REBCTX *context) {
-    assert(NOT_VAL_FLAG(v, VALUE_FLAG_RELATIVE));
-    v->extra.binding = CTX_VARLIST(context);
-}
-
-
 //=////////////////////////////////////////////////////////////////////////=//
 //
 //  THROWN status
@@ -203,7 +177,7 @@ inline static REBFUN *FRM_UNDERLYING(REBFRM *f) {
         REBVAL *var = &f->args_head[n - 1];
 
         assert(!THROWN(var));
-        assert(NOT_VAL_FLAG(var, VALUE_FLAG_RELATIVE));
+        assert(NOT(IS_RELATIVE(cast(RELVAL*, var))));
         return var;
     }
 #endif
@@ -249,7 +223,7 @@ inline static REBOOL Is_Function_Frame_Fulfilling(REBFRM *f)
 
 // It's helpful when looking in the debugger to be able to look at a frame
 // and see a cached string for the function it's running (if there is one).
-// The release build only considers the frame symbol valid if ET_FUNCTION
+// The release build only considers the frame symbol valid for FUNCTION!s
 //
 inline static void SET_FRAME_LABEL(REBFRM *f, REBSTR *label) {
     assert(f->eval_type == REB_FUNCTION);
@@ -289,8 +263,8 @@ inline static void SET_FRAME_VALUE(REBFRM *f, const RELVAL *value) {
 // implementation of the INCLUDE_PARAMS_OF_XXX macros that are used in
 // natives.)
 //
-// They are able to bind to the implicit Reb_Frame* passed to every
-// REBNATIVE() and read the information out cleanly, like this:
+// They capture the implicit Reb_Frame* passed to every REBNATIVE ('frame_')
+// and read the information out cleanly, like this:
 //
 //     PARAM(1, foo);
 //     REFINE(2, bar);
@@ -298,7 +272,11 @@ inline static void SET_FRAME_VALUE(REBFRM *f, const RELVAL *value) {
 //     if (IS_INTEGER(ARG(foo)) && REF(bar)) { ... }
 //
 // Though REF can only be used with a REFINE() declaration, ARG can be used
-// with either.
+// with either.  By contract, Rebol functions are allowed to mutate their
+// arguments and refinements just as if they were locals...guaranteeing only
+// their return result as externally visible.  Hence the ARG() cell for a
+// refinement provides a GC-safe slot for natives to hold values once they
+// have observed what they need from the refinement.
 //
 // Under the hood `PARAM(1, foo)` and `REFINE(2, bar)` are const values in
 // the release build.  Under optimization they disappear completely, so that
@@ -406,6 +384,8 @@ inline static void Enter_Native(REBFRM *f) {
 // This only allocates space for the arguments, it does not initialize.
 // Do_Core initializes as it goes, and updates f->param so the GC knows how
 // far it has gotten so as not to see garbage.  APPLY has different handling
+// when it has to build the frame for the user to write to before running;
+// so Do_Core only checks the arguments, and does not fulfill them.
 //
 // If the function is a specialization, then the parameter list of that
 // specialization will have *fewer* parameters than the full function would.
@@ -417,12 +397,11 @@ inline static void Enter_Native(REBFRM *f) {
 // function or the specialization's exemplar frame, those properties are
 // cached during the creation process.
 //
-inline static void Push_Or_Alloc_Args_For_Underlying_Func(
+inline static void Push_Args_For_Underlying_Func(
     REBFRM *f,
     REBFUN *original,
-    REBARR *binding
+    REBSPC *binding
 ){
-    f->original = f->phase = original;
     f->binding = binding; // e.g. how a RETURN knows where to return to
 
     // The underlying function is whose parameter list must be enumerated.
@@ -436,7 +415,20 @@ inline static void Push_Or_Alloc_Args_For_Underlying_Func(
     // function.  A facade might be a coherent paramlist, but it might just
     // *look* like a paramlist, with the underlying function in slot 0.
     //
-    REBCNT num_args = FUNC_FACADE_NUM_PARAMS(f->phase);
+    REBCNT num_args = FUNC_FACADE_NUM_PARAMS(original);
+
+    // We start by allocating the data for the args and locals on the chunk
+    // stack.  However, this can be "promoted" into being the data for a
+    // frame context if it becomes necessary to refer to the variables
+    // via words or an object value.  That object's data will still be this
+    // chunk, but the chunk can be freed...so the words can't be looked up.
+    //
+    // Note that chunks implicitly have an END at the end; no need to
+    // put one there.
+    //
+    f->varlist = NULL;
+    f->args_head = Push_Value_Chunk_Of_Length(num_args);
+    assert(CHUNK_LEN_FROM_VALUES(f->args_head) == num_args);
 
     // Note: A previous optimization would use the frame's evaluation cell
     // for the argument in the case of an arity-1 function.  While this
@@ -444,62 +436,15 @@ inline static void Push_Or_Alloc_Args_For_Underlying_Func(
     // looking backwards for a VALUE_FLAG_STACK's frame by introducing a
     // new parameter layout.  It also caused the code to branch more on both
     // the push and drop side, and made that cell unavailable for 1-argument
-    // functions to use as a temporary.  So the optimization was removed.
+    // functions to use as a temporary.  So the "optimization" was removed.
 
-    if (IS_FUNC_DURABLE(original)) { // !!! Who decides durability?
-        //
-        // !!! It's hoped that stack frames can be "hybrids" with some pooled
-        // allocated vars that survive a call, and some that go away when the
-        // stack frame is finished.  The groundwork for this is laid but it's
-        // not quite ready--so the classic interpretation is that it's all or
-        // nothing (similar to FUNCTION! vs. CLOSURE! in this respect)
-        //
-        // Note we *don't* set ARRAY_FLAG_VARLIST here, because it is being
-        // used as a signal as to whether the varlist is "valid" and fully
-        // reified for use.
-        //
-        f->varlist = Make_Array_Core(num_args + 1, SERIES_FLAG_FIXED_SIZE);
-        TERM_ARRAY_LEN(f->varlist, num_args + 1);
-
-        // Skip the [0] slot which will be filled with the CTX_VALUE
-        // !!! Note: Make_Array made the 0 slot an end marker
-        //
-        TRASH_CELL_IF_DEBUG(ARR_AT(f->varlist, 0));
-        f->args_head = SINK(ARR_AT(f->varlist, 1));
-
-        // Similarly, it should not be possible to use CTX_FRAME_IF_ON_STACK
-        // if the varlist does not become reified.
-        //
-        TRASH_POINTER_IF_DEBUG(SER(f->varlist)->misc.f);
-    }
-    else {
-        // We start by allocating the data for the args and locals on the chunk
-        // stack.  However, this can be "promoted" into being the data for a
-        // frame context if it becomes necessary to refer to the variables
-        // via words or an object value.  That object's data will still be this
-        // chunk, but the chunk can be freed...so the words can't be looked up.
-        //
-        // Note that chunks implicitly have an END at the end; no need to
-        // put one there.
-        //
-        f->varlist = NULL;
-        f->args_head = Push_Value_Chunk_Of_Length(num_args);
-        assert(CHUNK_LEN_FROM_VALUES(f->args_head) == num_args);
-    }
-
-    REBCTX *exemplar = FUNC_EXEMPLAR(f->phase);
+    REBCTX *exemplar = FUNC_EXEMPLAR(original);
     if (exemplar)
         f->special = CTX_VARS_HEAD(exemplar);
     else
         f->special = m_cast(REBVAL*, END); // literal pointer used as test
 
-    // We want the cell to be GC safe; whether it's used by an argument or
-    // not.  If it's being used as an argument then this just gets overwritten
-    // but the 0 case would not initialize it...so cheaper to just set than
-    // to check.  Note that this can only be done after extracting the function
-    // properties, as f->gotten may be f->cell.
-    //
-    SET_END(&f->cell);
+    f->original = f->phase = original;
 }
 
 
@@ -515,7 +460,7 @@ inline static void Push_Or_Alloc_Args_For_Underlying_Func(
 inline static void Drop_Function_Args_For_Frame_Core(
     REBFRM *f,
     REBOOL drop_chunks
-) {
+){
     // The frame may be reused for another function call, and that function
     // may not start with native code (or use native code at all).
     //
@@ -569,7 +514,7 @@ inline static void Drop_Function_Args_For_Frame_Core(
 
     ASSERT_ARRAY_MANAGED(f->varlist);
 
-    if (NOT(GET_SER_INFO(f->varlist, CONTEXT_INFO_STACK))) {
+    if (NOT_SER_INFO(f->varlist, CONTEXT_INFO_STACK)) {
         //
         // If there's no stack memory being tracked by this context, it
         // has dynamic memory and is being managed by the garbage collector
@@ -594,18 +539,4 @@ finished:
     TRASH_POINTER_IF_DEBUG(f->varlist);
 
     return; // needed for release build so `finished:` labels a statement
-}
-
-
-// This routine ensures that a valid REBCTX* (suitable for putting into a
-// FRAME! REBVAL) exists for a Reb_Frame stack structure.
-//
-inline static REBCTX *Context_For_Frame_May_Reify_Managed(REBFRM *f)
-{
-    assert(NOT(Is_Function_Frame_Fulfilling(f)));
-
-    if (f->varlist == NULL || NOT_SER_FLAG(f->varlist, ARRAY_FLAG_VARLIST))
-        Reify_Frame_Context_Maybe_Fulfilling(f); // it's not fulfilling, here
-
-    return CTX(f->varlist);
 }

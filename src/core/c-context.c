@@ -90,7 +90,7 @@ REBCTX *Alloc_Context(enum Reb_Kind kind, REBCNT capacity)
     VAL_RESET_HEADER(rootvar, kind);
     rootvar->payload.any_context.varlist = varlist;
     rootvar->payload.any_context.phase = NULL;
-    rootvar->extra.binding = NULL;
+    INIT_BINDING(rootvar, UNBOUND);
 
     // keylist[0] is the "rootkey" which we currently initialize to BLANK
 
@@ -231,8 +231,6 @@ REBVAL *Append_Context(
         // for stack-relative bindings, the index will be negative and the
         // target will be a function's PARAMLIST series.
         //
-        assert(NOT_VAL_FLAG(opt_any_word, VALUE_FLAG_RELATIVE));
-        SET_VAL_FLAG(opt_any_word, WORD_FLAG_BOUND);
         INIT_WORD_CONTEXT(opt_any_word, context);
         INIT_WORD_INDEX(opt_any_word, len); // length we just bumped
     }
@@ -772,11 +770,11 @@ REBCTX *Make_Selfish_Context_Detect(
 
     // context[0] is an instance value of the OBJECT!/PORT!/ERROR!/MODULE!
     //
-    REBVAL *var = KNOWN(ARR_HEAD(varlist));
+    REBVAL *var = SINK(ARR_HEAD(varlist));
     VAL_RESET_HEADER(var, kind);
     var->payload.any_context.varlist = varlist;
     var->payload.any_context.phase = NULL;
-    var->extra.binding = NULL;
+    INIT_BINDING(var, UNBOUND);
 
     ++var;
 
@@ -817,6 +815,11 @@ REBCTX *Make_Selfish_Context_Detect(
     //
     assert(CTX_KEY_SYM(context, self_index) == SYM_SELF);
     Move_Value(CTX_VAR(context, self_index), CTX_VALUE(context));
+
+    // We manage the context because binding in the Rebind operation below
+    // does not allow the binding into an unmanaged context.
+    //
+    MANAGE_ARRAY(CTX_VARLIST(context));
 
     // !!! In Ren-C, the idea that functions are rebound when a context is
     // inherited is being deprecated.  It simply isn't viable for objects
@@ -1014,7 +1017,7 @@ REBCTX *Merge_Contexts_Selfish(REBCTX *parent1, REBCTX *parent2)
     VAL_RESET_HEADER(rootvar, CTX_TYPE(parent1));
     rootvar->payload.any_context.varlist = varlist;
     rootvar->payload.any_context.phase = NULL;
-    rootvar->extra.binding = NULL;
+    INIT_BINDING(rootvar, UNBOUND);
 
     // Copy parent1 values:
     memcpy(
@@ -1026,7 +1029,7 @@ REBCTX *Merge_Contexts_Selfish(REBCTX *parent1, REBCTX *parent2)
     // Update the child tail before making calls to CTX_VAR(), because the
     // debug build does a length check.
     //
-    TERM_ARRAY_LEN(CTX_VARLIST(merged), ARR_LEN(keylist));
+    TERM_ARRAY_LEN(varlist, ARR_LEN(keylist));
 
     // Copy parent2 values:
     REBVAL *key = CTX_KEYS_HEAD(parent2);
@@ -1048,20 +1051,25 @@ REBCTX *Merge_Contexts_Selfish(REBCTX *parent1, REBCTX *parent2)
         TS_CLONE
     );
 
+    // Currently can't use a context as a binding target unless it's managed
+    //
+    MANAGE_ARRAY(varlist);
+
     // Rebind the child
+    //
     Rebind_Context_Deep(parent1, merged, NULL);
     Rebind_Context_Deep(parent2, merged, &binder);
 
     // release the bind table
+    //
     Collect_Keys_End(&binder);
 
     // We should have gotten a SELF in the results, one way or another.
-    {
-        REBCNT self_index = Find_Canon_In_Context(merged, Canon(SYM_SELF), TRUE);
-        assert(self_index != 0);
-        assert(CTX_KEY_SYM(merged, self_index) == SYM_SELF);
-        Move_Value(CTX_VAR(merged, self_index), CTX_VALUE(merged));
-    }
+    //
+    REBCNT self_index = Find_Canon_In_Context(merged, Canon(SYM_SELF), TRUE);
+    assert(self_index != 0);
+    assert(CTX_KEY_SYM(merged, self_index) == SYM_SELF);
+    Move_Value(CTX_VAR(merged, self_index), CTX_VALUE(merged));
 
     SHUTDOWN_BINDER(&binder);
     return merged;

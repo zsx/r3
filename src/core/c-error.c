@@ -268,7 +268,7 @@ ATTRIBUTE_NO_RETURN void Fail_Core(const void *p)
 
     case DETECTED_AS_VALUE: {
         const REBVAL *v = cast(const REBVAL*, p);
-        error = Error(RE_INVALID_ARG, v, END);
+        error = Error_Invalid_Arg_Raw(v);
         break; }
 
     default:
@@ -996,7 +996,7 @@ REBCTX *Make_Error_Managed_Core(REBCNT code, va_list *vaptr)
                 }
 
             #if !defined(NDEBUG)
-                if (GET_VAL_FLAG(arg, VALUE_FLAG_RELATIVE)) {
+                if (IS_RELATIVE(cast(const RELVAL*, arg))) {
                     //
                     // Make_Error doesn't have any way to pass in a specifier,
                     // so only specific values should be used.

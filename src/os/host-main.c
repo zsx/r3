@@ -848,7 +848,7 @@ int main(int argc, char **argv_ansi)
 
     volatile REBOOL finished; // without volatile, gets "clobbered" warning
 
-    Prep_Global_Cell(&HG_Host_Repl);
+    Prep_Non_Stack_Cell(&HG_Host_Repl);
     Init_Blank(&HG_Host_Repl);
 
     if (error != NULL) {

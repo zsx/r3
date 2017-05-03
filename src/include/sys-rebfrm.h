@@ -471,7 +471,7 @@ struct Reb_Frame {
     // to exit.  The additional pointer of context is binding, and it is
     // extracted from the function REBVAL.
     //
-    REBARR *binding; // either a varlist of a FRAME! or function paramlist
+    REBNOD *binding; // either a varlist of a FRAME! or function paramlist
 
     // `label`
     //
@@ -639,7 +639,7 @@ struct Reb_Frame {
 #define DECLARE_FRAME(name) \
     REBFRM name##struct; \
     REBFRM * const name = &name##struct; \
-    Prep_Global_Cell(&name->cell)
+    Prep_Stack_Cell(&name->cell)
 
 
 // Hookable "Rebol DO Function" and "Rebol APPLY Function".  See PG_Do and

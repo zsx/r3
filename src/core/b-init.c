@@ -370,7 +370,7 @@ REBNATIVE(action)
     // save the write action into a global.
     //
     if (VAL_WORD_SYM(ARG(verb)) == SYM_WRITE) {
-        INIT_CELL(&PG_Write_Action);
+        Prep_Non_Stack_Cell(&PG_Write_Action);
         Move_Value(&PG_Write_Action, D_OUT);
     }
 
@@ -633,7 +633,7 @@ static REBARR *Startup_Natives(REBARR *boot_natives)
             *FUNC_BODY(fun) = *body;
         }
 
-        Prep_Global_Cell(&Natives[n]);
+        Prep_Non_Stack_Cell(&Natives[n]);
         Move_Value(&Natives[n], FUNC_VALUE(fun));
 
         // Append the native to the Lib_Context under the name given.
@@ -751,32 +751,32 @@ static void Init_Root_Vars(void)
     // the root set.  Should that change, they could be explicitly added
     // to the GC's root set.
 
-    Prep_Global_Cell(&PG_Void_Cell[0]);
-    Prep_Global_Cell(&PG_Void_Cell[1]);
+    Prep_Non_Stack_Cell(&PG_Void_Cell[0]);
+    Prep_Non_Stack_Cell(&PG_Void_Cell[1]);
     Init_Void(&PG_Void_Cell[0]);
     TRASH_CELL_IF_DEBUG(&PG_Void_Cell[1]);
 
-    Prep_Global_Cell(&PG_Blank_Value[0]);
-    Prep_Global_Cell(&PG_Blank_Value[1]);
+    Prep_Non_Stack_Cell(&PG_Blank_Value[0]);
+    Prep_Non_Stack_Cell(&PG_Blank_Value[1]);
     Init_Blank(&PG_Blank_Value[0]);
     TRASH_CELL_IF_DEBUG(&PG_Blank_Value[1]);
 
-    Prep_Global_Cell(&PG_Bar_Value[0]);
-    Prep_Global_Cell(&PG_Bar_Value[1]);
+    Prep_Non_Stack_Cell(&PG_Bar_Value[0]);
+    Prep_Non_Stack_Cell(&PG_Bar_Value[1]);
     Init_Bar(&PG_Bar_Value[0]);
     TRASH_CELL_IF_DEBUG(&PG_Bar_Value[1]);
 
-    Prep_Global_Cell(&PG_False_Value[0]);
-    Prep_Global_Cell(&PG_False_Value[1]);
+    Prep_Non_Stack_Cell(&PG_False_Value[0]);
+    Prep_Non_Stack_Cell(&PG_False_Value[1]);
     Init_Logic(&PG_False_Value[0], FALSE);
     TRASH_CELL_IF_DEBUG(&PG_False_Value[1]);
 
-    Prep_Global_Cell(&PG_True_Value[0]);
-    Prep_Global_Cell(&PG_True_Value[1]);
+    Prep_Non_Stack_Cell(&PG_True_Value[0]);
+    Prep_Non_Stack_Cell(&PG_True_Value[1]);
     Init_Logic(&PG_True_Value[0], TRUE);
     TRASH_CELL_IF_DEBUG(&PG_True_Value[1]);
 
-    Prep_Global_Cell(&PG_Va_List_Pending);
+    Prep_Non_Stack_Cell(&PG_Va_List_Pending);
 
     // We can't actually put an end value in the middle of a block, so we poke
     // this one into a program global.  It is not legal to bit-copy an
@@ -791,8 +791,10 @@ static void Init_Root_Vars(void)
 
     // The EMPTY_BLOCK provides EMPTY_ARRAY.  It is locked for protection.
     //
-    Init_Block(ROOT_EMPTY_BLOCK, Make_Array(0));
+    PG_Empty_Array = Make_Array(0);
+    Init_Block(ROOT_EMPTY_BLOCK, PG_Empty_Array);
     Deep_Freeze_Array(VAL_ARRAY(ROOT_EMPTY_BLOCK));
+    assert(IS_BLOCK(ROOT_EMPTY_BLOCK));
 
     REBSER *empty_series = Make_Binary(1);
     *BIN_AT(empty_series, 0) = '\0';
@@ -906,13 +908,7 @@ static void Init_System_Object(
 
     // Create system/codecs object
     //
-    {
-        REBCTX *codecs = Alloc_Context(REB_OBJECT, 10);
-        VAL_RESET_HEADER(CTX_VALUE(codecs), REB_OBJECT);
-        CTX_VALUE(codecs)->extra.binding = NULL;
-        CTX_VALUE(codecs)->payload.any_context.phase = NULL;
-        Init_Object(Get_System(SYS_CODECS, 0), codecs);
-    }
+    Init_Object(Get_System(SYS_CODECS, 0), Alloc_Context(REB_OBJECT, 10));
 }
 
 
@@ -1012,7 +1008,7 @@ void Startup_Task(void)
     // The thrown arg is not intended to ever be around long enough to be
     // seen by the GC.
     //
-    Prep_Global_Cell(&TG_Thrown_Arg);
+    Prep_Non_Stack_Cell(&TG_Thrown_Arg);
     Init_Unreadable_Blank(&TG_Thrown_Arg);
 
     Startup_Raw_Print();
