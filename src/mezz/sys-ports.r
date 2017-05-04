@@ -82,7 +82,7 @@ make-port*: function [
     digits:      [1 5 digit]
     alpha-num:   make bitset! [#"a" - #"z" #"A" - #"Z" #"0" - #"9"]
     scheme-char: insert copy alpha-num "+-."
-    path-char:   insert copy alpha-num "/=+-_.;:&$@%*',~?| []()^"" ; !!! note: space allowed
+    path-char:   insert copy alpha-num "!/=+-_.;:&$@%*',~?| []()^"" ; !!! note: space allowed
     user-char:   insert copy alpha-num "=+-_.;&$@%*,'#|"
     pass-char:   complement make bitset! "^/ ^-@"
     s1: s2: _ ; in R3, input datatype is preserved - these are now URL strings!
