@@ -895,7 +895,7 @@ REB_R Routine_Dispatcher(REBFRM *f)
     ffi_cif *cif; // pre-made if not variadic, built for this call otherwise
     ffi_type **args_fftypes = NULL; // ffi_type*[] if num_variable > 0
 
-    if (num_variable == 0) {
+    if (NOT(RIN_IS_VARIADIC(rin))) {
         cif = RIN_CIF(rin);
     }
     else {
