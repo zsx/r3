@@ -43,8 +43,6 @@ static REB_R DNS_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
     REBCNT len;
     REBOOL sync = FALSE; // act synchronously
 
-    DECLARE_LOCAL (tmp);
-
     arg = D_ARGC > 1 ? D_ARG(2) : NULL;
     Move_Value(D_OUT, D_ARG(1));
 
@@ -81,15 +79,26 @@ static REB_R DNS_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
         arg = Obj_Value(spec, STD_PORT_SPEC_NET_HOST);
 
-        if (
-            IS_TUPLE(arg)
-            && Scan_Tuple(tmp, VAL_BIN(arg), LEN_BYTES(VAL_BIN(arg)))
-        ){
+        // A DNS read e.g. of `read dns://66.249.66.140` should do a reverse
+        // lookup.  The scheme handler may pass in either a TUPLE! or a string
+        // that scans to a tuple, at this time (currently uses a string)
+        //
+        if (IS_TUPLE(arg)) {
             SET_FLAG(sock->modes, RST_REVERSE);
-            memcpy(&(DEVREQ_NET(sock)->remote_ip), VAL_TUPLE(tmp), 4);
+            memcpy(&(DEVREQ_NET(sock)->remote_ip), VAL_TUPLE(arg), 4);
         }
         else if (IS_STRING(arg)) {
-            sock->common.data = VAL_BIN(arg);
+            REBCNT index = VAL_INDEX(arg);
+            REBCNT len = VAL_LEN_AT(arg);
+            REBSER *utf8 = Temp_Bin_Str_Managed(arg, &index, &len);
+
+            DECLARE_LOCAL (tmp);
+            if (Scan_Tuple(tmp, BIN_AT(utf8, index), len) != NULL) {
+                SET_FLAG(sock->modes, RST_REVERSE);
+                memcpy(&(DEVREQ_NET(sock)->remote_ip), VAL_TUPLE(tmp), 4);
+            }
+            else
+                sock->common.data = VAL_BIN(arg); // lookup string's IP address
         }
         else
             fail (Error_On_Port(RE_INVALID_SPEC, port, -10));

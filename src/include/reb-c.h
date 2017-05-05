@@ -81,7 +81,7 @@
 // create compile-time errors for any C construction that isn't being used
 // in the way one might want.  While some static analysis tools for C offer
 // their own plugins for such checks, the prevalance of the C++ standard
-// acd compilers that implement it make it a perfect tool for checking a C
+// and compilers that implement it make it a perfect tool for checking a C
 // codebase on the fly to see if it follows certain rules.
 //
 #if defined(__cplusplus) && __cplusplus >= 201103L
