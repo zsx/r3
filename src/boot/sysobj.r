@@ -581,9 +581,10 @@ view: construct [] [
 
 user: construct [] [
    name:           ; User's name
-   email:          ; User's default email address
    home:           ; The HOME environment variable
    words: _
+   identity: construct [][email: smtp: pop3: esmtp-user: esmtp-pass: fqdn: _]
+   identities: []
 ]
 
 ;network: construct [] [
