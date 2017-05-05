@@ -646,7 +646,7 @@ load-module: function [
                 not tmp: find/skip system/modules source 3 [return blank]
 
                 ; get the module
-                set [mod: modsum:] next tmp [blank]
+                set/pad [mod: modsum:] next tmp [blank]
 
                 <check> [
                     ensure [module! block!] mod
@@ -694,7 +694,7 @@ load-module: function [
                     return copy/part back tmp 2
                 ]
 
-                set [mod: modsum:] tmp
+                set/pad [mod: modsum:] tmp
             ]
         ]
 
@@ -922,7 +922,7 @@ import: function [
 
     ; Try to load and check the module.
     ; !!! the original code said /import, not conditional on refinement
-    set [name: mod:] apply 'load-module [
+    set/pad [name: mod:] apply 'load-module [
         source: module
         version: version
         ver: :ver
@@ -941,7 +941,7 @@ import: function [
             file: append to file! module system/options/default-suffix
 
             for-each path system/options/module-paths [
-                if set [name: mod:] (
+                if set/pad [name: mod:] (
                     apply 'load-module [
                         source: path/:file
                         version: version
@@ -966,7 +966,7 @@ import: function [
     if all [word? module | not mod] [
         ; IMPORT 'FOO fails, try IMPORT <FOO> 
         module: first select load rebol/locale/library to tag! module
-    set [name: mod:] apply 'load-module [
+    set/pad [name: mod:] apply 'load-module [
         source: module
         version: version
         ver: :ver
