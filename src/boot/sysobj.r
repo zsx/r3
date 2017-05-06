@@ -120,6 +120,8 @@ options: construct [] [  ; Options supplied to REBOL during startup
     debug: _        ; debug flags
     secure: _       ; security policy
     version: _      ; script version needed
+    
+    dump-size: 68   ; used by dump
 
     quiet: false    ; do not show startup info (compatibility)
     cgi: false
