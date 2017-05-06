@@ -117,14 +117,14 @@ dump: proc [
             dump-obj val | "]"
          ]
       ][
-         clip-string mold val 71
+         clip-string mold val system/options/dump-size
       ]
     ]
 
     dump-one: proc [item][
         case [
             string? item [
-                print ["---" clip-string item 68 "---"] ;-- label it
+                print ["---" clip-string item system/options/dump-size "---"] ;-- label it
             ]
 
             word? item [
