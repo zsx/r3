@@ -62,6 +62,9 @@ REBINT PD_Fail(REBPVS *pvs)
 //
 REBOOL Next_Path_Throws(REBPVS *pvs)
 {
+    if (IS_VOID(pvs->value))
+        fail (Error_No_Value_Core(pvs->orig, pvs->item_specifier));
+
     REBPEF dispatcher = Path_Dispatch[VAL_TYPE(pvs->value)];
     assert(dispatcher != NULL); // &PD_Fail is used instead of NULL
 

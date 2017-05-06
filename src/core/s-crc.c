@@ -370,9 +370,6 @@ REBCNT Hash_Value(const RELVAL *v)
         panic (NULL);
     }
 
-    if (crc32_table == NULL)
-        Make_CRC32_Table();
-
     return ret ^ crc32_table[VAL_TYPE(v)];
 }
 
@@ -535,8 +532,6 @@ REBCNT Update_CRC32(u32 crc, REBYTE *buf, int len) {
     u32 c = ~crc;
     int n;
 
-    if(!crc32_table) Make_CRC32_Table();
-
     for(n = 0; n < len; n++)
         c = crc32_table[(c^buf[n])&0xff]^(c>>8);
 
@@ -604,6 +599,8 @@ void Startup_CRC(void)
 {
     CRC_Table = ALLOC_N(REBCNT, 256);
     Make_CRC_Table(PRZCRC);
+
+    Make_CRC32_Table();
 }
 
 
@@ -612,7 +609,7 @@ void Startup_CRC(void)
 //
 void Shutdown_CRC(void)
 {
-    if (crc32_table) FREE_N(u32, 256, crc32_table);
+    FREE_N(u32, 256, crc32_table);
 
     FREE_N(REBCNT, 256, CRC_Table);
 }
