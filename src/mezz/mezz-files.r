@@ -263,3 +263,12 @@ detab-file: procedure [
 ][
     write filename detab to string! read filename
 ]
+
+; temporary location
+set-net: procedure [
+    {sets the system/user/identity email smtp pop3 esmtp-usr esmtp-pass fqdn}
+    bl [block!]
+][
+    if 6 <> length-of bl [fail "Needs all 6 parameters for set-net"]
+    set words-of system/user/identity bl
+]
