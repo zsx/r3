@@ -306,6 +306,8 @@ set: function [
         {Word, block of words, path, or object to be set (modified)}
     value [<opt> any-value!]
         "Value or block of values"
+    /only
+        {If target and value are blocks, set each item to the same value}
     /opt
         "Treat void values as unsetting the target instead of an error"
     /pad
@@ -320,22 +322,13 @@ set: function [
     set_OPT: opt
     opt: :lib/opt
 
-    either any-context? target [
-        apply 'lib-set [
-            target: words-of target
-            value: value
-            opt: any? [set_ANY set_OPT]
-            pad: pad
-            lookback: lookback
-        ]
-    ][
-        apply 'lib-set [
-            target: target
-            value: :value
-            opt: any? [set_ANY set_OPT]
-            pad: pad
-            lookback: lookback
-        ]
+    apply 'lib-set [
+        target: either any-context? target [words-of target] [target]
+        value: :value
+        only: only
+        opt: any? [set_ANY set_OPT]
+        pad: pad
+        lookback: lookback
     ]
 ]
 

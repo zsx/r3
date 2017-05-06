@@ -284,7 +284,7 @@ host-start: function [
             get-env 'HOMEPATH
         ]
 
-        attempt [to-dir home] 
+        attempt [to-dir home]
     ]
 
     get-resources-path: function [
@@ -296,9 +296,9 @@ host-start: function [
             'Windows [%REBOL/]
         ][
             %.rebol/     ;; default *nix (covers Linux, MacOS (OS X) and Unix)
-        ]  
+        ]
 
-        all [exists? path | path]    
+        all [exists? path | path]
     ]
 
     ; Set system/users/home (users HOME directory)

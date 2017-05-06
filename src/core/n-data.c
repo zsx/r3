@@ -829,6 +829,8 @@ REBNATIVE(resolve)
 //          {Word or path, or block of words and paths (blanks are no-ops)}
 //      value [<opt> any-value!]
 //          "Value or block of values"
+//      /only
+//          {If target and value are blocks, set each item to the same value}
 //      /opt
 //          {Treat void values as unsetting the target instead of an error}
 //      /pad
@@ -857,6 +859,7 @@ REBNATIVE(set)
     const RELVAL *target;
     REBSPC *target_specifier;
 
+    REBOOL only;
     if (IS_BLOCK(ARG(target))) {
         //
         // R3-Alpha and Red let you write `set [a b] 10`, since the thing
@@ -866,30 +869,23 @@ REBNATIVE(set)
         // differently, which can bite you if you `set [a b] value` for some
         // generic value.
         //
-        // Ren-C does not carry forward the behavior, rather it allows only
-        // one case...to pass in a blank value with /PAD and handle that blank
-        // as if it were an empty block, return blanks.  This permits things
-        // like `if set [a b] find data 'whatever [...]` to do a blank
-        // propagation. 
-        //
-        // !!! Should there be a SET/ONLY to allow for `set/only [a b] [10]`
-        // such that a and b would be set to 10?  Seems to add complexity for
-        // a case that is not that compelling.
-        //
-        if (IS_BLANK(ARG(value)) && REF(pad)) {
-            value = ARR_HEAD(EMPTY_ARRAY); // don't change ARG(value)
-            value_specifier = SPECIFIED;
-        }
-        else if (IS_BLOCK(ARG(value))) {
+        if (IS_BLOCK(ARG(value)) && NOT(REF(only))) {
             //
             // There is no need to check values for voidness in this case,
             // since arrays cannot contain voids.
             //
             value = VAL_ARRAY_AT(ARG(value));
             value_specifier = VAL_SPECIFIER(ARG(value));
+            only = FALSE;
         }
-        else
-            fail (ARG(value)); // value must be a block if setting a block
+        else {
+            if (IS_VOID(ARG(value)) && NOT(REF(opt)))
+                fail (Error_No_Value(ARG(value)));
+
+            value = ARG(value);
+            value_specifier = SPECIFIED;
+            only = TRUE;
+        }
 
         target = VAL_ARRAY_AT(ARG(target));
         target_specifier = VAL_SPECIFIER(ARG(target));
@@ -909,14 +905,12 @@ REBNATIVE(set)
         target = D_CELL;
         target_specifier = SPECIFIED;
 
-        // The target is used in the incrementation, so there's no need to
-        // terminate the value for iteration.
-        //
         if (IS_VOID(ARG(value)) && NOT(REF(opt)))
             fail (Error_No_Value(ARG(value)));
 
         value = ARG(value);
         value_specifier = SPECIFIED;
+        only = TRUE;
     }
 
     DECLARE_LOCAL (get_path_hack); // runs prep code, don't put inside loop
@@ -938,7 +932,11 @@ REBNATIVE(set)
                 fail ("Attempt to SET/LOOKBACK on a non-function");
 
             REBVAL *var = Sink_Var_May_Fail(target, target_specifier);
-            Derelativize(var, IS_END(value) ? BLANK_VALUE : value, value_specifier);
+            Derelativize(
+                var,
+                IS_END(value) ? BLANK_VALUE : value,
+                value_specifier
+            );
             if (REF(lookback))
                 SET_VAL_FLAG(var, VALUE_FLAG_ENFIXED);
         }
@@ -991,7 +989,7 @@ REBNATIVE(set)
         else
             fail (Error_Invalid_Arg_Core(target, target_specifier));
 
-        if (NOT_END(value))
+        if (NOT(only))
             ++value; // may not have terminator, incrementation unused then
     }
 
