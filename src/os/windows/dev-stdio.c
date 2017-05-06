@@ -256,7 +256,7 @@ DEVICE_CMD Read_IO(REBREQ *req)
                 if (total == 0) {
                     // WideCharToMultibyte fails if cchWideChar is 0.
                     assert(req->length >= 2);
-                    strcpy(req->common.data, "");
+                    strcpy(s_cast(req->common.data), "");
                 }
                 else {
                     total = WideCharToMultiByte(

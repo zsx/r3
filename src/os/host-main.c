@@ -639,6 +639,7 @@ BOOL WINAPI Handle_Break(DWORD dwCtrlType)
 
 BOOL WINAPI Handle_Nothing(DWORD dwCtrlType)
 {
+    UNUSED(dwCtrlType);
     return TRUE;
 }
 
