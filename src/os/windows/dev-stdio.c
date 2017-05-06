@@ -253,12 +253,29 @@ DEVICE_CMD Read_IO(REBREQ *req)
         else {
             ok = ReadConsoleW(Std_Inp, Std_Buf, BUF_SIZE-1, &total, 0);
             if (ok) {
-                total = WideCharToMultiByte(CP_UTF8, 0, Std_Buf, total, s_cast(req->common.data), req->length, 0, 0);
-                if (!total) ok = FALSE;
+                if (total == 0) {
+                    // WideCharToMultibyte fails if cchWideChar is 0.
+                    assert(req->length >= 2);
+                    strcpy(req->common.data, "");
+                }
+                else {
+                    total = WideCharToMultiByte(
+                        CP_UTF8,
+                        0,
+                        Std_Buf,
+                        total,
+                        s_cast(req->common.data),
+                        req->length,
+                        0,
+                        0
+                    );
+                    if (total == 0)
+                        ok = FALSE;
+                }
             }
         }
 
-        if (!ok) {
+        if (NOT(ok)) {
             req->error = GetLastError();
             return DR_ERROR;
         }

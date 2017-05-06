@@ -637,6 +637,11 @@ BOOL WINAPI Handle_Break(DWORD dwCtrlType)
     }
 }
 
+BOOL WINAPI Handle_Nothing(DWORD dwCtrlType)
+{
+    return TRUE;
+}
+
 #else
 
 //
@@ -1006,6 +1011,24 @@ int main(int argc, char **argv_ansi)
                 // do something sensible in release builds here that does not
                 // crash.
             #else
+                // A non-halting error may be in the process of delivery,
+                // when a pending Ctrl-C gets processed.  This causes the
+                // printing machinery to complain, since there's no trap
+                // state set up to handle it.  Since we're crashing anyway,
+                // unregister the Ctrl-C handler.  We also need to register
+                // a no op handler, to prevent the error test from getting
+                // cut off by Windows default Ctrl-C behavior.
+                //
+                // !!! Is this necessary on linux too?  On Windows the case
+                // to cause it would be Ctrl-C during an ASK to cancel it, and
+                // then a Ctrl-C after that.
+                //
+                #ifdef TO_WINDOWS
+                    SetConsoleCtrlHandler(Handle_Break, FALSE); // unregister
+                    SetConsoleCtrlHandler(Handle_Nothing, TRUE); // register
+                #endif
+
+                CLR_SIGNAL(SIG_HALT);
                 panic(error);
             #endif
             }

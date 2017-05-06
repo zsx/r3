@@ -366,7 +366,7 @@ typedef unsigned long   REBUPT;     // unsigned counterpart of void*
 //
 //     #define REBOOL int
 //     int My_Optimized_Function(REBOOL logic) {
-//         return is_true << 4; // should be 16 if logic is TRUE, 0 if FALSE
+//         return logic << 4; // should be 16 if logic is TRUE, 0 if FALSE
 //     }
 //     int zero_or_sixteen = My_Optimized_Function(flags & SOME_BIT_FLAG);
 //
