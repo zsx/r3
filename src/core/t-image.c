@@ -28,12 +28,6 @@
 //=////////////////////////////////////////////////////////////////////////=//
 //
 
-// lodepng uses the C++ iostream fail, but in the standard namespace, which
-// interferes with Ren-C's definition of the fail() macro.  It has to be
-// included before %sys-core.h.  See REBNATIVE(to_png) below for the only
-// usage of lodepng (added by Saphirion, due to bugs in the existing PNG code)
-//
-#include "png/lodepng.h"
 
 #include "sys-core.h"
 

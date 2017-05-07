@@ -378,12 +378,12 @@ set (CORE_SOURCE
     ${CORE_DIR}/u-zlib.c
     )
 set (CODECS_SOURCE
-    ${CORE_DIR}/../codecs/aes/aes.c
-    ${CORE_DIR}/../codecs/bigint/bigint.c
-    ${CORE_DIR}/../codecs/dh/dh.c
-    ${CORE_DIR}/../codecs/rc4/rc4.c
-    ${CORE_DIR}/../codecs/rsa/rsa.c
-    ${CORE_DIR}/../codecs/sha256/sha256.c
+    ${CORE_DIR}/../extensions/crypt/aes/aes.c
+    ${CORE_DIR}/../extensions/crypt/bigint/bigint.c
+    ${CORE_DIR}/../extensions/crypt/dh/dh.c
+    ${CORE_DIR}/../extensions/crypt/rc4/rc4.c
+    ${CORE_DIR}/../extensions/crypt/rsa/rsa.c
+    ${CORE_DIR}/../extensions/crypt/sha256/sha256.c
 )
 
 set (CORE_HEADER
@@ -724,34 +724,34 @@ endmacro(add_extension)
 
 #add_module has to be put in the following section
 #<-------------- modules --------------->
-add_module(Crypt "${EXT_DIR}/mod-crypt.c" "${CODECS_SOURCE}")
+add_module(Crypt "${EXT_DIR}/crypt/mod-crypt.c" "${CODECS_SOURCE}")
 #crypt has to be builtin because tls (loaded by the host at boot time) requires it,
 #or rc4, rsa will not be bound properly.
-add_extension(r3-crypt Crypt FALSE "${EXT_DIR}/ext-crypt.c" "Crypt"
-    "${TOP_GENERATED_SRC_DIR}/include;${TOP_SRC_DIR}/include;${TOP_SRC_DIR}/codecs;${FFI_INCLUDE_DIRS};${INC}"
+add_extension(r3-crypt Crypt FALSE "${EXT_DIR}/crypt/ext-crypt.c" "Crypt"
+    "${TOP_GENERATED_SRC_DIR}/include;${TOP_SRC_DIR}/include;${FFI_INCLUDE_DIRS};${INC}"
     "${COMMON_MACROS}")
 if (TO_WINDOWS AND ${R3_EXT_CRYPT} STREQUAL "M")
     target_link_libraries(r3-crypt "Ws2_32.lib")
 endif ()
 
-add_module(LodePNG "${EXT_DIR}/mod-lodepng.c" "${CORE_DIR}/../codecs/png/lodepng.c;")
-add_module(uPNG "${EXT_DIR}/u-png.c" "")
-add_extension(r3-png PNG TRUE "${EXT_DIR}/ext-png.c" "LodePNG;uPNG"
-    "${TOP_GENERATED_SRC_DIR}/include;${TOP_SRC_DIR}/include;${TOP_SRC_DIR}/codecs;${FFI_INCLUDE_DIRS};${INC}"
-    "${COMMON_MACROS}")
-
-add_module(GIF "${EXT_DIR}/mod-gif.c" "")
-add_extension(r3-gif GIF TRUE "${EXT_DIR}/ext-gif.c" "GIF"
+add_module(LodePNG "${EXT_DIR}/png/mod-lodepng.c" "${EXT_DIR}/png/lodepng.c;")
+add_module(uPNG "${EXT_DIR}/png/u-png.c" "")
+add_extension(r3-png PNG TRUE "${EXT_DIR}/png/ext-png.c" "LodePNG;uPNG"
     "${TOP_GENERATED_SRC_DIR}/include;${TOP_SRC_DIR}/include;${FFI_INCLUDE_DIRS};${INC}"
     "${COMMON_MACROS}")
 
-add_module(BMP "${EXT_DIR}/mod-bmp.c" "")
-add_extension(r3-bmp BMP TRUE "${EXT_DIR}/ext-bmp.c" "BMP"
+add_module(GIF "${EXT_DIR}/gif/mod-gif.c" "")
+add_extension(r3-gif GIF TRUE "${EXT_DIR}/gif/ext-gif.c" "GIF"
     "${TOP_GENERATED_SRC_DIR}/include;${TOP_SRC_DIR}/include;${FFI_INCLUDE_DIRS};${INC}"
     "${COMMON_MACROS}")
 
-add_module(JPG "${EXT_DIR}/mod-jpg.c" "${EXT_DIR}/u-jpg.c")
-add_extension(r3-jpg JPG TRUE "${EXT_DIR}/ext-jpg.c" "JPG"
+add_module(BMP "${EXT_DIR}/bmp/mod-bmp.c" "")
+add_extension(r3-bmp BMP TRUE "${EXT_DIR}/bmp/ext-bmp.c" "BMP"
+    "${TOP_GENERATED_SRC_DIR}/include;${TOP_SRC_DIR}/include;${FFI_INCLUDE_DIRS};${INC}"
+    "${COMMON_MACROS}")
+
+add_module(JPG "${EXT_DIR}/jpg/mod-jpg.c" "${EXT_DIR}/jpg/u-jpg.c")
+add_extension(r3-jpg JPG TRUE "${EXT_DIR}/jpg/ext-jpg.c" "JPG"
     "${TOP_GENERATED_SRC_DIR}/include;${TOP_SRC_DIR}/include;${FFI_INCLUDE_DIRS};${INC}"
     "${COMMON_MACROS}")
 #<------------- end of modules --------->
@@ -846,7 +846,7 @@ if (R3_WITH_TCC)
 
     add_custom_command(OUTPUT
         ${SYS_CORE_PREP}
-        COMMAND ${TCC_EXE} -E -dD -o ${SYS_CORE_PREP} ${SYS_CORE_HEADER} -I${TCC_DIR}/include -I${TOP_GENERATED_SRC_DIR}/include -I${TOP_SRC_DIR}/include -I${TOP_SRC_DIR}/codecs ${TCC_ARGS} ${tcc_c_flag_list}
+        COMMAND ${TCC_EXE} -E -dD -o ${SYS_CORE_PREP} ${SYS_CORE_HEADER} -I${TCC_DIR}/include -I${TOP_GENERATED_SRC_DIR}/include -I${TOP_SRC_DIR}/include ${TCC_ARGS} ${tcc_c_flag_list}
         DEPENDS
         ${TCC_DEPENDS}
         ${TOOLS_DIR}/make-embedded-header.r
@@ -978,7 +978,6 @@ set_target_properties(r3-core PROPERTIES ENABLE_EXPORTS TRUE)
 target_include_directories(libr3_core_core PUBLIC
         ${TOP_GENERATED_SRC_DIR}/include
         ${TOP_SRC_DIR}/include
-        ${TOP_SRC_DIR}/codecs
         ${FFI_INCLUDE_DIRS}
         ${INC}
         )
@@ -986,7 +985,6 @@ target_include_directories(r3-core PUBLIC
         ${TOP_GENERATED_SRC_DIR}/include
         ${TOP_GENERATED_SRC_DIR}/os
         ${TOP_SRC_DIR}/include
-        ${TOP_SRC_DIR}/codecs
         ${FFI_INCLUDE_DIRS}
         ${INC}
         )

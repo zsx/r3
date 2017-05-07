@@ -37,7 +37,7 @@
 // particularly secure) ENCLOAK and DECLOAK operations from R3-Alpha.
 //
 
-#include "png/lodepng.h"
+#include "lodepng.h"
 
 #include "sys-core.h"
 #include "sys-ext.h"

@@ -34,9 +34,8 @@
 // !!! Currently, callers don't specify if they are copying an array to turn
 // it into a paramlist or varlist, or to use as the kind of array the user
 // might see.  If we used plain Make_Array() then it would add a flag saying
-// there were line numbers available, which might compete with flags written
-// later.  Pass SERIES_FLAG_ARRAY because it only will trigger the line
-// number behavior if the flags are 0.
+// there were line numbers available, which may compete with the usage of the
+// ->misc and ->link fields of the series node for internal arrays.  Pass 0.
 //
 #define Make_Array_For_Copy(a) \
     Make_Array_Core((a), 0)

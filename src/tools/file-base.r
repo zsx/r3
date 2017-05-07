@@ -163,39 +163,43 @@ generated: [
 
 modules: [
     ;name module-file other-files
-    Crypt ../extensions/mod-crypt.c [
-        ../codecs/aes/aes.c
-        ../codecs/bigint/bigint.c
-        ../codecs/dh/dh.c
-        ../codecs/rc4/rc4.c
-        ../codecs/rsa/rsa.c
-        ../codecs/sha256/sha256.c
+    Crypt ../extensions/crypt/mod-crypt.c [
+        ../extensions/crypt/aes/aes.c
+        ../extensions/crypt/bigint/bigint.c
+        ../extensions/crypt/dh/dh.c
+        ../extensions/crypt/rc4/rc4.c
+        ../extensions/crypt/rsa/rsa.c
+        ../extensions/crypt/sha256/sha256.c
     ]
 
-    LodePNG ../extensions/mod-lodepng.c [../codecs/png/lodepng.c]
+    LodePNG ../extensions/png/mod-lodepng.c [../extensions/png/lodepng.c]
 
-    uPNG ../extensions/u-png.c []
+    uPNG ../extensions/png/u-png.c []
 
-    GIF ../extensions/mod-gif.c []
+    GIF ../extensions/gif/mod-gif.c []
 
-    JPG ../extensions/mod-jpg.c [
+    JPG ../extensions/jpg/mod-jpg.c [
         ;
         ; The JPG sources come from elsewhere; invasive maintenance for
         ; compiler rigor is not worthwhile to be out of sync with original.
         ;
-        [../extensions/u-jpg.c <no-unused-parameter> <no-shift-negative-value>]
+        [
+            ../extensions/jpg/u-jpg.c
+            <no-unused-parameter>
+            <no-shift-negative-value>
+        ]
     ]
 
-    BMP ../extensions/mod-bmp.c []
+    BMP ../extensions/bmp/mod-bmp.c []
 ]
 
 extensions: [
     ; [+ (builtin) | - (not builtin)] ext-name ext-file modules (defined in modules)
-    + Crypt ../extensions/ext-crypt.c [Crypt]
-    + PNG ../extensions/ext-png.c [LodePNG uPNG]
-    + GIF ../extensions/ext-gif.c [GIF]
-    + JPG ../extensions/ext-jpg.c [JPG]
-    + BMP ../extensions/ext-bmp.c [BMP]
+    + Crypt ../extensions/crypt/ext-crypt.c [Crypt]
+    + PNG ../extensions/png/ext-png.c [LodePNG uPNG]
+    + GIF ../extensions/gif/ext-gif.c [GIF]
+    + JPG ../extensions/jpg/ext-jpg.c [JPG]
+    + BMP ../extensions/bmp/ext-bmp.c [BMP]
 ]
 
 made: [

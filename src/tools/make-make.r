@@ -368,7 +368,7 @@ S= ../src
 R= $S/core
 
 INCL ?= .
-I= -I$(INCL) -I$S/include/ -I$S/codecs/
+I= -I$(INCL) -I$S/include/
 PKGCONFIG ?= pkg-config
 }
 
