@@ -357,3 +357,60 @@ REBNATIVE(compose)
 
     return R_OUT;
 }
+
+
+enum FLATTEN_LEVEL {
+    FLATTEN_NOT,
+    FLATTEN_ONCE,
+    FLATTEN_DEEP
+};
+
+
+static void Flatten_Core(
+    RELVAL *head,
+    REBSPC *specifier,
+    enum FLATTEN_LEVEL level
+) {
+    RELVAL *item = head;
+    for (; NOT_END(item); ++item) {
+        if (IS_BLOCK(item) && level != FLATTEN_NOT) {
+            REBSPC *derived = Derive_Specifier(specifier, item);
+            Flatten_Core(
+                VAL_ARRAY_AT(item),
+                derived,
+                level == FLATTEN_ONCE ? FLATTEN_NOT : FLATTEN_DEEP
+            );
+        }
+        else
+            DS_PUSH_RELVAL(item, specifier);
+    }
+}
+
+
+//
+//  flatten: native [
+//
+//  {Flattens a block of blocks.}
+//
+//      return: [block!]
+//          {The flattened result block}
+//      block [block!]
+//          {The nested source block}
+//      /deep
+//  ]
+//
+REBNATIVE(flatten)
+{
+    INCLUDE_PARAMS_OF_FLATTEN;
+
+    REBDSP dsp_orig = DSP;
+
+    Flatten_Core(
+        VAL_ARRAY_AT(ARG(block)),
+        VAL_SPECIFIER(ARG(block)),
+        REF(deep) ? FLATTEN_DEEP : FLATTEN_ONCE
+    );
+
+    Init_Block(D_OUT, Pop_Stack_Values(dsp_orig));
+    return R_OUT;
+}

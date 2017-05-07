@@ -23,3 +23,12 @@
     blk: [reduce blk]
     error? try blk
 ]
+
+; Quick flatten test, here for now
+[
+    [a b c d e f] = flatten [[a] [b] c d [e f]]
+][
+    [a b [c d] c d e f] = flatten [[a] [b [c d]] c d [e f]]
+][
+    [a b c d c d e f] = flatten/deep [[a] [b [c d]] c d [e f]]
+]
