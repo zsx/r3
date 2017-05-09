@@ -146,7 +146,7 @@ REBARR *Copy_Array_At_Max_Shallow(
 // series created to hold exactly that many entries.
 //
 REBARR *Copy_Values_Len_Extra_Skip_Shallow_Core(
-    const RELVAL *head,
+    const RELVAL head[],
     REBSPC *specifier,
     REBCNT len,
     REBCNT extra,
@@ -195,7 +195,7 @@ REBARR *Copy_Values_Len_Extra_Skip_Shallow_Core(
 // are in an array, and assert that they are managed.)
 //
 void Clonify_Values_Len_Managed(
-    RELVAL *head,
+    RELVAL head[],
     REBSPC *specifier,
     REBCNT len,
     REBOOL deep,

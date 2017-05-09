@@ -134,7 +134,7 @@ void Init_Typeset(RELVAL *value, REBU64 bits, REBSTR *opt_name)
 //
 REBOOL Update_Typeset_Bits_Core(
     RELVAL *typeset,
-    const RELVAL *head,
+    const RELVAL head[],
     REBSPC *specifier
 ) {
     assert(IS_TYPESET(typeset));

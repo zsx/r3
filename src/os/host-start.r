@@ -555,12 +555,15 @@ comment [
     ;-- Evaluate user.r script:
     if all [
         o/resources
-        not find o/suppress %user.r 
+        not find o/suppress %user.r
     ][
         loud-print ["Checking for user.r file in" o/resources]
         if exists? o/resources/user.r [
             trap/with [
-                ;; ideally I want to query perms to make sure RESOURCES is owner writable only
+                ;
+                ; ideally this would query permissions to make sure RESOURCES
+                ; is owner writable only
+                ;
                 do o/resources/user.r
                 append o/loaded o/resources/user.r
             ] func [error] [

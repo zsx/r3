@@ -367,7 +367,7 @@ enum FLATTEN_LEVEL {
 
 
 static void Flatten_Core(
-    RELVAL *head,
+    RELVAL head[],
     REBSPC *specifier,
     enum FLATTEN_LEVEL level
 ) {

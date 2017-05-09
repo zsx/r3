@@ -105,7 +105,7 @@ void Append_Series(REBSER *s, const REBYTE *data, REBCNT len)
 // the number of units and does not include the terminator
 // (which will be added).
 //
-void Append_Values_Len(REBARR *a, const REBVAL *head, REBCNT len)
+void Append_Values_Len(REBARR *a, const REBVAL head[], REBCNT len)
 {
     REBCNT old_len = ARR_LEN(a);
 
