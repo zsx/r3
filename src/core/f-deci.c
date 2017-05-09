@@ -1014,7 +1014,13 @@ void m_divide (
     REBU64 cm, dm;
     REBINT i, j, k;
 
-    if (m == 1) {
+    if (m <= 1) {
+        // Note: the test here used to be `if (m == 1)` but gcc 4.9.2 would
+        // warn in -O2 mode that array subscripting with [m - 1] could be
+        // below array bounds, due to not knowing the caller wouldn't pass in
+        // zero.  Changed test to `if (m <= 1)`, added assert m is not zero.
+        //
+        assert(m != 0);
         r[0] = m_divide_1 (n, q, a, bm);
         return;
     }
