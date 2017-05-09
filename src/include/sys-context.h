@@ -327,16 +327,52 @@ inline static REBVAL *CTX_FRAME_FUNC_VALUE(REBCTX *c) {
 // compiler, rather than add an extra layer of function call.
 //
 
-inline static REBCTX *Copy_Context_Shallow(REBCTX *src) {
-    return Copy_Context_Shallow_Extra(src, 0);
-}
+#define Copy_Context_Shallow(src) \
+    Copy_Context_Shallow_Extra((src), 0)
 
 // Returns true if the keylist had to be changed to make it unique.
 //
-inline static REBOOL Ensure_Keylist_Unique_Invalidated(REBCTX *context)
-{
-    return Expand_Context_Keylist_Core(context, 0);
+#define Ensure_Keylist_Unique_Invalidated(context) \
+    Expand_Context_Keylist_Core((context), 0)
+
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// FIELD SELECTION
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// For performance reasons, most code within the core does not use lookups
+// by symbol in objects.  The specific objects the core deals with (e.g. in
+// %sysobj.r) have the indexes hardcoded for the fields it wants to access,
+// so it can just use CTX_VAR() to get the pointer directly, without needing
+// to canonize symbols or walk the keylist.  These routines are provided as
+// a convenience.
+//
+
+inline static REBVAL *Get_Typed_Field(
+    REBCTX *c,
+    REBSTR *spelling, // will be canonized
+    enum Reb_Kind kind // REB_0 to not check the kind
+) {
+    REBCNT n = Find_Canon_In_Context(c, STR_CANON(spelling), FALSE);
+    if (n == 0)
+        fail ("Field not found"); // improve error
+
+    REBVAL *var = CTX_VAR(c, n);
+    if (kind == REB_0)
+        return var;
+
+    if (kind != VAL_TYPE(var))
+        fail ("Invalid type of field"); // improve error
+    return var;
 }
+
+#define Get_Field(c, spelling) \
+    Get_Typed_Field((c), (spelling), REB_0) // will canonize
+
+#define Sink_Field(c, spelling) \
+    SINK(Get_Typed_Field(c, (spelling), REB_0)) // will canonize
 
 
 //=////////////////////////////////////////////////////////////////////////=//

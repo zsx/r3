@@ -444,7 +444,6 @@ set (CORE_HEADER
 )
 
 file(GLOB CORE_C_FILES ${CORE_DIR}/*.c)
-list(REMOVE_ITEM CORE_C_FILES ${CORE_DIR}/a-lib2.c) #see make-headers.r
 #message("CORE_C_FILES: ${CORE_C_FILES}")
 
 set(NATIVE_OUTPUT
@@ -1009,9 +1008,8 @@ set (R3_CORE_SOURCE
     ${GENERATED_CORE_SOURCE}
     ${HOST_SOURCE}
     )
-# Build as C by default, but there are extra checks if you build as C++
-# NOTE: The library code will not be binary compatible in -debug- builds as
-# C++, so a C++ debug client cannot be used with a C built debug Rebol
+# Build as C by default, but there are extra checks if you build as C++11
+# (fewer interesting checks if you only build as C++98)
 #
 if (R3_CPP)
     set_property(SOURCE ${R3_CORE_SOURCE} PROPERTY LANGUAGE CXX)

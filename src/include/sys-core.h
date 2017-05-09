@@ -68,7 +68,6 @@
 #define MIN_COMMON 10000        // min size of common buffer
 #define MAX_COMMON 100000       // max size of common buffer (shrink trigger)
 #define MAX_NUM_LEN 64          // As many numeric digits we will accept on input
-#define MAX_SAFE_SERIES 5       // quanitity of most recent series to not GC.
 #define MAX_EXPAND_LIST 5       // number of series-1 in Prior_Expand list
 #define UNICODE_CASES 0x2E00    // size of unicode folding table
 #define HAS_SHA1                // allow it
