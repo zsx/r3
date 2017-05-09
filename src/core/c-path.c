@@ -127,8 +127,14 @@ REBOOL Next_Path_Throws(REBPVS *pvs)
         assert(FALSE);
     }
 
-    if (IS_FUNCTION(pvs->value) && pvs->label_out != NULL)
-        if (IS_WORD(pvs->item))
+    // A function being refined does not actually update pvs->value with
+    // a "more refined" function value, it holds the original function and
+    // accumulates refinement state on the stack.  The label should only
+    // be captured the first time the function is seen, otherwise it would
+    // capture the last refinement's name, so check label for non-NULL.
+    //
+    if (IS_FUNCTION(pvs->value) && IS_WORD(pvs->item))
+        if (pvs->label_out != NULL && *pvs->label_out == NULL)
             *pvs->label_out = VAL_WORD_SPELLING(pvs->item);
 
     if (NOT_END(pvs->item + 1))
@@ -260,9 +266,6 @@ REBOOL Do_Path_Throws_Core(
         // try to dispatch it (would cause a crash at time of writing)
         //
         // !!! Is this the desired behavior, or should it be an error?
-
-        if (IS_FUNCTION(pvs.value) && IS_WORD(pvs.item) && pvs.label_out)
-            *pvs.label_out = VAL_WORD_SPELLING(pvs.item);
     }
     else {
         REBOOL threw = Next_Path_Throws(&pvs);

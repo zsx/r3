@@ -320,7 +320,7 @@ inline static REBOOL Do_Next_Mid_Frame_Throws(REBFRM *f) {
 
     REBDSP prior_dsp_orig = f->dsp_orig;
 #if !defined(NDEBUG)
-    assert(f->state.dsp == f->dsp_orig);
+    assert(f->state_debug.dsp == f->dsp_orig);
 #endif
 
     SET_END(f->out);
@@ -332,7 +332,7 @@ inline static REBOOL Do_Next_Mid_Frame_Throws(REBFRM *f) {
     
     f->dsp_orig = prior_dsp_orig;
 #if !defined(NDEBUG)
-    f->state.dsp = prior_dsp_orig;
+    f->state_debug.dsp = prior_dsp_orig;
 #endif
 
     // Note: f->eval_type will have changed, but it should not matter to

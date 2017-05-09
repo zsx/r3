@@ -288,9 +288,8 @@ struct Reb_Frame {
     //   splices into the evaluator feed, e.g. for `eval (first [x:]) 10 + 20`
     //   would be the storage for the `x:` SET-WORD! during the addition.
     //
-    // * If a function takes exactly one argument, it is used as the cell
-    //   for that argument.  Functions taking more than one argument are
-    //   free to use it as a GC-safe spot.
+    // * While a function is running, it is free to use it as a GC-safe spot,
+    //   which is also implicitly terminated.  See D_CELL.
     //
     REBVAL cell;
 
@@ -330,7 +329,7 @@ struct Reb_Frame {
     //
     REBVAL *out;
 
-    // source.array, source.vaptr
+    // `source.array`, `source.vaptr`
     //
     // This is the source from which new values will be fetched.  In addition
     // to working with an array, it is also possible to feed the evaluator
@@ -388,15 +387,17 @@ struct Reb_Frame {
     // `eval_type`
     //
     // This is the enumerated type upon which the evaluator's main switch
-    // statement is driven, to indicate whether the frame is to perform a
-    // ET_SET_WORD, or an ET_FUNCTION call, etc.
+    // statement is driven, to indicate what the frame is actually doing.
+    // e.g. REB_FUNCTION means "running a function".
     //
-    // The reason the evaluator doesn't just a `switch` on REB_XXX types is
-    // efficiency (using consecutive small numbers lets the switch optimize
-    // as a jump table).  It also offers more encoding possibilities, e.g.
-    // ET_LOOKBACK implies that it's doing function argument gathering with
-    // the first argument to use waiting in f->out.  Overwriting the eval_type
-    // can then clear more "flag state" in a single assignment.
+    // It may not always tell the whole story due to frame reuse--a running
+    // state may have stored enough information to not worry about a recursion
+    // overwriting it.  See Do_Next_Mid_Frame_Throws() for that case.
+    //
+    // Additionally, the actual dispatch may not have started, so if a fail()
+    // or other operation occurs it may not be able to assume that eval_type
+    // of REB_FUNCTION implies that the arguments have been pushed yet.
+    // See Is_Any_Function_Frame() for notes on this detection.
     //
     enum Reb_Kind eval_type;
 
@@ -577,23 +578,38 @@ struct Reb_Frame {
     //
     const char *label_debug;
 
-    // `value_type`
+    // `file_debug` [DEBUG]
+    //
+    // An emerging feature in the system is the ability to connect user-seen
+    // series to a file and line number associated with their creation,
+    // either their source code or some trace back to the code that generated
+    // them.  As the feature gets better, it will certainly be useful to be
+    // able to quickly see the information in the debugger for f->source.
+    //
+    const char *file_debug;
+    int line_debug;
+
+    // `kind_debug` [DEBUG]
     //
     // The fetching mechanics cache the type of f->value
     //
-    enum Reb_Kind value_type;
+    enum Reb_Kind kind_debug;
 
-    // `do_count` [DEBUG]
+    // `do_count_debug` [DEBUG]
     //
     // The `do_count` represents the expression evaluation "tick" where the
     // Reb_Frame is starting its processing.  This is helpful for setting
     // breakpoints on certain ticks in reproducible situations.
     //
-    REBUPT do_count; // !!! Move to dynamic data, available in a debug mode?
+    REBUPT do_count_debug; // !!! Should this be available in release builds?
 
-    // Debug reuses PUSH_TRAP's snapshotting to check for leaks on each step
+    // `state_debug` [DEBUG]
     //
-    struct Reb_State state;
+    // Debug reuses PUSH_TRAP's snapshotting to check for leaks at each stack
+    // level.  It can also be made to use a more aggresive leak check at every
+    // evaluator step--see BALANCE_CHECK_EVERY_EVALUATION_STEP.
+    //
+    struct Reb_State state_debug;
 #endif
 };
 

@@ -2054,7 +2054,7 @@ REB_R Apply_Frame_Core(REBFRM *f, REBSTR *label, REBVAL *opt_def)
     // checks.  It also checks the top of stack, so that has to be set as well.
     // So this has to come before Push_Or_Alloc_Vars
     //
-    SNAP_STATE(&f->state);
+    SNAP_STATE(&f->state_debug);
 #endif
 
     f->refine = m_cast(REBVAL*, END);

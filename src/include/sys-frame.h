@@ -271,9 +271,9 @@ inline static void SET_FRAME_VALUE(REBFRM *f, const RELVAL *value) {
 
 #if !defined(NDEBUG)
     if (NOT_END(f->value))
-        f->value_type = VAL_TYPE(f->value);
+        f->kind_debug = VAL_TYPE(f->value);
     else
-        f->value_type = REB_MAX;
+        f->kind_debug = REB_0;
 #endif
 }
 

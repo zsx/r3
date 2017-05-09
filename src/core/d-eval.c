@@ -181,6 +181,20 @@ void Do_Core_Entry_Checks_Debug(REBFRM *f)
 
 #if !defined(NDEBUG)
     f->label_debug = NULL;
+
+    if (
+        NOT(FRM_IS_VALIST(f))
+        && GET_SER_FLAG(f->source.array, SERIES_FLAG_FILE_LINE)
+    ){
+        f->file_debug = cast(
+            const char*, STR_HEAD(SER(f->source.array)->link.filename)
+        );
+        f->line_debug = SER(f->source.array)->misc.line;
+    }
+    else {
+        f->file_debug = "(no file info)";
+        f->line_debug = 0;
+    }
 #endif
 
     // All callers should ensure that the type isn't an END marker before
@@ -204,11 +218,11 @@ static void Do_Core_Shared_Checks_Debug(REBFRM *f) {
     // imbalanced state discovered on an exit.
     //
 #ifdef BALANCE_CHECK_EVERY_EVALUATION_STEP
-    ASSERT_STATE_BALANCED(&f->state);
+    ASSERT_STATE_BALANCED(&f->state_debug);
 #endif
 
     assert(f == FS_TOP);
-    assert(f->state.top_chunk == TG_Top_Chunk);
+    assert(f->state_debug.top_chunk == TG_Top_Chunk);
     /* assert(DSP == f->dsp_orig); */ // !!! not true now with push SET-WORD!
 
     if (f->flags.bits & DO_FLAG_VA_LIST)
@@ -241,7 +255,7 @@ static void Do_Core_Shared_Checks_Debug(REBFRM *f) {
     if (NOT_END(f->out) && THROWN(f->out))
         return;
 
-    assert(f->value_type == VAL_TYPE(f->value));
+    assert(f->kind_debug == VAL_TYPE(f->value));
 
     //=//// v-- BELOW CHECKS ONLY APPLY IN EXITS CASE WITH MORE CODE //////=//
 
@@ -334,9 +348,9 @@ REBUPT Do_Core_Expression_Checks_Debug(REBFRM *f) {
     // wastes possible bits in the 64-bit build, but there's no MAX_REBUPT.)
     //
     if (TG_Do_Count < MAX_U32)
-        f->do_count = ++TG_Do_Count;
+        f->do_count_debug = ++TG_Do_Count;
 
-    return f->do_count;
+    return f->do_count_debug;
 }
 
 
@@ -349,7 +363,7 @@ void Do_Core_Exit_Checks_Debug(REBFRM *f) {
     // the shared checks.  But if it fires and it's hard to figure out which
     // exact cycle caused the problem, re-add it in the shared checks.
     //
-    ASSERT_STATE_BALANCED(&f->state);
+    ASSERT_STATE_BALANCED(&f->state_debug);
 
     Do_Core_Shared_Checks_Debug(f);
 

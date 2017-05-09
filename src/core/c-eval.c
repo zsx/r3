@@ -123,7 +123,7 @@ static inline REBOOL Start_New_Expression_Throws(REBFRM *f) {
             START_NEW_EXPRESSION_MAY_THROW_COMMON(f, g); \
             do_count = Do_Core_Expression_Checks_Debug(f); \
             if (do_count == DO_COUNT_BREAKPOINT) { \
-                Debug_Fmt("DO_COUNT_BREAKPOINT hit at %d", f->do_count); \
+                Debug_Fmt("DO_COUNT_BREAKPOINT at %d", f->do_count_debug); \
                 Dump_Frame_Location(f); \
                 debug_break(); /* see %debug_break.h */ \
             } \
@@ -273,7 +273,7 @@ static inline void Link_Vararg_Param_To_Frame(REBFRM *f, REBOOL make) {
 void Do_Core(REBFRM * const f)
 {
 #if !defined(NDEBUG)
-    REBUPT do_count = f->do_count = TG_Do_Count; // snapshot initial state
+    REBUPT do_count = f->do_count_debug = TG_Do_Count; // snapshot start tick
 #endif
 
     REBOOL args_evaluate; // set on every iteration (varargs do, EVAL/ONLY...)
@@ -297,7 +297,7 @@ void Do_Core(REBFRM * const f)
     f->eval_type = VAL_TYPE(f->value);
 
 #if !defined(NDEBUG)
-    SNAP_STATE(&f->state); // to make sure stack balances, etc.
+    SNAP_STATE(&f->state_debug); // to make sure stack balances, etc.
     Do_Core_Entry_Checks_Debug(f); // run once per Do_Core()
 #endif
 
