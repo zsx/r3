@@ -490,7 +490,7 @@ RL_API REBRXT RL_Val_Type(const REBVAL *v) {
 //
 RL_API void RL_Val_Update_Header(REBVAL *v, REBRXT rxt) {
     if (rxt == 0)
-        SET_VOID(v);
+        Init_Void(v);
     else
         VAL_RESET_HEADER(v, RXT_To_Reb[rxt]);
 }

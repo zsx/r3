@@ -576,7 +576,7 @@ REBINT PD_Array(REBPVS *pvs)
         if (pvs->opt_setval)
             fail (Error_Bad_Path_Select(pvs));
 
-        SET_VOID(pvs->store);
+        Init_Void(pvs->store);
         return PE_USE_STORE;
     }
 
@@ -607,7 +607,7 @@ RELVAL *Pick_Block(REBVAL *out, const REBVAL *block, const REBVAL *picker)
     REBINT n = Get_Num_From_Arg(picker);
     n += VAL_INDEX(block) - 1;
     if (n < 0 || cast(REBCNT, n) >= VAL_LEN_HEAD(block)) {
-        SET_VOID(out);
+        Init_Void(out);
         return NULL;
     }
 
@@ -978,7 +978,7 @@ REBTYPE(Array)
             if (index >= VAL_LEN_HEAD(value))
                 return R_BLANK;
 
-            SET_INTEGER(
+            Init_Integer(
                 ARG(seed),
                 1 + (Random_Int(REF(secure)) % (VAL_LEN_HEAD(value) - index))
             );

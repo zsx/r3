@@ -764,14 +764,14 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         );
     }
     else if (meta)
-        SET_VOID(CTX_VAR(meta, STD_FUNCTION_META_DESCRIPTION));
+        Init_Void(CTX_VAR(meta, STD_FUNCTION_META_DESCRIPTION));
 
     // Only make `parameter-types` if there were blocks in the spec
     //
     if (NOT(has_types)) {
         if (meta) {
-            SET_VOID(CTX_VAR(meta, STD_FUNCTION_META_PARAMETER_TYPES));
-            SET_VOID(CTX_VAR(meta, STD_FUNCTION_META_RETURN_TYPE));
+            Init_Void(CTX_VAR(meta, STD_FUNCTION_META_PARAMETER_TYPES));
+            Init_Void(CTX_VAR(meta, STD_FUNCTION_META_RETURN_TYPE));
         }
     }
     else {
@@ -795,7 +795,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
                 continue;
 
             if (VAL_ARRAY_LEN_AT(src) == 0)
-                SET_VOID(dest);
+                Init_Void(dest);
             else
                 Move_Value(dest, src);
             ++dest;
@@ -811,7 +811,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             // the function.)
             //
             if (VAL_ARRAY_LEN_AT(definitional_return + 1) == 0)
-                SET_VOID(CTX_VAR(meta, STD_FUNCTION_META_RETURN_TYPE));
+                Init_Void(CTX_VAR(meta, STD_FUNCTION_META_RETURN_TYPE));
             else {
                 Move_Value(
                     CTX_VAR(meta, STD_FUNCTION_META_RETURN_TYPE),
@@ -820,7 +820,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             }
 
             if (NOT(flags & MKF_FAKE_RETURN)) {
-                SET_VOID(dest); // clear the local RETURN: var's description
+                Init_Void(dest); // clear the local RETURN: var's description
                 ++dest;
             }
         }
@@ -839,8 +839,8 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     //
     if (NOT(has_notes)) {
         if (meta) {
-            SET_VOID(CTX_VAR(meta, STD_FUNCTION_META_PARAMETER_NOTES));
-            SET_VOID(CTX_VAR(meta, STD_FUNCTION_META_RETURN_NOTE));
+            Init_Void(CTX_VAR(meta, STD_FUNCTION_META_PARAMETER_NOTES));
+            Init_Void(CTX_VAR(meta, STD_FUNCTION_META_RETURN_NOTE));
         }
     }
     else {
@@ -864,7 +864,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
                 continue;
 
             if (SER_LEN(VAL_SERIES(src)) == 0)
-                SET_VOID(dest);
+                Init_Void(dest);
             else
                 Move_Value(dest, src);
             ++dest;
@@ -877,7 +877,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             // parameter in the list
             //
             if (SER_LEN(VAL_SERIES(definitional_return + 2)) == 0)
-                SET_VOID(CTX_VAR(meta, STD_FUNCTION_META_RETURN_NOTE));
+                Init_Void(CTX_VAR(meta, STD_FUNCTION_META_RETURN_NOTE));
             else {
                 Move_Value(
                     CTX_VAR(meta, STD_FUNCTION_META_RETURN_NOTE),
@@ -886,7 +886,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             }
 
             if (NOT(flags & MKF_FAKE_RETURN)) {
-                SET_VOID(dest);
+                Init_Void(dest);
                 ++dest;
             }
         }
@@ -1027,7 +1027,7 @@ done_caching:;
     // a block--it's anything that the dispatcher might wish to interpret.
 
     REBARR *body_holder = Alloc_Singular_Array();
-    SET_BLANK(ARR_HEAD(body_holder));
+    Init_Blank(ARR_HEAD(body_holder));
     MANAGE_ARRAY(body_holder);
 
     rootparam->payload.function.body_holder = body_holder;
@@ -1123,7 +1123,7 @@ REBCTX *Make_Expired_Frame_Ctx_Managed(REBFUN *func)
 {
     REBARR *varlist = Alloc_Singular_Array_Core(ARRAY_FLAG_VARLIST);
     SET_SER_INFO(varlist, CONTEXT_INFO_STACK);
-    SET_BLANK(ARR_HEAD(varlist));
+    Init_Blank(ARR_HEAD(varlist));
     MANAGE_ARRAY(varlist);
 
     SET_SER_INFO(varlist, SERIES_INFO_INACCESSIBLE);
@@ -1410,7 +1410,7 @@ REBCTX *Make_Frame_For_Function(const REBVAL *value) {
     //
     REBCNT n;
     for (n = 1; n <= FUNC_NUM_PARAMS(func); ++n, ++var)
-        SET_VOID(var);
+        Init_Void(var);
 
     TERM_ARRAY_LEN(varlist, ARR_LEN(FUNC_PARAMLIST(func)));
 
@@ -1526,13 +1526,13 @@ REBOOL Specialize_Function_Throws(
 
     REBCTX *meta = Copy_Context_Shallow(VAL_CONTEXT(example));
 
-    SET_VOID(CTX_VAR(meta, STD_SPECIALIZED_META_DESCRIPTION)); // default
+    Init_Void(CTX_VAR(meta, STD_SPECIALIZED_META_DESCRIPTION)); // default
     Move_Value(
         CTX_VAR(meta, STD_SPECIALIZED_META_SPECIALIZEE),
         specializee
     );
     if (opt_specializee_name == NULL)
-        SET_VOID(CTX_VAR(meta, STD_SPECIALIZED_META_SPECIALIZEE_NAME));
+        Init_Void(CTX_VAR(meta, STD_SPECIALIZED_META_SPECIALIZEE_NAME));
     else
         Init_Word(
             CTX_VAR(meta, STD_SPECIALIZED_META_SPECIALIZEE_NAME),
@@ -2102,7 +2102,7 @@ REB_R Apply_Frame_Core(REBFRM *f, REBSTR *label, REBVAL *opt_def)
             ++f->special;
         }
         else if (opt_def)
-            SET_VOID(f->arg);
+            Init_Void(f->arg);
         else {
             // just leave it alone
         }

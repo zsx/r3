@@ -205,7 +205,7 @@ REBTYPE(Function)
                 // The CFUNC is fabricated by the FFI if it's a callback, or
                 // just the wrapped DLL function if it's an ordinary routine
                 //
-                SET_INTEGER(
+                Init_Integer(
                     D_OUT, cast(REBUPT, RIN_CFUNC(VAL_FUNC_ROUTINE(value)))
                 );
                 return R_OUT;
@@ -270,7 +270,7 @@ REBTYPE(Function)
                 );
             }
             else {
-                SET_BLANK(D_OUT);
+                Init_Blank(D_OUT);
             }
             return R_OUT;
 
@@ -351,7 +351,7 @@ REBNATIVE(func_class_of)
         n = 1;
     }
 
-    SET_INTEGER(D_OUT, n);
+    Init_Integer(D_OUT, n);
     return R_OUT;
 }
 

@@ -365,7 +365,7 @@ repush:
         goto repush;
     }
 
-    SET_VOID(D_OUT); // default return result of DO-ALL []
+    Init_Void(D_OUT); // default return result of DO-ALL []
 
     while (NOT_END(f->value)) {
         if (IS_BAR(f->value)) {
@@ -383,7 +383,7 @@ repush:
             // frame--as that's not generically possible unless you skip to
             // the next BAR!, as this routine does.
             //
-            SET_VOID(D_OUT);
+            Init_Void(D_OUT);
             Fetch_Next_In_Frame(f);
             continue;
         }

@@ -464,7 +464,7 @@ inline static REBIXO DO_NEXT_MAY_THROW(
 
     SET_FRAME_VALUE(f, ARR_AT(array, index));
     if (IS_END(f->value)) {
-        SET_VOID(out);
+        Init_Void(out);
         return END_FLAG;
     }
 
@@ -522,7 +522,7 @@ inline static REBIXO Do_Array_At_Core(
     }
 
     if (IS_END(f->value)) {
-        SET_VOID(out);
+        Init_Void(out);
         return END_FLAG;
     }
 
@@ -720,7 +720,7 @@ inline static REBIXO Do_Va_Core(
     }
 
     if (IS_END(f->value)) {
-        SET_VOID(out);
+        Init_Void(out);
         return END_FLAG;
     }
 

@@ -157,7 +157,7 @@ REBTYPE(Word)
             if (ch == 0)
                 break;
         }
-        SET_INTEGER(D_OUT, len);
+        Init_Integer(D_OUT, len);
         return R_OUT; }
 
     default:

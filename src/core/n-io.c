@@ -282,7 +282,7 @@ REBNATIVE(now)
         n = VAL_DAY(ret);
 
     if (n > 0)
-        SET_INTEGER(ret, n);
+        Init_Integer(ret, n);
 
     return R_OUT;
 }
@@ -336,7 +336,7 @@ REBNATIVE(wait)
     REBARR *ports = NULL;
     REBINT n = 0;
 
-    SET_BLANK(D_OUT);
+    Init_Blank(D_OUT);
 
     RELVAL *val;
     if (IS_BLOCK(ARG(value))) {
@@ -361,7 +361,7 @@ REBNATIVE(wait)
         if (IS_END(val)) {
             if (n == 0) return R_BLANK; // has no pending ports!
             else timeout = ALL_BITS; // no timeout provided
-            // SET_BLANK(val); // no timeout -- BUG: unterminated block in GC
+            // Init_Blank(val); // no timeout -- BUG: unterminated block in GC
         }
     }
     else
@@ -409,7 +409,7 @@ REBNATIVE(wait)
         if (IS_PORT(val))
             Move_Value(D_OUT, KNOWN(val));
         else
-            SET_BLANK(D_OUT);
+            Init_Blank(D_OUT);
     }
 
     return R_OUT;
@@ -1006,9 +1006,9 @@ REBNATIVE(call)
     if (REF(info)) {
         REBCTX *info = Alloc_Context(REB_OBJECT, 2);
 
-        SET_INTEGER(Append_Context(info, NULL, Canon(SYM_ID)), pid);
+        Init_Integer(Append_Context(info, NULL, Canon(SYM_ID)), pid);
         if (REF(wait))
-            SET_INTEGER(
+            Init_Integer(
                 Append_Context(info, NULL, Canon(SYM_EXIT_CODE)),
                 exit_code
             );
@@ -1026,9 +1026,9 @@ REBNATIVE(call)
     // we only return a process ID if /WAIT was not explicitly used
     //
     if (REF(wait))
-        SET_INTEGER(D_OUT, exit_code);
+        Init_Integer(D_OUT, exit_code);
     else
-        SET_INTEGER(D_OUT, pid);
+        Init_Integer(D_OUT, pid);
 
     return R_OUT;
 }
@@ -1234,7 +1234,7 @@ REBNATIVE(request_file)
             Init_File(D_OUT, ser);
         }
     } else
-        SET_BLANK(D_OUT);
+        Init_Blank(D_OUT);
 
     OS_FREE(fr.files);
 
@@ -1398,7 +1398,7 @@ REBNATIVE(access_os)
                                 fail (val);
                         }
                     } else {
-                        SET_INTEGER(D_OUT, ret);
+                        Init_Integer(D_OUT, ret);
                         return R_OUT;
                     }
                 }
@@ -1410,7 +1410,7 @@ REBNATIVE(access_os)
                 if (ret < 0) {
                     return R_BLANK;
                 } else {
-                    SET_INTEGER(D_OUT, ret);
+                    Init_Integer(D_OUT, ret);
                     return R_OUT;
                 }
             }
@@ -1434,7 +1434,7 @@ REBNATIVE(access_os)
                                 fail (val);
                         }
                     } else {
-                        SET_INTEGER(D_OUT, ret);
+                        Init_Integer(D_OUT, ret);
                         return R_OUT;
                     }
                 }
@@ -1446,7 +1446,7 @@ REBNATIVE(access_os)
                 if (ret < 0) {
                     return R_BLANK;
                 } else {
-                    SET_INTEGER(D_OUT, ret);
+                    Init_Integer(D_OUT, ret);
                     return R_OUT;
                 }
             }
@@ -1470,7 +1470,7 @@ REBNATIVE(access_os)
                                 fail (val);
                         }
                     } else {
-                        SET_INTEGER(D_OUT, ret);
+                        Init_Integer(D_OUT, ret);
                         return R_OUT;
                     }
                 }
@@ -1482,7 +1482,7 @@ REBNATIVE(access_os)
                 if (ret < 0) {
                     return R_BLANK;
                 } else {
-                    SET_INTEGER(D_OUT, ret);
+                    Init_Integer(D_OUT, ret);
                     return R_OUT;
                 }
             }
@@ -1506,7 +1506,7 @@ REBNATIVE(access_os)
                                 fail (val);
                         }
                     } else {
-                        SET_INTEGER(D_OUT, ret);
+                        Init_Integer(D_OUT, ret);
                         return R_OUT;
                     }
                 }
@@ -1518,7 +1518,7 @@ REBNATIVE(access_os)
                 if (ret < 0) {
                     return R_BLANK;
                 } else {
-                    SET_INTEGER(D_OUT, ret);
+                    Init_Integer(D_OUT, ret);
                     return R_OUT;
                 }
             }
@@ -1569,7 +1569,7 @@ REBNATIVE(access_os)
                             fail (val);
                     }
                 } else {
-                    SET_INTEGER(D_OUT, ret);
+                    Init_Integer(D_OUT, ret);
                     return R_OUT;
                 }
             } else {
@@ -1577,7 +1577,7 @@ REBNATIVE(access_os)
                 if (ret < 0) {
                     return R_BLANK;
                 } else {
-                    SET_INTEGER(D_OUT, ret);
+                    Init_Integer(D_OUT, ret);
                     return R_OUT;
                 }
             }

@@ -301,12 +301,12 @@ static REBARR *Startup_Datatypes(REBARR *boot_types, REBARR *boot_typespecs)
 static void Startup_True_And_False(void)
 {
     REBVAL *true_value = Append_Context(Lib_Context, 0, Canon(SYM_TRUE));
-    SET_TRUE(true_value);
+    Init_Logic(true_value, TRUE);
     assert(VAL_LOGIC(true_value) == TRUE);
     assert(IS_CONDITIONAL_TRUE(true_value));
 
     REBVAL *false_value = Append_Context(Lib_Context, 0, Canon(SYM_FALSE));
-    SET_FALSE(false_value);
+    Init_Logic(false_value, FALSE);
     assert(VAL_LOGIC(false_value) == FALSE);
     assert(IS_CONDITIONAL_FALSE(false_value));
 }
@@ -428,7 +428,7 @@ static void Add_Lib_Keys_R3Alpha_Cant_Make(void)
     while (names[i]) {
         REBSTR *str = Intern_UTF8_Managed(cb_cast(names[i]), strlen(names[i]));
         REBVAL *val = Append_Context(Lib_Context, NULL, str);
-        SET_VOID(val); // functions will fill in (no-op, since void already)
+        Init_Void(val); // functions will fill in (no-op, since void already)
         ++i;
     }
 }
@@ -494,7 +494,7 @@ static void Init_Function_Meta_Shim(void) {
         // BLANK! is used for the fields instead of void (required for
         // R3-Alpha compatibility to load the object)
         //
-        SET_BLANK(
+        Init_Blank(
             Append_Context(function_meta, NULL, Canon(field_syms[i - 1]))
         );
     }
@@ -750,28 +750,28 @@ static void Init_Root_Vars(void)
 
     Prep_Global_Cell(&PG_Void_Cell[0]);
     Prep_Global_Cell(&PG_Void_Cell[1]);
-    SET_VOID(&PG_Void_Cell[0]);
-    SET_TRASH_IF_DEBUG(&PG_Void_Cell[1]);
+    Init_Void(&PG_Void_Cell[0]);
+    TRASH_CELL_IF_DEBUG(&PG_Void_Cell[1]);
 
     Prep_Global_Cell(&PG_Blank_Value[0]);
     Prep_Global_Cell(&PG_Blank_Value[1]);
-    SET_BLANK(&PG_Blank_Value[0]);
-    SET_TRASH_IF_DEBUG(&PG_Blank_Value[1]);
+    Init_Blank(&PG_Blank_Value[0]);
+    TRASH_CELL_IF_DEBUG(&PG_Blank_Value[1]);
 
     Prep_Global_Cell(&PG_Bar_Value[0]);
     Prep_Global_Cell(&PG_Bar_Value[1]);
-    SET_BAR(&PG_Bar_Value[0]);
-    SET_TRASH_IF_DEBUG(&PG_Bar_Value[1]);
+    Init_Bar(&PG_Bar_Value[0]);
+    TRASH_CELL_IF_DEBUG(&PG_Bar_Value[1]);
 
     Prep_Global_Cell(&PG_False_Value[0]);
     Prep_Global_Cell(&PG_False_Value[1]);
-    SET_FALSE(&PG_False_Value[0]);
-    SET_TRASH_IF_DEBUG(&PG_False_Value[1]);
+    Init_Logic(&PG_False_Value[0], FALSE);
+    TRASH_CELL_IF_DEBUG(&PG_False_Value[1]);
 
     Prep_Global_Cell(&PG_True_Value[0]);
     Prep_Global_Cell(&PG_True_Value[1]);
-    SET_TRUE(&PG_True_Value[0]);
-    SET_TRASH_IF_DEBUG(&PG_True_Value[1]);
+    Init_Logic(&PG_True_Value[0], TRUE);
+    TRASH_CELL_IF_DEBUG(&PG_True_Value[1]);
 
     Prep_Global_Cell(&PG_Va_List_Pending);
 
@@ -796,8 +796,8 @@ static void Init_Root_Vars(void)
     Init_String(ROOT_EMPTY_STRING, empty_series);
     Freeze_Sequence(VAL_SERIES(ROOT_EMPTY_STRING));
 
-    SET_CHAR(ROOT_SPACE_CHAR, ' ');
-    SET_CHAR(ROOT_NEWLINE_CHAR, '\n');
+    Init_Char(ROOT_SPACE_CHAR, ' ');
+    Init_Char(ROOT_NEWLINE_CHAR, '\n');
 
     // BUF_UTF8 not initialized, can't init function tags yet
     //(at least not how Init_Function_Tags() is written)
@@ -977,8 +977,8 @@ void Startup_Task(void)
     Startup_Stacks(STACK_MIN/4);
 
     // Initialize a few fields:
-    SET_INTEGER(TASK_BALLAST, MEM_BALLAST);
-    SET_INTEGER(TASK_MAX_BALLAST, MEM_BALLAST);
+    Init_Integer(TASK_BALLAST, MEM_BALLAST);
+    Init_Integer(TASK_MAX_BALLAST, MEM_BALLAST);
 
     // The thrown arg is not intended to ever be around long enough to be
     // seen by the GC.

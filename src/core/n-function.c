@@ -188,7 +188,7 @@ REBNATIVE(exit)
     UNUSED(REF(with)); // implied by non-void value
 
     if (NOT(REF(from)))
-        SET_INTEGER(ARG(level), 1); // default--exit one function stack level
+        Init_Integer(ARG(level), 1); // default--exit one function stack level
 
     Make_Thrown_Exit_Value(D_OUT, ARG(level), ARG(value), frame_);
 
@@ -412,14 +412,14 @@ REBNATIVE(chain)
     REBVAL *std_meta = Get_System(SYS_STANDARD, STD_CHAINED_META);
     REBCTX *meta = Copy_Context_Shallow(VAL_CONTEXT(std_meta));
 
-    SET_VOID(CTX_VAR(meta, STD_CHAINED_META_DESCRIPTION)); // default
+    Init_Void(CTX_VAR(meta, STD_CHAINED_META_DESCRIPTION)); // default
     Init_Block(CTX_VAR(meta, STD_CHAINED_META_CHAINEES), chainees);
     //
     // !!! There could be a system for preserving names in the chain, by
     // accepting lit-words instead of functions--or even by reading the
     // GET-WORD!s in the block.  Consider for the future.
     //
-    SET_VOID(CTX_VAR(meta, STD_CHAINED_META_CHAINEE_NAMES));
+    Init_Void(CTX_VAR(meta, STD_CHAINED_META_CHAINEE_NAMES));
 
     MANAGE_ARRAY(CTX_VARLIST(meta));
     SER(paramlist)->link.meta = meta;
@@ -504,10 +504,10 @@ REBNATIVE(adapt)
     REBVAL *example = Get_System(SYS_STANDARD, STD_ADAPTED_META);
 
     REBCTX *meta = Copy_Context_Shallow(VAL_CONTEXT(example));
-    SET_VOID(CTX_VAR(meta, STD_ADAPTED_META_DESCRIPTION)); // default
+    Init_Void(CTX_VAR(meta, STD_ADAPTED_META_DESCRIPTION)); // default
     Move_Value(CTX_VAR(meta, STD_ADAPTED_META_ADAPTEE), adaptee);
     if (opt_adaptee_name == NULL)
-        SET_VOID(CTX_VAR(meta, STD_ADAPTED_META_ADAPTEE_NAME));
+        Init_Void(CTX_VAR(meta, STD_ADAPTED_META_ADAPTEE_NAME));
     else
         Init_Word(
             CTX_VAR(meta, STD_ADAPTED_META_ADAPTEE_NAME),

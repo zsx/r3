@@ -117,7 +117,7 @@ REBOOL Next_Path_Throws(REBPVS *pvs)
         break;
 
     case PE_NONE:
-        SET_BLANK(pvs->store);
+        Init_Blank(pvs->store);
     case PE_USE_STORE:
         pvs->value = pvs->store;
         pvs->value_specifier = SPECIFIED;
@@ -499,7 +499,7 @@ REBNATIVE(pick_p)
     REBPVS *pvs = &pvs_decl;
 
     Prep_Global_Cell(&pvs->picker_cell);
-    SET_TRASH_IF_DEBUG(&pvs->picker_cell); // not used
+    TRASH_CELL_IF_DEBUG(&pvs->picker_cell); // not used
     pvs->picker = picker;
     pvs->store = D_OUT;
 
@@ -529,7 +529,7 @@ REBNATIVE(pick_p)
         break;
 
     case PE_NONE:
-        SET_BLANK(pvs->store);
+        Init_Blank(pvs->store);
     case PE_USE_STORE:
         pvs->value = pvs->store;
         pvs->value_specifier = SPECIFIED;
@@ -584,7 +584,7 @@ REBNATIVE(poke)
     REBPVS *pvs = &pvs_decl;
 
     Prep_Global_Cell(&pvs->picker_cell);
-    SET_TRASH_IF_DEBUG(&pvs->picker_cell); // not used
+    TRASH_CELL_IF_DEBUG(&pvs->picker_cell); // not used
     pvs->picker = picker;
     pvs->store = D_OUT;
 

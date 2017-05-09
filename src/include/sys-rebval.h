@@ -182,7 +182,7 @@
 // it from Do_Core().
 //
 // It is in the negative sense because the act of requesting it is uncommon,
-// e.g. from the QUOTE operator.  So most SET_BLANK() or other assignment
+// e.g. from the QUOTE operator.  So most Init_Blank() or other assignment
 // should default to being "evaluative".
 //
 // !!! This concept is somewhat dodgy and experimental, but it shows promise

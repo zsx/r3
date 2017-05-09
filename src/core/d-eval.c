@@ -300,7 +300,7 @@ REBUPT Do_Core_Expression_Checks_Debug(REBFRM *f) {
     //
 #if !defined(NDEBUG)
     if (f->value != &f->cell)
-        SET_TRASH_IF_DEBUG(&f->cell);
+        TRASH_CELL_IF_DEBUG(&f->cell);
 #endif
 
     // Trash call variables in debug build to make sure they're not reused.

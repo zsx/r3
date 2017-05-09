@@ -325,7 +325,7 @@ REBNATIVE(make_native)
         Init_String(Alloc_Tail_Array(info), bin);
     }
 
-    SET_BLANK(Alloc_Tail_Array(info)); // no TCC_State, yet...
+    Init_Blank(Alloc_Tail_Array(info)); // no TCC_State, yet...
 
     Init_Block(FUNC_BODY(fun), info);
 

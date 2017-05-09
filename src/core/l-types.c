@@ -243,7 +243,7 @@ const REBYTE *Scan_Hex(
     REBCNT minlen,
     REBCNT maxlen
 ) {
-    SET_TRASH_IF_DEBUG(out);
+    TRASH_CELL_IF_DEBUG(out);
 
     if (maxlen > MAX_HEX_LEN)
         return_NULL;
@@ -265,7 +265,7 @@ const REBYTE *Scan_Hex(
     if (cnt < minlen)
         return_NULL;
 
-    SET_INTEGER(out, i);
+    Init_Integer(out, i);
     return cp;
 }
 
@@ -442,7 +442,7 @@ const REBYTE *Scan_Decimal(
     REBCNT len,
     REBOOL dec_only
 ) {
-    SET_TRASH_IF_DEBUG(out);
+    TRASH_CELL_IF_DEBUG(out);
 
     REBYTE buf[MAX_NUM_LEN + 4];
     REBYTE *ep = buf;
@@ -535,16 +535,16 @@ const REBYTE *Scan_Integer(
     const REBYTE *cp,
     REBCNT len
 ) {
-    SET_TRASH_IF_DEBUG(out);
+    TRASH_CELL_IF_DEBUG(out);
 
     // Super-fast conversion of zero and one (most common cases):
     if (len == 1) {
         if (*cp == '0') {
-            SET_INTEGER(out, 0);
+            Init_Integer(out, 0);
             return cp + 1;
         }
         if (*cp == '1') {
-            SET_INTEGER(out, 1);
+            Init_Integer(out, 1);
             return cp + 1;
          }
     }
@@ -580,7 +580,7 @@ const REBYTE *Scan_Integer(
 
     if (num == 0) { // all zeros or '
         // return early to avoid platform dependant error handling in CHR_TO_INT
-        SET_INTEGER(out, 0);
+        Init_Integer(out, 0);
         return cp;
     }
 
@@ -630,7 +630,7 @@ const REBYTE *Scan_Money(
     const REBYTE *cp,
     REBCNT len
 ) {
-    SET_TRASH_IF_DEBUG(out);
+    TRASH_CELL_IF_DEBUG(out);
 
     const REBYTE *end;
 
@@ -641,7 +641,7 @@ const REBYTE *Scan_Money(
     if (len == 0)
         return_NULL;
 
-    SET_MONEY(out, string_to_deci(cp, &end));
+    Init_Money(out, string_to_deci(cp, &end));
     if (end != cp + len)
         return_NULL;
 
@@ -659,7 +659,7 @@ const REBYTE *Scan_Date(
     const REBYTE *cp,
     REBCNT len
 ) {
-    SET_TRASH_IF_DEBUG(out);
+    TRASH_CELL_IF_DEBUG(out);
 
     const REBYTE *end = cp + len;
 
@@ -882,7 +882,7 @@ const REBYTE *Scan_File(
     const REBYTE *cp,
     REBCNT len
 ) {
-    SET_TRASH_IF_DEBUG(out);
+    TRASH_CELL_IF_DEBUG(out);
 
     if (*cp == '%') {
         cp++;
@@ -926,7 +926,7 @@ const REBYTE *Scan_Email(
     const REBYTE *cp,
     REBCNT len
 ) {
-    SET_TRASH_IF_DEBUG(out);
+    TRASH_CELL_IF_DEBUG(out);
 
     REBSER *series = Make_Binary(len);
 
@@ -970,7 +970,7 @@ const REBYTE *Scan_URL(
     const REBYTE *cp,
     REBCNT len
 ) {
-    SET_TRASH_IF_DEBUG(out);
+    TRASH_CELL_IF_DEBUG(out);
 
 //  !!! Need to check for any possible scheme followed by ':'
 
@@ -1015,7 +1015,7 @@ const REBYTE *Scan_Pair(
     const REBYTE *cp,
     REBCNT len
 ) {
-    SET_TRASH_IF_DEBUG(out);
+    TRASH_CELL_IF_DEBUG(out);
 
     REBYTE buf[MAX_NUM_LEN + 4];
 
@@ -1061,7 +1061,7 @@ const REBYTE *Scan_Tuple(
     const REBYTE *cp,
     REBCNT len
 ) {
-    SET_TRASH_IF_DEBUG(out);
+    TRASH_CELL_IF_DEBUG(out);
 
     if (len == 0)
         return_NULL;
@@ -1113,7 +1113,7 @@ const REBYTE *Scan_Binary(
     const REBYTE *cp,
     REBCNT len
 ) {
-    SET_TRASH_IF_DEBUG(out);
+    TRASH_CELL_IF_DEBUG(out);
 
     REBINT base = 16;
 
@@ -1154,7 +1154,7 @@ const REBYTE *Scan_Any(
     REBCNT num_bytes,
     enum Reb_Kind type
 ) {
-    SET_TRASH_IF_DEBUG(out);
+    TRASH_CELL_IF_DEBUG(out);
 
     REBSER *s = Append_UTF8_May_Fail(NULL, cp, num_bytes); // NULL means alloc
 

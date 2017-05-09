@@ -77,7 +77,7 @@ REBI64 Join_Time(REB_TIMEF *tf, REBOOL neg)
 //
 const REBYTE *Scan_Time(REBVAL *out, const REBYTE *cp, REBCNT len)
 {
-    SET_TRASH_IF_DEBUG(out);
+    TRASH_CELL_IF_DEBUG(out);
     cast(void, len); // !!! should len be paid attention to?
 
     REBOOL neg;
@@ -385,19 +385,19 @@ void Pick_Time(REBVAL *out, const REBVAL *value, const REBVAL *picker)
 
     switch(i) {
     case 0: // hours
-        SET_INTEGER(out, tf.h);
+        Init_Integer(out, tf.h);
         break;
     case 1: // minutes
-        SET_INTEGER(out, tf.m);
+        Init_Integer(out, tf.m);
         break;
     case 2: // seconds
         if (tf.n == 0)
-            SET_INTEGER(out, tf.s);
+            Init_Integer(out, tf.s);
         else
-            SET_DECIMAL(out, cast(REBDEC, tf.s) + (tf.n * NANO));
+            Init_Decimal(out, cast(REBDEC, tf.s) + (tf.n * NANO));
         break;
     default:
-        SET_VOID(out); // "out of range" behavior for pick
+        Init_Void(out); // "out of range" behavior for pick
     }
 }
 
@@ -567,7 +567,7 @@ REBTYPE(Time)
             case SYM_DIVIDE:
                 if (num == 0) fail (Error_Zero_Divide_Raw());
                 secs /= num;
-                SET_INTEGER(D_OUT, secs);
+                Init_Integer(D_OUT, secs);
                 goto setTime;
 
             case SYM_REMAINDER:

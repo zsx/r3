@@ -469,7 +469,7 @@ inline static void Push_Or_Alloc_Args_For_Underlying_Func(
         // Skip the [0] slot which will be filled with the CTX_VALUE
         // !!! Note: Make_Array made the 0 slot an end marker
         //
-        SET_TRASH_IF_DEBUG(ARR_AT(f->varlist, 0));
+        TRASH_CELL_IF_DEBUG(ARR_AT(f->varlist, 0));
         f->args_head = SINK(ARR_AT(f->varlist, 1));
 
         // Similarly, it should not be possible to use CTX_FRAME_IF_ON_STACK

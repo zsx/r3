@@ -284,7 +284,7 @@ REBARR *Typeset_To_Array(const REBVAL *tset)
                 // indicate that they take optional values.  This may wind up
                 // as a feature of MAKE FUNCTION! only.
                 //
-                SET_BLANK(value);
+                Init_Blank(value);
             }
             else
                 Val_Init_Datatype(value, cast(enum Reb_Kind, n));

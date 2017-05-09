@@ -482,7 +482,7 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
 //
 
 #ifdef NDEBUG
-    #define SET_TRASH_IF_DEBUG(v) \
+    #define TRASH_CELL_IF_DEBUG(v) \
         NOOP
 #else
     inline static void Set_Trash_Debug(
@@ -498,7 +498,7 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
         Set_Track_Payload_Debug(v, file, line);
     }
 
-    #define SET_TRASH_IF_DEBUG(v) \
+    #define TRASH_CELL_IF_DEBUG(v) \
         Set_Trash_Debug((v), __FILE__, __LINE__)
 
     inline static REBOOL IS_TRASH_DEBUG(const RELVAL *v) {
@@ -648,7 +648,7 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
 #define IS_VOID(v) \
     LOGICAL(VAL_TYPE(v) == REB_MAX_VOID)
 
-#define SET_VOID(v) \
+#define Init_Void(v) \
     VAL_RESET_HEADER(v, REB_MAX_VOID)
 
 
@@ -672,10 +672,10 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
 #define BAR_VALUE \
     c_cast(const REBVAL*, &PG_Bar_Value[0])
 
-#define SET_BAR(v) \
+#define Init_Bar(v) \
     VAL_RESET_HEADER((v), REB_BAR)
 
-#define SET_LIT_BAR(v) \
+#define Init_Lit_Bar(v) \
     VAL_RESET_HEADER((v), REB_LIT_BAR)
 
 
@@ -709,12 +709,12 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
 #define BLANK_VALUE \
     c_cast(const REBVAL*, &PG_Blank_Value[0])
 
-#define SET_BLANK(v) \
+#define Init_Blank(v) \
     VAL_RESET_HEADER_EXTRA((v), REB_BLANK, VALUE_FLAG_CONDITIONAL_FALSE)
 
 #ifdef NDEBUG
     #define SET_UNREADABLE_BLANK(v) \
-        SET_BLANK(v)
+        Init_Blank(v)
 
     #define IS_BLANK_RAW(v) \
         IS_BLANK(v)
@@ -773,7 +773,7 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
 
         Set_Track_Payload_Debug(v, file, line);
 
-        return cast(REBVAL*, v); // used by SINK, but not SET_TRASH_IF_DEBUG
+        return cast(REBVAL*, v); // used by SINK, but not TRASH_CELL_IF_DEBUG
     }
 
     #define SINK(v) \
@@ -803,13 +803,7 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
 #define TRUE_VALUE \
     c_cast(const REBVAL*, &PG_True_Value[0])
 
-#define SET_TRUE(v) \
-    VAL_RESET_HEADER_EXTRA((v), REB_LOGIC, 0)
-
-#define SET_FALSE(v) \
-    VAL_RESET_HEADER_EXTRA((v), REB_LOGIC, VALUE_FLAG_CONDITIONAL_FALSE)
-
-#define SET_LOGIC(v,b) \
+#define Init_Logic(v,b) \
     VAL_RESET_HEADER_EXTRA((v), REB_LOGIC, \
         (b) ? 0 : VALUE_FLAG_CONDITIONAL_FALSE)
 
@@ -909,7 +903,7 @@ inline static enum Reb_Kind KIND_FROM_SYM(REBSYM s) {
 #define VAL_CHAR(v) \
     ((v)->payload.character)
 
-inline static void SET_CHAR(RELVAL *v, REBUNI uni) {
+inline static void Init_Char(RELVAL *v, REBUNI uni) {
     VAL_RESET_HEADER(v, REB_CHAR);
     VAL_CHAR(v) = uni;
 }
@@ -954,7 +948,7 @@ inline static void SET_CHAR(RELVAL *v, REBUNI uni) {
     }
 #endif
 
-inline static void SET_INTEGER(RELVAL *v, REBI64 i64) {
+inline static void Init_Integer(RELVAL *v, REBI64 i64) {
     VAL_RESET_HEADER(v, REB_INTEGER);
     v->payload.integer = i64;
 }
@@ -999,12 +993,12 @@ inline static void SET_INTEGER(RELVAL *v, REBI64 i64) {
     }
 #endif
 
-inline static void SET_DECIMAL(RELVAL *v, REBDEC d) {
+inline static void Init_Decimal(RELVAL *v, REBDEC d) {
     VAL_RESET_HEADER(v, REB_DECIMAL);
     v->payload.decimal = d;
 }
 
-inline static void SET_PERCENT(RELVAL *v, REBDEC d) {
+inline static void Init_Percent(RELVAL *v, REBDEC d) {
     VAL_RESET_HEADER(v, REB_PERCENT);
     v->payload.decimal = d;
 }
@@ -1054,7 +1048,7 @@ inline static deci VAL_MONEY_AMOUNT(const RELVAL *v) {
     return amount;
 }
 
-inline static void SET_MONEY(RELVAL *v, deci amount) {
+inline static void Init_Money(RELVAL *v, deci amount) {
     VAL_RESET_HEADER(v, REB_MONEY);
     v->extra.m0 = amount.m0;
     v->payload.money.m1 = amount.m1;
@@ -1121,7 +1115,7 @@ inline static void SET_MONEY(RELVAL *v, deci amount) {
 
 #define NO_TIME MIN_I64
 
-inline static void SET_TIME(RELVAL *v, REBI64 nanoseconds) {
+inline static void Init_Time_Nanoseconds(RELVAL *v, REBI64 nanoseconds) {
     VAL_RESET_HEADER(v, REB_TIME);
     VAL_TIME(v) = nanoseconds;
 }
@@ -1157,6 +1151,8 @@ inline static void SET_TIME(RELVAL *v, REBI64 nanoseconds) {
 
 #define MAX_ZONE \
     (15 * (60 / ZONE_MINS))
+
+
 
 
 //=////////////////////////////////////////////////////////////////////////=//

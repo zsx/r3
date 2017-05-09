@@ -1678,7 +1678,7 @@ static REBARR *Scan_Array(
         // If in a path, handle start of path /word or word//word cases:
         if (mode_char == '/' && *bp == '/') {
             DS_PUSH_TRASH;
-            SET_BLANK(DS_TOP);
+            Init_Blank(DS_TOP);
             ss->begin = bp + 1;
             continue;
         }
@@ -1739,19 +1739,19 @@ static REBARR *Scan_Array(
 
         case TOKEN_BAR:
             DS_PUSH_TRASH;
-            SET_BAR(DS_TOP);
+            Init_Bar(DS_TOP);
             ++bp;
             break;
 
         case TOKEN_LIT_BAR:
             DS_PUSH_TRASH;
-            SET_LIT_BAR(DS_TOP);
+            Init_Lit_Bar(DS_TOP);
             ++bp;
             break;
 
         case TOKEN_BLANK:
             DS_PUSH_TRASH;
-            SET_BLANK(DS_TOP);
+            Init_Blank(DS_TOP);
             ++bp;
             break;
 
@@ -1796,7 +1796,7 @@ static REBARR *Scan_Array(
                     fail (Error_Syntax(ss));
                 }
                 DS_PUSH_TRASH;
-                SET_BLANK(DS_TOP);  // A single # means NONE
+                Init_Blank(DS_TOP);  // A single # means NONE
             }
             else {
                 DS_PUSH_TRASH;
@@ -2046,18 +2046,18 @@ static REBARR *Scan_Array(
                 case SYM_NONE:
                     // Should be under a LEGACY flag...
                     DS_PUSH_TRASH;
-                    SET_BLANK(DS_TOP);
+                    Init_Blank(DS_TOP);
                     break;
             #endif
 
                 case SYM_FALSE:
                     DS_PUSH_TRASH;
-                    SET_FALSE(DS_TOP);
+                    Init_Logic(DS_TOP, FALSE);
                     break;
 
                 case SYM_TRUE:
                     DS_PUSH_TRASH;
-                    SET_TRUE(DS_TOP);
+                    Init_Logic(DS_TOP, TRUE);
                     break;
 
                 default: {

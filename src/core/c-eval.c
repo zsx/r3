@@ -628,7 +628,7 @@ reevaluate:;
                         // since MAKE FRAME! fills all arg slots with void.
                         //
                         if (IS_VOID(f->arg))
-                            SET_FALSE(f->arg);
+                            Init_Logic(f->arg, FALSE);
                     }
                     else {
                         // Voids in specializations mean something different,
@@ -659,7 +659,7 @@ reevaluate:;
             unspecialized_refinement:
 
                 if (f->dsp_orig == DSP) { // no refinements left on stack
-                    SET_FALSE(f->arg);
+                    Init_Logic(f->arg, FALSE);
                     f->refine = ARG_TO_UNUSED_REFINEMENT; // "don't consume"
                     goto continue_arg_loop;
                 }
@@ -675,7 +675,7 @@ reevaluate:;
                 ){
                     DS_DROP; // we're lucky: this was next refinement used
 
-                    SET_TRUE(f->arg); // marks refinement used
+                    Init_Logic(f->arg, TRUE); // marks refinement used
                     f->refine = f->arg; // "consume args (can be revoked)"
                     goto continue_arg_loop;
                 }
@@ -699,7 +699,7 @@ reevaluate:;
                             = const_KNOWN(f->param);
                         f->refine->payload.pickup.arg = f->arg;
 
-                        SET_TRUE(f->arg); // marks refinement used
+                        Init_Logic(f->arg, TRUE); // marks refinement used
                         // "consume args later" (promise not to change)
                         f->refine = SKIPPING_REFINEMENT_ARGS;
                         goto continue_arg_loop;
@@ -708,7 +708,7 @@ reevaluate:;
 
                 // Wasn't in the path and not specialized, so not present
                 //
-                SET_FALSE(f->arg);
+                Init_Logic(f->arg, FALSE);
                 f->refine = ARG_TO_UNUSED_REFINEMENT; // "don't consume"
                 goto continue_arg_loop;
             }
@@ -729,7 +729,7 @@ reevaluate:;
 
             switch (pclass) {
             case PARAM_CLASS_LOCAL:
-                SET_VOID(f->arg); // faster than checking bad specializations
+                Init_Void(f->arg); // faster than checking bad specializations
                 if (f->special != END)
                     ++f->special;
                 goto continue_arg_loop;
@@ -738,7 +738,7 @@ reevaluate:;
                 assert(VAL_PARAM_SYM(f->param) == SYM_RETURN);
 
                 if (NOT_VAL_FLAG(FUNC_VALUE(f->phase), FUNC_FLAG_RETURN)) {
-                    SET_VOID(f->arg);
+                    Init_Void(f->arg);
                     goto continue_arg_loop;
                 }
 
@@ -757,7 +757,7 @@ reevaluate:;
                 assert(VAL_PARAM_SYM(f->param) == SYM_LEAVE);
 
                 if (NOT_VAL_FLAG(FUNC_VALUE(f->phase), FUNC_FLAG_LEAVE)) {
-                    SET_VOID(f->arg);
+                    Init_Void(f->arg);
                     goto continue_arg_loop;
                 }
 
@@ -826,7 +826,7 @@ reevaluate:;
             // further processing or checking.  void will always be fine.
             //
             if (f->refine == ARG_TO_UNUSED_REFINEMENT) {
-                SET_VOID(f->arg);
+                Init_Void(f->arg);
                 goto continue_arg_loop;
             }
 
@@ -868,7 +868,7 @@ reevaluate:;
                     if (NOT_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
                         fail (Error_No_Arg(FRM_LABEL(f), f->param));
 
-                    SET_VOID(f->arg);
+                    Init_Void(f->arg);
                     goto continue_arg_loop;
                 }
 
@@ -956,7 +956,7 @@ reevaluate:;
                 if (NOT_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
                     fail (Error_No_Arg(FRM_LABEL(f), f->param));
 
-                SET_VOID(f->arg);
+                Init_Void(f->arg);
                 goto continue_arg_loop;
             }
 
@@ -977,7 +977,7 @@ reevaluate:;
                 if (NOT_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
                     fail (Error_Expression_Barrier_Raw());
 
-                SET_VOID(f->arg);
+                Init_Void(f->arg);
                 goto continue_arg_loop;
             }
 
@@ -1079,7 +1079,7 @@ reevaluate:;
                     if (f->refine + 1 != f->arg)
                         fail (Error_Bad_Refine_Revoke(f));
 
-                    SET_FALSE(f->refine); // can't re-enable...
+                    Init_Logic(f->refine, FALSE); // can't re-enable...
                     f->refine = ARG_TO_REVOKED_REFINEMENT;
                     goto continue_arg_loop; // don't type check for optionality
                 }
@@ -1246,23 +1246,23 @@ reevaluate:;
         dispatcher = FUNC_DISPATCHER(f->phase);
         switch (dispatcher(f)) {
         case R_FALSE:
-            SET_FALSE(f->out); // no VALUE_FLAG_UNEVALUATED
+            Init_Logic(f->out, FALSE); // no VALUE_FLAG_UNEVALUATED
             break;
 
         case R_TRUE:
-            SET_TRUE(f->out); // no VALUE_FLAG_UNEVALUATED
+            Init_Logic(f->out, TRUE); // no VALUE_FLAG_UNEVALUATED
             break;
 
         case R_VOID:
-            SET_VOID(f->out); // no VALUE_FLAG_UNEVALUATED
+            Init_Void(f->out); // no VALUE_FLAG_UNEVALUATED
             break;
 
         case R_BLANK:
-            SET_BLANK(f->out); // no VALUE_FLAG_UNEVALUATED
+            Init_Blank(f->out); // no VALUE_FLAG_UNEVALUATED
             break;
 
         case R_BAR:
-            SET_BAR(f->out); // no VALUE_FLAG_UNEVALUATED
+            Init_Bar(f->out); // no VALUE_FLAG_UNEVALUATED
             break;
 
         case R_OUT:
@@ -1311,39 +1311,39 @@ reevaluate:;
 
         case R_OUT_TRUE_IF_WRITTEN:
             if (IS_END(f->out))
-                SET_FALSE(f->out); // no VALUE_FLAG_UNEVALUATED
+                Init_Logic(f->out, FALSE); // no VALUE_FLAG_UNEVALUATED
             else
-                SET_TRUE(f->out); // no VALUE_FLAG_UNEVALUATED
+                Init_Logic(f->out, TRUE); // no VALUE_FLAG_UNEVALUATED
             break;
 
         case R_OUT_VOID_IF_UNWRITTEN:
             if (IS_END(f->out))
-                SET_VOID(f->out); // no VALUE_FLAG_UNEVALUATED
+                Init_Void(f->out); // no VALUE_FLAG_UNEVALUATED
             else
                 CLEAR_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED);
             break;
 
         case R_OUT_VOID_IF_UNWRITTEN_TRUTHIFY:
             if (IS_END(f->out))
-                SET_VOID(f->out);
+                Init_Void(f->out);
             else if (IS_VOID(f->out) || IS_CONDITIONAL_FALSE(f->out))
-                SET_BAR(f->out);
+                Init_Bar(f->out);
             else
                 CLEAR_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED);
             break;
 
         case R_OUT_BLANK_IF_VOID:
             if (IS_VOID(f->out))
-                SET_BLANK(f->out);
+                Init_Blank(f->out);
             else
                 CLEAR_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED);
             break;
 
         case R_OUT_VOID_IF_UNWRITTEN_BLANK_IF_VOID:
             if (IS_END(f->out))
-                SET_VOID(f->out);
+                Init_Void(f->out);
             else if (IS_VOID(f->out))
-                SET_BLANK(f->out);
+                Init_Blank(f->out);
             else
                 CLEAR_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED);
             break;
@@ -1865,7 +1865,7 @@ reevaluate:;
             goto do_next; // quickly process next item, no infix test needed
         }
 
-        SET_VOID(f->out); // no VALUE_FLAG_UNEVALUATED
+        Init_Void(f->out); // no VALUE_FLAG_UNEVALUATED
         break;
 
 //==//////////////////////////////////////////////////////////////////////==//
@@ -1882,7 +1882,7 @@ reevaluate:;
     case REB_LIT_BAR:
         assert(IS_LIT_BAR(current));
 
-        SET_BAR(f->out); // no VALUE_FLAG_UNEVALUATED
+        Init_Bar(f->out); // no VALUE_FLAG_UNEVALUATED
         break;
 
 //==//////////////////////////////////////////////////////////////////////==//
@@ -1940,7 +1940,7 @@ reevaluate:;
 
     case REB_MAX_VOID:
         if (NOT(args_evaluate)) {
-            SET_VOID(f->out);
+            Init_Void(f->out);
         }
         else {
             // must be EVAL, so the value must be living in the frame cell

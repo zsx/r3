@@ -513,7 +513,7 @@ REBINT PD_Bitset(REBPVS *pvs)
 
     if (!pvs->opt_setval) {
         if (Check_Bits(ser, pvs->picker, FALSE)) {
-            SET_TRUE(pvs->store);
+            Init_Logic(pvs->store, TRUE);
             return PE_USE_STORE;
         }
         return PE_NONE;
@@ -661,7 +661,7 @@ REBTYPE(Bitset)
 
     case SYM_LENGTH_OF:
         len = VAL_LEN_HEAD(value) * 8;
-        SET_INTEGER(value, len);
+        Init_Integer(value, len);
         break;
 
     case SYM_TAIL_Q:

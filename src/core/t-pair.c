@@ -221,7 +221,7 @@ REBINT PD_Pair(REBPVS *pvs)
     }
     else {
         dec = (n == 1 ? VAL_PAIR_X(pvs->value) : VAL_PAIR_Y(pvs->value));
-        SET_DECIMAL(pvs->store, dec);
+        Init_Decimal(pvs->store, dec);
         return PE_USE_STORE;
     }
 

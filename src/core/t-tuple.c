@@ -192,9 +192,9 @@ void Pick_Tuple(REBVAL *out, const REBVAL *value, const REBVAL *picker)
 
     REBINT n = Get_Num_From_Arg(picker);
     if (n > 0 && n <= len)
-        SET_INTEGER(out, dat[n - 1]);
+        Init_Integer(out, dat[n - 1]);
     else
-        SET_VOID(out);
+        Init_Void(out);
 }
 
 
@@ -436,7 +436,7 @@ REBTYPE(Tuple)
     switch (action) {
     case SYM_LENGTH_OF:
         len = MAX(len, 3);
-        SET_INTEGER(D_OUT, len);
+        Init_Integer(D_OUT, len);
         return R_OUT;
 
     case SYM_REVERSE: {
@@ -466,7 +466,7 @@ REBTYPE(Tuple)
             fail (Error_Out_Of_Range(arg));
         }
         if (action == A_PICK) {
-            SET_INTEGER(D_OUT, vp[a-1]);
+            Init_Integer(D_OUT, vp[a-1]);
             return R_OUT;
         }
         // Poke:

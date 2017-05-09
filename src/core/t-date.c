@@ -561,27 +561,27 @@ void Pick_Or_Poke_Date(
 
         switch (sym) {
         case SYM_YEAR:
-            SET_INTEGER(opt_out, year);
+            Init_Integer(opt_out, year);
             break;
 
         case SYM_MONTH:
-            SET_INTEGER(opt_out, month + 1);
+            Init_Integer(opt_out, month + 1);
             break;
 
         case SYM_DAY:
-            SET_INTEGER(opt_out, day + 1);
+            Init_Integer(opt_out, day + 1);
             break;
 
         case SYM_TIME:
             if (secs == NO_TIME)
-                SET_VOID(opt_out);
+                Init_Void(opt_out);
             else
                 VAL_RESET_HEADER(opt_out, REB_TIME);
             break;
 
         case SYM_ZONE:
             if (secs == NO_TIME)
-                SET_VOID(opt_out);
+                Init_Void(opt_out);
             else {
                 VAL_TIME(opt_out) = cast(i64, tz) * ZONE_MINS * MIN_SEC;
                 VAL_RESET_HEADER(opt_out, REB_TIME);
@@ -594,12 +594,12 @@ void Pick_Or_Poke_Date(
             break;
 
         case SYM_WEEKDAY:
-            SET_INTEGER(opt_out, Week_Day(date));
+            Init_Integer(opt_out, Week_Day(date));
             break;
 
         case SYM_JULIAN:
         case SYM_YEARDAY:
-            SET_INTEGER(opt_out, cast(REBINT, Julian_Date(date)));
+            Init_Integer(opt_out, cast(REBINT, Julian_Date(date)));
             break;
 
         case SYM_UTC:
@@ -608,24 +608,24 @@ void Pick_Or_Poke_Date(
 
         case SYM_HOUR:
             Split_Time(secs, &time);
-            SET_INTEGER(opt_out, time.h);
+            Init_Integer(opt_out, time.h);
             break;
 
         case SYM_MINUTE:
             Split_Time(secs, &time);
-            SET_INTEGER(opt_out, time.m);
+            Init_Integer(opt_out, time.m);
             break;
 
         case SYM_SECOND:
             Split_Time(secs, &time);
             if (time.n == 0)
-                SET_INTEGER(opt_out, time.s);
+                Init_Integer(opt_out, time.s);
             else
-                SET_DECIMAL(opt_out, cast(REBDEC, time.s) + (time.n * NANO));
+                Init_Decimal(opt_out, cast(REBDEC, time.s) + (time.n * NANO));
             break;
 
         default:
-            SET_VOID(opt_out); // "out of range" PICK semantics
+            Init_Void(opt_out); // "out of range" PICK semantics
         }
     }
     else {
@@ -883,6 +883,6 @@ setDate:
     return R_OUT;
 
 ret_int:
-    SET_INTEGER(D_OUT, num);
+    Init_Integer(D_OUT, num);
     return R_OUT;
 }

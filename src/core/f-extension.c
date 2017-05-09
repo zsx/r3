@@ -251,7 +251,7 @@ REBNATIVE(unload_extension_helper)
 
     if (ret < 0) {
         DECLARE_LOCAL (i);
-        SET_INTEGER(i, ret);
+        Init_Integer(i, ret);
         fail (Error_Fail_To_Quit_Extension_Raw(i));
     }
 
@@ -293,9 +293,9 @@ REBARR *Make_Extension_Module_Array(
     );
 
     if (error_base == 0)
-        SET_BLANK(ARR_AT(arr, 2));
+        Init_Blank(ARR_AT(arr, 2));
     else
-        SET_INTEGER(ARR_AT(arr, 2), error_base);
+        Init_Integer(ARR_AT(arr, 2), error_base);
 
     TERM_ARRAY_LEN(arr, 3);
     return arr;

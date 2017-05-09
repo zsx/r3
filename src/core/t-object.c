@@ -199,7 +199,7 @@ static void Append_To_Context(REBCTX *context, REBVAL *arg)
             fail (Error_Hidden_Raw());
 
         if (IS_END(word + 1)) {
-            SET_BLANK(var);
+            Init_Blank(var);
             break; // fix bug#708
         }
         else {
@@ -471,7 +471,7 @@ REBINT PD_Context(REBPVS *pvs)
         // with the behavior of GET-WORD!
         //
         if (IS_GET_PATH(pvs->orig) && IS_END(pvs->item + 1)) {
-            SET_VOID(pvs->store);
+            Init_Void(pvs->store);
             return PE_USE_STORE;
         }
         fail (Error_Bad_Path_Select(pvs));
@@ -639,7 +639,7 @@ REBTYPE(Context)
     case SYM_LENGTH_OF:
         if (!IS_OBJECT(value))
             fail (Error_Illegal_Action(VAL_TYPE(value), action));
-        SET_INTEGER(D_OUT, CTX_LEN(VAL_CONTEXT(value)));
+        Init_Integer(D_OUT, CTX_LEN(VAL_CONTEXT(value)));
         return R_OUT;
 
     case SYM_COPY: { // Note: words are not copied and bindings not changed!
@@ -733,7 +733,7 @@ REBTYPE(Context)
 
     case SYM_TAIL_Q:
         if (IS_OBJECT(value)) {
-            SET_LOGIC(D_OUT, LOGICAL(CTX_LEN(VAL_CONTEXT(value)) == 0));
+            Init_Logic(D_OUT, LOGICAL(CTX_LEN(VAL_CONTEXT(value)) == 0));
             return R_OUT;
         }
         fail (Error_Illegal_Action(VAL_TYPE(value), action));

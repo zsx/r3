@@ -98,7 +98,7 @@ REBCTX *Alloc_Context(enum Reb_Kind kind, REBCNT capacity)
         capacity + 1, // size + room for ROOTKEY
         0 // No keylist flag, but we don't want line numbers
     );
-    SET_BLANK(Alloc_Tail_Array(keylist));
+    Init_Blank(Alloc_Tail_Array(keylist));
     SER(keylist)->link.meta = NULL; // GC sees meta object, must init
 
     // varlists link keylists via REBSER.misc field, sharable hence managed
@@ -215,7 +215,7 @@ REBVAL *Append_Context(
     //
     EXPAND_SERIES_TAIL(SER(CTX_VARLIST(context)), 1);
     REBVAL *value = SINK(ARR_LAST(CTX_VARLIST(context)));
-    SET_VOID(value);
+    Init_Void(value);
     TERM_ARRAY_LEN(CTX_VARLIST(context), ARR_LEN(CTX_VARLIST(context)));
 
     if (opt_any_word) {
@@ -787,7 +787,7 @@ REBCTX *Make_Selfish_Context_Detect(
     // blanks.  Also the filling of parent vars will overwrite the work here.
     //
     for (; len > 1; --len, ++var) // 1 is rootvar (context), already done
-        SET_BLANK(var);
+        Init_Blank(var);
 
     if (opt_parent) {
         //
@@ -1000,7 +1000,7 @@ REBCTX *Merge_Contexts_Selfish(REBCTX *parent1, REBCTX *parent2)
     //
     REBARR *keylist = Copy_Array_Shallow(BUF_COLLECT, SPECIFIED);
     MANAGE_ARRAY(keylist);
-    SET_BLANK(ARR_HEAD(keylist)); // Currently no rootkey usage
+    Init_Blank(ARR_HEAD(keylist)); // Currently no rootkey usage
     SER(keylist)->link.meta = NULL;
 
     REBARR *varlist = Make_Array_Core(ARR_LEN(keylist), ARRAY_FLAG_VARLIST);
@@ -1175,7 +1175,7 @@ void Resolve_Context(
                 NOT_VAL_FLAG(var, VALUE_FLAG_PROTECTED)
                 && (all || IS_VOID(var))
             ) {
-                if (m < 0) SET_VOID(var); // no value in source context
+                if (m < 0) Init_Void(var); // no value in source context
                 else {
                     Move_Value(var, CTX_VAR(source, m));
 

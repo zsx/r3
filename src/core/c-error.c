@@ -737,7 +737,7 @@ REBOOL Make_Error_Object_Throws(
 
                 Move_Value(&vars->message, message);
 
-                SET_INTEGER(&vars->code,
+                Init_Integer(&vars->code,
                     code
                     + Find_Canon_In_Context(
                         error, VAL_WORD_CANON(&vars->id), FALSE
@@ -765,7 +765,7 @@ REBOOL Make_Error_Object_Throws(
         else {
             // The type and category picked did not overlap any existing one
             // so let it be a user error.
-            SET_INTEGER(&vars->code, RE_USER);
+            Init_Integer(&vars->code, RE_USER);
         }
     }
     else {
@@ -778,7 +778,7 @@ REBOOL Make_Error_Object_Throws(
         // not already there.
 
         if (IS_BLANK(&vars->code))
-            SET_INTEGER(&vars->code, RE_USER);
+            Init_Integer(&vars->code, RE_USER);
         else if (IS_INTEGER(&vars->code)) {
             if (VAL_INT32(&vars->code) != RE_USER)
                 fail (Error_Invalid_Error_Raw(arg));
@@ -860,7 +860,7 @@ REBCTX *Make_Error_Managed_Core(REBCNT code, va_list *vaptr)
     #endif
 
         DECLARE_LOCAL (code_value);
-        SET_INTEGER(code_value, code);
+        Init_Integer(code_value, code);
 
         panic (code_value);
     }
@@ -1044,7 +1044,7 @@ REBCTX *Make_Error_Managed_Core(REBCNT code, va_list *vaptr)
                 Init_Typeset(key, ALL_64, Canon(*arg1_arg2_arg3));
                 arg1_arg2_arg3++;
                 key++;
-                SET_BLANK(value);
+                Init_Blank(value);
                 value++;
             }
         }
@@ -1064,7 +1064,7 @@ REBCTX *Make_Error_Managed_Core(REBCNT code, va_list *vaptr)
             // error/__LINE__ (an INTEGER! value)
             Init_Typeset(key, ALL_64, Canon(SYM___LINE__));
             key++;
-            SET_INTEGER(value, TG_Erroring_C_Line);
+            Init_Integer(value, TG_Erroring_C_Line);
             value++;
         }
     #endif
@@ -1078,7 +1078,7 @@ REBCTX *Make_Error_Managed_Core(REBCNT code, va_list *vaptr)
     ERROR_VARS *vars = ERR_VARS(error);
 
     // Set error number:
-    SET_INTEGER(&vars->code, code);
+    Init_Integer(&vars->code, code);
 
     Move_Value(&vars->message, message);
     Move_Value(&vars->id, id);
@@ -1213,7 +1213,7 @@ REBCTX *Error_Invalid_Datatype(REBCNT id)
 {
     DECLARE_LOCAL (id_value);
 
-    SET_INTEGER(id_value, id);
+    Init_Integer(id_value, id);
     return Error_Invalid_Datatype_Raw(id_value);
 }
 
@@ -1225,7 +1225,7 @@ REBCTX *Error_No_Memory(REBCNT bytes)
 {
     DECLARE_LOCAL (bytes_value);
 
-    SET_INTEGER(bytes_value, bytes);
+    Init_Integer(bytes_value, bytes);
     return Error_No_Memory_Raw(bytes_value);
 }
 
@@ -1506,7 +1506,7 @@ REBCTX *Error_On_Port(REBCNT errnum, REBCTX *port, REBINT err_code)
         val = VAL_CONTEXT_VAR(spec, STD_PORT_SPEC_HEAD_TITLE); // less info
 
     DECLARE_LOCAL (err_code_value);
-    SET_INTEGER(err_code_value, err_code);
+    Init_Integer(err_code_value, err_code);
 
     return Error(errnum, val, err_code_value, END);
 }

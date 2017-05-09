@@ -106,7 +106,8 @@ REBTYPE(Datatype)
             );
 
             for (; NOT_END(var); ++var, ++key) {
-                if (IS_END(value)) SET_BLANK(var);
+                if (IS_END(value))
+                    Init_Blank(var);
                 else {
                     // typespec array does not contain relative values
                     //

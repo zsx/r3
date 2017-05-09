@@ -273,7 +273,7 @@ REBNATIVE(line_of)
     if (NOT_SER_FLAG(s, SERIES_FLAG_FILE_LINE))
         return R_BLANK;
 
-    SET_INTEGER(D_OUT, s->misc.line);
+    Init_Integer(D_OUT, s->misc.line);
     return R_OUT;
 }
 
@@ -330,7 +330,7 @@ REBNATIVE(backtrace_index)
     REBCNT number;
 
     if (NULL != Frame_For_Stack_Level(&number, ARG(level), TRUE)) {
-        SET_INTEGER(D_OUT, number);
+        Init_Integer(D_OUT, number);
         return R_OUT;
     }
 
@@ -448,7 +448,7 @@ REBNATIVE(backtrace)
         //
         if (!pending) {
             DECLARE_LOCAL (temp_val);
-            SET_INTEGER(temp_val, number);
+            Init_Integer(temp_val, number);
 
             REBCNT temp_num;
             if (
@@ -555,7 +555,7 @@ REBNATIVE(backtrace)
             Init_Word(DS_TOP, Canon(SYM_ASTERISK));
         }
         else
-            SET_INTEGER(DS_TOP, number);
+            Init_Integer(DS_TOP, number);
 
         SET_VAL_FLAG(DS_TOP, VALUE_FLAG_LINE);
     }

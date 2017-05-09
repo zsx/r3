@@ -69,7 +69,7 @@ REBINT Float_Int16(REBD32 f)
 {
     if (fabs(f) > cast(REBD32, 0x7FFF)) {
         DECLARE_LOCAL (temp);
-        SET_DECIMAL(temp, f);
+        Init_Decimal(temp, f);
 
         fail (Error_Out_Of_Range(temp));
     }

@@ -1026,11 +1026,11 @@ REBVAL *Alloc_Pairing(REBCTX *opt_owning_frame) {
         // to avoid a GC, since the header is not purely 0...and it works out
         // that all "ordinary" values will just act as unmanaged metadata.
         //
-        SET_TRASH_IF_DEBUG(key);
+        TRASH_CELL_IF_DEBUG(key);
     }
 
     INIT_CELL(paired);
-    SET_TRASH_IF_DEBUG(paired);
+    TRASH_CELL_IF_DEBUG(paired);
 
 #if !defined(NDEBUG)
     s->guard = cast(int*, malloc(sizeof(*s->guard)));
@@ -1067,7 +1067,7 @@ void Free_Pairing(REBVAL *paired) {
     REBVAL *key = PAIRING_KEY(paired);
     assert(NOT_VAL_FLAG(key, NODE_FLAG_MANAGED));
     REBSER *series = cast(REBSER*, key);
-    SET_TRASH_IF_DEBUG(paired);
+    TRASH_CELL_IF_DEBUG(paired);
     Free_Node(SER_POOL, series);
 
 #if !defined(NDEBUG)

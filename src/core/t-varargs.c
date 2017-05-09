@@ -65,7 +65,7 @@ inline static REB_R Vararg_Op_If_No_Advance(
             if (op == VARARG_OP_TAIL_Q)
                 return R_FALSE;
             if (op == VARARG_OP_FIRST) {
-                SET_BAR(out);
+                Init_Bar(out);
                 return R_OUT;
             }
             assert(op == VARARG_OP_TAKE);
@@ -443,7 +443,7 @@ REBINT PD_Varargs(REBPVS *pvs)
     if (r == R_OUT_IS_THROWN)
         assert(FALSE); // VARARG_OP_FIRST can't throw
     else if (r == R_VOID)
-        SET_VOID(pvs->store);
+        Init_Void(pvs->store);
     else
         assert(r == R_OUT);
 

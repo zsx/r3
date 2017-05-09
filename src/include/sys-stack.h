@@ -141,7 +141,7 @@ inline static REBVAL *DS_AT(REBDSP d) {
 #define DS_PUSH_TRASH \
     (++DSP, IS_END(DS_Movable_Base + DSP) \
         ? Expand_Data_Stack_May_Fail(STACK_EXPAND_BASIS) \
-        : SET_TRASH_IF_DEBUG(DS_Movable_Base + DSP))
+        : TRASH_CELL_IF_DEBUG(DS_Movable_Base + DSP))
 
 inline static void DS_PUSH(const REBVAL *v) {
     ASSERT_VALUE_MANAGED(v); // would fail on END marker

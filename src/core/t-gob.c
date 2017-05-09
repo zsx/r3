@@ -560,7 +560,7 @@ static REBOOL Get_GOB_Var(REBGOB *gob, const REBVAL *word, REBVAL *val)
         break;
 
     case SYM_ALPHA:
-        SET_INTEGER(val, GOB_ALPHA(gob));
+        Init_Integer(val, GOB_ALPHA(gob));
         break;
 
     case SYM_PANE:
@@ -576,7 +576,7 @@ static REBOOL Get_GOB_Var(REBGOB *gob, const REBVAL *word, REBVAL *val)
         }
         else
 is_blank:
-            SET_BLANK(val);
+            Init_Blank(val);
         break;
 
     case SYM_DATA:
@@ -593,7 +593,7 @@ is_blank:
             Init_Binary(val, GOB_DATA(gob));
         }
         else if (GOB_DTYPE(gob) == GOBD_INTEGER) {
-            SET_INTEGER(val, (REBIPT)GOB_DATA(gob));
+            Init_Integer(val, (REBIPT)GOB_DATA(gob));
         }
         else goto is_blank;
         break;
@@ -659,12 +659,12 @@ REBARR *Gob_To_Array(REBGOB *gob)
         val = Alloc_Tail_Array(array);
         Init_Set_Word(val, Canon(words[n]));
         vals[n] = Alloc_Tail_Array(array);
-        SET_BLANK(vals[n]);
+        Init_Blank(vals[n]);
     }
 
     SET_PAIR(vals[0], GOB_X(gob), GOB_Y(gob));
     SET_PAIR(vals[1], GOB_W(gob), GOB_H(gob));
-    SET_INTEGER(vals[2], GOB_ALPHA(gob));
+    Init_Integer(vals[2], GOB_ALPHA(gob));
 
     if (!GOB_TYPE(gob)) return array;
 
@@ -1150,12 +1150,12 @@ REBTYPE(Gob)
         goto is_false;
 
     case SYM_INDEX_OF:
-        SET_INTEGER(D_OUT, index + 1);
+        Init_Integer(D_OUT, index + 1);
         break;
 
     case SYM_LENGTH_OF:
         index = (tail > index) ? tail - index : 0;
-        SET_INTEGER(D_OUT, index);
+        Init_Integer(D_OUT, index);
         break;
 
     case SYM_FIND:

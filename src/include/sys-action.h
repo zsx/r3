@@ -46,14 +46,14 @@ enum Reb_Result {
     //
     // http://stackoverflow.com/questions/2725044/
     //
-    R_FALSE = 0, // => SET_FALSE(D_OUT); return R_OUT;
-    R_TRUE = 1, // => SET_TRUE(D_OUT); return R_OUT;
+    R_FALSE = 0, // => Init_Logic(D_OUT, FALSE); return R_OUT;
+    R_TRUE = 1, // => Init_Logic(D_OUT, TRUE); return R_OUT;
 
     // Void and blank are also common results.
     //
-    R_VOID, // => SET_VOID(D_OUT); return R_OUT;
-    R_BLANK, // => SET_BLANK(D_OUT); return R_OUT;
-    R_BAR, // SET_BAR(D_OUT); return R_OUT;
+    R_VOID, // => Init_Void(D_OUT); return R_OUT;
+    R_BLANK, // => Init_Blank(D_OUT); return R_OUT;
+    R_BAR, // Init_Bar(D_OUT); return R_OUT;
 
     // This means that the value in D_OUT is to be used as the return result.
     // Note that value starts as an END, and must be written to some other

@@ -596,10 +596,10 @@ REBNATIVE(get)
             // compatibility with SET could come in useful so that blocks
             // don't have to be rearranged to filter out BAR!s.
             //
-            SET_BAR(dest);
+            Init_Bar(dest);
         }
         else if (IS_BLANK(source)) {
-            SET_VOID(dest); // may be turned to blank after loop, or error
+            Init_Void(dest); // may be turned to blank after loop, or error
         }
         else if (ANY_WORD(source)) {
             Copy_Opt_Var_May_Fail(dest, source, specifier);
@@ -646,7 +646,7 @@ REBNATIVE(get)
                     fail (Error_No_Value_Core(source, specifier));
             }
             else
-                SET_BLANK(dest);
+                Init_Blank(dest);
         }
     }
 
@@ -961,7 +961,7 @@ REBNATIVE(set)
 
             DECLARE_LOCAL (specific);
             if (IS_END(value))
-                SET_BLANK(specific);
+                Init_Blank(specific);
             else
                 Derelativize(specific, value, value_specifier);
 
@@ -1038,7 +1038,7 @@ REBNATIVE(unset)
 
     if (ANY_WORD(target)) {
         REBVAL *var = Sink_Var_May_Fail(target, SPECIFIED);
-        SET_VOID(var);
+        Init_Void(var);
         return R_VOID;
     }
 
@@ -1050,7 +1050,7 @@ REBNATIVE(unset)
             fail (Error_Invalid_Arg_Core(word, VAL_SPECIFIER(target)));
 
         REBVAL *var = Sink_Var_May_Fail(word, VAL_SPECIFIER(target));
-        SET_VOID(var);
+        Init_Void(var);
     }
 
     return R_VOID;

@@ -930,7 +930,7 @@ REBOOL Decode_UTF8_Maybe_Astral_Throws(
     REBOOL crlf_to_lf,
     const REBVAL *handler
 ) {
-    SET_TRASH_IF_DEBUG(out_if_thrown);
+    TRASH_CELL_IF_DEBUG(out_if_thrown);
 
     assert(SER_WIDE(dst) == sizeof(REBUNI)); // Append_Codepoint_Raw is used
 
@@ -946,7 +946,7 @@ REBOOL Decode_UTF8_Maybe_Astral_Throws(
 
             if (ch > 0xFFFF) { // too big to fit in today's REBUNI
                 if (IS_FUNCTION(handler)) {
-                    SET_INTEGER(astral, ch); // CHAR! only 16-bit for now
+                    Init_Integer(astral, ch); // CHAR! only 16-bit for now
 
                     // Try passing the handler the codepoint value.  Passing
                     // FALSE for `fully` means it will not raise an error if

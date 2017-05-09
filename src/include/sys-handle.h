@@ -171,7 +171,7 @@ inline static void Init_Handle_Managed_Common(
     // effectively update all instances...since the bits live in the shared
     // series component.
     //
-    SET_TRASH_IF_DEBUG(out);
+    TRASH_CELL_IF_DEBUG(out);
     VAL_RESET_HEADER(out, REB_HANDLE);
     out->extra.singular = singular;
     TRASH_POINTER_IF_DEBUG(out->payload.handle.data.pointer);

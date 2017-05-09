@@ -127,7 +127,7 @@ static void Expand_Word_Table(void)
     REBCNT new_size = Get_Hash_Prime(old_size + 1);
     if (new_size == 0) {
         DECLARE_LOCAL (temp);
-        SET_INTEGER(temp, old_size + 1);
+        Init_Integer(temp, old_size + 1);
         fail (Error_Size_Limit_Raw(temp));
     }
 

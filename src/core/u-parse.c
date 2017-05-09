@@ -176,7 +176,7 @@ static REBOOL Subparse_Throws(
     //
     if (VAL_INDEX(rules) >= VAL_LEN_HEAD(rules)) {
         *interrupted_out = FALSE;
-        SET_INTEGER(out, VAL_INDEX(input));
+        Init_Integer(out, VAL_INDEX(input));
         return FALSE;
     }
 
@@ -195,7 +195,7 @@ static REBOOL Subparse_Throws(
     f->args_head = Push_Value_Chunk_Of_Length(2);
 #else
     f->args_head = Push_Value_Chunk_Of_Length(3); // real RETURN: for natives
-    SET_VOID(&f->args_head[2]);
+    Init_Void(&f->args_head[2]);
 #endif
 
     f->varlist = NULL;
@@ -205,7 +205,7 @@ static REBOOL Subparse_Throws(
     // We always want "case-sensitivity" on binary bytes, vs. treating as
     // case-insensitive bytes for ASCII characters.
     //
-    SET_INTEGER(&f->args_head[1], find_flags);
+    Init_Integer(&f->args_head[1], find_flags);
 
     f->label = Canon(SYM_SUBPARSE);
     f->eval_type = REB_FUNCTION;
@@ -1405,7 +1405,7 @@ REBNATIVE(subparse)
             //
             // (Note this means `[| ...anything...]` is a "no-op" match)
             //
-            SET_INTEGER(P_OUT, P_POS);
+            Init_Integer(P_OUT, P_POS);
             return R_OUT;
         }
 
@@ -1526,7 +1526,7 @@ REBNATIVE(subparse)
                         // up and affects an enclosing parse loop.
                         //
                         DECLARE_LOCAL (thrown_arg);
-                        SET_INTEGER(thrown_arg, P_POS);
+                        Init_Integer(thrown_arg, P_POS);
                         Move_Value(P_OUT, NAT_VALUE(parse_accept));
                         CONVERT_NAME_TO_THROWN(P_OUT, thrown_arg);
                         return R_OUT_IS_THROWN;
@@ -2069,9 +2069,9 @@ REBNATIVE(subparse)
                             );
                             REBUNI ch = GET_ANY_CHAR(P_INPUT, begin);
                             if (P_TYPE == REB_BINARY)
-                                SET_INTEGER(var, ch);
+                                Init_Integer(var, ch);
                             else
-                                SET_CHAR(var, ch);
+                                Init_Char(var, ch);
                         }
                         else
                             NOOP; // !!! leave as-is on 0 count?
@@ -2188,7 +2188,7 @@ REBNATIVE(subparse)
 
             FETCH_TO_BAR_MAYBE_END(f);
             if (IS_END(P_RULE)) { // no alternate rule
-                SET_BLANK(P_OUT);
+                Init_Blank(P_OUT);
                 return R_OUT;
             }
 
@@ -2202,7 +2202,7 @@ REBNATIVE(subparse)
         mincount = maxcount = 1;
     }
 
-    SET_INTEGER(P_OUT, P_POS); // !!! return switched input series??
+    Init_Integer(P_OUT, P_POS); // !!! return switched input series??
     return R_OUT;
 }
 

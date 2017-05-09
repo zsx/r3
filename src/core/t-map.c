@@ -255,7 +255,7 @@ void Expand_Hash(REBSER *ser)
     REBINT pnum = Get_Hash_Prime(SER_LEN(ser) + 1);
     if (pnum == 0) {
         DECLARE_LOCAL (temp);
-        SET_INTEGER(temp, SER_LEN(ser) + 1);
+        Init_Integer(temp, SER_LEN(ser) + 1);
         fail (Error_Size_Limit_Raw(temp));
     }
 
@@ -365,7 +365,7 @@ REBINT PD_Map(REBPVS *pvs)
     );
 
     if (n == 0) {
-        SET_VOID(pvs->store);
+        Init_Void(pvs->store);
         return PE_USE_STORE;
     }
 
@@ -373,7 +373,7 @@ REBINT PD_Map(REBPVS *pvs)
         ARR_AT(MAP_PAIRLIST(VAL_MAP(pvs->value)), ((n - 1) * 2) + 1)
     );
     if (IS_VOID(val)) {
-        SET_VOID(pvs->store);
+        Init_Void(pvs->store);
         return PE_USE_STORE;
     }
 
@@ -702,7 +702,7 @@ REBTYPE(Map)
         return R_OUT; }
 
     case SYM_LENGTH_OF:
-        SET_INTEGER(D_OUT, Length_Map(map));
+        Init_Integer(D_OUT, Length_Map(map));
         return R_OUT;
 
     case SYM_COPY: {

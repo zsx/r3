@@ -522,7 +522,7 @@ void Pick_Vector(REBVAL *out, const REBVAL *value, const REBVAL *picker) {
     n += VAL_INDEX(value);
 
     if (n <= 0 || cast(REBCNT, n) > SER_LEN(vect)) {
-        SET_VOID(out); // out of range of vector data
+        Init_Void(out); // out of range of vector data
         return;
     }
 
@@ -530,7 +530,7 @@ void Pick_Vector(REBVAL *out, const REBVAL *value, const REBVAL *picker) {
     REBINT bits = VECT_TYPE(vect);
 
     if (bits < VTSF08)
-        SET_INTEGER(out, get_vect(bits, vp, n - 1)); // 64-bit
+        Init_Integer(out, get_vect(bits, vp, n - 1)); // 64-bit
     else {
         VAL_RESET_HEADER(out, REB_DECIMAL);
         REBI64 i = get_vect(bits, vp, n - 1);
@@ -631,7 +631,7 @@ REBTYPE(Vector)
 
     case SYM_LENGTH_OF:
         //bits = 1 << (vect->size & 3);
-        SET_INTEGER(D_OUT, SER_LEN(vect));
+        Init_Integer(D_OUT, SER_LEN(vect));
         return R_OUT;
 
     case SYM_COPY: {

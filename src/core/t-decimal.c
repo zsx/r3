@@ -372,7 +372,7 @@ REBTYPE(Decimal)
                 if (action == SYM_DIVIDE) type = REB_DECIMAL;
                 else if (!IS_PERCENT(val)) type = VAL_TYPE(val);
             } else if (type == REB_MONEY) {
-                SET_MONEY(val, decimal_to_deci(VAL_DECIMAL(val)));
+                Init_Money(val, decimal_to_deci(VAL_DECIMAL(val)));
                 return T_Money(frame_, action);
             } else if (type == REB_CHAR) {
                 d2 = (REBDEC)VAL_CHAR(arg);
@@ -468,7 +468,7 @@ REBTYPE(Decimal)
             arg = ARG(scale);
             if (REF(to)) {
                 if (IS_MONEY(arg)) {
-                    SET_MONEY(D_OUT, Round_Deci(
+                    Init_Money(D_OUT, Round_Deci(
                         decimal_to_deci(d1), flags, VAL_MONEY_AMOUNT(arg)
                     ));
                     return R_OUT;
@@ -509,7 +509,7 @@ REBTYPE(Decimal)
             goto setDec; }
 
         case SYM_COMPLEMENT:
-            SET_INTEGER(D_OUT, ~(REBINT)d1);
+            Init_Integer(D_OUT, ~(REBINT)d1);
             return R_OUT;
 
         default:
