@@ -1131,9 +1131,9 @@ fail: function [
         ]
     ]
 
-    ; !!! Does SET-WHERE-OF-ERROR need to be a native?
+    ; !!! Does SET-LOCATION-OF-ERROR need to be a native?
     ;
-    set-where-of-error error location
+    set-location-of-error error location
 
     ; Raise error to the nearest TRAP up the stack (if any)
     ;

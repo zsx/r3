@@ -374,7 +374,7 @@ REBCNT Stack_Depth(void)
 // If the message is not found, return NULL.  Will not write to
 // `id_out` or `type_out` unless returning a non-NULL pointer.
 //
-REBVAL *Find_Error_For_Code(REBVAL *id_out, REBVAL *type_out, REBCNT code)
+const REBVAL *Find_Error_For_Code(REBVAL *id_out, REBVAL *type_out, REBCNT code)
 {
     REBCNT n;
 
@@ -442,17 +442,19 @@ REBVAL *Find_Error_For_Code(REBVAL *id_out, REBVAL *type_out, REBCNT code)
 
 
 //
-//  Set_Where_And_Near_Of_Error: C
+//  Set_Location_Of_Error: C
 //
 // Since errors are generally raised to stack levels above their origin, the
 // stack levels causing the error are no longer running by the time the
 // error object is inspected.  A limited snapshot of context information is
-// captured in the WHERE and NEAR fields.
+// captured in the WHERE and NEAR fields, and some amount of file and line
+// information may be captured as well.
 //
 // The information is derived from the current execution position and stack
-// depth of a running frame.
+// depth of a running frame.  Also, if running from a C fail() call, the
+// file and line information can be captured in the debug build.
 //
-void Set_Where_And_Near_Of_Error(
+void Set_Location_Of_Error(
     REBCTX *error,
     REBFRM *where // must be valid and executing on the stack
 ) {
@@ -523,6 +525,43 @@ void Set_Where_And_Near_Of_Error(
     }
 
     Init_Block(&vars->nearest, Pop_Stack_Values(dsp_orig));
+
+#if !defined(NDEBUG)
+    if (TG_Erroring_C_File) {
+        //
+        // !!! Note that a WORD! is used because FILE! strings cannot be
+        // interned at this time, and the general mechanism for storing
+        // filenames in usermode blocks wants to avoid generating a lot
+        // of copies of the same string, given that the total number of
+        // files one is working with is probably a limited set.
+        //
+        Init_Word(
+            &vars->file,
+            Intern_UTF8_Managed(
+                cb_cast(TG_Erroring_C_File), strlen(TG_Erroring_C_File)
+            )
+        );
+        Init_Integer(&vars->line, TG_Erroring_C_Line);
+    }
+    else
+#endif
+    { // ^-- mind the ELSE
+        // Try to fill in the file and line information of the error from the
+        // stack, looking for arrays with SERIES_FLAG_FILE_LINE.
+        //
+        f = where;
+        for (; f != NULL; f = f->prior) {
+            if (FRM_IS_VALIST(f))
+                continue;
+            if (NOT(GET_SER_FLAG(f->source.array, SERIES_FLAG_FILE_LINE)))
+                continue;
+            break;
+        }
+        if (f != NULL) {
+            Init_Word(&vars->file, SER(f->source.array)->link.filename);
+            Init_Integer(&vars->line, SER(f->source.array)->misc.line);
+        }
+    }
 }
 
 
@@ -555,11 +594,6 @@ REBOOL Make_Error_Object_Throws(
 
     REBCTX *error;
     ERROR_VARS *vars; // C struct mirroring fixed portion of error fields
-
-#if !defined(NDEBUG)
-    if (LEGACY(OPTIONS_ARG1_ARG2_ARG3_ERROR))
-        root_error = Make_Guarded_Arg123_Error();
-#endif
 
     if (IS_ERROR(arg) || IS_OBJECT(arg)) {
         // Create a new error object from another object, including any
@@ -595,16 +629,6 @@ REBOOL Make_Error_Object_Throws(
         DECLARE_LOCAL (evaluated);
         if (Do_Any_Array_At_Throws(evaluated, arg)) {
             Move_Value(out, evaluated);
-
-        #if !defined(NDEBUG)
-            //
-            // Let our fake root_error that had arg1: arg2: arg3: on it be
-            // garbage collected.
-            //
-            if (LEGACY(OPTIONS_ARG1_ARG2_ARG3_ERROR))
-                DROP_GUARD_CONTEXT(root_error);
-        #endif
-
             return TRUE;
         }
 
@@ -614,13 +638,12 @@ REBOOL Make_Error_Object_Throws(
         //
         // String argument to MAKE ERROR! makes a custom error from user:
         //
-        //     code: RE_USER ;-- default is blank
-        //     type: 'user
-        //     id: 'message
-        //     message: "whatever the string was" ;-- default is blank
+        //     code: _ ;-- default is blank
+        //     type: _
+        //     id: _
+        //     message: "whatever the string was"
         //
-        // Minus the code number and message, this is the default state of
-        // root_error if not overridden.
+        // Minus the message, this is the default state of root_error.
 
         error = Copy_Context_Shallow(root_error);
 
@@ -630,8 +653,8 @@ REBOOL Make_Error_Object_Throws(
 
         vars = ERR_VARS(error);
         assert(IS_BLANK(&vars->code));
-
-        // fill in RE_USER later if it passes the check
+        assert(IS_BLANK(&vars->type));
+        assert(IS_BLANK(&vars->id));
 
         Init_String(&vars->message, Copy_Sequence_At_Position(arg));
     }
@@ -651,51 +674,50 @@ REBOOL Make_Error_Object_Throws(
     // or tighten in an error enhancement upgrade.
 
     if (IS_INTEGER(&vars->code)) {
-        if (VAL_INT32(&vars->code) < RE_USER) {
-            //
-            // Users can make up anything for error codes allocated to them,
-            // but Rebol's historical default is to "own" error codes less
-            // than RE_USER.  If a code is used in the sub-RE_USER range then
-            // make sure any id or type provided do not conflict.
+        assert(VAL_INT32(&vars->code) != RE_USER); // not real code, use blank
 
-            if (!IS_BLANK(&vars->message)) // assume a MESSAGE: is wrong
+        // Users can make up anything for error codes allocated to them,
+        // but Rebol's historical default is to "own" error codes less
+        // than RE_USER.  If a code is used in the sub-RE_USER range then
+        // make sure any id or type provided do not conflict.
+
+        if (!IS_BLANK(&vars->message)) // assume a MESSAGE: is wrong
+            fail (Error_Invalid_Error_Raw(arg));
+
+        DECLARE_LOCAL (id);
+        DECLARE_LOCAL (type);
+        const REBVAL *message = Find_Error_For_Code(
+            id,
+            type,
+            cast(REBCNT, VAL_INT32(&vars->code))
+        );
+
+        if (message == NULL)
+            fail (Error_Invalid_Error_Raw(arg));
+
+        Move_Value(&vars->message, message);
+
+        if (!IS_BLANK(&vars->id)) {
+            if (
+                !IS_WORD(&vars->id)
+                || VAL_WORD_CANON(&vars->id) != VAL_WORD_CANON(id)
+            ){
                 fail (Error_Invalid_Error_Raw(arg));
-
-            DECLARE_LOCAL (id);
-            DECLARE_LOCAL (type);
-            REBVAL *message = Find_Error_For_Code(
-                id,
-                type,
-                cast(REBCNT, VAL_INT32(&vars->code))
-            );
-
-            if (message == NULL)
-                fail (Error_Invalid_Error_Raw(arg));
-
-            Move_Value(&vars->message, message);
-
-            if (!IS_BLANK(&vars->id)) {
-                if (
-                    !IS_WORD(&vars->id)
-                    || VAL_WORD_CANON(&vars->id) != VAL_WORD_CANON(id)
-                ){
-                    fail (Error_Invalid_Error_Raw(arg));
-                }
             }
-            Move_Value(&vars->id, id); // binding and case normalized
-
-            if (!IS_BLANK(&vars->type)) {
-                if (
-                    !IS_WORD(&vars->id)
-                    || VAL_WORD_CANON(&vars->type) != VAL_WORD_CANON(type)
-                ){
-                    fail (Error_Invalid_Error_Raw(arg));
-                }
-            }
-            Move_Value(&vars->type, type); // binding and case normalized
-
-            // !!! TBD: Check that all arguments were provided!
         }
+        Move_Value(&vars->id, id); // binding and case normalized
+
+        if (!IS_BLANK(&vars->type)) {
+            if (
+                !IS_WORD(&vars->id)
+                || VAL_WORD_CANON(&vars->type) != VAL_WORD_CANON(type)
+            ){
+                fail (Error_Invalid_Error_Raw(arg));
+            }
+        }
+        Move_Value(&vars->type, type); // binding and case normalized
+
+        // !!! TBD: Check that all arguments were provided!
     }
     else if (IS_WORD(&vars->type) && IS_WORD(&vars->id)) {
         // If there was no CODE: supplied but there was a TYPE: and ID: then
@@ -761,11 +783,14 @@ REBOOL Make_Error_Object_Throws(
 
                 fail (Error_Invalid_Error_Raw(arg));
             }
+            assert(IS_INTEGER(&vars->code));
         }
         else {
             // The type and category picked did not overlap any existing one
             // so let it be a user error.
-            Init_Integer(&vars->code, RE_USER);
+            //
+            assert(IS_BLANK(&vars->code));
+            Init_Blank(&vars->code);
         }
     }
     else {
@@ -774,16 +799,10 @@ REBOOL Make_Error_Object_Throws(
         // strange code #.  The question of how non-standard to
         // tolerate is an open one.
 
-        // For now we just write RE_USER into the error code field, if that was
+        // For now we just write blank into the error code field, if that was
         // not already there.
 
-        if (IS_BLANK(&vars->code))
-            Init_Integer(&vars->code, RE_USER);
-        else if (IS_INTEGER(&vars->code)) {
-            if (VAL_INT32(&vars->code) != RE_USER)
-                fail (Error_Invalid_Error_Raw(arg));
-        }
-        else
+        if (NOT(IS_BLANK(&vars->code)))
             fail (Error_Invalid_Error_Raw(arg));
 
         // !!! Because we will experience crashes in the molding logic,
@@ -803,20 +822,11 @@ REBOOL Make_Error_Object_Throws(
         }
     }
 
-    assert(IS_INTEGER(&vars->code));
-
-#if !defined(NDEBUG)
-    // Let our fake root_error that had arg1: arg2: arg3: on it be
-    // garbage collected.
-    if (LEGACY(OPTIONS_ARG1_ARG2_ARG3_ERROR))
-        DROP_GUARD_CONTEXT(root_error);
-#endif
-
     // There might be no Rebol code running when the error is created (e.g.
     // the static creation of the stack overflow error before any code runs)
     //
     if (FS_TOP != NULL)
-        Set_Where_And_Near_Of_Error(error, FS_TOP);
+        Set_Location_Of_Error(error, FS_TOP);
 
     Init_Error(out, error);
     return FALSE;
@@ -832,6 +842,8 @@ REBOOL Make_Error_Object_Throws(
 // It knows how many arguments the error particular error ID requires based
 // on the templates defined in %errors.r.
 //
+// If the error code RE_USER is used, then the error will have
+//
 // This routine should either succeed and return to the caller, or panic()
 // and crash if there is a problem (such as running out of memory, or that
 // %errors.r has not been loaded).  Hence the caller can assume it will
@@ -841,17 +853,7 @@ REBCTX *Make_Error_Managed_Core(REBCNT code, va_list *vaptr)
 {
     assert(code != 0);
 
-#if !defined(NDEBUG)
-    //
-    // The legacy error mechanism expects us to have exactly three fields
-    // in each error generated by the C code with names arg1: arg2: arg3.
-    // Track how many of those we've gone through if we need to.
-    //
-    static const REBSYM legacy_data[] = {SYM_ARG1, SYM_ARG2, SYM_ARG3, SYM_0};
-    const REBSYM *arg1_arg2_arg3 = legacy_data;
-#endif
-
-    if (PG_Boot_Phase < BOOT_ERRORS) {
+    if (PG_Boot_Phase < BOOT_ERRORS) { // no STD_ERROR or template table yet
     #if !defined(NDEBUG)
         printf(
             "fail() before object table initialized, code = %d\n",
@@ -865,55 +867,33 @@ REBCTX *Make_Error_Managed_Core(REBCNT code, va_list *vaptr)
         panic (code_value);
     }
 
-    // Safe to initialize the root error now...
-
     REBCTX *root_error = VAL_CONTEXT(Get_System(SYS_STANDARD, STD_ERROR));
 
     DECLARE_LOCAL (id);
     DECLARE_LOCAL (type);
-    REBVAL *message = Find_Error_For_Code(id, type, code);
-    assert(message);
+    const REBVAL *message;
+    if (code == RE_USER) {
+        Init_Blank(id);
+        Init_Blank(type);
+        message = va_arg(*vaptr, const REBVAL*);
+    }
+    else
+        message = Find_Error_For_Code(id, type, code);
 
-    REBCNT expected_args;
-    if (IS_BLOCK(message)) {
-        // For a system error coming from a C va_list call, the # of
-        // GET-WORD!s in the format block should match the va_list supplied.
+    assert(message != NULL);
 
+    REBCNT expected_args = 0;
+    if (IS_BLOCK(message)) { // GET-WORD!s in template should match va_list
         RELVAL *temp = VAL_ARRAY_HEAD(message);
-        expected_args = 0;
-        while (NOT_END(temp)) {
+        for (; NOT_END(temp); ++temp) {
             if (IS_GET_WORD(temp))
-                expected_args++;
+                ++expected_args;
             else
                 assert(IS_STRING(temp));
-            temp++;
         }
     }
-    else {
-        // Just a string, no arguments expected.
-
+    else // Just a string, no arguments expected.
         assert(IS_STRING(message));
-        expected_args = 0;
-    }
-
-#if !defined(NDEBUG)
-    if (LEGACY(OPTIONS_ARG1_ARG2_ARG3_ERROR)) {
-        // However many arguments were expected, forget it in legacy mode...
-        // there will be 3 even if they're not all used, arg1: arg2: arg3:
-        expected_args = 3;
-    }
-    else {
-        // !!! We may have the C source file and line information for where
-        // the error was triggered, if this error is being created during
-        // invocation of a `fail` or `panic`.  (The file and line number are
-        // captured before the parameter to the invoker is evaluated).
-        // Add them in the error so they can be seen with PROBE but not
-        // when FORM'd to users.
-
-        if (TG_Erroring_C_File)
-            expected_args += 2;
-    }
-#endif
 
     REBCTX *error;
     if (expected_args == 0) {
@@ -929,6 +909,11 @@ REBCTX *Make_Error_Managed_Core(REBCNT code, va_list *vaptr)
         VAL_RESET_HEADER(CTX_VALUE(error), REB_ERROR);
     }
     else {
+        // !!! See remarks on how the modern way to handle this may be to
+        // put error arguments in the error object, and then have the META-OF
+        // hold the generic error parameters.  Investigate how this ties in
+        // with user-defined types.
+
         REBCNT root_len = CTX_LEN(root_error);
 
         // Should the error be well-formed, we'll need room for the new
@@ -962,7 +947,7 @@ REBCTX *Make_Error_Managed_Core(REBCNT code, va_list *vaptr)
                 : VAL_ARRAY_HEAD(message);
     #endif
 
-        while (NOT_END(temp)) {
+        for (; NOT_END(temp); ++temp) {
             if (IS_GET_WORD(temp)) {
                 const REBVAL *arg = va_arg(*vaptr, const REBVAL*);
 
@@ -1016,58 +1001,13 @@ REBCTX *Make_Error_Managed_Core(REBCNT code, va_list *vaptr)
 
                 ASSERT_VALUE_MANAGED(arg);
 
-            #if !defined(NDEBUG)
-                if (LEGACY(OPTIONS_ARG1_ARG2_ARG3_ERROR)) {
-                    if (*arg1_arg2_arg3 == SYM_0) {
-                        printf("Legacy arg1_arg2_arg3 error with > 3 args\n");
-                        panic (arg);
-                    }
-                    Init_Typeset(key, ALL_64, Canon(*arg1_arg2_arg3));
-                    arg1_arg2_arg3++;
-                }
-                else
-            #endif
-                    Init_Typeset(key, ALL_64, VAL_WORD_SPELLING(temp));
-
+                Init_Typeset(key, ALL_64, VAL_WORD_SPELLING(temp));
                 Move_Value(value, arg);
 
                 key++;
                 value++;
             }
-            temp++;
         }
-
-    #if !defined(NDEBUG)
-        if (LEGACY(OPTIONS_ARG1_ARG2_ARG3_ERROR)) {
-            // Need to fill in blanks for any remaining args.
-            while (*arg1_arg2_arg3 != SYM_0) {
-                Init_Typeset(key, ALL_64, Canon(*arg1_arg2_arg3));
-                arg1_arg2_arg3++;
-                key++;
-                Init_Blank(value);
-                value++;
-            }
-        }
-        else if (TG_Erroring_C_File) {
-            // This error is being created during a `fail` or `panic`
-            // (two extra fields accounted for above in creation)
-
-            // error/__FILE__ (a FILE! value)
-            Init_Typeset(key, ALL_64, Canon(SYM___FILE__));
-            key++;
-            Init_File(
-                value,
-                Make_UTF8_May_Fail(TG_Erroring_C_File)
-            );
-            value++;
-
-            // error/__LINE__ (an INTEGER! value)
-            Init_Typeset(key, ALL_64, Canon(SYM___LINE__));
-            key++;
-            Init_Integer(value, TG_Erroring_C_Line);
-            value++;
-        }
-    #endif
 
         assert(IS_END(key)); // set above by TERM_ARRAY_LEN
         assert(IS_END(value)); // ...same
@@ -1077,8 +1017,10 @@ REBCTX *Make_Error_Managed_Core(REBCNT code, va_list *vaptr)
     //
     ERROR_VARS *vars = ERR_VARS(error);
 
-    // Set error number:
-    Init_Integer(&vars->code, code);
+    if (code == RE_USER)
+        assert(IS_BLANK(&vars->code)); // no error number
+    else
+        Init_Integer(&vars->code, code);
 
     Move_Value(&vars->message, message);
     Move_Value(&vars->id, id);
@@ -1088,7 +1030,7 @@ REBCTX *Make_Error_Managed_Core(REBCNT code, va_list *vaptr)
     // the static creation of the stack overflow error before any code runs)
     //
     if (FS_TOP != NULL)
-        Set_Where_And_Near_Of_Error(error, FS_TOP);
+        Set_Location_Of_Error(error, FS_TOP);
 
     // !!! We create errors and then fail() on them without ever putting them
     // into a REBVAL.  This means that if left unmanaged, they would count as

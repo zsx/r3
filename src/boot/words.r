@@ -342,15 +342,6 @@ exit-code
 ;
 --optimized-out--
 
-; used as error fields in debug builds for C's __FILE__ and __LINE__ of origin
-__FILE__
-__LINE__
-
-; required by OPTIONS_ARG1_ARG2_ARG3_ERROR, assumed to be sequential symbol #s
-arg1
-arg2
-arg3
-
 include
 source
 library-path

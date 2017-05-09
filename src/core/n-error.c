@@ -129,18 +129,18 @@ REBNATIVE(trap)
 
 
 //
-//  set-where-of-error: native [
+//  set-location-of-error: native [
 //
-//  {Sets the WHERE and NEAR fields of an error}
+//  {Sets the WHERE, NEAR, FILE, and LINE fields of an error}
 //
 //      return: [<opt>]
 //      error [error!]
 //      location [frame! any-word!]
 //  ]
 //
-REBNATIVE(set_where_of_error)
+REBNATIVE(set_location_of_error)
 {
-    INCLUDE_PARAMS_OF_SET_WHERE_OF_ERROR;
+    INCLUDE_PARAMS_OF_SET_LOCATION_OF_ERROR;
 
     REBCTX *context;
     if (IS_WORD(ARG(location)))
@@ -153,7 +153,7 @@ REBNATIVE(set_where_of_error)
         fail (Error_Frame_Not_On_Stack_Raw());
 
     REBCTX *error = VAL_CONTEXT(ARG(error));
-    Set_Where_And_Near_Of_Error(error, where);
+    Set_Location_Of_Error(error, where);
 
     return R_VOID;
 }

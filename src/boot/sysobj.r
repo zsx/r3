@@ -151,7 +151,6 @@ options: construct [] [  ; Options supplied to REBOL during startup
     paren-instead-of-group: false
     get-will-get-anything: false
     no-reduce-nested-print: false
-    arg1-arg2-arg3-error: false
     unlocked-source: false
 
     ; These option will only apply if the function which is currently executing
@@ -267,13 +266,21 @@ standard: construct [] [
             _
     ]
 
-    error: construct [] [ ; Template used for all errors:
+    ; !!! This is the template used for all errors, to which extra fields are
+    ; added if the error has parameters.  It likely makes sense to put this
+    ; information into the META-OF of the error, so that parameterizing the
+    ; error does not require a keylist expansion...and also so that fields
+    ; like FILE and LINE would not conflict with parameters.
+    ;
+    error: construct [] [
         code: _
-        type: 'user
-        id: 'message
-        message: _
+        type: _
+        id: _
+        message: _ ; a BLOCK! template with arg substitution or just a STRING!
         near: _
         where: _
+        file: _
+        line: _
 
         ; Arguments will be allocated in the context at creation time if
         ; necessary (errors with no arguments will just have a message)

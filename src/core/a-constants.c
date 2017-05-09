@@ -152,10 +152,12 @@ const char * const Token_Names[] = {
 // raw memory as parameters.  Debug_Fmt() should also just be changed to
 // a normal `Print()` naming.
 //
-const char RM_ERROR_LABEL[] = " error: ";
+const char RM_ERROR_LABEL[] = "Error: ";
 const char RM_BAD_ERROR_FORMAT[] = "(improperly formatted error)";
 const char RM_ERROR_WHERE[] = "** Where: ";
 const char RM_ERROR_NEAR[] = "** Near: ";
+const char RM_ERROR_FILE[] = "** File: ";
+const char RM_ERROR_LINE[] = "** Line: ";
 
 const char RM_WATCH_RECYCLE[] = "RECYCLE: %d series";
 

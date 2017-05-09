@@ -418,8 +418,13 @@ inline static REBOOL Is_Context_Deeply_Frozen(REBCTX *c) {
 #define ERR_VARS(e) \
     cast(ERROR_VARS*, CTX_VARS_HEAD(e))
 
-#define ERR_NUM(e) \
-    cast(REBCNT, VAL_INT32(&ERR_VARS(e)->code))
+inline static REBCNT ERR_NUM(REBCTX *e) {
+    ERROR_VARS* vars = ERR_VARS(e);
+    if (IS_BLANK(&vars->code))
+        return RE_USER;
+    assert(IS_INTEGER(&vars->code)); // Note: C build doesn't check VAL_INT32
+    return cast(REBCNT, VAL_INT32(&vars->code));
+}
 
 #define VAL_ERR_VARS(v) \
     ERR_VARS(VAL_CONTEXT(v))

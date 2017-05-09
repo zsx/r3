@@ -346,4 +346,4 @@ Command: [
 ; If new category added, be sure to update RE_MAX in %make-boot.r
 ; (currently RE_COMMAND_MAX because `Command: [...]` is the last category)
 
-; Note that 10000 is the hardcoded constant in %make-boot.r used for RE_USER
+; Note that MAX_I32 is the hardcoded constant in %make-boot.r used for RE_USER

@@ -834,8 +834,8 @@ reevaluate:;
 
             if (f->refine == LOOKBACK_ARG) {
                 //
-                // Switch to ordinary arg up front, so gotos below are good to go
-                // for the next argument
+                // Switch to ordinary arg up front, so gotos below are good to
+                // go for the next argument
                 //
                 f->refine = ORDINARY_ARG;
 

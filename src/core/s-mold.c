@@ -1103,7 +1103,12 @@ static void Mold_Error(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
     vars = VAL_ERR_VARS(value);
 
     // Form: ** <type> Error:
-    Emit(mold, "** WS", &vars->type, RM_ERROR_LABEL);
+    if (IS_BLANK(&vars->type))
+        Emit(mold, "** S", RM_ERROR_LABEL);
+    else {
+        assert(IS_WORD(&vars->type));
+        Emit(mold, "** W S", &vars->type, RM_ERROR_LABEL);
+    }
 
     // Append: error message ARG1, ARG2, etc.
     if (IS_BLOCK(&vars->message))
@@ -1114,22 +1119,63 @@ static void Mold_Error(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
         Append_Unencoded(mold->series, RM_BAD_ERROR_FORMAT);
 
     // Form: ** Where: function
-    value = &vars->where;
-    if (VAL_TYPE(value) != REB_BLANK) {
+    REBVAL *where = &vars->where;
+    if (NOT(IS_BLANK(where))) {
         Append_Codepoint_Raw(mold->series, '\n');
         Append_Unencoded(mold->series, RM_ERROR_WHERE);
-        Mold_Value(mold, value, FALSE);
+        Mold_Value(mold, where, FALSE);
     }
 
     // Form: ** Near: location
-    value = &vars->nearest;
-    if (VAL_TYPE(value) != REB_BLANK) {
+    REBVAL *nearest = &vars->nearest;
+    if (NOT(IS_BLANK(nearest))) {
         Append_Codepoint_Raw(mold->series, '\n');
         Append_Unencoded(mold->series, RM_ERROR_NEAR);
-        if (IS_STRING(value)) // special case: source file line number
-            Append_String(mold->series, VAL_SERIES(value), 0, VAL_LEN_HEAD(value));
-        else if (IS_BLOCK(value))
-            Mold_Simple_Block(mold, VAL_ARRAY_AT(value), 60);
+
+        if (IS_STRING(nearest)) {
+            //
+            // !!! The scanner puts strings into the near information in order
+            // to say where the file and line of the scan problem was.  This
+            // seems better expressed as an explicit argument to the scanner
+            // error, because otherwise it obscures the LOAD call where the
+            // scanner was invoked.  Review.
+            //
+            Append_String(
+                mold->series, VAL_SERIES(nearest), 0, VAL_LEN_HEAD(nearest)
+            );
+        }
+        else if (IS_BLOCK(nearest))
+            Mold_Simple_Block(mold, VAL_ARRAY_AT(nearest), 60);
+        else
+            Append_Unencoded(mold->series, RM_BAD_ERROR_FORMAT);
+    }
+
+    // Form: ** File: filename
+    //
+    // !!! In order to conserve space in the system, filenames are interned.
+    // Although interned strings are GC'd when no longer referenced, they can
+    // only be used in ANY-WORD! values at the moment, so the filename is
+    // not a FILE!.
+    //
+    REBVAL *file = &vars->file;
+    if (NOT(IS_BLANK(file))) {
+        Append_Codepoint_Raw(mold->series, '\n');
+        Append_Unencoded(mold->series, RM_ERROR_FILE);
+        if (IS_WORD(file))
+            Mold_Value(mold, file, FALSE);
+        else
+            Append_Unencoded(mold->series, RM_BAD_ERROR_FORMAT);
+    }
+
+    // Form: ** Line: line-number
+    REBVAL *line = &vars->line;
+    if (NOT(IS_BLANK(line))) {
+        Append_Codepoint_Raw(mold->series, '\n');
+        Append_Unencoded(mold->series, RM_ERROR_LINE);
+        if (IS_INTEGER(line))
+            Mold_Value(mold, line, FALSE);
+        else
+            Append_Unencoded(mold->series, RM_BAD_ERROR_FORMAT);
     }
 }
 

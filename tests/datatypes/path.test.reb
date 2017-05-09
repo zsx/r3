@@ -52,7 +52,7 @@
 ]
 [
     a-value: make error! ""
-    a-value/type = 'user
+    blank? a-value/type
 ]
 [
     a-value: make image! 1x1

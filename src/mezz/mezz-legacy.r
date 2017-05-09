@@ -674,7 +674,6 @@ set 'r3-legacy* func [<local> if-flags] [
         print-forms-everything: true
         break-with-overrides: true
         none-instead-of-voids: true
-        arg1-arg2-arg3-error: true
         dont-exit-natives: true
         paren-instead-of-group: true
         get-will-get-anything: true
