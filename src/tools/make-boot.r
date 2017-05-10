@@ -979,7 +979,7 @@ boot-types: new-types
 boot-root: load %root.r
 boot-task: load %task.r
 
-write boot/tmp-boot-block.r mold reduce sections
+write-if-changed boot/tmp-boot-block.r mold reduce sections
 data: mold/flat reduce sections
 insert data reduce ["; Copyright (C) REBOL Technologies " now newline]
 insert tail data make char! 0 ; scanner requires zero termination

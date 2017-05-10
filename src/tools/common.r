@@ -350,3 +350,23 @@ propercase-of: func [
     propercase form value
 ]
 
+write-if-changed: procedure [
+    dest [file!]
+    content [any-string! block!]
+][
+    if block? content [
+        content: spaced content
+    ]
+
+    unless binary? content [
+        content: to binary! content
+    ]
+
+    unless all [
+        exists? dest
+        (length content) = length on-disk: read dest
+        (checksum/method content 'md5) = checksum/method on-disk 'md5
+    ][
+        write dest content
+    ]
+]

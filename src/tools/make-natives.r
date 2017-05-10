@@ -79,7 +79,7 @@ for-each file files [process file]
 
 append output-buffer unsorted-buffer
 
-write output-dir/boot/tmp-natives.r output-buffer
+write-if-changed output-dir/boot/tmp-natives.r output-buffer
 
 print [proto-count "natives"]
 print " "
@@ -111,4 +111,4 @@ append output-buffer mold/only load %../boot/actions.r
 
 append output-buffer unspaced [newline newline]
 
-write output-dir/boot/tmp-actions.r output-buffer
+write-if-changed output-dir/boot/tmp-actions.r output-buffer

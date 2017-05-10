@@ -136,6 +136,6 @@ write-emitted: proc [
     ;
     comment [print ["WRITING" file]]
 
-    write file buf-emit
+    write-if-changed file buf-emit
     clear buf-emit
 ]

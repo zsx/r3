@@ -209,7 +209,7 @@ xlib-buffer
 }
 ]
 
-write reb-ext-lib out
+write-if-changed reb-ext-lib out
 
 ;-----------------------------------------------------------------------------
 
@@ -222,7 +222,7 @@ dlib-buffer
 }
 ]
 
-write reb-ext-defs out
+write-if-changed reb-ext-defs out
 
 ;ask "Done"
 print "   "

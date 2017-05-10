@@ -460,7 +460,7 @@ newline newline (rebol-lib-macros)
 
 ;print output-buffer ;halt
 ;print ['checksum checksum/tcp checksum-source]
-write output-dir/include/host-lib.h output-buffer
+write-if-changed output-dir/include/host-lib.h output-buffer
 
 
 output-buffer: unspaced [
@@ -504,7 +504,7 @@ REBOL_HOST_LIB Host_Lib_Init = ^{
 "^};" newline
 ]
 
-write output-dir/include/host-table.inc output-buffer
+write-if-changed output-dir/include/host-table.inc output-buffer
 
 ;ask "Done"
 print "   "
