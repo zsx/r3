@@ -373,7 +373,13 @@ script:
     # Delete the obj file directory so we don't upload those to S3
     #
     - rm -rf objs
-
+    
+    - rm -f makefile*
+    - rm -f ToolChain*
+    - rm r3-make*
+    - rm CMakeFiles.txt
+    - rm -rf tcc
+    
     # Name the executable based on the abbreviated commit, whether it is a
     # debug or release build, and if it was built using C++ or not.  Note that
     # the C++ debug builds have additional runtime checks in the debug
