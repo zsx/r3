@@ -375,7 +375,7 @@ script:
     - rm -rf objs
     
     - rm -f makefile*
-    - rm -f ToolChain*
+    - rm -f Toolchain*
     - rm r3-make*
     - rm -f CMakeLists.txt
     - rm -rf tcc
