@@ -33,7 +33,6 @@ form-header: func [title [string!] file [file!] /gen by] [
 **
 **  Title: } title {
 **  Build: A} bv/3 {
-**  Date:  } now/date {
 **  File:  } file {
 **
 } by
