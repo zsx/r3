@@ -377,7 +377,7 @@ script:
     - rm -f makefile*
     - rm -f ToolChain*
     - rm r3-make*
-    - rm CMakeFiles.txt
+    - rm -f CMakeLists.txt
     - rm -rf tcc
     
     # Name the executable based on the abbreviated commit, whether it is a
