@@ -555,7 +555,7 @@ comment [
     ;-- Evaluate user.reb script:
     if all [
         o/resources
-        not find o/suppress %user.r
+        not find o/suppress %user.reb
     ][
         loud-print ["Checking for user.reb file in" o/resources]
         if exists? o/resources/user.reb [
