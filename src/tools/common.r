@@ -364,8 +364,7 @@ write-if-changed: procedure [
 
     unless all [
         exists? dest
-        (length content) = length on-disk: read dest
-        (checksum/method content 'md5) = checksum/method on-disk 'md5
+        content = read dest
     ][
         write dest content
     ]
