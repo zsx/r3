@@ -671,7 +671,7 @@ comment [
         skin-file: %console-skin.reb
         not find o/suppress skin-file
         o/resources
-        skin-file: join-of o/resources skin-file
+        exists? skin-file: join-of o/resources skin-file
     ][
         trap/with [
             boot-print [newline "CONSOLE skinning:" newline]
@@ -696,7 +696,7 @@ comment [
                 space space
                 either/only proto-skin/loaded? {Loaded skin} {Skin does not exist}
                 "-" skin-file
-                unspaced ["(" unless/only proto-skin/updated? {not } "updated CONSOLE)"]
+                unspaced ["(CONSOLE " unless/only proto-skin/updated? {not } "updated)"]
             ]
         ] func [error] [
             boot-print [
