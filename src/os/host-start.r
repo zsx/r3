@@ -101,14 +101,16 @@ boot-banner: [
     = "" "Apache 2.0 License, see LICENSE."
     = Website:  "http://github.com/metaeducation/ren-c"
     -
-    = Version:  system/version
-    = Platform: system/platform
-    = Build:    system/build
-    = Commit:   system/commit
+    = Version:   system/version
+    = Platform:  system/platform
+    = Build:     system/build
+    = Commit:    system/commit
     -
-    = Language: system/locale/language*
-    = Locale:   system/locale/locale*
-    = Home:     system/options/home
+    = Language:  system/locale/language*
+    = Locale:    system/locale/locale*
+    = Home:      system/options/home
+    = Resources: system/options/resources
+    = Console:   system/console/name
     -
     *
 ]
@@ -288,6 +290,7 @@ host-start: function [
         {Convert string path to absolute dir! path.  Return blank! if not found}
         dir [string!]
     ][
+        if empty? dir [return _]
         dir: clean-path/dir to-rebol-file dir
         all [exists? dir | dir]
     ]
@@ -662,6 +665,52 @@ comment [
 
     if quit-when-done [return 0]
 
+    ; Start CONSOLE if got this far.
+    ;
+    ; Instantiate console! object into system/console for skinning
+    ; This object can be updated %console-skin.reb if found in system/options/resources
+    ;
+    ; See /os/host-console.r where this object is called from
+    ;
+
+    proto-skin: make console! []
+    skin-error: _
+
+    if all [
+        skin-file: %console-skin.reb
+        not find o/suppress skin-file
+        o/resources
+        exists? skin-file: join-of o/resources skin-file
+    ][
+        trap/with [
+            new-skin: do load skin-file
+
+            ;; if loaded skin returns console! object then use as prototype
+            if all [
+                object? new-skin
+                true? select new-skin 'repl    ;; quacks like a REPL so its a console!
+            ][
+                proto-skin: new-skin
+                proto-skin/updated?: true
+                proto-skin/name: any [proto-skin/name "updated"]
+            ]
+
+            proto-skin/loaded?: true
+            proto-skin/name: any [proto-skin/name "loaded"]
+            append o/loaded skin-file
+
+        ] func [error] [
+            skin-error: error       ;; show error later if --verbose
+            proto-skin/name: "error"
+        ]
+    ]
+
+    proto-skin/name: any [proto-skin/name | "default"]
+    system/console: proto-skin
+
+    ;
+    ; banner time
+    ;
     if any [
         o/verbose
         not any [o/quiet o/script]
@@ -673,59 +722,22 @@ comment [
 
     boot-print boot-help
 
-    ; CONSOLE skinning:
-    ;
-    ; Instantiate console! object into system/console
-    ; This object can be updated %console-skin.reb if found in system/options/resources
-    ;
-    ; See /os/host-console.r where this object is called from
-    ;
-
-    proto-skin: make console! []
-
-    if all [
-        skin-file: %console-skin.reb
-        not find o/suppress skin-file
-        o/resources
-        exists? skin-file: join-of o/resources skin-file
-    ][
-        trap/with [
-            boot-print [newline "CONSOLE skinning:" newline]
-
-            ;; load & run skin if found
-            if exists? skin-file [
-                proto-skin: do load skin-file
-
-                ;; if loaded skin returns console! object then use as prototype
-                if all [
-                    object? proto-skin
-                    true? select proto-skin 'repl    ;; quacks like a REPL so its a console!
-                ][
-                    proto-skin/updated?: true
-                ]
-
-                proto-skin/loaded?: true
-                append o/loaded skin-file
-            ]
-
-            boot-print [
-                space space
-                either/only proto-skin/loaded? {Loaded skin} {Skin does not exist}
-                "-" skin-file
-                unspaced ["(CONSOLE " unless/only proto-skin/updated? {not } "updated)"]
-            ]
-        ] func [error] [
-            boot-print [
-                {  Error loading skin  -} skin-file | |
-                error | |
-                {  Fix error and restart CONSOLE}
-            ]
+    ; verbose console skinning messages
+    loud-print [newline {Console skinning:} newline]
+    if skin-error [
+        loud-print [
+            {  Error loading console skin  -} skin-file | |
+            skin-error | |
+            {  Fix error and restart CONSOLE}
         ]
-
-        boot-print {}
+    ] else [
+       loud-print [
+            space space
+            either/only proto-skin/loaded? {Loaded skin} {Skin does not exist}
+            "-" skin-file
+            unspaced ["(CONSOLE " unless/only proto-skin/updated? {not } "updated)"]
+        ]
     ]
-
-    system/console: proto-skin
 
     ; Rather than have the host C code look up the CONSOLE function by name, it
     ; is returned as a function value from calling the start.  It's a bit of
@@ -740,6 +752,7 @@ comment [
 ;
 
 console!: make object! [
+    name: _
     repl: true      ;-- used to identify this as a console! object (quack!)
     loaded?:  false ;-- if true then this is a loaded (external) skin
     updated?: false ;-- if true then console! object found in loaded skin
