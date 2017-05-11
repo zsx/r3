@@ -405,7 +405,7 @@ host-start: function [
                 take argv
                 o/suppress: if argv/1 == "*" [
                     ;; suppress all known start-up files
-                    [%rebol.r %user.r %console-skin.reb]
+                    [%rebol.reb %user.reb %console-skin.reb]
                 ] else [
                     to-block argv/1
                 ]
@@ -539,35 +539,35 @@ comment [
     ; start-up scripts, o/loaded tracks which ones are loaded (with full path)
     ;
 
-    ;-- Evaluate rebol.r script:
-    unless find o/suppress %rebol.r [
-        loud-print ["Checking for rebol.r file in" o/bin]
-        if exists? o/bin/rebol.r [ ; bug#706 ??
+    ;-- Evaluate rebol.reb script:
+    unless find o/suppress %rebol.reb [
+        loud-print ["Checking for rebol.reb file in" o/bin]
+        if exists? o/bin/rebol.reb [ ; bug#706 ??
             trap/with [
-                do o/bin/rebol.r
-                append o/loaded o/bin/rebol.r
+                do o/bin/rebol.reb
+                append o/loaded o/bin/rebol.reb
             ] func [error] [
-                fail "Error in rebol.r script"
+                fail "Error in rebol.reb script"
             ]
         ]
     ]
 
-    ;-- Evaluate user.r script:
+    ;-- Evaluate user.reb script:
     if all [
         o/resources
         not find o/suppress %user.r
     ][
-        loud-print ["Checking for user.r file in" o/resources]
-        if exists? o/resources/user.r [
+        loud-print ["Checking for user.reb file in" o/resources]
+        if exists? o/resources/user.reb [
             trap/with [
                 ;
                 ; ideally this would query permissions to make sure RESOURCES
                 ; is owner writable only
                 ;
-                do o/resources/user.r
-                append o/loaded o/resources/user.r
+                do o/resources/user.reb
+                append o/loaded o/resources/user.reb
             ] func [error] [
-                fail "Error in user.r script"
+                fail "Error in user.reb script"
             ]
         ]
     ]
