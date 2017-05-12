@@ -278,7 +278,7 @@ help: procedure [
             Other debug functions:
 
                 docs - open browser to web documentation
-                ?? - display a variable and its value
+                dump - display a variable and its value
                 probe - print a value (molded)
                 source func - show source code of func
                 trace - trace evaluation steps
@@ -287,19 +287,21 @@ help: procedure [
 
             Other information:
 
-                chat - open DevBase developer forum/BBS
-                docs - open DocBase document wiki website
-                bugs - open CureCore bug database website
-                demo - run demo launcher (from rebol.com)
+                bugs - open GitHub issues website
+                chat - open GitHub developer forum
                 about - see general product info
                 upgrade - check for newer versions
-                changes - show changes for recent version
+                changes - show changelog (TBD)
                 install - install (when applicable)
                 license - show user license
                 usage - program cmd line options
         }
         leave
     ]
+
+                ;docs - open DocBase document wiki website
+                ;demo - run demo launcher (from rebol.com)
+
 
 ;           Word completion:
 ;
@@ -689,4 +691,20 @@ pending: does [
 say-browser: does [
     comment "temp function"
     print "Opening web browser..."
+]
+
+
+bugs: proc [
+    "View bug database."
+][
+    say-browser
+    browse https://github.com/metaeducation/ren-c/issues
+]
+
+
+chat: proc [
+    "Open REBOL/ren-c developers chat forum"
+][
+    say-browser
+    browse http://chat.stackoverflow.com/rooms/291/rebol
 ]
