@@ -175,6 +175,7 @@ usage: procedure [
         REBOL -s script.reb
         REBOL script.reb 10:30 test@example.com
         REBOL --do "print 1 + 1"
+        #!/sbin/REBOL -cs
 
     Console (no script/arguments or Standard option used):
 
@@ -302,15 +303,15 @@ host-start: function [
         all [exists? dir | dir]
     ]
 
-    get-home-path: function [
+    get-home-path: func [
         {Return users HOME path, for eg. $HOME on *nix. Return blank! if not found}
     ][
-        home: any [
-            get-env 'HOME
-            get-env 'HOMEPATH
+        attempt [ to-dir 
+            any [
+                get-env 'HOME
+                get-env 'HOMEPATH
+            ]
         ]
-
-        attempt [to-dir home]
     ]
 
     get-resources-path: function [
@@ -428,6 +429,13 @@ host-start: function [
                 ;
                 o/quiet: true
                 o/secure: 'allow
+            )
+        |   
+            "-cs" end (
+                ; every tutorial on Rebol CGI shows these flags.
+                o/secure: 'allow
+                o/quiet: true
+                o/cgi: true                
             )
         |
             "--resources" end (
