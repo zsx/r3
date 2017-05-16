@@ -31,10 +31,11 @@ EXT_API int EXT_INIT(e) (REBVAL *script, REBVAL *out) \
 }
 
 #define DEFINE_EXT_INIT_COMPRESSED(e, script_bytes, code) \
-EXT_API int EXT_INIT(e) (REBVAL *header, REBVAL *out) \
+EXT_API int EXT_INIT(e) (REBVAL *script, REBVAL *out) \
 {\
     code \
-    Init_Binary(script, Copy_Bytes(cb_cast(script_bytes), sizeof(script_bytes) - 1)); \
+    /* binary does not have a \0 terminator */ \
+    Init_Binary(script, Copy_Bytes(cb_cast(script_bytes), sizeof(script_bytes))); \
     return 0;\
 }
 

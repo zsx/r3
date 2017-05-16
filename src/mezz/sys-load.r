@@ -1010,7 +1010,7 @@ load-extension: function [
             script: load/header ext/script
         ]
         binary? ext/script [
-            script: uncompress ext/script
+            script: decompress ext/script
             script: load/header script
         ]
     ] else [
