@@ -84,8 +84,6 @@ REBOOL Do_Breakpoint_Throws(
         fail (Error_Host_No_Breakpoint_Raw());
     }
 
-    DECLARE_LOCAL (temp);
-
     // We call the breakpoint hook in a loop, in order to keep running if any
     // inadvertent FAILs or THROWs occur during the interactive session.
     // Only a conscious call of RESUME speaks the protocol to break the loop.
@@ -123,6 +121,11 @@ REBOOL Do_Breakpoint_Throws(
         }
 
         // Call the host's breakpoint hook.
+        // The DECLARE_LOCAL is here and not outside the loop 
+        // due to wanting to avoid "longjmp clobbering" warnings
+        // (seen in optimized builds on Android).
+        //
+        DECLARE_LOCAL (temp);
         //
         if (PG_Breakpoint_Quitting_Hook(temp, interrupted)) {
             //
@@ -262,6 +265,11 @@ REBOOL Do_Breakpoint_Throws(
 return_default:
 
     if (do_default) {
+        // The DECLARE_LOCAL is here and not outside the loop 
+        // due to wanting to avoid "longjmp clobbering" warnings
+        // (seen in optimized builds on Android).
+        //
+        DECLARE_LOCAL (temp);
         if (Do_Any_Array_At_Throws(temp, default_value)) {
             //
             // If the code throws, we're no longer in the sandbox...so we
@@ -275,8 +283,14 @@ return_default:
             return TRUE; // TRUE = thrown
         }
     }
-    else
+    else {
+        // The DECLARE_LOCAL is here and not outside the loop 
+        // due to wanting to avoid "longjmp clobbering" warnings
+        // (seen in optimized builds on Android).
+        //
+        DECLARE_LOCAL (temp);
         Move_Value(temp, default_value); // generally void if no /WITH
+    }
 
 return_temp:
     //
@@ -290,9 +304,16 @@ return_temp:
     // natives do not currently respond to definitional returns...though
     // they can do so just as well as FUNCTION! can.
     //
-    Make_Thrown_Exit_Value(out, target, temp, NULL);
+    // The DECLARE_LOCAL is here and not outside the loop 
+    // due to wanting to avoid "longjmp clobbering" warnings
+    // (seen in optimized builds on Android).
+    //
+    {
+        DECLARE_LOCAL (temp);
+        Make_Thrown_Exit_Value(out, target, temp, NULL);
 
-    return TRUE; // TRUE = thrown
+        return TRUE; // TRUE = thrown
+    }
 }
 
 

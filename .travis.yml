@@ -20,7 +20,7 @@ matrix:
           dist: trusty #gcc on Ubuntu 12.04 does not support sanitizers
           sudo: false #Force new container-based infrastructure.
           language: c
-          env: OS_ID=0.13.2 DEBUG=asserts STANDARD=c RIGOROUS=no STATIC=yes HOST=arm-eabi FFI="no"
+          env: OS_ID=0.13.2 DEBUG=asserts STANDARD=c RIGOROUS=yes STATIC=yes HOST=arm-eabi FFI="no"
 
         # Android5, release, gcc
         #
@@ -28,7 +28,7 @@ matrix:
           dist: trusty #gcc on Ubuntu 12.04 does not support sanitizers
           sudo: false #Force new container-based infrastructure.
           language: c
-          env: OS_ID=0.13.2 DEBUG=none STANDARD=c RIGOROUS=no STATIC=yes HOST=arm-eabi FFI="no"
+          env: OS_ID=0.13.2 DEBUG=none STANDARD=c RIGOROUS=yes STATIC=yes HOST=arm-eabi FFI="no"
 
         # Linux x86, release, gcc
         #

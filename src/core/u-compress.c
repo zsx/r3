@@ -257,6 +257,48 @@ REBSER *Decompress(
     strm.opaque = Z_NULL;
     strm.total_out = 0;
 
+    // We only subtract out the double-checking size if this came from a
+    // zlib compression without /ONLY.
+    //
+    strm.avail_in = (!raw && !gzip) ? len - sizeof(REBCNT) : len;
+    strm.next_in = input;
+
+    // !!! Zlib can detect decompression...use window_bits_detect_zlib_gzip?
+    //
+    ret = inflateInit2(
+        &strm,
+        raw
+            ? (gzip ? window_bits_gzip_raw : window_bits_zlib_raw)
+            : (gzip ? window_bits_gzip : window_bits_zlib)
+    );
+    if (ret != Z_OK)
+        fail (Error_Compression(&strm, ret));
+
+    // Zlib internally allocates state which must be freed, and is not series
+    // memory.  *But* the following code is a mixture of Zlib code and Rebol
+    // code (e.g. Extend_Series may run out of memory).  If any error is
+    // raised, a longjmp skips `inflateEnd()` and the Zlib state is leaked,
+    // ruining the pristine Valgrind output.
+    //
+    // Since we do the trap anyway, this is the way we handle explicit errors
+    // called in the code below also.
+    //
+    struct Reb_State state;
+    REBCTX *error;
+
+    PUSH_UNHALTABLE_TRAP(&error, &state);
+
+// The first time through the following code 'error' will be NULL, but...
+// `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
+
+    if (error) {
+        //
+        // output will already have been freed
+        //
+        inflateEnd(&strm);
+        fail (error);
+    }
+
     REBCNT buf_size;
     if (gzip || !raw) {
         //
@@ -303,48 +345,6 @@ REBSER *Decompress(
             buf_size = max;
         else
             buf_size = len * 3;
-    }
-
-    // We only subtract out the double-checking size if this came from a
-    // zlib compression without /ONLY.
-    //
-    strm.avail_in = (!raw && !gzip) ? len - sizeof(REBCNT) : len;
-    strm.next_in = input;
-
-    // !!! Zlib can detect decompression...use window_bits_detect_zlib_gzip?
-    //
-    ret = inflateInit2(
-        &strm,
-        raw
-            ? (gzip ? window_bits_gzip_raw : window_bits_zlib_raw)
-            : (gzip ? window_bits_gzip : window_bits_zlib)
-    );
-    if (ret != Z_OK)
-        fail (Error_Compression(&strm, ret));
-
-    // Zlib internally allocates state which must be freed, and is not series
-    // memory.  *But* the following code is a mixture of Zlib code and Rebol
-    // code (e.g. Extend_Series may run out of memory).  If any error is
-    // raised, a longjmp skips `inflateEnd()` and the Zlib state is leaked,
-    // ruining the pristine Valgrind output.
-    //
-    // Since we do the trap anyway, this is the way we handle explicit errors
-    // called in the code below also.
-    //
-    struct Reb_State state;
-    REBCTX *error;
-
-    PUSH_UNHALTABLE_TRAP(&error, &state);
-
-// The first time through the following code 'error' will be NULL, but...
-// `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
-
-    if (error) {
-        //
-        // output will already have been freed
-        //
-        inflateEnd(&strm);
-        fail (error);
     }
 
     // Since the initialization succeeded, go ahead and make the output buffer

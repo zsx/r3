@@ -727,7 +727,7 @@ child_error: ;
                     }
                     /* printf("POLLOUT: %d bytes\n", nbytes); */
                     input_len += nbytes;
-                    if (input_len >= input_size) {
+                    if (cast(off_t, input_len) >= input_size) {
                         close(pfds[i].fd);
                         pfds[i].fd = -1;
                         valid_nfds --;

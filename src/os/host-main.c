@@ -986,9 +986,13 @@ int main(int argc, char **argv_ansi)
     // This loop institutes a top-level trap whose only job is to catch the
     // interrupts that occur during overlong error reports inside the REPL.
     //
-    DECLARE_LOCAL (value);
 
     while (NOT(finished)) {
+        // The DECLARE_LOCAL is here and not outside the loop 
+        // due to wanting to avoid "longjmp clobbering" warnings
+        // (seen in optimized builds on Android).
+        //
+        DECLARE_LOCAL (value);
         SET_END(value);
         PUSH_GUARD_VALUE(value); // !!! Out_Value expects value to be GC safe
 
