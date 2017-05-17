@@ -988,7 +988,7 @@ int main(int argc, char **argv_ansi)
     //
 
     while (NOT(finished)) {
-        // The DECLARE_LOCAL is here and not outside the loop 
+        // The DECLARE_LOCAL is here and not outside the loop
         // due to wanting to avoid "longjmp clobbering" warnings
         // (seen in optimized builds on Android).
         //

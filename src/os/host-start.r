@@ -295,7 +295,9 @@ host-start: function [
     ]
 
     to-dir: function [
-        {Convert string path to absolute dir! path.  Return blank! if not found}
+        {Convert string path to absolute dir! path}
+        return: [blank! string!]
+            {Blank if not found}
         dir [string!]
     ][
         if empty? dir [return _]
@@ -304,18 +306,23 @@ host-start: function [
     ]
 
     get-home-path: func [
-        {Return users HOME path, for eg. $HOME on *nix. Return blank! if not found}
+        {Return HOME path (e.g. $HOME on *nix)}
+        return: [blank! string!]
+            {Blank if not found}
     ][
-        attempt [ to-dir 
+        attempt [ to-dir
             any [
                 get-env 'HOME
-                attempt [join-of get-env 'HOMEDRIVE get-env 'HOMEPATH] ;join-of could fail because it doesn't accept blank
+                ; join-of could fail because it doesn't accept blank
+                attempt [join-of get-env 'HOMEDRIVE get-env 'HOMEPATH]
             ]
         ]
     ]
 
     get-resources-path: function [
-        {Return platform specific resources path. Return blank! if not found}
+        {Return platform specific resources path.}
+        return: [blank! string!]
+            {Blank if not found}
     ][
         ;; lives under systems/options/home
 
@@ -356,7 +363,7 @@ host-start: function [
     ]
 
     param-or-die: func [
-        {Take --option argv and then check if param arg is present, if not die}  
+        {Take --option argv and then check if param arg is present, else die}
         switch-arg [string!] {Command-line option (switch) used}
     ][
         take argv
@@ -430,12 +437,12 @@ host-start: function [
                 o/quiet: true
                 o/secure: 'allow
             )
-        |   
+        |
             "-cs" end (
                 ; every tutorial on Rebol CGI shows these flags.
                 o/secure: 'allow
                 o/quiet: true
-                o/cgi: true                
+                o/cgi: true
             )
         |
             "--resources" end (
@@ -497,7 +504,8 @@ host-start: function [
             [copy cli-option: [["--" | "-" | "+"] to end ]] (
                 die join-all [
                     "Unknown command line option: " cli-option
-                    newline {!! For a full list of command-line options use:  --help}
+                    newline
+                    {!! For a full list of command-line options use:  --help}
                 ]
             )
         ]
@@ -524,7 +532,7 @@ host-start: function [
 
     if any [boot-embedded o/script] [o/quiet: true]
 
-    ;-- Set up option/paths for /path, /boot, /home, and script path (for SECURE):
+    ;-- Set option/paths for /path, /boot, /home, and script path (for SECURE)
     o/path: what-dir  ;dirize any [o/path o/home]
 
     ;-- !!! this was commented out.  Is it important?
@@ -680,8 +688,8 @@ comment [
 
     ; Start CONSOLE if got this far.
     ;
-    ; Instantiate console! object into system/console for skinning
-    ; This object can be updated %console-skin.reb if found in system/options/resources
+    ; Instantiate console! object into system/console for skinning.  This
+    ; object can be updated %console-skin.reb if in system/options/resources
     ;
     ; See /os/host-console.r where this object is called from
     ;
@@ -703,7 +711,7 @@ comment [
             ;; if loaded skin returns console! object then use as prototype
             if all [
                 object? new-skin
-                true? select new-skin 'repl    ;; quacks like a REPL so its a console!
+                function? select new-skin 'repl ;; assume its a console!
             ][
                 proto-skin: new-skin
                 proto-skin/updated?: true
@@ -732,7 +740,7 @@ comment [
         boot-print make-banner boot-banner
     ] else [
         boot-print [
-            "Rebol 3 (Ren/C branch)" 
+            "Rebol 3 (Ren/C branch)"
             mold compose [version: (system/version) build: (system/build)]
             newline
         ]

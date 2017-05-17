@@ -121,7 +121,7 @@ REBOOL Do_Breakpoint_Throws(
         }
 
         // Call the host's breakpoint hook.
-        // The DECLARE_LOCAL is here and not outside the loop 
+        // The DECLARE_LOCAL is here and not outside the loop
         // due to wanting to avoid "longjmp clobbering" warnings
         // (seen in optimized builds on Android).
         //
@@ -265,7 +265,7 @@ REBOOL Do_Breakpoint_Throws(
 return_default:
 
     if (do_default) {
-        // The DECLARE_LOCAL is here and not outside the loop 
+        // The DECLARE_LOCAL is here and not outside the loop
         // due to wanting to avoid "longjmp clobbering" warnings
         // (seen in optimized builds on Android).
         //
@@ -284,7 +284,7 @@ return_default:
         }
     }
     else {
-        // The DECLARE_LOCAL is here and not outside the loop 
+        // The DECLARE_LOCAL is here and not outside the loop
         // due to wanting to avoid "longjmp clobbering" warnings
         // (seen in optimized builds on Android).
         //
@@ -304,7 +304,7 @@ return_temp:
     // natives do not currently respond to definitional returns...though
     // they can do so just as well as FUNCTION! can.
     //
-    // The DECLARE_LOCAL is here and not outside the loop 
+    // The DECLARE_LOCAL is here and not outside the loop
     // due to wanting to avoid "longjmp clobbering" warnings
     // (seen in optimized builds on Android).
     //
