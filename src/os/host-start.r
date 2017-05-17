@@ -309,7 +309,7 @@ host-start: function [
         attempt [ to-dir 
             any [
                 get-env 'HOME
-                get-env 'HOMEPATH
+                attempt [join-of get-env 'HOMEDRIVE get-env 'HOMEPATH] ;join-of could fail because it doesn't accept blank
             ]
         ]
     ]
