@@ -224,6 +224,7 @@ REBSER *To_Local_Path(const void *p, REBCNT len, REBOOL unicode, REBOOL full)
     // Prescan each file segment for: . .. directory names:
     // (Note the top of this loop always follows / or start)
     while (i < len) {
+        // each iteration takes care of one segment of the path, i.e. stops after OS_DIR_SEP
         if (full) {
             // Peek for: . ..
             c = unicode ? up[i] : bp[i];
@@ -243,7 +244,6 @@ REBSER *To_Local_Path(const void *p, REBCNT len, REBOOL unicode, REBOOL full)
                 }
                 else {  // .a or . or ./
                     if (c == '/') {
-                        i++;
                         c = 0; // ignore it
                     }
                     else if (c) c = '.'; // for store below
