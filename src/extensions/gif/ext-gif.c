@@ -30,7 +30,7 @@
 #include "sys-core.h"
 #include "sys-ext.h"
 
-static const char script_bytes[] =
+static const REBYTE script_bytes[] =
 "REBOL ["
     "Title: \"GIF Codec Extension\"\n"
     "name: 'GIF\n"

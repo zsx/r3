@@ -59,7 +59,7 @@ write-c-file: function [
     comp-data: compress data
     comp-size: length-of comp-data
 
-    emit-line ["static const unsigned char script_bytes[" comp-size "] = {"]
+    emit-line ["static const REBYTE script_bytes[" comp-size "] = {"]
 
     emit binary-to-c comp-data
     emit-line "};"

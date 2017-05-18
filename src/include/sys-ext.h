@@ -26,7 +26,7 @@ EXT_API int EXT_INIT(e) (REBVAL *header, REBVAL *out)
 EXT_API int EXT_INIT(e) (REBVAL *script, REBVAL *out) \
 {\
     code \
-    Init_String(script, Copy_Bytes(cb_cast(script_bytes), sizeof(script_bytes) - 1)); \
+    Init_String(script, Copy_Bytes(script_bytes, sizeof(script_bytes) - 1)); \
     return 0;\
 }
 
@@ -35,7 +35,7 @@ EXT_API int EXT_INIT(e) (REBVAL *script, REBVAL *out) \
 {\
     code \
     /* binary does not have a \0 terminator */ \
-    Init_Binary(script, Copy_Bytes(cb_cast(script_bytes), sizeof(script_bytes))); \
+    Init_Binary(script, Copy_Bytes(script_bytes, sizeof(script_bytes))); \
     return 0;\
 }
 
