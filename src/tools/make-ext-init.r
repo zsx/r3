@@ -30,7 +30,7 @@ set [in-dir file-name] split-path src
 output-dir: fix-win32-path to file! any [:args/OUTDIR in-dir]
 mkdir/deep output-dir
 
-dest: either :args/DEST [
+dest: either select args 'DEST [
     fix-win32-path to file! :args/DEST
 ][
     join-of output-dir either ext-name: any [
