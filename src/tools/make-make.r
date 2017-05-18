@@ -628,7 +628,10 @@ for-each [is-built-in ext-name ext-src modules init-script] file-base/extensions
         append boot-extension-src m-spec/3 ; other files of the module
     ]
 
-    if init-script [
+    unless any [
+        blank? init-script
+        init-script = '_
+    ][
         emit [
             {    $(REBOL) $T/make-ext-init.r} space {SRC=} init-script newline
         ]
