@@ -601,7 +601,7 @@ prep: $(REBOL_TOOL)
 
 boot-extension-src: copy []
 extensions: copy ""
-for-each [is-built-in ext-name ext-src modules] file-base/extensions [
+for-each [is-built-in ext-name ext-src modules init-script] file-base/extensions [
     unless '+ = is-built-in [
         continue
     ]
@@ -626,6 +626,12 @@ for-each [is-built-in ext-name ext-src modules] file-base/extensions [
 
         append/only boot-extension-src m-spec/2 ; main C file
         append boot-extension-src m-spec/3 ; other files of the module
+    ]
+
+    if init-script [
+        emit [
+            {    $(REBOL) $T/make-ext-init.r} space {SRC=} init-script newline
+        ]
     ]
 ]
 

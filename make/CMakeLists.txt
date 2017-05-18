@@ -655,7 +655,7 @@ macro(add_module name source other)
         )
 endmacro (add_module)
 
-macro(add_extension libname name can_be_module source modules includes definitions)
+macro(add_extension libname name can_be_module source modules init_script includes definitions)
     string (TOUPPER ${name} u_name)
     string (TOLOWER ${name} l_name)
     if (${can_be_module})
@@ -684,6 +684,27 @@ macro(add_extension libname name can_be_module source modules includes definitio
             PROPERTIES
             HEADER_FILE_ONLY TRUE
             )
+
+        message("init_script: ${init_script}")
+        if (NOT "${init_script}" STREQUAL "")
+            get_filename_component(script_ext ${init_script} EXT)
+            get_filename_component(script_name ${init_script} NAME)
+            get_filename_component(script_dir ${init_script} DIRECTORY)
+            message("script ext: ${script_ext}")
+            string(REPLACE ${script_ext} ".inc" INIT_SCRIPT_C ${script_name})
+            string(CONCAT DEST ${script_dir} "/tmp-" ${INIT_SCRIPT_C})
+            message("Generating: ${DEST}")
+            add_custom_command(OUTPUT
+                ${DEST}
+                COMMAND ${REBOL} ${TOOLS_DIR}/make-ext-init.r SRC=${init_script} DEST=${DEST}
+                DEPENDS
+                ${TOOLS_DIR}/make-ext-init.r
+                ${TOOL_DEPENDS}
+                )
+
+            list(APPEND R3_EXT_${u_name}_SOURCES ${DEST})
+            set_source_files_properties(${DEST} PROPERTIES HEADER_FILE_ONLY TRUE)
+        endif ()
 
         if (R3_CPP)
             set_property(SOURCE ${R3_EXT_${u_name}_SOURCES} PROPERTY LANGUAGE CXX)
@@ -726,7 +747,7 @@ endmacro(add_extension)
 add_module(Crypt "${EXT_DIR}/crypt/mod-crypt.c" "${CODECS_SOURCE}")
 #crypt has to be builtin because tls (loaded by the host at boot time) requires it,
 #or rc4, rsa will not be bound properly.
-add_extension(r3-crypt Crypt FALSE "${EXT_DIR}/crypt/ext-crypt.c" "Crypt"
+add_extension(r3-crypt Crypt FALSE "${EXT_DIR}/crypt/ext-crypt.c" "Crypt" "${EXT_DIR}/crypt/ext-crypt-init.reb"
     "${TOP_GENERATED_SRC_DIR}/include;${TOP_SRC_DIR}/include;${FFI_INCLUDE_DIRS};${INC}"
     "${COMMON_MACROS}")
 if (TO_WINDOWS AND ${R3_EXT_CRYPT} STREQUAL "M")
@@ -735,22 +756,22 @@ endif ()
 
 add_module(LodePNG "${EXT_DIR}/png/mod-lodepng.c" "${EXT_DIR}/png/lodepng.c;")
 add_module(uPNG "${EXT_DIR}/png/u-png.c" "")
-add_extension(r3-png PNG TRUE "${EXT_DIR}/png/ext-png.c" "LodePNG;uPNG"
+add_extension(r3-png PNG TRUE "${EXT_DIR}/png/ext-png.c" "LodePNG;uPNG" ""
     "${TOP_GENERATED_SRC_DIR}/include;${TOP_SRC_DIR}/include;${FFI_INCLUDE_DIRS};${INC}"
     "${COMMON_MACROS}")
 
 add_module(GIF "${EXT_DIR}/gif/mod-gif.c" "")
-add_extension(r3-gif GIF TRUE "${EXT_DIR}/gif/ext-gif.c" "GIF"
+add_extension(r3-gif GIF TRUE "${EXT_DIR}/gif/ext-gif.c" "GIF" ""
     "${TOP_GENERATED_SRC_DIR}/include;${TOP_SRC_DIR}/include;${FFI_INCLUDE_DIRS};${INC}"
     "${COMMON_MACROS}")
 
 add_module(BMP "${EXT_DIR}/bmp/mod-bmp.c" "")
-add_extension(r3-bmp BMP TRUE "${EXT_DIR}/bmp/ext-bmp.c" "BMP"
+add_extension(r3-bmp BMP TRUE "${EXT_DIR}/bmp/ext-bmp.c" "BMP" ""
     "${TOP_GENERATED_SRC_DIR}/include;${TOP_SRC_DIR}/include;${FFI_INCLUDE_DIRS};${INC}"
     "${COMMON_MACROS}")
 
 add_module(JPG "${EXT_DIR}/jpg/mod-jpg.c" "${EXT_DIR}/jpg/u-jpg.c")
-add_extension(r3-jpg JPG TRUE "${EXT_DIR}/jpg/ext-jpg.c" "JPG"
+add_extension(r3-jpg JPG TRUE "${EXT_DIR}/jpg/ext-jpg.c" "JPG" ""
     "${TOP_GENERATED_SRC_DIR}/include;${TOP_SRC_DIR}/include;${FFI_INCLUDE_DIRS};${INC}"
     "${COMMON_MACROS}")
 #<------------- end of modules --------->

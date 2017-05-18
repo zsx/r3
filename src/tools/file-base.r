@@ -194,12 +194,12 @@ modules: [
 ]
 
 extensions: [
-    ; [+ (builtin) | - (not builtin)] ext-name ext-file modules (defined in modules)
-    + Crypt ../extensions/crypt/ext-crypt.c [Crypt]
-    + PNG ../extensions/png/ext-png.c [LodePNG uPNG]
-    + GIF ../extensions/gif/ext-gif.c [GIF]
-    + JPG ../extensions/jpg/ext-jpg.c [JPG]
-    + BMP ../extensions/bmp/ext-bmp.c [BMP]
+    ; [+ (builtin) | - (not builtin)] ext-name ext-file modules (defined in modules) init-script (blank if embedded)
+    + Crypt ../extensions/crypt/ext-crypt.c [Crypt] ../extensions/crypt/ext-crypt-init.reb
+    + PNG ../extensions/png/ext-png.c [LodePNG uPNG] _
+    + GIF ../extensions/gif/ext-gif.c [GIF] _
+    + JPG ../extensions/jpg/ext-jpg.c [JPG] _
+    + BMP ../extensions/bmp/ext-bmp.c [BMP] _
 ]
 
 made: [
