@@ -66,6 +66,8 @@ src/include/tmp-*
 
 src/os/tmp-*
 
+src/extensions/crypt/tmp-*
+
 #################
 ## Eclipse
 #################
