@@ -632,12 +632,8 @@ REBNATIVE(browse)
     //
     REBCHR *url = Val_Str_To_OS_Managed(NULL, location);
 
-    REBINT r = OS_BROWSE(url, 0);
-
-    if (r != 0) {
-        Make_OS_Error(D_OUT, r);
-        fail (Error_Call_Fail_Raw(D_OUT));
-    }
+    if (NOT(OS_BROWSE(url)))
+        fail ("Could not launch browser");
 
     return R_VOID;
 

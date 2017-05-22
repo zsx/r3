@@ -1147,51 +1147,66 @@ int OS_Reap_Process(int pid, int *status, int flags)
     return 0;
 }
 
+
+#define MAX_BRW_PATH 2044
+
 //
 //  OS_Browse: C
 //
-int OS_Browse(const REBCHR *url, int reserved)
+REBOOL OS_Browse(const REBCHR *url)
 {
-    UNUSED(reserved);
-
-    #define MAX_BRW_PATH 2044
-    DWORD flag;
-    DWORD len;
-    DWORD type;
     HKEY key;
-    wchar_t *path;
-    int exit_code = 0;
-
-    if (RegOpenKeyEx(HKEY_CLASSES_ROOT, L"http\\shell\\open\\command", 0, KEY_READ, &key) != ERROR_SUCCESS)
+    if (
+        RegOpenKeyEx(
+            HKEY_CLASSES_ROOT,
+            L"http\\shell\\open\\command",
+            0,
+            KEY_READ,
+            &key
+        ) != ERROR_SUCCESS
+    ){
         return 0;
+    }
 
-    if (!url) url = L"";
+    wchar_t *path = OS_ALLOC_N(wchar_t, MAX_BRW_PATH + 4); // !!! why 4?
+    
+    DWORD len = MAX_BRW_PATH;
 
-    path = OS_ALLOC_N(wchar_t, MAX_BRW_PATH+4);
-    len = MAX_BRW_PATH;
-
-    flag = RegQueryValueEx(key, L"", 0, &type, cast(LPBYTE, path), &len);
+    DWORD type;
+    DWORD flag = RegQueryValueEx(key, L"", 0, &type, cast(LPBYTE, path), &len);
     RegCloseKey(key);
     if (flag != ERROR_SUCCESS) {
         OS_FREE(path);
-        return 0;
+        return FALSE;
     }
-    //if (ExpandEnvironmentStrings(&str[0], result, len))
 
     Insert_Command_Arg(path, url, MAX_BRW_PATH);
 
-    //len = OS_Create_Process(path, 0);
-
+    // Delegate to the same host routine used by CALL, but without any I/O
+    // piping.
+    //
     REBCHR * const argv[] = {path, NULL};
-    len = OS_Create_Process(path, 1, c_cast(const REBCHR**, argv), 0,
-                            NULL, /* pid */
-                            &exit_code,
-                            INHERIT_TYPE, NULL, 0, /* input_type, void *input, u32 input_len, */
-                            INHERIT_TYPE, NULL, NULL, /* output_type, void **output, u32 *output_len, */
-                            INHERIT_TYPE, NULL, NULL); /* u32 err_type, void **err, u32 *err_len */
+    int exit_code = 0;
+    int result = OS_Create_Process(
+        path,
+        1,
+        c_cast(const REBCHR**, argv),
+        0,
+        NULL, // pid
+        &exit_code,
+        INHERIT_TYPE, // input_type
+        NULL, // input
+        0, // input_len
+        INHERIT_TYPE, // output_type
+        NULL, // output
+        NULL, // output_len
+        INHERIT_TYPE, // err_type
+        NULL, // err
+        NULL // err_len
+    );
 
     OS_FREE(path);
-    return len;
+    return LOGICAL(result == 0);
 }
 
 

@@ -190,20 +190,39 @@ static int Try_Browser(const char *browser, const REBCHR *url)
     argv[1] = url;
     argv[2] = NULL;
 
-    return OS_Create_Process(browser, 2, argv, 0,
-                            NULL, /* pid */
-                            NULL, /* exit_code */
-                            INHERIT_TYPE, NULL, 0, /* input_type, void *input, u32 input_len, */
-                            INHERIT_TYPE, NULL, NULL, /* output_type, void **output, u32 *output_len, */
-                            INHERIT_TYPE, NULL, NULL); /* u32 err_type, void **err, u32 *err_len */
+    // Delegate to POSIX process creation code in hostkit, the same one used
+    // by the CALL native, but don't pipe any of the I/O.
+    //
+    // (Linux host code, in another file, uses fork() and calls /usr/bin/open)
+    //
+    return OS_Create_Process(
+        browser,
+        2,
+        argv,
+        0,
+        NULL, // pid
+        NULL, // exit_code
+        INHERIT_TYPE, // input_type
+        NULL, // input
+        0, // input_len
+        INHERIT_TYPE, // output_type
+        NULL, // output
+        NULL, // output_len
+        INHERIT_TYPE, // err_type
+        NULL, // err
+        NULL // err_len
+    );
 }
+
 
 //
 //  OS_Browse: C
 //
-int OS_Browse(const REBCHR *url, int reserved)
+REBOOL OS_Browse(const REBCHR *url)
 {
-    UNUSED(reserved);
-
-    return Try_Browser("xdg-open", url) && Try_Browser("x-www-browser", url);
+    if (Try_Browser("xdg-open", url) == 0)
+        return TRUE;
+    if (Try_Browser("x-www-browser", url) == 0)
+        return TRUE;
+    return FALSE;
 }
