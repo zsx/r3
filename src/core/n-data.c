@@ -821,7 +821,7 @@ REBNATIVE(resolve)
 //
 //  set: native [
 //
-//  {Sets a word, path, block of words, or context to specified value(s).}
+//  {Sets a word, path, or block of words and paths to specified value(s).}
 //
 //      return: [<opt> any-value!]
 //          {Will be the values set to, or void if any set values are void}
@@ -833,13 +833,15 @@ REBNATIVE(resolve)
 //          {If target and value are blocks, set each item to the same value}
 //      /opt
 //          {Treat void values as unsetting the target instead of an error}
-//      /pad
-//          {Set remaining words to BLANK! if block is too short}
+//      /some
+//          {Blank values (or values past end of block) are not set.}
 //      /lookback
-//          {Function uses evaluator lookahead to "look back" (see SET-INFIX)}
+//          {Function uses evaluator lookahead to "look back" (see ENFIX)}
 //  ]
 //
 REBNATIVE(set)
+//
+// !!! Note that r3-legacy has a SET which overrides this one at the moment
 //
 // Blocks are supported as:
 //
@@ -915,9 +917,17 @@ REBNATIVE(set)
 
     DECLARE_LOCAL (get_path_hack); // runs prep code, don't put inside loop
 
-    for (; NOT_END(target); ++target) {
-        if (IS_END(value) && NOT(REF(pad)))
-            break;
+    for (
+        ;
+        NOT_END(target);
+        ++target, only || IS_END(value) ? NOOP : (++value, NOOP)
+     ){
+        if (REF(some)) {
+            if (IS_END(value))
+                break; // won't be setting any further values
+            if (IS_BLANK(value))
+                continue;
+        }
 
         if (IS_BAR(target)) {
             if (NOT_END(value) || NOT(IS_BAR(value)))
@@ -988,9 +998,6 @@ REBNATIVE(set)
         }
         else
             fail (Error_Invalid_Arg_Core(target, target_specifier));
-
-        if (NOT(only))
-            ++value; // may not have terminator, incrementation unused then
     }
 
     Move_Value(D_OUT, ARG(value));

@@ -310,8 +310,8 @@ set: function [
         {If target and value are blocks, set each item to the same value}
     /opt
         "Treat void values as unsetting the target instead of an error"
-    /pad
-        {For objects, set remaining words to NONE if block is too short}
+    /some
+        {Blank values (or values past end of block) are not set.}
     /lookback
         {If value is a function, then make the bound word dispatch infix}
     /any
@@ -321,13 +321,15 @@ set: function [
     any: :lib/any
     set_OPT: opt
     opt: :lib/opt
+    set_SOME: some
+    some: :lib/some
 
     apply 'lib-set [
         target: either any-context? target [words-of target] [target]
         value: :value
         only: only
         opt: any? [set_ANY set_OPT]
-        pad: pad
+        some: set_SOME
         lookback: lookback
     ]
 ]

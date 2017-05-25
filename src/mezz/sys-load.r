@@ -922,7 +922,7 @@ import: function [
 
     ; Try to load and check the module.
     ; !!! the original code said /import, not conditional on refinement
-    set/pad [name: mod:] apply 'load-module [
+    set [name: mod:] apply 'load-module [
         source: module
         version: version
         ver: :ver
