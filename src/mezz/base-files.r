@@ -19,16 +19,22 @@ REBOL [
 info?: function [
     {Returns an info object about a file or url.}
     target [file! url!]
+    /only {for urls, returns 'file or blank}
 ][
     either file? target [
         query target
     ][
-        t: write target [HEAD]
-        make object! [
-            name: target
-            size: t/2
-            date: t/3
-            type: 'url
+        if error? trap [
+            t: write target [HEAD]
+            if only [return 'file]
+            return make object! [
+                name: target
+                size: t/2
+                date: t/3
+                type: 'url
+            ]
+        ][
+            return _
         ]
     ]
 ]
@@ -37,7 +43,11 @@ exists?: func [
     {Returns the type of a file or URL if it exists, otherwise blank.}
     target [file! url!]
 ][ ; Returns 'file or 'dir, or blank
-    select attempt [query target] 'type
+    either url? target [
+        info?/only target
+    ][
+        select attempt [query target] 'type
+    ]
 ]
 
 size?: func [
