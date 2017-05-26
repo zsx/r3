@@ -306,12 +306,12 @@ check-response: func [port /local conn res headers d1 d2 line info state awake s
         ]
         remove/part conn/data d2
         state/state: 'reading-data
-        if quote (txt) <> last body-of :net-log [
-            print "Dumping Webserver headers and body"
-            net-log/S info
-            body: to string! conn/data
-            dump body
-        ]
+        ;if quote (txt) <> last body-of :net-log [
+        ;    print "Dumping Webserver headers and body"
+        ;    net-log/S info
+        ;    body: to string! conn/data
+        ;    dump body
+        ;]
     ]
     unless headers [
         read conn
