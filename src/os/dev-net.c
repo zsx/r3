@@ -61,6 +61,13 @@ DEVICE_CMD Listen_Socket(REBREQ *sock);
     extern HWND Event_Handle; // For WSAAsync API
 #endif
 
+// Prevent sendmsg/write raising SIGPIPE the TCP socket is closed:
+// https://stackoverflow.com/questions/108183/how-to-prevent-sigpipes-or-handle-them-properly
+// Linux does not support SO_NOSIGPIPE
+//
+#ifndef MSG_NOSIGNAL
+#define MSG_NOSIGNAL 0
+#endif
 
 /***********************************************************************
 **
@@ -89,8 +96,17 @@ static void Get_Local_IP(struct devreq_net *sock)
     sock->local_port = ntohs(sa.sin_port);
 }
 
-static REBOOL Nonblocking_Mode(SOCKET sock)
+static REBOOL Set_Sock_Options(SOCKET sock)
 {
+    // Prevent sendmsg/write raising SIGPIPE the TCP socket is closed:
+    // https://stackoverflow.com/questions/108183/how-to-prevent-sigpipes-or-handle-them-properly
+#if defined(SO_NOSIGPIPE)
+    int on = 1;
+    if (setsockopt(sock, SOL_SOCKET, SO_NOSIGPIPE, &on, sizeof(on)) < 0) {
+        return FALSE;
+    }
+#endif
+
     // Set non-blocking mode. Return TRUE if no error.
 #ifdef FIONBIO
     unsigned long mode = 1;
@@ -190,7 +206,7 @@ DEVICE_CMD Open_Socket(REBREQ *sock)
     SET_FLAG(sock->state, RSM_OPEN);
 
     // Set socket to non-blocking async mode:
-    if (!Nonblocking_Mode(sock->requestee.socket)) {
+    if (!Set_Sock_Options(sock->requestee.socket)) {
         sock->error = GET_ERROR;
         return DR_ERROR;
     }
@@ -391,7 +407,7 @@ DEVICE_CMD Transfer_Socket(REBREQ *req)
         result = sendto(
             req->requestee.socket,
             s_cast(req->common.data), len,
-            0, // Flags
+            MSG_NOSIGNAL, // Flags
             cast(struct sockaddr*, &remote_addr), addr_len
         );
         WATCH2("send() len: %d actual: %d\n", len, result);
@@ -620,6 +636,12 @@ DEVICE_CMD Accept_Socket(REBREQ *req)
         return DR_ERROR;
     }
 
+    if (!Set_Sock_Options(result)) {
+        req->error = GET_ERROR;
+        //Signal_Device(sock, EVT_ERROR);
+        return DR_ERROR;
+    }
+
     // To report the new socket, the code here creates a temporary
     // request and copies the listen request to it. Then, it stores
     // the new values for IP and ports and links this request to the
@@ -636,8 +658,6 @@ DEVICE_CMD Accept_Socket(REBREQ *req)
     news->remote_ip   = sa.sin_addr.s_addr; //htonl(ip); NOTE: REBOL stays in network byte order
     news->remote_port = ntohs(sa.sin_port);
     Get_Local_IP(news);
-
-    Nonblocking_Mode(news->devreq.requestee.socket);
 
     // There could be mulitple connections to be accepted.
     // Queue them at common.sock
