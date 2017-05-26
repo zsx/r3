@@ -270,7 +270,7 @@ parse-write-dialect: func [port block /local spec debug] [
         ]
     ]
 ]
-check-response: func [port /local conn res headers d1 d2 line info state awake spec] [
+check-response: func [port /local conn res headers d1 d2 line info state awake spec body] [
     state: port/state
     conn: state/connection
     info: state/info
@@ -305,10 +305,13 @@ check-response: func [port /local conn res headers d1 d2 line info state awake s
             info/date: attempt [idate-to-date headers/last-modified]
         ]
         remove/part conn/data d2
-        net-log/S mold info
-        net-log/S to string! conn/data
-
         state/state: 'reading-data
+        if quote (txt) <> last body-of :net-log [
+            print "Dumping Webserver headers and body"
+            net-log/S info
+            body: to string! conn/data
+            dump body
+        ]
     ]
     unless headers [
         read conn
