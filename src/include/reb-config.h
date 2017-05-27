@@ -194,6 +194,8 @@ Special internal defines used by RT, not Host-Kit developers:
     //     #define _POSIX_C_SOURCE 199309L
     //
     // ...at the top of the file.
+
+    #define PROC_EXEC_PATH "/proc/self/exe"
 #endif
 
 
@@ -214,6 +216,10 @@ Special internal defines used by RT, not Host-Kit developers:
 #ifdef TO_ANDROID_ARM
 #endif
 
+#ifdef TO_ANDROID
+    #define PROC_EXEC_PATH "/proc/self/exe"
+#endif
+
 
 //* BSD ********************************************************
 
@@ -221,6 +227,14 @@ Special internal defines used by RT, not Host-Kit developers:
 #endif
 
 #ifdef TO_FREEBSD_X64
+#endif
+
+#ifdef TO_FREEBSD
+    #define HAVE_PROC_PATHNAME
+#endif
+
+#ifdef TO_NETBSD
+    #define PROC_EXEC_PATH "/proc/curproc/exe"
 #endif
 
 #ifdef TO_OPENBSD

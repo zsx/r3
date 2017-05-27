@@ -257,6 +257,7 @@ os-posix: [
     + posix/host-library.c
     + posix/host-process.c
     + posix/host-time.c
+    + posix/host-exec-path.c
 ]
 
 os-osx: [
@@ -279,6 +280,7 @@ os-osx: [
     + posix/host-library.c
     + posix/host-process.c
     + posix/host-time.c
+    + osx/host-exec-path.c
 ]
 
 ; The Rebol open source build did not differentiate between linux and simply
@@ -303,6 +305,7 @@ os-linux: [
     + posix/host-library.c
     + posix/host-process.c
     + posix/host-time.c
+    + posix/host-exec-path.c
 
     ; Linux has some kind of MIME-based opening vs. posix /usr/bin/open
     + linux/host-browse.c
@@ -337,6 +340,7 @@ os-android: [
     + posix/host-library.c
     + posix/host-process.c
     + posix/host-time.c
+    + posix/host-exec-path.c
 
     ; Android  has some kind of MIME-based opening vs. posix /usr/bin/open
     + linux/host-browse.c

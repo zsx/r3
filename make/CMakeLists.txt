@@ -242,6 +242,15 @@ else ()
             ${OS_DIR}/linux/dev-signal.c
             )
     endif ()
+    if (TO_OSX)
+        list(APPEND CORE_PLATFORM_SOURCE
+            ${OS_DIR}/osx/host-exec-path.c
+            )
+    else ()
+        list(APPEND CORE_PLATFORM_SOURCE
+            ${OS_DIR}/posix/host-exec-path.c
+            )
+    endif ()
 endif ()
 
 if (R3_EXTERNAL_FFI)

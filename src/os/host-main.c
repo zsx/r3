@@ -929,11 +929,24 @@ int main(int argc, char **argv_ansi)
 
         const REBOOL fully = TRUE; // error if not all arguments are consumed
 
+        DECLARE_LOCAL(exec_path);
+        REBCHR *path;
+        REBINT path_len = OS_GET_CURRENT_EXEC(&path);
+        if (path_len < 0){
+            Init_Blank(exec_path);
+        } else {
+            Init_File(exec_path,
+                To_REBOL_Path(path, path_len, (OS_WIDE ? PATH_OPT_UNI_SRC : 0))
+                );
+            OS_FREE(path);
+        }
+
         DECLARE_LOCAL (result);
         if (Apply_Only_Throws(
             result,
             fully,
             host_start, // startup function, implicit GC guard
+            exec_path,  // path to executable file, implicit GC guard
             argv_value, // argv parameter, implicit GC guard
             ext_value,
             END

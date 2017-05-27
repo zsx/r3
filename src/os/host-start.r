@@ -231,6 +231,8 @@ host-start: function [
     "Loads extras, handles args, security, scripts."
     return: [integer! function!]
         {If integer, host should exit with that status; else a CONSOLE FUNCTION!}
+    exec-path [file! blank!]
+        {Path to the executable file}
     argv [block!]
         {Raw command line argument block received by main() as STRING!s}
     boot-exts [block! blank!]
@@ -360,8 +362,13 @@ host-start: function [
     ; the intended arguments.  TAKEs each option string as it goes so the
     ; array remainder can act as the args.
 
-    unless tail? argv [ ;-- on most systems, argv[0] is the exe path
-        o/boot: clean-path to-rebol-file take argv
+    unless tail? argv [
+        either file? exec-path [
+            o/boot: exec-path
+            take argv ;consume argv[0] anyway
+        ][ ;-- on most systems, argv[0] is the exe path
+            o/boot: clean-path to-rebol-file take argv
+        ]
         o/bin: first split-path o/boot
     ]
 

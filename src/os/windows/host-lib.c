@@ -1318,3 +1318,28 @@ REBVAL *OS_GOB_To_Image(REBGOB *gob)
     return Gob_To_Image(gob);
 #endif
 }
+
+//
+//  OS_Get_Current_Exec: C
+//
+// Return the current executable path as a string and
+// its length in chars (not bytes).
+//
+// The result should be freed after copy/conversion.
+//
+int OS_Get_Current_Exec(REBCHR **path)
+{
+    DWORD r = 0;
+    *path = NULL;
+    *path = OS_ALLOC_N(REBCHR, MAX_PATH);
+    if (*path == NULL) return -1;
+
+    r = GetModuleFileName(NULL, *path, MAX_PATH);
+    if (r == 0) {
+        OS_FREE(*path);
+        return -1;
+    }
+    (*path)[r] = '\0'; //It might not be NULL-terminated if buffer is not big enough
+
+    return r;
+}
