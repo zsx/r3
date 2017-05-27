@@ -93,7 +93,7 @@ ports: construct [] [
 locale: construct [] [
     language:   ; Human language locale
     language*: _
-    library: https://raw.githubusercontent.com/r3n/renclib/master/usermodules.reb
+    library: _ ;make object! [modules: utilities: https://raw.githubusercontent.com/r3n/renclib/master/usermodules.reb]
     locale:
     locale*: _
     months: [
@@ -104,6 +104,11 @@ locale: construct [] [
         "Monday" "Tuesday" "Wednesday" "Thursday" "Friday" "Saturday" "Sunday"
     ]
 ]
+
+set in locale 'library construct [][
+    modules: https://raw.githubusercontent.com/r3n/renclib/master/usermodules.reb 
+    utilities: https://raw.githubusercontent.com/r3n/renclib/master/userutils.reb 
+] 
 
 options: construct [] [  ; Options supplied to REBOL during startup
     bin: _          ; Path to directory where Rebol executable binary lives
@@ -627,26 +632,27 @@ console: _         ;; console (repl) object created in host-start (os/host-start
 ;           date-sep: #"-"  ; The character used as the date separator
 ;           date-month-num: false   ; True if months are displayed as numbers; False for names
 ;           time-sep: #":"  ; The character used as the time separator
-;   cgi: construct [] [ ; CGI environment variables
-;       server-software:
-;       server-name:
-;       gateway-interface:
-;       server-protocol:
-;       server-port:
-;       request-method:
-;       path-info:
-;       path-translated:
-;       script-name:
-;       query-string:
-;       remote-host:
-;       remote-addr:
-;       auth-type:
-;       remote-user:
-;       remote-ident:
-;       Content-Type:           ; cap'd for email header
-;       content-length: _
-;       other-headers: []
-;   ]
+
+cgi: construct [] [ ; CGI environment variables
+       server-software:
+       server-name:
+       gateway-interface:
+       server-protocol:
+       server-port:
+       request-method:
+       path-info:
+       path-translated:
+       script-name:
+       query-string:
+       remote-host:
+       remote-addr:
+       auth-type:
+       remote-user:
+       remote-ident:
+       Content-Type:           ; cap'd for email header
+       content-length: _
+       other-headers: []
+]
 ;   browser-type: 0
 
 ;   trace:          ; True if the --trace flag was specified

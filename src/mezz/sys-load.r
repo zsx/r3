@@ -904,7 +904,16 @@ import: function [
         "Don't export to the user context"
 ][
     if tag? module [
-        module: first select load rebol/locale/library module
+        if trap? [
+            module: first tmp: select load rebol/locale/library/modules module
+        ][
+            cause-error 'access 'cannot-open reduce
+            either blank? tmp [
+                [module "module not found in system/locale/library/modules"]
+            ][
+                [module "error occurred in loading module from system/locale/library/modules"]
+            ]
+        ]
     ]
     ; If it's a needs dialect block, call DO-NEEDS/block:
     if block? module [

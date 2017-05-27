@@ -84,7 +84,7 @@ do*: function [
         ]
 
         ; Convert value into a URL!
-        source: switch source load rebol/locale/library
+        source: switch source load rebol/locale/library/utilities
         else [
             fail [
                 {Module} source {not in rebol/locale/library}
