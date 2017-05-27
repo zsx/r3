@@ -362,7 +362,12 @@ host-start: function [
     ; the intended arguments.  TAKEs each option string as it goes so the
     ; array remainder can act as the args.
 
-    unless tail? argv [
+    either tail? argv [
+        if file? exec-path [
+            o/boot: exec-path
+            o/bin: first split-path o/boot
+        ]
+    ][
         either file? exec-path [
             o/boot: exec-path
             take argv ;consume argv[0] anyway
