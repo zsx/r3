@@ -45,7 +45,8 @@
 #include <string.h>
 #include <errno.h>
 #include <assert.h>
-#if defined(TO_FREEBSD)
+
+#if defined(HAVE_PROC_PATHNAME)
 #include <sys/sysctl.h>
 #endif
 
@@ -68,24 +69,24 @@
 //
 int OS_Get_Current_Exec(REBCHR **path)
 {
-	assert(sizeof(REBCHR) == sizeof(char));
+    assert(sizeof(REBCHR) == sizeof(char));
 
 #if !defined(PROC_EXEC_PATH) && !defined(HAVE_PROC_PATHNAME)
     UNUSED(path);
-	return -1;
+    return -1;
 #else
 #if defined(PROC_EXEC_PATH)
-	const char *self = PROC_EXEC_PATH;
+    const char *self = PROC_EXEC_PATH;
 #else //HAVE_PROC_PATHNAME
-	int mib[4] = {
-		CTL_KERN,
-		KERN_PROC,
-		KERN_PROC_PATHNAME,
-		-1 //current process
-	};
-	char *self = OS_ALLOC_N(REBCHR, PATH_MAX + 1);
+    int mib[4] = {
+        CTL_KERN,
+        KERN_PROC,
+        KERN_PROC_PATHNAME,
+        -1 //current process
+    };
+    char *self = OS_ALLOC_N(REBCHR, PATH_MAX + 1);
     size_t len = PATH_MAX + 1;
-	if (sysctl(mib, sizeof(mib), self, &len, NULL, 0) != 0) {
+    if (sysctl(mib, sizeof(mib), self, &len, NULL, 0) != 0) {
         OS_FREE(self);
         return -1;
     }
