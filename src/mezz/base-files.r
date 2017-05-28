@@ -50,12 +50,12 @@ exists?: func [
     ]
 ]
 
-size?: func [
+size-of: size?: func [
     {Returns the size of a file.}
     target [file! url!]
 ][
     all [
-        target: attempt [query target]
+        target: attempt [info? target]
         target/size
     ]
 ]
@@ -65,7 +65,7 @@ modified?: func [
     target [file! url!]
 ][
     all [
-        target: attempt [query target]
+        target: attempt [info? target]
         target/date
     ]
 ]
