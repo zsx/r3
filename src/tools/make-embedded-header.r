@@ -49,16 +49,14 @@ remove-macro "__BASE_FILE__"
 remove/part inp -1 + index? find inp to binary! "#define REN_C_STDIO_OK"
 
 ;write %/tmp/sys-core.i inp
-out: make binary! 2048
+out: unspaced [
+    form-header/gen "Embedded sys-core.h" %e-embedded-header.c %make-embedded-header.r
 
-append out form-header/gen "Embedded sys-core.h" %e-embedded-header.c %make-embedded-header.r
-
-append out unspaced [
     {#include "sys-core.h"^/}
     "extern const REBYTE core_header_source[];^/"
     "const REBYTE core_header_source[] = {^/"
     binary-to-c join-of inp #{00}
     "};^/"
 ]
-
-write output-dir/core/e-embedded-header.c  out
+print "------ Writing embedded header file"
+write-if-changed output-dir/core/e-embedded-header.c out
