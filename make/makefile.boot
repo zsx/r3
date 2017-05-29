@@ -71,6 +71,7 @@
 #
 OS_ID?= detect
 DEBUG?= asserts
+OPTIMIZE?=auto
 GIT_COMMIT?= unknown
 STANDARD?= c
 RIGOROUS?= no
@@ -111,7 +112,8 @@ makefile: $(REBOL_TOOL) .FORCE
 	$(REBOL) $T/make-make.r OS_ID="$(OS_ID)" DEBUG="$(DEBUG)" \
 		GIT_COMMIT="$(GIT_COMMIT)" SANITIZE="$(SANITIZE)" \
 		STANDARD="$(STANDARD)" RIGOROUS="$(RIGOROUS)" WITH_FFI="$(WITH_FFI)" \
-		WITH_TCC="$(WITH_TCC)" STATIC="$(STATIC)" SYMBOLS="$(SYMBOLS)"
+		WITH_TCC="$(WITH_TCC)" STATIC="$(STATIC)" SYMBOLS="$(SYMBOLS)" \
+		OPTIMIZE="$(OPTIMIZE)"
 
 # Synonym for `make -f makefile.boot makefile` which can also be used in the
 # generated makefile (without causing repeated regenerations)

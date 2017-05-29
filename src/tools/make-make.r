@@ -87,31 +87,48 @@ case [
         asserts: false
         symbols: false
         sanitize: false
-        optimize: true
+        optimize-level: 2
     ]
     any [blank? args/DEBUG | args/DEBUG = "asserts"] [
         asserts: true
         symbols: false
         sanitize: false
-        optimize: true
+        optimize-level: 2
     ]
     args/DEBUG = "symbols" [
         asserts: true
         symbols: true
         sanitize: false
-        optimize: false
+        optimize-level: 0
     ]
     args/DEBUG = "sanitize" [
         asserts: true
         symbols: true
         sanitize: true
-        optimize: false
+        optimize-level: 0
     ]
     true [
         fail [
             "DEBUG must be [none | asserts | symbols | sanitize], not"
             (args/DEBUG)
         ]
+    ]
+]
+
+switch/default args/OPTIMIZE [
+    "auto" [
+        ;set by args/DEBUG
+    ]
+    "none" [
+        optimize-level: 0
+    ]
+    "0" "1" "2" "3" [
+        optimize-level: args/OPTIMIZE
+    ]
+][
+    fail [
+        "OPTIMIZE must be [auto | none | 0 | 1 | 2 | 3], not"
+        (args/OPTIMIZE)
     ]
 ]
 
@@ -192,7 +209,7 @@ newline
     unspaced [
         either symbols ["-g "] [""]
         either asserts [""] ["-DNDEBUG "] ; http://stackoverflow.com/q/9229978/
-        either optimize ["-O2"] ["-O0"]
+        "-O" optimize-level
     ]
 ) newline
 

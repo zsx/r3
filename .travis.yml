@@ -310,7 +310,7 @@ script:
           # we do not apply it to any of the binaries which are uploaded to s3
           # -- not even debug ones.
           #
-          make -f makefile.boot REBOL_TOOL=r3-make STANDARD="${STANDARD}" OS_ID="${OS_ID}" RIGOROUS="${RIGOROUS}" DEBUG=sanitize STATIC=no
+          make -f makefile.boot REBOL_TOOL=r3-make STANDARD="${STANDARD}" OS_ID="${OS_ID}" RIGOROUS="${RIGOROUS}" DEBUG=sanitize OPTIMIZE=2 STATIC=no
 
           rm r3-make;
           mv r3 r3-make;
