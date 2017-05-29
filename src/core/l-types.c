@@ -800,7 +800,9 @@ const REBYTE *Scan_Date(
     }
 
     cp = ep;
-    VAL_TIME(out) = NO_TIME;
+
+    VAL_RESET_HEADER(out, REB_DATE);
+    VAL_NANO(out) = NO_TIME;
 
     if (cp >= end)
         goto end_date;
@@ -815,8 +817,8 @@ const REBYTE *Scan_Date(
         if (
             cp == NULL
             || !IS_TIME(out)
-            || (VAL_TIME(out) < 0)
-            || (VAL_TIME(out) >= TIME_SEC(24 * 60 * 60))
+            || (VAL_NANO(out) < 0)
+            || (VAL_NANO(out) >= SECS_TO_NANO(24 * 60 * 60))
         ){
             return_NULL;
         }
@@ -867,7 +869,7 @@ const REBYTE *Scan_Date(
     }
 
 end_date:
-    Set_Date_UTC(out, year, month, day, VAL_TIME(out), tz);
+    Set_Date_UTC(out, year, month, day, VAL_NANO(out), tz);
     return cp;
 }
 

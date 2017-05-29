@@ -1064,11 +1064,23 @@ inline static void Init_Money(RELVAL *v, deci amount) {
 //
 //=////////////////////////////////////////////////////////////////////////=//
 
-#define VAL_TIME(v) \
-    ((v)->payload.time.nanoseconds)
+#if defined(NDEBUG) || !defined(__cplusplus)
+    #define VAL_NANO(v) \
+        (v)->payload.time.nanoseconds
+#else
+    inline static REBI64 VAL_NANO(const RELVAL *v) {
+        assert(IS_TIME(v) || IS_DATE(v));
+        return v->payload.time.nanoseconds;
+    }
 
-#define TIME_SEC(n) \
-    (cast(REBI64, n) * 1000000000L)
+    inline static REBI64 &VAL_NANO(RELVAL *v) {
+        assert(IS_TIME(v) || IS_DATE(v));
+        return v->payload.time.nanoseconds;
+    }
+#endif
+
+#define SECS_TO_NANO(seconds) \
+    (cast(REBI64, seconds) * 1000000000L)
 
 #define MAX_SECONDS \
     ((cast(REBI64, 1) << 31) - 1)
@@ -1099,11 +1111,11 @@ inline static void Init_Money(RELVAL *v, deci amount) {
 #define HOUR_TIME(n) \
     ((n) * HR_SEC)
 
-#define SECS_IN(n) \
+#define SECS_FROM_NANO(n) \
     ((n) / SEC_SEC)
 
 #define VAL_SECS(n) \
-    (VAL_TIME(n) / SEC_SEC)
+    (VAL_NANO(n) / SEC_SEC)
 
 #define DEC_TO_SECS(n) \
     cast(REBI64, ((n) + 5.0e-10) * SEC_SEC)
@@ -1117,7 +1129,7 @@ inline static void Init_Money(RELVAL *v, deci amount) {
 
 inline static void Init_Time_Nanoseconds(RELVAL *v, REBI64 nanoseconds) {
     VAL_RESET_HEADER(v, REB_TIME);
-    VAL_TIME(v) = nanoseconds;
+    VAL_NANO(v) = nanoseconds;
 }
 
 

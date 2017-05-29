@@ -18,6 +18,8 @@ REBOL [
 ; These are the currently supported cipher suites.  (Additional possibilities
 ; would be DSA, 3DES, ECDH, ECDHE, ECDSA, SHA256, SHA384...)
 ;
+; https://testssl.sh/openssl-rfc.mapping.html
+;
 cipher-suites: has [
     TLS_RSA_WITH_RC4_128_MD5:               #{00 04}
     TLS_RSA_WITH_RC4_128_SHA:               #{00 05}

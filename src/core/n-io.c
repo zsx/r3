@@ -237,7 +237,7 @@ REBNATIVE(now)
         // seconds portion (with the nanoseconds set to 0).  This achieves
         // that by extracting the seconds and then multiplying by nanoseconds.
         //
-        VAL_TIME(ret) = TIME_SEC(VAL_SECS(ret));
+        VAL_NANO(ret) = SECS_TO_NANO(VAL_SECS(ret));
     }
 
     if (REF(utc)) {
@@ -260,7 +260,7 @@ REBNATIVE(now)
     REBINT n = -1;
 
     if (REF(date)) {
-        VAL_TIME(ret) = NO_TIME;
+        VAL_NANO(ret) = NO_TIME;
         VAL_ZONE(ret) = 0;
     }
     else if (REF(time)) {
@@ -268,7 +268,7 @@ REBNATIVE(now)
     }
     else if (REF(zone)) {
         VAL_RESET_HEADER(ret, REB_TIME);
-        VAL_TIME(ret) = VAL_ZONE(ret) * ZONE_MINS * MIN_SEC;
+        VAL_NANO(ret) = VAL_ZONE(ret) * ZONE_MINS * MIN_SEC;
     }
     else if (REF(weekday))
         n = Week_Day(VAL_DATE(ret));
@@ -302,7 +302,7 @@ static REBCNT Milliseconds_From_Value(const RELVAL *v) {
         break;
 
     case REB_TIME:
-        msec = cast(REBINT, VAL_TIME(v) / (SEC_SEC / 1000));
+        msec = cast(REBINT, VAL_NANO(v) / (SEC_SEC / 1000));
         break;
 
     default:

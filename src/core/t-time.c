@@ -162,7 +162,7 @@ const REBYTE *Scan_Time(REBVAL *out, const REBYTE *cp, REBCNT len)
         if (part3 < 0)
             part3 = 0;
 
-        VAL_TIME(out) = HOUR_TIME(part1) + MIN_TIME(part2) + SEC_TIME(part3);
+        VAL_NANO(out) = HOUR_TIME(part1) + MIN_TIME(part2) + SEC_TIME(part3);
     }
     else {
         // MM:SS mode
@@ -170,14 +170,14 @@ const REBYTE *Scan_Time(REBVAL *out, const REBYTE *cp, REBCNT len)
         if (merid != '\0')
             return NULL; // no AM/PM for minutes
 
-        VAL_TIME(out) = MIN_TIME(part1) + SEC_TIME(part2);
+        VAL_NANO(out) = MIN_TIME(part1) + SEC_TIME(part2);
     }
 
     if (part4 > 0)
-        VAL_TIME(out) += part4;
+        VAL_NANO(out) += part4;
 
     if (neg)
-        VAL_TIME(out) = -VAL_TIME(out);
+        VAL_NANO(out) = -VAL_NANO(out);
 
     return cp;
 }
@@ -191,12 +191,12 @@ void Emit_Time(REB_MOLD *mold, const REBVAL *value)
     REB_TIMEF tf;
     const char *fmt;
 
-    Split_Time(VAL_TIME(value), &tf); // loses sign
+    Split_Time(VAL_NANO(value), &tf); // loses sign
 
     if (tf.s == 0 && tf.n == 0) fmt = "I:2";
     else fmt = "I:2:2";
 
-    if (VAL_TIME(value) < cast(REBI64, 0))
+    if (VAL_NANO(value) < cast(REBI64, 0))
         Append_Codepoint_Raw(mold->series, '-');
 
     Emit(mold, fmt, tf.h, tf.m, tf.s, 0);
@@ -225,7 +225,7 @@ REBINT CT_Time(const RELVAL *a, const RELVAL *b, REBINT mode)
 REBI64 Make_Time(const REBVAL *val)
 {
     if (IS_TIME(val)) {
-        return VAL_TIME(val);
+        return VAL_NANO(val);
     }
     else if (IS_STRING(val)) {
         REBCNT len;
@@ -235,7 +235,7 @@ REBI64 Make_Time(const REBVAL *val)
         if (Scan_Time(temp, bp, len) == NULL)
             goto no_time;
 
-        return VAL_TIME(temp);
+        return VAL_NANO(temp);
     }
     else if (IS_INTEGER(val)) {
         if (VAL_INT64(val) < -MAX_SECONDS || VAL_INT64(val) > MAX_SECONDS)
@@ -328,7 +328,7 @@ void MAKE_Time(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
         fail (Error_Bad_Make(REB_TIME, arg));
 
     VAL_RESET_HEADER(out, REB_TIME);
-    VAL_TIME(out) = secs;
+    VAL_NANO(out) = secs;
     VAL_DATE(out).bits = 0;
 }
 
@@ -349,13 +349,17 @@ void TO_Time(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 //
 REBINT Cmp_Time(const RELVAL *v1, const RELVAL *v2)
 {
-    REBI64 t1 = VAL_TIME(v1);
-    REBI64 t2 = VAL_TIME(v2);
+    REBI64 t1 = VAL_NANO(v1);
+    REBI64 t2 = VAL_NANO(v2);
 
-    if (t1 == NO_TIME) t1 = 0L;
-    if (t2 == NO_TIME) t2 = 0L;
-    if (t2 == t1) return 0;
-    if (t1 > t2) return 1;
+    if (t1 == NO_TIME)
+        t1 = 0L;
+    if (t2 == NO_TIME)
+        t2 = 0L;
+    if (t2 == t1)
+        return 0;
+    if (t1 > t2)
+        return 1;
     return -1;
 }
 
@@ -381,7 +385,7 @@ void Pick_Time(REBVAL *out, const REBVAL *value, const REBVAL *picker)
         fail (picker);
 
     REB_TIMEF tf;
-    Split_Time(VAL_TIME(value), &tf); // loses sign
+    Split_Time(VAL_NANO(value), &tf); // loses sign
 
     switch(i) {
     case 0: // hours
@@ -426,7 +430,7 @@ void Poke_Time_Immediate(
         fail (picker);
 
     REB_TIMEF tf;
-    Split_Time(VAL_TIME(value), &tf); // loses sign
+    Split_Time(VAL_NANO(value), &tf); // loses sign
 
     REBINT n;
     if (IS_INTEGER(poke) || IS_DECIMAL(poke))
@@ -461,7 +465,7 @@ void Poke_Time_Immediate(
         fail (picker);
     }
 
-    VAL_TIME(value) = Join_Time(&tf, FALSE);
+    VAL_NANO(value) = Join_Time(&tf, FALSE);
 }
 
 
@@ -489,18 +493,11 @@ REBINT PD_Time(REBPVS *pvs)
 //
 REBTYPE(Time)
 {
-    REBI64  secs;
-    REBVAL  *val;
-    REBVAL  *arg = NULL;
-    REBI64  num;
+    REBVAL *val = D_ARG(1);
 
-    val = D_ARG(1);
+    REBI64 secs = VAL_NANO(val);
 
-    secs = VAL_TIME(val); // note: not always valid REB_TIME (e.g. MAKE)
-
-    if (D_ARGC > 1) {
-        arg = D_ARG(2);
-    }
+    REBVAL *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
 
     // !!! This used to use IS_BINARY_ACT(), which is not available under
     // the symbol-based dispatch.  Consider doing another way.
@@ -517,7 +514,7 @@ REBTYPE(Time)
         assert(arg);
 
         if (type == REB_TIME) {     // handle TIME - TIME cases
-            REBI64  secs2 = VAL_TIME(arg);
+            REBI64 secs2 = VAL_NANO(arg);
 
             switch (action) {
 
@@ -546,8 +543,7 @@ REBTYPE(Time)
             }
         }
         else if (type == REB_INTEGER) {     // handle TIME - INTEGER cases
-
-            num = VAL_INT64(arg);
+            REBI64 num = VAL_INT64(arg);
 
             switch(action) {
             case SYM_ADD:
@@ -622,10 +618,10 @@ REBTYPE(Time)
         switch(action) {
 
         case SYM_ODD_Q:
-            return ((SECS_IN(secs) & 1) != 0) ? R_TRUE : R_FALSE;
+            return ((SECS_FROM_NANO(secs) & 1) != 0) ? R_TRUE : R_FALSE;
 
         case SYM_EVEN_Q:
-            return ((SECS_IN(secs) & 1) == 0) ? R_TRUE : R_FALSE;
+            return ((SECS_FROM_NANO(secs) & 1) == 0) ? R_TRUE : R_FALSE;
 
         case SYM_NEGATE:
             secs = -secs;
@@ -653,7 +649,7 @@ REBTYPE(Time)
             if (REF(to)) {
                 arg = ARG(scale);
                 if (IS_TIME(arg)) {
-                    secs = Round_Int(secs, flags, VAL_TIME(arg));
+                    secs = Round_Int(secs, flags, VAL_NANO(arg));
                 }
                 else if (IS_DECIMAL(arg)) {
                     VAL_DECIMAL(arg) = Round_Dec(
@@ -703,7 +699,7 @@ REBTYPE(Time)
 
 fixTime:
 setTime:
-    VAL_TIME(D_OUT) = secs;
     VAL_RESET_HEADER(D_OUT, REB_TIME);
+    VAL_NANO(D_OUT) = secs;
     return R_OUT;
 }

@@ -167,7 +167,7 @@ void MAKE_Decimal(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
         goto dont_divide_if_percent;
 
     case REB_TIME:
-        d = VAL_TIME(arg) * NANO;
+        d = VAL_NANO(arg) * NANO;
         break;
 
     case REB_STRING:

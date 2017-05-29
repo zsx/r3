@@ -317,7 +317,7 @@ void Value_To_Int64(REBVAL *out, const REBVAL *value, REBOOL no_sign)
         return;
     }
     else if (IS_TIME(value)) {
-        Init_Integer(out, SECS_IN(VAL_TIME(value))); // always unsigned
+        Init_Integer(out, SECS_FROM_NANO(VAL_NANO(value))); // always unsigned
         return;
     }
     else
@@ -412,7 +412,7 @@ REBTYPE(Integer)
                 }
                 if (n > 0) {
                     if (IS_TIME(val2)) {
-                        VAL_TIME(val) = SEC_TIME(VAL_INT64(val));
+                        VAL_NANO(val) = SEC_TIME(VAL_INT64(val));
                         VAL_SET_TYPE_BITS(val, REB_TIME);
                         return T_Time(frame_, action);
                     }

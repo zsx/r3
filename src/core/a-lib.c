@@ -528,7 +528,7 @@ RL_API REBUNI RL_Val_Char(const REBVAL *v) {
 //  RL_Val_Time: C
 //
 RL_API REBI64 RL_Val_Time(const REBVAL *v) {
-    return VAL_TIME(v);
+    return VAL_NANO(v);
 }
 
 //
@@ -638,7 +638,7 @@ RL_API void RL_Init_Date(
     int year,
     int month,
     int day,
-    int time,
+    int seconds,
     int nano,
     int zone
 ) {
@@ -647,7 +647,7 @@ RL_API void RL_Init_Date(
     VAL_MONTH(out) = month;
     VAL_DAY(out) = day;
     VAL_ZONE(out) = zone / ZONE_MINS;
-    VAL_TIME(out) = TIME_SEC(time) + nano;
+    VAL_NANO(out) = SECS_TO_NANO(seconds) + nano;
 }
 
 

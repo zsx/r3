@@ -44,9 +44,9 @@ void Set_Date_UTC(REBVAL *val, REBINT y, REBINT m, REBINT d, REBI64 t, REBINT z)
     // Adjust for zone....
     VAL_YEAR(val)  = y;
     VAL_MONTH(val) = m;
-    VAL_DAY(val)   = d;
-    VAL_TIME(val)  = t;
-    VAL_ZONE(val)  = z;
+    VAL_DAY(val) = d;
+    VAL_NANO(val) = t;
+    VAL_ZONE(val) = z;
     VAL_RESET_HEADER(val, REB_DATE);
     if (z) Adjust_Date_Zone(val, TRUE);
 }
@@ -59,7 +59,10 @@ REBINT CT_Date(const RELVAL *a, const RELVAL *b, REBINT mode)
 {
     REBINT num = Cmp_Date(a, b);
     if (mode == 1)
-        return VAL_DATE(a).bits == VAL_DATE(b).bits && VAL_TIME(a) == VAL_TIME(b);
+        return (
+            VAL_DATE(a).bits == VAL_DATE(b).bits
+            && VAL_NANO(a) == VAL_NANO(b)
+        );
     if (mode >= 0)  return (num == 0);
     if (mode == -1) return (num >= 0);
     return (num > 0);
@@ -92,7 +95,8 @@ void Emit_Date(REB_MOLD *mold, const REBVAL *value_orig)
         return;
     }
 
-    if (VAL_TIME(value) != NO_TIME) Adjust_Date_Zone(value, FALSE);
+    if (VAL_NANO(value) != NO_TIME)
+        Adjust_Date_Zone(value, FALSE);
 
 //  Punctuation[GET_MOPT(mold, MOPT_COMMA_PT) ? PUNCT_COMMA : PUNCT_DOT]
 
@@ -106,7 +110,7 @@ void Emit_Date(REB_MOLD *mold, const REBVAL *value_orig)
 
     Append_Unencoded(mold->series, s_cast(buf));
 
-    if (VAL_TIME(value) != NO_TIME) {
+    if (VAL_NANO(value) != NO_TIME) {
 
         Append_Codepoint_Raw(mold->series, '/');
         Emit_Time(mold, value);
@@ -323,17 +327,18 @@ void Adjust_Date_Zone(REBVAL *d, REBOOL to_utc)
 
     if (VAL_ZONE(d) == 0) return;
 
-    if (VAL_TIME(d) == NO_TIME) {
-        VAL_TIME(d) = VAL_ZONE(d) = 0;
+    if (VAL_NANO(d) == NO_TIME) {
+        VAL_NANO(d) = 0;
+        VAL_ZONE(d) = 0;
         return;
     }
 
     // (compiler should fold the constant)
-    secs = ((i64)VAL_ZONE(d) * ((i64)ZONE_SECS * SEC_SEC));
+    secs = cast(i64, VAL_ZONE(d)) * (cast(i64, ZONE_SECS) * SEC_SEC);
     if (to_utc) secs = -secs;
-    secs += VAL_TIME(d);
+    secs += VAL_NANO(d);
 
-    VAL_TIME(d) = (secs + TIME_IN_DAY) % TIME_IN_DAY;
+    VAL_NANO(d) = (secs + TIME_IN_DAY) % TIME_IN_DAY;
 
     n = VAL_DAY(d) - 1;
 
@@ -360,13 +365,13 @@ void Subtract_Date(REBVAL *d1, REBVAL *d2, REBVAL *result)
     if (cast(REBCNT, abs(diff)) > (((1U << 31) - 1) / SECS_IN_DAY))
         fail (Error_Overflow_Raw());
 
-    t1 = VAL_TIME(d1);
+    t1 = VAL_NANO(d1);
     if (t1 == NO_TIME) t1 = 0L;
-    t2 = VAL_TIME(d2);
+    t2 = VAL_NANO(d2);
     if (t2 == NO_TIME) t2 = 0L;
 
     VAL_RESET_HEADER(result, REB_TIME);
-    VAL_TIME(result) = (t1 - t2) + ((REBI64)diff * TIME_IN_DAY);
+    VAL_NANO(result) = (t1 - t2) + (cast(REBI64, diff) * TIME_IN_DAY);
 }
 
 
@@ -458,7 +463,7 @@ void MAKE_Date(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
             if (NOT(IS_TIME(item)))
                 goto bad_make;
 
-            secs = VAL_TIME(item);
+            secs = VAL_NANO(item);
             ++item;
 
             if (IS_END(item))
@@ -467,7 +472,7 @@ void MAKE_Date(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
                 if (NOT(IS_TIME(item)))
                     goto bad_make;
 
-                tz = cast(REBINT, VAL_TIME(item) / (ZONE_MINS * MIN_SEC));
+                tz = cast(REBINT, VAL_NANO(item) / (ZONE_MINS * MIN_SEC));
                 if (tz < -MAX_ZONE || tz > MAX_ZONE)
                     fail (Error_Out_Of_Range(const_KNOWN(item)));
                 ++item;
@@ -481,7 +486,7 @@ void MAKE_Date(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
 
         VAL_RESET_HEADER(out, REB_DATE);
         VAL_DATE(out) = Normalize_Date(day, month, year, tz);
-        VAL_TIME(out) = secs;
+        VAL_NANO(out) = secs;
         Adjust_Date_Zone(out, TRUE);
         return;
     }
@@ -523,7 +528,7 @@ void Pick_Or_Poke_Date(
     REBCNT month = VAL_MONTH(value) - 1;
     REBCNT year = VAL_YEAR(value);
 
-    REBI64 secs = VAL_TIME(value);
+    REBI64 secs = VAL_NANO(value);
     REBINT tz = VAL_ZONE(value);
 
     REBSYM sym;
@@ -583,13 +588,13 @@ void Pick_Or_Poke_Date(
             if (secs == NO_TIME)
                 Init_Void(opt_out);
             else {
-                VAL_TIME(opt_out) = cast(i64, tz) * ZONE_MINS * MIN_SEC;
                 VAL_RESET_HEADER(opt_out, REB_TIME);
+                VAL_NANO(opt_out) = cast(i64, tz) * ZONE_MINS * MIN_SEC;
             }
             break;
 
         case SYM_DATE:
-            VAL_TIME(opt_out) = NO_TIME;
+            VAL_NANO(opt_out) = NO_TIME;
             VAL_ZONE(opt_out) = 0;
             break;
 
@@ -655,7 +660,7 @@ void Pick_Or_Poke_Date(
                 break;
             }
             else if (IS_TIME(opt_poke) || IS_DATE(opt_poke))
-                secs = VAL_TIME(opt_poke);
+                secs = VAL_NANO(opt_poke);
             else if (IS_INTEGER(opt_poke))
                 secs = Int_From_Date_Arg(opt_poke) * SEC_SEC;
             else if (IS_DECIMAL(opt_poke))
@@ -666,7 +671,7 @@ void Pick_Or_Poke_Date(
 
         case SYM_ZONE:
             if (IS_TIME(opt_poke))
-                tz = cast(REBINT, VAL_TIME(opt_poke) / (ZONE_MINS * MIN_SEC));
+                tz = cast(REBINT, VAL_NANO(opt_poke) / (ZONE_MINS * MIN_SEC));
             else if (IS_DATE(opt_poke))
                 tz = VAL_ZONE(opt_poke);
             else tz = Int_From_Date_Arg(opt_poke) * (60 / ZONE_MINS);
@@ -722,7 +727,7 @@ void Pick_Or_Poke_Date(
     set_without_normalize:
         VAL_RESET_HEADER(value, REB_DATE);
         VAL_DATE(value) = date;
-        VAL_TIME(value) = secs;
+        VAL_NANO(value) = secs;
         Adjust_Date_Zone(value, TRUE);
     }
 }
@@ -756,47 +761,41 @@ REBINT PD_Date(REBPVS *pvs)
 //
 REBTYPE(Date)
 {
-    REBI64  secs;
-    REBINT  tz;
-    REBDAT  date;
-    REBCNT  day, month, year;
-    REBVAL  *val;
-    REBVAL  *arg = NULL;
-    REBINT  num;
-
-    val = D_ARG(1);
+    REBVAL *val = D_ARG(1);
     assert(IS_DATE(val));
-    date  = VAL_DATE(val);
-    day   = VAL_DAY(val) - 1;
-    month = VAL_MONTH(val) - 1;
-    year  = VAL_YEAR(val);
-    tz    = VAL_ZONE(val);
-    secs  = VAL_TIME(val);
 
-    if (D_ARGC > 1) arg = D_ARG(2);
+    REBDAT date = VAL_DATE(val);
+    REBCNT day = VAL_DAY(val) - 1;
+    REBCNT month = VAL_MONTH(val) - 1;
+    REBCNT year = VAL_YEAR(val);
+    REBINT tz = VAL_ZONE(val);
+    REBI64 secs = VAL_NANO(val);
+
+    REBVAL *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
 
     if (action == SYM_SUBTRACT || action == SYM_ADD) {
         REBINT  type = VAL_TYPE(arg);
 
         if (type == REB_DATE) {
             if (action == SYM_SUBTRACT) {
-                num = Diff_Date(date, VAL_DATE(arg));
-                goto ret_int;
+                Init_Integer(D_OUT, Diff_Date(date, VAL_DATE(arg)));
+                return R_OUT;
             }
         }
         else if (type == REB_TIME) {
-            if (secs == NO_TIME) secs = 0;
+            if (secs == NO_TIME)
+                secs = 0;
             if (action == SYM_ADD) {
-                secs += VAL_TIME(arg);
+                secs += VAL_NANO(arg);
                 goto fixTime;
             }
             if (action == SYM_SUBTRACT) {
-                secs -= VAL_TIME(arg);
+                secs -= VAL_NANO(arg);
                 goto fixTime;
             }
         }
         else if (type == REB_INTEGER) {
-            num = Int32(arg);
+            REBINT num = Int32(arg);
             if (action == SYM_ADD) {
                 day += num;
                 goto fixDate;
@@ -879,10 +878,6 @@ fixDate:
 setDate:
     VAL_RESET_HEADER(D_OUT, REB_DATE);
     VAL_DATE(D_OUT) = date;
-    VAL_TIME(D_OUT) = secs;
-    return R_OUT;
-
-ret_int:
-    Init_Integer(D_OUT, num);
+    VAL_NANO(D_OUT) = secs;
     return R_OUT;
 }

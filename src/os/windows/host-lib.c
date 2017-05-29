@@ -1169,7 +1169,7 @@ REBOOL OS_Browse(const REBCHR *url)
     }
 
     wchar_t *path = OS_ALLOC_N(wchar_t, MAX_BRW_PATH + 4); // !!! why 4?
-    
+
     DWORD len = MAX_BRW_PATH;
 
     DWORD type;

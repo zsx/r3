@@ -239,7 +239,7 @@ REBCNT Hash_Value(const RELVAL *v)
 
     case REB_TIME:
     case REB_DATE:
-        ret = cast(REBCNT, VAL_TIME(v) ^ (VAL_TIME(v) / SEC_SEC));
+        ret = cast(REBCNT, VAL_NANO(v) ^ (VAL_NANO(v) / SEC_SEC));
         if (IS_DATE(v))
             ret ^= VAL_DATE(v).bits;
         break;
