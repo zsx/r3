@@ -43,15 +43,21 @@ make/objs/
 # codebase for different platforms to put them in separate make
 # directories (such as make-win32 or make-osx-x64) so they don't erase
 # each other's state
+#
 make-*
 !tests/**/make-*
 
+# While some generated files are intended to be semi-persistent products
+# (e.g. an API file), many generated files are temporary and not meant to be
+# the concern of users.  Over time, these have been standardized to start
+# with "tmp-".  Ignore any such file in any directory.
+#
+tmp-*
+
 src/boot/boot-code.r
 src/boot/host-init.r
-src/boot/tmp-*
 
 src/core/b-boot.c
-src/core/tmp-*
 
 src/include/host-ext-*
 src/include/host-init.h
@@ -62,11 +68,6 @@ src/include/reb-evtypes.h
 src/include/reb-lib-lib.h
 src/include/reb-lib.h
 src/include/reb-types.h
-src/include/tmp-*
-
-src/os/tmp-*
-
-src/extensions/crypt/tmp-*
 
 #################
 ## Eclipse
