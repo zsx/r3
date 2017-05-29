@@ -14,6 +14,36 @@ language: c
 
 matrix:
     include: 
+        # OSX x64, debug, g++
+        #
+        # !!! Can't do all warnings as errors, because the switch for
+        # files that end in .c as c++ ("-x c++") is deprecated for some overly
+        # prescriptive and annoying reason.
+        #
+        - os: osx
+          osx_image: xcode8.2
+          language: cpp
+          env: OS_ID=0.2.40 DEBUG=asserts STANDARD=c++14 RIGOROUS=no STATIC=no FFI="dynamic"
+
+        # OSX x64, debug, gcc
+        #
+        # TCC currently doesn't quite support OSX yet
+        #
+        # !!! Also, does not honor GCC's static linking flag for libc.
+        #
+        - os: osx
+          osx_image: xcode8.2
+          language: c
+          env: OS_ID=0.2.40 DEBUG=asserts STANDARD=c99 RIGOROUS=no STATIC=no FFI="dynamic"
+
+        # OSX x64, release, gcc
+        #
+        # !!! Again, does not honor static linking switch.
+        #
+        - os: osx
+          language: c
+          env: OS_ID=0.2.40 DEBUG=none STANDARD=c RIGOROUS=no STATIC=no FFI="dynamic"
+
         # Linux x86, release, gcc
         #
         - os: linux
@@ -77,36 +107,6 @@ matrix:
           sudo: false #Force new container-based infrastructure.
           language: c
           env: OS_ID=0.13.2 DEBUG=none STANDARD=c RIGOROUS=yes STATIC=yes HOST=arm-eabi FFI="no"
-
-        # OSX x64, debug, gcc
-        #
-        # TCC currently doesn't quite support OSX yet
-        #
-        # !!! Also, does not honor GCC's static linking flag for libc.
-        #
-        - os: osx
-          osx_image: xcode8.2
-          language: c
-          env: OS_ID=0.2.40 DEBUG=asserts STANDARD=c99 RIGOROUS=no STATIC=no FFI="dynamic"
-
-        # OSX x64, debug, g++
-        #
-        # !!! Can't do all warnings as errors, because the switch for
-        # files that end in .c as c++ ("-x c++") is deprecated for some overly
-        # prescriptive and annoying reason.
-        #
-        - os: osx
-          osx_image: xcode8.2
-          language: cpp
-          env: OS_ID=0.2.40 DEBUG=asserts STANDARD=c++14 RIGOROUS=no STATIC=no FFI="dynamic"
-
-        # OSX x64, release, gcc
-        #
-        # !!! Again, does not honor static linking switch.
-        #
-        - os: osx
-          language: c
-          env: OS_ID=0.2.40 DEBUG=none STANDARD=c RIGOROUS=no STATIC=no FFI="dynamic"
 
 env:
     global:
