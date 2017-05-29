@@ -79,6 +79,8 @@ WITH_FFI?= no
 WITH_TCC?= no
 STATIC?= no
 
+NUM_JOBS?=4
+
 # UP - some systems do not use ../
 UP= ..
 # CD - some systems do not use ./
@@ -100,7 +102,7 @@ REBOL= $(CD)$(REBOL_TOOL) -qs
 top: makefile
 	$(MAKE) clean
 	$(MAKE) prep
-	$(MAKE) top
+	$(MAKE) -j $(NUM_JOBS) top
 
 # .FORCE is a file assumed to not exist, and is an idiom in makefiles to have
 # a null "phony target" you can use as a dependency for a target representing
