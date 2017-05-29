@@ -97,8 +97,8 @@ REBOL= $(CD)$(REBOL_TOOL) -qs
 
 ### Build targets:
 top: makefile
-	$(MAKE) prep
 	$(MAKE) clean
+	$(MAKE) prep
 	$(MAKE) top
 
 # .FORCE is a file assumed to not exist, and is an idiom in makefiles to have
