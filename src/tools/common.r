@@ -195,7 +195,7 @@ binary-to-c: function [
     ]
 
     ;-- Sanity check (should be one more byte in source than commas out)
-    parse out [(comma-count: 0) some [thru "," (++ comma-count)] to end]
+    parse out [(comma-count: 0) some [thru "," (comma-count: comma-count + 1)] to end]
     assert [(comma-count + 1) = (length-of head data)]
 
     out
