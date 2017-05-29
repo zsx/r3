@@ -159,6 +159,8 @@ install:
 script:
     # Nice to know what version of gcc this is
     - ${TOOLS}gcc --version
+    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then export MAKE_JOBS=`nproc`; fi
+    - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then export MAKE_JOBS=`sysctl -n hw.ncpu`; fi
 
     - TOP_DIR=${PWD}
     - |
@@ -193,7 +195,7 @@ script:
           else #cross-compiling
               ${TOP_DIR}/external/libffi/configure --prefix=$PWD/fakeroot --host=${HOST}
           fi
-          make
+          make -j ${MAKE_JOBS}
           make install
           export PKG_CONFIG_PATH=$PWD/fakeroot/lib/pkgconfig
           # check cflags and libs
@@ -219,7 +221,7 @@ script:
               #generate cross-compiler (on x86_64 host and target for i386)
               echo "Generating the cross-compiler"
               ${TOP_DIR}/external/tcc/configure --enable-cross --extra-cflags="-DEMBEDDED_IN_R3"
-              make
+              make -j ${MAKE_JOBS}
               mkdir bin
               cp *tcc bin #save cross-compilers
               ls bin/ #take a look at the cross-compilers
@@ -310,7 +312,7 @@ script:
           # we do not apply it to any of the binaries which are uploaded to s3
           # -- not even debug ones.
           #
-          make -f makefile.boot REBOL_TOOL=r3-make STANDARD="${STANDARD}" OS_ID="${OS_ID}" RIGOROUS="${RIGOROUS}" DEBUG=sanitize OPTIMIZE=2 STATIC=no
+          make -f makefile.boot NUM_JOBS=${MAKE_JOBS} REBOL_TOOL=r3-make STANDARD="${STANDARD}" OS_ID="${OS_ID}" RIGOROUS="${RIGOROUS}" DEBUG=sanitize OPTIMIZE=2 STATIC=no
 
           rm r3-make;
           mv r3 r3-make;
@@ -323,9 +325,9 @@ script:
     #
     - |
       if [[ -z ${TCC} ]]; then
-          make -f makefile.boot REBOL_TOOL=r3-make STANDARD="${STANDARD}" OS_ID="${OS_ID}" DEBUG="${DEBUG}" GIT_COMMIT="${GIT_COMMIT}" RIGOROUS="${RIGOROUS}" STATIC="${STATIC}" WITH_FFI=${FFI} WITH_TCC="no"
+          make -f makefile.boot NUM_JOBS=${MAKE_JOBS} REBOL_TOOL=r3-make STANDARD="${STANDARD}" OS_ID="${OS_ID}" DEBUG="${DEBUG}" GIT_COMMIT="${GIT_COMMIT}" RIGOROUS="${RIGOROUS}" STATIC="${STATIC}" WITH_FFI=${FFI} WITH_TCC="no"
       else
-          make -f makefile.boot REBOL_TOOL=r3-make STANDARD="${STANDARD}" OS_ID="${OS_ID}" DEBUG="${DEBUG}" GIT_COMMIT="${GIT_COMMIT}" RIGOROUS="${RIGOROUS}" STATIC="${STATIC}" WITH_FFI=${FFI} WITH_TCC="${PWD}/tcc/${TCC}"
+          make -f makefile.boot NUM_JOBS=${MAKE_JOBS} REBOL_TOOL=r3-make STANDARD="${STANDARD}" OS_ID="${OS_ID}" DEBUG="${DEBUG}" GIT_COMMIT="${GIT_COMMIT}" RIGOROUS="${RIGOROUS}" STATIC="${STATIC}" WITH_FFI=${FFI} WITH_TCC="${PWD}/tcc/${TCC}"
       fi
 
     # take a look at the preprocess header file

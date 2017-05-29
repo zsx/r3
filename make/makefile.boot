@@ -79,7 +79,7 @@ WITH_FFI?= no
 WITH_TCC?= no
 STATIC?= no
 
-NUM_JOBS?=4
+NUM_JOBS?=8
 
 # UP - some systems do not use ../
 UP= ..
@@ -102,6 +102,7 @@ REBOL= $(CD)$(REBOL_TOOL) -qs
 top: makefile
 	$(MAKE) clean
 	$(MAKE) prep
+	echo "Going to build with $(NUM_JOBS) jobs"
 	$(MAKE) -j $(NUM_JOBS) top
 
 # .FORCE is a file assumed to not exist, and is an idiom in makefiles to have
