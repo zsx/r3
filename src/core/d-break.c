@@ -84,6 +84,8 @@ REBOOL Do_Breakpoint_Throws(
         fail (Error_Host_No_Breakpoint_Raw());
     }
 
+    DECLARE_LOCAL (temp);
+
     // We call the breakpoint hook in a loop, in order to keep running if any
     // inadvertent FAILs or THROWs occur during the interactive session.
     // Only a conscious call of RESUME speaks the protocol to break the loop.
@@ -121,21 +123,21 @@ REBOOL Do_Breakpoint_Throws(
         }
 
         // Call the host's breakpoint hook.
+        //
         // The DECLARE_LOCAL is here and not outside the loop
         // due to wanting to avoid "longjmp clobbering" warnings
         // (seen in optimized builds on Android).
         //
-        DECLARE_LOCAL (temp);
-        //
-        if (PG_Breakpoint_Quitting_Hook(temp, interrupted)) {
+        DECLARE_LOCAL (inst);
+        if (PG_Breakpoint_Quitting_Hook(inst, interrupted)) {
             //
             // If a breakpoint hook returns TRUE that means it wants to quit.
             // The value should be the /WITH value (as in QUIT/WITH), so
             // not actually a "resume instruction" in this case.
             //
-            assert(!THROWN(temp));
+            assert(!THROWN(inst));
             Move_Value(out, NAT_VALUE(quit));
-            CONVERT_NAME_TO_THROWN(out, temp);
+            CONVERT_NAME_TO_THROWN(out, inst);
             return TRUE; // TRUE = threw
         }
 
@@ -150,110 +152,107 @@ REBOOL Do_Breakpoint_Throws(
         DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 
         // Decode and process the "resume instruction"
-        {
 
-            #if !defined(NDEBUG)
-                REBOOL found = FALSE;
-            #endif
-
-            assert(IS_GROUP(temp));
-            assert(VAL_LEN_HEAD(temp) == RESUME_INST_MAX);
-
-            // The instruction was built from raw material, non-relative
-            //
-            REBVAL *mode = KNOWN(VAL_ARRAY_AT_HEAD(temp, RESUME_INST_MODE));
-            REBVAL *payload
-                = KNOWN(VAL_ARRAY_AT_HEAD(temp, RESUME_INST_PAYLOAD));
-            target = KNOWN(VAL_ARRAY_AT_HEAD(temp, RESUME_INST_TARGET));
-
-            assert(IS_FRAME(target));
-
-            //
-            // The first thing we need to do is determine if the target we
-            // want to return to has another breakpoint sandbox blocking
-            // us.  If so, what we need to do is actually retransmit the
-            // resume instruction so it can break that wall, vs. transform
-            // it into an EXIT/FROM that would just get intercepted.
-            //
-            REBFRM *frame;
-            for (frame = FS_TOP; frame != NULL; frame = frame->prior) {
-                if (NOT(Is_Any_Function_Frame(frame)))
-                    continue;
-                if (Is_Function_Frame_Fulfilling(frame))
-                    continue;
-
-                if (
-                    frame != FS_TOP
-                    && (
-                        FUNC_DISPATCHER(frame->phase) == &N_pause
-                        || FUNC_DISPATCHER(frame->phase) == &N_breakpoint
-                    )
-                ) {
-                    // We hit a breakpoint (that wasn't this call to
-                    // breakpoint, at the current FS_TOP) before finding
-                    // the sought after target.  Retransmit the resume
-                    // instruction so that level will get it instead.
-                    //
-                    Move_Value(out, NAT_VALUE(resume));
-                    CONVERT_NAME_TO_THROWN(out, temp);
-                    return TRUE; // TRUE = thrown
-                }
-
-                // If the frame were the one we were looking for, it would be
-                // reified (so it would have a context to match)
-                //
-                if (frame->varlist == NULL)
-                    continue;
-
-                if (VAL_CONTEXT(target) == CTX(frame->varlist)) {
-                    // Found a match before hitting any breakpoints, so no
-                    // need to retransmit.
-                    //
-                #if !defined(NDEBUG)
-                    found = TRUE;
-                #endif
-                    break;
-                }
-            }
-
-            // RESUME should not have been willing to use a target that
-            // is not on the stack.
-            //
         #if !defined(NDEBUG)
-            assert(found);
+            REBOOL found = FALSE;
         #endif
 
-            if (IS_BLANK(mode)) {
+        assert(IS_GROUP(inst));
+        assert(VAL_LEN_HEAD(inst) == RESUME_INST_MAX);
+
+        // The instruction was built from raw material, non-relative
+        //
+        REBVAL *mode = KNOWN(VAL_ARRAY_AT_HEAD(inst, RESUME_INST_MODE));
+        REBVAL *payload
+            = KNOWN(VAL_ARRAY_AT_HEAD(inst, RESUME_INST_PAYLOAD));
+        target = KNOWN(VAL_ARRAY_AT_HEAD(inst, RESUME_INST_TARGET));
+
+        assert(IS_FRAME(target));
+
+        // The first thing we need to do is determine if the target we
+        // want to return to has another breakpoint sandbox blocking
+        // us.  If so, what we need to do is actually retransmit the
+        // resume instruction so it can break that wall, vs. transform
+        // it into an EXIT/FROM that would just get intercepted.
+        //
+        REBFRM *frame;
+        for (frame = FS_TOP; frame != NULL; frame = frame->prior) {
+            if (NOT(Is_Any_Function_Frame(frame)))
+                continue;
+            if (Is_Function_Frame_Fulfilling(frame))
+                continue;
+
+            if (
+                frame != FS_TOP
+                && (
+                    FUNC_DISPATCHER(frame->phase) == &N_pause
+                    || FUNC_DISPATCHER(frame->phase) == &N_breakpoint
+                )
+            ) {
+                // We hit a breakpoint (that wasn't this call to
+                // breakpoint, at the current FS_TOP) before finding
+                // the sought after target.  Retransmit the resume
+                // instruction so that level will get it instead.
                 //
-                // If the resume instruction had no /DO or /WITH of its own,
-                // then it doesn't override whatever the breakpoint provided
-                // as a default.  (If neither the breakpoint nor the resume
-                // provided a /DO or a /WITH, result will be void.)
-                //
-                goto return_default; // heeds `target`
+                Move_Value(out, NAT_VALUE(resume));
+                CONVERT_NAME_TO_THROWN(out, inst);
+                return TRUE; // TRUE = thrown
             }
 
-            assert(IS_LOGIC(mode));
+            // If the frame were the one we were looking for, it would be
+            // reified (so it would have a context to match)
+            //
+            if (frame->varlist == NULL)
+                continue;
 
-            if (VAL_LOGIC(mode)) {
-                if (Do_Any_Array_At_Throws(temp, payload)) {
-                    //
-                    // Throwing is not compatible with /AT currently.
-                    //
-                    if (!IS_BLANK(target))
-                        fail (Error_No_Catch_For_Throw(temp));
-
-                    // Just act as if the BREAKPOINT call itself threw
-                    //
-                    Move_Value(out, temp);
-                    return TRUE; // TRUE = thrown
-                }
-
-                // Ordinary evaluation result...
+            if (VAL_CONTEXT(target) == CTX(frame->varlist)) {
+                // Found a match before hitting any breakpoints, so no
+                // need to retransmit.
+                //
+            #if !defined(NDEBUG)
+                found = TRUE;
+            #endif
+                break;
             }
-            else
-                Move_Value(temp, payload);
         }
+
+        // RESUME should not have been willing to use a target that
+        // is not on the stack.
+        //
+    #if !defined(NDEBUG)
+        assert(found);
+    #endif
+
+        if (IS_BLANK(mode)) {
+            //
+            // If the resume instruction had no /DO or /WITH of its own,
+            // then it doesn't override whatever the breakpoint provided
+            // as a default.  (If neither the breakpoint nor the resume
+            // provided a /DO or a /WITH, result will be void.)
+            //
+            goto return_default; // heeds `target`
+        }
+
+        assert(IS_LOGIC(mode));
+
+        if (VAL_LOGIC(mode)) {
+            if (Do_Any_Array_At_Throws(temp, payload)) {
+                //
+                // Throwing is not compatible with /AT currently.
+                //
+                if (!IS_BLANK(target))
+                    fail (Error_No_Catch_For_Throw(temp));
+
+                // Just act as if the BREAKPOINT call itself threw
+                //
+                Move_Value(out, temp);
+                return TRUE; // TRUE = thrown
+            }
+
+            // Ordinary evaluation result...
+        }
+        else
+            Move_Value(temp, payload);
 
         // The resume instruction will be GC'd.
         //
@@ -265,11 +264,6 @@ REBOOL Do_Breakpoint_Throws(
 return_default:
 
     if (do_default) {
-        // The DECLARE_LOCAL is here and not outside the loop
-        // due to wanting to avoid "longjmp clobbering" warnings
-        // (seen in optimized builds on Android).
-        //
-        DECLARE_LOCAL (temp);
         if (Do_Any_Array_At_Throws(temp, default_value)) {
             //
             // If the code throws, we're no longer in the sandbox...so we
@@ -283,14 +277,8 @@ return_default:
             return TRUE; // TRUE = thrown
         }
     }
-    else {
-        // The DECLARE_LOCAL is here and not outside the loop
-        // due to wanting to avoid "longjmp clobbering" warnings
-        // (seen in optimized builds on Android).
-        //
-        DECLARE_LOCAL (temp);
+    else
         Move_Value(temp, default_value); // generally void if no /WITH
-    }
 
 return_temp:
     //
@@ -304,16 +292,8 @@ return_temp:
     // natives do not currently respond to definitional returns...though
     // they can do so just as well as FUNCTION! can.
     //
-    // The DECLARE_LOCAL is here and not outside the loop
-    // due to wanting to avoid "longjmp clobbering" warnings
-    // (seen in optimized builds on Android).
-    //
-    {
-        DECLARE_LOCAL (temp);
-        Make_Thrown_Exit_Value(out, target, temp, NULL);
-
-        return TRUE; // TRUE = thrown
-    }
+    Make_Thrown_Exit_Value(out, target, temp, NULL);
+    return TRUE; // TRUE = thrown
 }
 
 
