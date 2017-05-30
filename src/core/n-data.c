@@ -1171,7 +1171,7 @@ REBNATIVE(as)
     case REB_LIT_PATH:
     case REB_GET_PATH:
         if (!ANY_ARRAY(value))
-            fail (value);
+            fail (Error_Bad_Cast_Raw(value, ARG(type)));
         break;
 
     case REB_STRING:
@@ -1179,7 +1179,7 @@ REBNATIVE(as)
     case REB_FILE:
     case REB_URL:
         if (!ANY_BINSTR(value) || IS_BINARY(value))
-            fail (value);
+            fail (Error_Bad_Cast_Raw(value, ARG(type)));
         break;
 
     case REB_WORD:
@@ -1193,7 +1193,7 @@ REBNATIVE(as)
         break;
 
     default:
-        panic(value); // all applicable types should be handled above
+        fail (Error_Bad_Cast_Raw(value, ARG(type))); // all applicable types should be handled above
     }
 
     VAL_SET_TYPE_BITS(value, kind);

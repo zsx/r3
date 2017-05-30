@@ -179,6 +179,7 @@ Script: [
     bad-compression:    [{invalid compressed data - problem:} :arg1]
     dialect:            [{incorrect} :arg1 {dialect usage at:} :arg2]
     bad-command:        {invalid command format (extension function)}
+    bad-cast:           [{cannot cast} :arg1 {as} :arg2]
 
     return-archetype:   {RETURN called with no generator providing it in use}
     leave-archetype:    {LEAVE called with no generator providing it in use}
