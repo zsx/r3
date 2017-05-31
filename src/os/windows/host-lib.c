@@ -379,19 +379,6 @@ REBCHR *OS_Form_Error(int errnum, REBCHR *str, int len)
 
 
 //
-//  OS_Get_Boot_Path: C
-//
-// Used to determine the program file path for REBOL.
-// This is the path stored in system->options->boot and
-// it is used for finding default boot files.
-//
-REBOOL OS_Get_Boot_Path(REBCHR *name)
-{
-    return (GetModuleFileName(0, name, MAX_FILE_NAME) > 0);
-}
-
-
-//
 //  OS_Get_Locale: C
 //
 // Used to obtain locale information from the system.
