@@ -43,8 +43,9 @@
 
 #include <stdio.h>
 
+#include <windows.h>
+
 #include "reb-host.h"
-#include "sys-net.h"
 
 extern void Signal_Device(REBREQ *req, REBINT type);
 extern i32 Request_Size_Rebreq(REBREQ *);

@@ -430,9 +430,7 @@ set (CORE_HEADER
     ${TOP_SRC_DIR}/include/sys-handle.h
     ${TOP_SRC_DIR}/include/sys-indexor.h
     ${TOP_SRC_DIR}/include/sys-int-funcs.h
-    ${TOP_SRC_DIR}/include/sys-jpg.h
     ${TOP_SRC_DIR}/include/sys-map.h
-    ${TOP_SRC_DIR}/include/sys-net.h
     ${TOP_SRC_DIR}/include/sys-pair.h
     ${TOP_SRC_DIR}/include/sys-path.h
     ${TOP_SRC_DIR}/include/sys-rebfrm.h
