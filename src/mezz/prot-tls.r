@@ -267,7 +267,6 @@ update-proto-state: function [
     ]
 ]
 
-
 ;
 ; TLS PROTOCOL CODE
 ;
@@ -573,7 +572,7 @@ parse-messages: function [
         21 "Decryption failed"
         22 "Record overflow"
         30 "Decompression failure"
-        40 "Handshake failure"
+        40 "Handshake failure - no supported cipher suite available on server"
         41 "No certificate"
         42 "Bad certificate"
         43 "Unsupported certificate"
@@ -617,6 +616,12 @@ parse-messages: function [
     debug [ctx/seq-num-r ctx/seq-num-w "READ <--" proto/type]
 
     unless proto/type = 'handshake [
+        if proto/type = 'alert [
+            if proto/messages/1 > 1 [
+                ; fatal alert level
+                fail any [select alert-descriptions data/2 "unknown"]
+            ]
+        ]
         update-proto-state ctx proto/type
     ]
 
