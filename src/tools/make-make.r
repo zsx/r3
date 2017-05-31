@@ -207,7 +207,7 @@ newline
 
 {DEBUG_FLAGS?=} space (
     unspaced [
-        either symbols ["-g "] [""]
+        either symbols ["-g -g3"] [""]
         either asserts [""] ["-DNDEBUG "] ; http://stackoverflow.com/q/9229978/
         "-O" optimize-level
     ]
