@@ -1026,9 +1026,8 @@ static void Mold_Object(const REBVAL *value, REB_MOLD *mold)
     Append_Codepoint_Raw(mold->series, '[');
 
     REBVAL *key = keys_head;
-    REBVAL *var = vars_head;
 
-    for (; NOT_END(key); var != NULL ? (++key, ++var) : ++key) {
+    for (; NOT_END(key); ++key) {
         if (key != keys_head)
             Append_Codepoint_Raw(mold->series, ' ');
 
@@ -1051,13 +1050,17 @@ static void Mold_Object(const REBVAL *value, REB_MOLD *mold)
     mold->indent++;
 
     key = keys_head;
-    var = vars_head;
+
+    REBVAL *var = vars_head;
 
     for (; NOT_END(key); var ? (++key, ++var) : ++key) {
         if (GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN))
             continue; // !!! Should hidden fields be in molded view?
 
-        if (var && IS_VOID(value))
+        // Having the key mentioned in the spec and then not being assigned
+        // a value in the body is how voids are denoted.
+        //
+        if (var && IS_VOID(var))
             continue;
 
         New_Indented_Line(mold);

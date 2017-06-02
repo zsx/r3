@@ -529,9 +529,8 @@ static void Collect_Context_Inner_Loop(
                 if (IS_SET_WORD(value) || (flags & COLLECT_ANY_WORD)) {
                     Add_Binder_Index(binder, canon, ARR_LEN(BUF_COLLECT));
                     EXPAND_SERIES_TAIL(SER(BUF_COLLECT), 1);
-                    REBVAL *typeset = SINK(ARR_LAST(BUF_COLLECT));
                     Init_Typeset(
-                        typeset,
+                        ARR_LAST(BUF_COLLECT),
                         // Allow all datatypes but no void (initially):
                         ~FLAGIT_KIND(REB_MAX_VOID),
                         VAL_WORD_SPELLING(value)
@@ -921,19 +920,12 @@ REBARR *Context_To_Array(REBCTX *context, REBINT mode)
 {
     REBVAL *key = CTX_KEYS_HEAD(context);
     REBVAL *var = CTX_VARS_HEAD(context);
-    REBCNT n;
 
     assert(!(mode & 4));
 
     REBARR *block = Make_Array(CTX_LEN(context) * (mode == 3 ? 2 : 1));
 
-    // Context might have voids, which denote the value have not been set
-    //
-    // !!! This should not be done like this...review
-    //
-    SET_SER_FLAG(block, ARRAY_FLAG_VOIDS_LEGAL);
-
-    n = 1;
+    REBCNT n = 1;
     for (; NOT_END(key); n++, key++, var++) {
         if (NOT_VAL_FLAG(key, TYPESET_FLAG_HIDDEN)) {
             if (mode & 1) {
@@ -949,6 +941,14 @@ REBARR *Context_To_Array(REBCTX *context, REBINT mode)
                     SET_VAL_FLAG(value, VALUE_FLAG_LINE);
             }
             if (mode & 2) {
+                //
+                // Context might have voids, which denote the value have not
+                // been set.  These contexts cannot be converted to blocks,
+                // since user arrays may not contain void.
+                //
+                if (IS_VOID(var))
+                    fail (Error_Void_Object_Block_Raw());
+
                 Append_Value(block, var);
             }
         }

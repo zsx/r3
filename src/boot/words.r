@@ -342,6 +342,11 @@ exit-code
 ;
 --optimized-out--
 
+; used to signal a void in a reified va_list call, since voids can't actually
+; appear in user-visible arrays
+;
+--void--
+
 include
 source
 library-path

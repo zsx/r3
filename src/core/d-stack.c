@@ -137,11 +137,22 @@ REBARR *Make_Where_For_Frame(REBFRM *f)
     REBCNT n;
     for (n = start; n < end; ++n) {
         DS_PUSH_TRASH;
-        Derelativize(
-            DS_TOP,
-            ARR_AT(FRM_ARRAY(f), n),
-            f->specifier
-        );
+        if (IS_VOID(ARR_AT(FRM_ARRAY(f), n))) {
+            //
+            // If a va_list is used to do a non-evaluative call (something
+            // like R3-Alpha's APPLY/ONLY) then void cells are currently
+            // allowed.  Reify_Va_To_Array_In_Frame() may come along and
+            // make a special block containing voids, which we don't want
+            // to expose in a user-visible block.  Since this array is just
+            // for display purposes and is "lossy" (as evidenced by the ...)
+            // substitute a placeholder to avoid crashing the GC.
+            //
+            assert(GET_SER_FLAG(FRM_ARRAY(f), ARRAY_FLAG_VOIDS_LEGAL));
+            Init_Word(DS_TOP, Canon(SYM___VOID__));
+        }
+        else
+            Derelativize(DS_TOP, ARR_AT(FRM_ARRAY(f), n), f->specifier);
+
         if (n == start) {
             //
             // Get rid of any newline marker on the first element,

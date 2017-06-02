@@ -211,6 +211,9 @@ Script: [
     varargs-no-look:    {VARARGS! may only lookahead by 1 if "hard quoted"}
     varargs-take-last:  {VARARGS! does not support TAKE-ing only /LAST item}
 
+    void-vararg-array:  {Can't MAKE ANY-ARRAY! from VARARGS! that allow <opt>}
+    void-object-block:  {Can't create block from object if it has void values}
+
     map-key-unlocked:   [{key must be LOCK-ed to add to MAP!} :arg1]
     tcc-not-supported-opt: [{Option} :arg1 {is not supported}]
     tcc-expect-word:     [{Option expecting a word:} :arg1]

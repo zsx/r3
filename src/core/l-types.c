@@ -138,6 +138,38 @@ REBNATIVE(make)
         if (dispatcher != &MAKE_Array)
             fail (Error_Bad_Make(kind, arg));
 
+        // If there's any chance that the argument could produce voids, we
+        // can't guarantee an array can be made out of it.
+        //
+        if (arg->extra.binding == NULL) {
+            //
+            // A vararg created from a block AND never passed as an argument
+            // so no typeset or quoting settings available.  Can't produce
+            // any voids, because the data source is a block.
+            //
+            assert(
+                NOT_SER_FLAG(
+                    arg->payload.varargs.feed, ARRAY_FLAG_VARLIST
+                )
+            );
+        }
+        else {
+            REBCTX *context = CTX(arg->extra.binding);
+            REBFRM *param_frame = CTX_FRAME_IF_ON_STACK(context);
+
+            // If the VARARGS! has a call frame, then ensure that the call
+            // frame where the VARARGS! originated is still on the stack.
+            //
+            if (param_frame == NULL)
+                fail (Error_Varargs_No_Stack_Raw());
+
+            REBVAL *param = FUNC_FACADE_HEAD(param_frame->phase)
+                + arg->payload.varargs.param_offset;
+
+            if (TYPE_CHECK(param, REB_MAX_VOID))
+                fail (Error_Void_Vararg_Array_Raw());
+        }
+
         REBDSP dsp_orig = DSP;
 
         do {
