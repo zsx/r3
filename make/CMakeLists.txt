@@ -386,14 +386,6 @@ set (CORE_SOURCE
     ${CORE_DIR}/u-sha1.c
     ${CORE_DIR}/u-zlib.c
     )
-set (CODECS_SOURCE
-    ${CORE_DIR}/../extensions/crypt/aes/aes.c
-    ${CORE_DIR}/../extensions/crypt/bigint/bigint.c
-    ${CORE_DIR}/../extensions/crypt/dh/dh.c
-    ${CORE_DIR}/../extensions/crypt/rc4/rc4.c
-    ${CORE_DIR}/../extensions/crypt/rsa/rsa.c
-    ${CORE_DIR}/../extensions/crypt/sha256/sha256.c
-)
 
 set (CORE_HEADER
     ${TOP_SRC_DIR}/include/debugbreak.h
@@ -749,38 +741,98 @@ macro(add_extension libname name can_be_module source modules init_script includ
     endif ()
 endmacro(add_extension)
 
-#add_module has to be put in the following section
-#<-------------- modules --------------->
-add_module(Crypt "${EXT_DIR}/crypt/mod-crypt.c" "${CODECS_SOURCE}")
-#crypt has to be builtin because tls (loaded by the host at boot time) requires it,
-#or rc4, rsa will not be bound properly.
-add_extension(r3-crypt Crypt FALSE "${EXT_DIR}/crypt/ext-crypt.c" "Crypt" "${EXT_DIR}/crypt/ext-crypt-init.reb"
+
+#<-------------- modules (put all add_module in this section) --------------->
+
+# CRYPT extension
+#
+# Crypt has to be built-in because TLS (loaded by the host at boot time)
+# requires it, or RC4 and RSA natives will not be bound properly.
+#
+add_module(
+    Crypt
+    "${EXT_DIR}/crypt/mod-crypt.c"
+    "${EXT_DIR}/crypt/aes/aes.c;${EXT_DIR}/crypt/bigint/bigint.c;${EXT_DIR}/crypt/dh/dh.c;${EXT_DIR}/crypt/rc4/rc4.c;${EXT_DIR}/crypt/rsa/rsa.c;${EXT_DIR}/crypt/sha256/sha256.c"
+)
+add_extension(
+    r3-crypt Crypt FALSE "${EXT_DIR}/crypt/ext-crypt.c" "Crypt" "${EXT_DIR}/crypt/ext-crypt-init.reb"
     "${TOP_GENERATED_SRC_DIR}/include;${TOP_SRC_DIR}/include;${FFI_INCLUDE_DIRS};${INC}"
-    "${COMMON_MACROS}")
+    "${COMMON_MACROS}"
+)
 if (TO_WINDOWS AND ${R3_EXT_CRYPT} STREQUAL "M")
     target_link_libraries(r3-crypt "Ws2_32.lib")
 endif ()
 
-add_module(LodePNG "${EXT_DIR}/png/mod-lodepng.c" "${EXT_DIR}/png/lodepng.c;")
-add_module(uPNG "${EXT_DIR}/png/u-png.c" "")
-add_extension(r3-png PNG TRUE "${EXT_DIR}/png/ext-png.c" "LodePNG;uPNG" ""
+# CALL extension
+#
+add_module(
+    Call
+    "${EXT_DIR}/call/mod-call.c"
+    ""
+)
+add_extension(
+    r3-call Call TRUE "${EXT_DIR}/call/ext-call.c" "Call" ""
     "${TOP_GENERATED_SRC_DIR}/include;${TOP_SRC_DIR}/include;${FFI_INCLUDE_DIRS};${INC}"
-    "${COMMON_MACROS}")
+    "${COMMON_MACROS}"
+)
 
-add_module(GIF "${EXT_DIR}/gif/mod-gif.c" "")
-add_extension(r3-gif GIF TRUE "${EXT_DIR}/gif/ext-gif.c" "GIF" ""
+# PNG extension
+#
+add_module(
+    LodePNG
+    "${EXT_DIR}/png/mod-lodepng.c"
+    "${EXT_DIR}/png/lodepng.c;"
+)
+add_module(
+    uPNG
+    "${EXT_DIR}/png/u-png.c"
+    ""
+)
+add_extension(
+    r3-png PNG TRUE "${EXT_DIR}/png/ext-png.c" "LodePNG;uPNG" ""
     "${TOP_GENERATED_SRC_DIR}/include;${TOP_SRC_DIR}/include;${FFI_INCLUDE_DIRS};${INC}"
-    "${COMMON_MACROS}")
+    "${COMMON_MACROS}"
+)
 
-add_module(BMP "${EXT_DIR}/bmp/mod-bmp.c" "")
-add_extension(r3-bmp BMP TRUE "${EXT_DIR}/bmp/ext-bmp.c" "BMP" ""
+# GIF extension
+#
+add_module(
+    GIF
+    "${EXT_DIR}/gif/mod-gif.c"
+    ""
+)
+add_extension(
+    r3-gif GIF TRUE "${EXT_DIR}/gif/ext-gif.c" "GIF" ""
     "${TOP_GENERATED_SRC_DIR}/include;${TOP_SRC_DIR}/include;${FFI_INCLUDE_DIRS};${INC}"
-    "${COMMON_MACROS}")
+    "${COMMON_MACROS}"
+)
 
-add_module(JPG "${EXT_DIR}/jpg/mod-jpg.c" "${EXT_DIR}/jpg/u-jpg.c")
-add_extension(r3-jpg JPG TRUE "${EXT_DIR}/jpg/ext-jpg.c" "JPG" ""
+# BMP extension
+#
+add_module(
+    BMP
+    "${EXT_DIR}/bmp/mod-bmp.c"
+    ""
+)
+add_extension(
+    r3-bmp BMP TRUE "${EXT_DIR}/bmp/ext-bmp.c" "BMP" ""
     "${TOP_GENERATED_SRC_DIR}/include;${TOP_SRC_DIR}/include;${FFI_INCLUDE_DIRS};${INC}"
-    "${COMMON_MACROS}")
+    "${COMMON_MACROS}"
+)
+
+# JPG extension
+#
+add_module(
+    JPG
+    "${EXT_DIR}/jpg/mod-jpg.c"
+    "${EXT_DIR}/jpg/u-jpg.c"
+)
+add_extension(
+    r3-jpg JPG TRUE "${EXT_DIR}/jpg/ext-jpg.c" "JPG" ""
+    "${TOP_GENERATED_SRC_DIR}/include;${TOP_SRC_DIR}/include;${FFI_INCLUDE_DIRS};${INC}"
+    "${COMMON_MACROS}"
+)
+
 #<------------- end of modules --------->
 
 string(REPLACE ";" "," BOOT_EXTENSION_LIST "${BOOT_EXTENSIONS}")

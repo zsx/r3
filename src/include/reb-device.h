@@ -257,3 +257,8 @@ inline static struct devreq_serial *DEVREQ_SERIAL(struct rebol_devreq *req) {
 #define SET_OPEN(r)     SET_FLAG(((REBREQ*)(r))->flags, RRF_OPEN)
 #define SET_CLOSED(r)   CLR_FLAG(((REBREQ*)(r))->flags, RRF_OPEN)
 #define IS_OPEN(r)      GET_FLAG(((REBREQ*)(r))->flags, RRF_OPEN)
+
+#define OS_ENA -1
+#define OS_EINVAL -2
+#define OS_EPERM -3
+#define OS_ESRCH -4

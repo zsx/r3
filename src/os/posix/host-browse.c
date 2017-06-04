@@ -112,35 +112,3 @@ REBOOL OS_Request_Dir(REBCHR* title, REBCHR** folder, REBCHR* path)
 
     return FALSE;
 }
-
-
-static REBOOL Try_Browser(const char *browser, const REBCHR *url)
-{
-    pid_t pid = fork();
-
-    switch (pid) {
-    case -1:
-        return FALSE;
-
-    case 0:
-        execlp(browser, browser, url, NULL);
-        exit(1);
-
-    default: {
-        int status;
-        waitpid(pid, &status, WUNTRACED);
-        return LOGICAL(WIFEXITED(status) != 0 && WEXITSTATUS(status) == 0); }
-    }
-}
-
-
-//
-//  OS_Browse: C
-//
-REBOOL OS_Browse(const REBCHR *url)
-{
-    if (Try_Browser("/usr/bin/open", url))
-        return TRUE;
-    return FALSE;
-}
-
