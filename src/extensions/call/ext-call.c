@@ -30,20 +30,14 @@
 #include "sys-core.h"
 #include "sys-ext.h"
 
-static const REBYTE script_bytes[] =
-"REBOL ["
-    "Title: \"CALL Extension\"\n"
-    "name: 'Call\n"
-    "type: 'Extension\n"
-    "version: 1.0.0\n"
-    "license: {Apache 2.0}\n"
-"]\n"
-;
+
+#include "tmp-ext-call-init.inc"
+
 
 #define MODULE_INCLUDE_DECLARATION_ONLY
 #include "tmp-mod-call-last.h"
 
-DEFINE_EXT_INIT(Call, //name of the extension
+DEFINE_EXT_INIT_COMPRESSED(Call, //name of the extension
     script_bytes, // REBOL script for the extension in the source form
     {
         // init all modules in this extension

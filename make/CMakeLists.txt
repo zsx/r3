@@ -771,7 +771,7 @@ add_module(
     ""
 )
 add_extension(
-    r3-call Call TRUE "${EXT_DIR}/call/ext-call.c" "Call" ""
+    r3-call Call TRUE "${EXT_DIR}/call/ext-call.c" "Call" "${EXT_DIR}/call/ext-call-init.reb"
     "${TOP_GENERATED_SRC_DIR}/include;${TOP_SRC_DIR}/include;${FFI_INCLUDE_DIRS};${INC}"
     "${COMMON_MACROS}"
 )

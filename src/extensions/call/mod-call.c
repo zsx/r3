@@ -376,7 +376,7 @@ REBNATIVE(call)
 #else
         cast(const char*, cmd),
         argc,
-        cast(const char**, cmd),
+        cast(const char**, argv),
 #endif
         flags, &pid, &exit_code,
         input_type, os_input, input_len,
@@ -474,38 +474,104 @@ REBNATIVE(call)
 
 
 //
-//  browse: native [
+//  get-os-browsers: native/export [
 //
-//  "Open web browser to a URL or local file."
+//  "Ask the OS or registry what command(s) to use for starting a browser."
 //
-//      return: [<opt>]
-//      location [url! file! blank!]
+//      return: [block!]
+//          {Block of strings, where %1 should be substituted with the string}
 //  ]
 //
-REBNATIVE(browse)
+REBNATIVE(get_os_browsers)
+//
+// !!! Using the %1 convention is not necessarily ideal vs. having some kind
+// of more "structural" result, it was just easy because it's how the string
+// comes back from the Windows registry.  Review.
 {
-    INCLUDE_PARAMS_OF_BROWSE;
+    INCLUDE_PARAMS_OF_GET_OS_BROWSERS;
 
-    REBVAL *location = ARG(location);
+    REBDSP dsp_orig = DSP;
 
-    Check_Security(Canon(SYM_BROWSE), POL_EXEC, location);
+#if defined(TO_WINDOWS)
 
-    if (IS_BLANK(location))
-        return R_VOID;
+    HKEY key;
+    if (
+        RegOpenKeyEx(
+            HKEY_CLASSES_ROOT,
+            L"http\\shell\\open\\command",
+            0,
+            KEY_READ,
+            &key
+        ) != ERROR_SUCCESS
+    ){
+        fail ("Could not open registry key for http\\shell\\open\\command");
+    }
 
-    // !!! By passing NULL we don't get backing series to protect!
+    static_assert_c(sizeof(REBUNI) == sizeof(wchar_t));
+
+    DWORD num_bytes = 0; // pass NULL and use 0 for initial length, to query
+
+    DWORD type;
+    DWORD flag = RegQueryValueExW(key, L"", 0, &type, NULL, &num_bytes);
+    
+    if (
+        (flag != ERROR_MORE_DATA && flag != ERROR_SUCCESS)
+        || num_bytes == 0
+        || type != REG_SZ // RegQueryValueExW returns unicode
+        || num_bytes % 2 != 0 // byte count should be even for unicode
+    ) {
+        RegCloseKey(key);
+        fail ("Could not read registry key for http\\shell\\open\\command");
+    }
+
+    REBCNT len = num_bytes / 2;
+
+    REBSER *ser = Make_Unicode(len);
+    flag = RegQueryValueEx(
+        key, L"", 0, &type, cast(LPBYTE, UNI_HEAD(ser)), &num_bytes
+    );
+    RegCloseKey(key);
+
+    if (flag != ERROR_SUCCESS)
+        fail ("Could not read registry key for http\\shell\\open\\command");
+
+    while (*UNI_AT(ser, len - 1) == 0) {
+        //
+        // Don't count terminators; seems the guarantees are a bit fuzzy
+        // about whether the string in the registry has one included in the
+        // byte count or not.
+        //
+        --len;
+    }
+    TERM_UNI_LEN(ser, len);
+
+    DS_PUSH_TRASH;
+    Init_String(DS_TOP, ser);
+
+#elif defined(TO_LINUX)
+
+    // Caller should try xdg-open first, then try x-www-browser otherwise
     //
-    REBCHR *url = Val_Str_To_OS_Managed(NULL, location);
+    DS_PUSH_TRASH;
+    Init_String(DS_TOP, Make_UTF8_May_Fail("xdg-open %1"));
+    DS_PUSH_TRASH;
+    Init_String(DS_TOP, Make_UTF8_May_Fail("x-www-browser %1"));
 
-#ifdef TO_WINDOWS
-    if (NOT(OS_Browse(cast(const wchar_t*, url))))
+#elif defined(TO_POSIX)
+
+    // Just use /usr/bin/open
+    //
+    DS_PUSH_TRASH;
+    Init_String(DS_TOP, Make_UTF8_May_Fail("/usr/bin/open %1"));
+
 #else
-    if (NOT(OS_Browse(cast(const char*, url))))
+
+    fail ("Can't detect OS browsers, hijack GET-OS-BROWSERS to override");
+
 #endif
-        fail ("Could not launch browser");
 
-    return R_VOID;
-
+    Init_Block(D_OUT, Pop_Stack_Values(dsp_orig));
+    return R_OUT;
 }
 
 #include "tmp-mod-call-last.h"
