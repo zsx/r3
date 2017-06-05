@@ -288,8 +288,12 @@ REBNATIVE(now)
 }
 
 
-
-static REBCNT Milliseconds_From_Value(const RELVAL *v) {
+//
+//  Milliseconds_From_Value: C
+//
+// Note that this routine is used by the SLEEP extension, as well as by WAIT.
+//
+REBCNT Milliseconds_From_Value(const RELVAL *v) {
     REBINT msec;
 
     switch (VAL_TYPE(v)) {
@@ -1157,40 +1161,3 @@ REBNATIVE(access_os)
     }
 }
 
-
-#ifdef TO_WINDOWS
-    #include <windows.h> // Temporary: this is not desirable in core!
-#else
-    #include <unistd.h>
-#endif
-
-//
-//  sleep: native [
-//
-//  "Use system sleep to wait a certain amount of time (doesn't use PORT!s)."
-//
-//      return: [<opt>]
-//      duration [integer! decimal! time!]
-//          {Length to sleep (integer and decimal are measuring seconds)}
-//
-//  ]
-//
-REBNATIVE(sleep)
-//
-// !!! This is a temporary workaround for the fact that it is not currently
-// possible to do a WAIT on a time from within an AWAKE handler.  A proper
-// solution would presumably solve that problem, so two different functions
-// would not be needed.
-{
-    INCLUDE_PARAMS_OF_SLEEP;
-
-    REBCNT msec = Milliseconds_From_Value(ARG(duration));
-
-#ifdef TO_WINDOWS
-    Sleep(msec);
-#else
-    usleep(msec * 1000);
-#endif
-
-    return R_VOID;
-}

@@ -574,4 +574,42 @@ REBNATIVE(get_os_browsers)
     return R_OUT;
 }
 
+
+//
+//  sleep: native [
+//
+//  "Use system sleep to wait a certain amount of time (doesn't use PORT!s)."
+//
+//      return: [<opt>]
+//      duration [integer! decimal! time!]
+//          {Length to sleep (integer and decimal are measuring seconds)}
+//
+//  ]
+//
+REBNATIVE(sleep)
+//
+// !!! This is a temporary workaround for the fact that it is not currently
+// possible to do a WAIT on a time from within an AWAKE handler.  A proper
+// solution would presumably solve that problem, so two different functions
+// would not be needed.
+//
+// This function was needed by @GrahamChiu, and puting it in the CALL module
+// isn't necessarily ideal, but it's better than making the core dependent
+// on Sleep() vs. usleep()...and all the relevant includes have been
+// established here.
+{
+    INCLUDE_PARAMS_OF_SLEEP;
+
+    REBCNT msec = Milliseconds_From_Value(ARG(duration));
+
+#ifdef TO_WINDOWS
+    Sleep(msec);
+#else
+    usleep(msec * 1000);
+#endif
+
+    return R_VOID;
+}
+
+
 #include "tmp-mod-call-last.h"
