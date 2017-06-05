@@ -415,7 +415,7 @@ help: procedure [
 
     unless function? :value [
         print/only spaced [
-            (uppercase mold word) "is" (type-name :value) "of value:"
+            (uppercase mold word) "is" (type-name :value) "of value: "
         ]
         print unspaced collect [
             either maybe [object! port!] value [
