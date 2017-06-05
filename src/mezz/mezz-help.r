@@ -77,7 +77,7 @@ dump-obj: function [
                     ][
                         all [
                             datatype? get :pat
-                            type = :pat
+                            type = get :pat
                         ]
                     ]
                 ]
@@ -365,7 +365,12 @@ help: procedure [
     ]
 
     if all [word? :word | set? :word | datatype? get :word] [
-        print [word {is a datatype}]
+        types: dump-obj/match lib :word
+        if not empty? types [
+            print ["Found these" (uppercase form word) "words:" newline types]
+        ] else [
+            print [word {is a datatype}]
+        ]
         leave
     ]
 
