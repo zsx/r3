@@ -102,23 +102,23 @@ dump: proc [
     <local>
         dump-one dump-val clip-string item
 ][
-   clip-string: function [str len][
-      either len < length-of str [
-         delimit [ copy/part str len - 3 "..." ] _
-      ][
-         str
-      ]
-   ]
-   
-   dump-val: function [val][
-      either object? val [
-         unspaced [
-            "make object! [" |
-            dump-obj val | "]"
-         ]
-      ][
-         clip-string mold val system/options/dump-size
-      ]
+    clip-string: function [str len][
+       either len < length-of str [
+          delimit [ copy/part str len - 3 "..." ] _
+       ][
+          str
+       ]
+    ]
+
+    dump-val: function [val][
+        either object? val [
+           unspaced [
+              "make object! [" |
+              dump-obj val | "]"
+           ]
+        ][
+           clip-string mold val system/options/dump-size
+        ]
     ]
 
     dump-one: proc [item][
