@@ -365,7 +365,7 @@ help: procedure [
     ]
 
     if all [word? :word | set? :word | datatype? get :word] [
-        types: dump-obj/match lib :word
+        types: dump-obj/match make lib system/contexts/user :word
         if not empty? types [
             print ["Found these" (uppercase form word) "words:" newline types]
         ] else [
@@ -376,7 +376,7 @@ help: procedure [
 
     ; If arg is a string, search the system:
     if string? :word [
-        types: dump-obj/match lib :word
+        types: dump-obj/match make lib system/contexts/user :word
         sort types
         if not empty? types [
             print ["Found these related words:" newline types]
