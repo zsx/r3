@@ -59,6 +59,20 @@
 #include "tmp-mod-call-first.h"
 
 
+// !!! The original implementation of CALL from Atronix had to communicate
+// between the CALL native (defined in the core) and the host routine
+// OS_Create_Process, which was not designed to operate on Rebol types.
+// Hence if the user was passing in a BINARY! to which the data for the
+// standard out or standard error was to be saved, it was produced in full
+// in a buffer and returned, then appended.  This wastes space when compared
+// to just appending to the string or binary itself.  With CALL rethought
+// as an extension with access to the internal API, this could be changed...
+// though for the moment, a malloc()'d buffer is expanded independently by
+// BUF_SIZE_CHUNK and returned to CALL.
+//
+#define BUF_SIZE_CHUNK 4096
+
+
 #ifdef TO_WINDOWS
 //
 //  OS_Create_Process: C
@@ -143,9 +157,11 @@ int OS_Create_Process(
         si.hStdInput = hInputRead;
         break;
 
-    case REB_FILE:
+    case REB_FILE: {
+        REBSER *path = Value_To_OS_Path(ARG(in), FALSE);
+
         hInputRead = CreateFile(
-            cast(wchar_t*, input), // !!!
+            SER_HEAD(wchar_t, path),
             GENERIC_READ, // desired mode
             0, // shared mode
             &sa, // security attributes
@@ -154,7 +170,9 @@ int OS_Create_Process(
             NULL // template
         );
         si.hStdInput = hInputRead;
-        break;
+
+        Free_Series(path);
+        break; }
 
     case REB_BLANK:
         si.hStdInput = 0;
@@ -167,7 +185,6 @@ int OS_Create_Process(
     default:
         panic (ARG(in));
     }
-
 
     UNUSED(REF(output)); // implicitly covered by void ARG(out)
     switch (VAL_TYPE(ARG(out))) {
@@ -187,9 +204,11 @@ int OS_Create_Process(
         si.hStdOutput = hOutputWrite;
         break;
 
-    case REB_FILE:
+    case REB_FILE: {
+        REBSER *path = Value_To_OS_Path(ARG(out), FALSE);
+
         si.hStdOutput = CreateFile(
-            *cast(LPCTSTR*, output),
+            SER_HEAD(wchar_t, path),
             GENERIC_WRITE, // desired mode
             0, // shared mode
             &sa, // security attributes
@@ -203,7 +222,7 @@ int OS_Create_Process(
             && GetLastError() == ERROR_FILE_EXISTS
         ){
             si.hStdOutput = CreateFile(
-                *cast(LPCTSTR*, output),
+                SER_HEAD(wchar_t, path),
                 GENERIC_WRITE, // desired mode
                 0, // shared mode
                 &sa, // security attributes
@@ -212,7 +231,9 @@ int OS_Create_Process(
                 NULL // template
             );
         }
-        break;
+
+        Free_Series(path);
+        break; }
 
     case REB_BLANK:
         si.hStdOutput = 0;
@@ -244,9 +265,11 @@ int OS_Create_Process(
         si.hStdError = hErrorWrite;
         break;
 
-    case REB_FILE:
+    case REB_FILE: {
+        REBSER *path = Value_To_OS_Path(ARG(out), FALSE);
+
         si.hStdError = CreateFile(
-            *cast(LPCTSTR*, err),
+            SER_HEAD(wchar_t, path),
             GENERIC_WRITE, // desired mode
             0, // shared mode
             &sa, // security attributes
@@ -260,7 +283,7 @@ int OS_Create_Process(
             && GetLastError() == ERROR_FILE_EXISTS
         ){
             si.hStdError = CreateFile(
-                *cast(LPCTSTR*, err),
+                SER_HEAD(wchar_t, path),
                 GENERIC_WRITE, // desired mode
                 0, // shared mode
                 &sa, // security attributes
@@ -269,7 +292,9 @@ int OS_Create_Process(
                 NULL // template
             );
         }
-        break;
+
+        Free_Series(path);
+        break; }
 
     case REB_BLANK:
         si.hStdError = 0;
@@ -287,8 +312,6 @@ int OS_Create_Process(
         const wchar_t *sh = L"cmd.exe /C ";
         size_t len = wcslen(sh) + wcslen(call) + 1;
 
-        // other branch uses _wcsdup and free(), so we can't use
-        // OS_ALLOC_N here (doesn't matter, not returning it to Rebol)
         cmd = cast(wchar_t*, malloc(len * sizeof(wchar_t)));
         cmd[0] = L'\0';
         wcscat(cmd, sh);
@@ -334,8 +357,6 @@ int OS_Create_Process(
         DWORD output_size = 0;
         DWORD err_size = 0;
 
-#define BUF_SIZE_CHUNK 4096
-
         if (hInputWrite != NULL && input_len > 0) {
             if (IS_STRING(ARG(in))) {
                 DWORD dest_len = 0;
@@ -352,9 +373,7 @@ int OS_Create_Process(
                     NULL
                 );
                 if (dest_len > 0) {
-                    // Not returning memory to Rebol, but we don't realloc or
-                    // free, so it's all right to use OS_ALLOC_N anyway
-                    oem_input = OS_ALLOC_N(char, dest_len);
+                    oem_input = cast(char*, malloc(dest_len));
                     if (oem_input != NULL) {
                         WideCharToMultiByte(
                             CP_OEMCP,
@@ -380,8 +399,6 @@ int OS_Create_Process(
             output_size = BUF_SIZE_CHUNK;
             *output_len = 0;
 
-            // Might realloc(), can't use OS_ALLOC_N.  (This memory is not
-            // passed back to Rebol, so it doesn't matter.)
             *output = cast(char*, malloc(output_size));
             handles[count ++] = hOutputRead;
         }
@@ -389,8 +406,6 @@ int OS_Create_Process(
             err_size = BUF_SIZE_CHUNK;
             *err_len = 0;
 
-            // Might realloc(), can't use OS_ALLOC_N.  (This memory is not
-            // passed back to Rebol, so it doesn't matter.)
             *err = cast(char*, malloc(err_size));
             handles[count++] = hErrorRead;
         }
@@ -434,7 +449,7 @@ int OS_Create_Process(
                             /* done with input */
                             CloseHandle(hInputWrite);
                             hInputWrite = NULL;
-                            OS_FREE(oem_input);
+                            free(oem_input);
                             oem_input = NULL;
                             if (i < count - 1) {
                                 memmove(
@@ -534,12 +549,10 @@ int OS_Create_Process(
                 CP_OEMCP, 0, *output, *output_len, dest, 0
             );
             if (dest_len <= 0) {
-                OS_FREE(*output);
+                free(*output);
                 *output = NULL;
                 *output_len = 0;
             }
-            // We've already established that output is a malloc()'d pointer,
-            // not one we got back from OS_ALLOC_N()
             dest = cast(wchar_t*, malloc(*output_len * sizeof(wchar_t)));
             if (dest == NULL)
                 goto cleanup;
@@ -559,12 +572,10 @@ int OS_Create_Process(
                 CP_OEMCP, 0, *err, *err_len, dest, 0
             );
             if (dest_len <= 0) {
-                OS_FREE(*err);
+                free(*err);
                 *err = NULL;
                 *err_len = 0;
             }
-            // We've already established that output is a malloc()'d pointer,
-            // not one we got back from OS_ALLOC_N()
             dest = cast(wchar_t*, malloc(*err_len * sizeof(wchar_t)));
             if (dest == NULL) goto cleanup;
             MultiByteToWideChar(CP_OEMCP, 0, *err, *err_len, dest, dest_len);
@@ -603,9 +614,7 @@ kill:
 
 cleanup:
     if (oem_input != NULL) {
-        // Since we didn't need realloc() for oem_input, we used the
-        // OS_ALLOC_N allocator.
-        OS_FREE(oem_input);
+        free(oem_input);
     }
 
     if (output != NULL && *output != NULL && *output_len == 0) {
@@ -788,7 +797,10 @@ int OS_Create_Process(
             close(stdin_pipe[R]);
         }
         else if (IS_FILE(ARG(in))) {
-            int fd = open(input, O_RDONLY);
+            REBSER *path = Value_To_OS_Path(ARG(in), FALSE);
+            int fd = open(SER_HEAD(char, path), O_RDONLY);
+            Free_Series(path);
+
             if (fd < 0)
                 goto child_error;
             if (dup2(fd, STDIN_FILENO) < 0)
@@ -815,7 +827,10 @@ int OS_Create_Process(
             close(stdout_pipe[W]);
         }
         else if (IS_FILE(ARG(out))) {
-            int fd = open(*output, O_CREAT | O_WRONLY, 0666);
+            REBSER *path = Value_To_OS_Path(ARG(out), FALSE);
+            int fd = open(SER_HEAD(char, path), O_CREAT | O_WRONLY, 0666);
+            Free_Series(path);
+
             if (fd < 0)
                 goto child_error;
             if (dup2(fd, STDOUT_FILENO) < 0)
@@ -842,7 +857,10 @@ int OS_Create_Process(
             close(stderr_pipe[W]);
         }
         else if (IS_FILE(ARG(err))) {
-            int fd = open(*err, O_CREAT | O_WRONLY, 0666);
+            REBSER *path = Value_To_OS_Path(ARG(err), FALSE);
+            int fd = open(SER_HEAD(char, path), O_CREAT | O_WRONLY, 0666);
+            Free_Series(path);
+
             if (fd < 0)
                 goto child_error;
             if (dup2(fd, STDERR_FILENO) < 0)
@@ -879,9 +897,7 @@ int OS_Create_Process(
                 exit(EXIT_FAILURE);
             }
 
-            const char ** argv_new = c_cast(
-                const char**, OS_ALLOC_N(const char*, argc + 3)
-            );
+            const char ** argv_new = cast(const char**, malloc(argc + 3));
             argv_new[0] = sh;
             argv_new[1] = "-c";
             memcpy(&argv_new[2], argv, argc * sizeof(argv[0]));
@@ -918,8 +934,6 @@ child_error: ;
         // /WAIT, it will use the info pipe to make sure the process did
         // actually start.
         //
-
-#define BUF_SIZE_CHUNK 4096
         nfds_t nfds = 0;
         struct pollfd pfds[4];
         pid_t xpid;
@@ -953,7 +967,8 @@ child_error: ;
 
             output_size = BUF_SIZE_CHUNK;
 
-            *output = OS_ALLOC_N(char, output_size);
+            *output = cast(char*, malloc(output_size));
+            *output_len = 0;
 
             pfds[nfds].fd = stdout_pipe[R];
             pfds[nfds].events = POLLIN;
@@ -967,7 +982,8 @@ child_error: ;
 
             err_size = BUF_SIZE_CHUNK;
 
-            *err = OS_ALLOC_N(char, err_size);
+            *err = cast(char*, malloc(err_size));
+            *err_len = 0;
 
             pfds[nfds].fd = stderr_pipe[R];
             pfds[nfds].events = POLLIN;
@@ -984,7 +1000,7 @@ child_error: ;
 
             info_size = 4;
 
-            info = OS_ALLOC_N(char, info_size);
+            info = cast(char*, malloc(info_size));
 
             close(info_pipe[W]);
             info_pipe[W] = -1;
@@ -1113,10 +1129,10 @@ child_error: ;
                         *offset += nbytes;
                         if (*offset >= size) {
                             char *larger =
-                                OS_ALLOC_N(char, size + BUF_SIZE_CHUNK);
+                                cast(char*, size + BUF_SIZE_CHUNK);
                             if (!larger) goto kill;
                             memcpy(larger, *buffer, size * sizeof(larger[0]));
-                            OS_FREE(*buffer);
+                            free(*buffer);
                             *buffer = larger;
                             size += BUF_SIZE_CHUNK;
                         }
@@ -1152,7 +1168,7 @@ child_error: ;
     if (info_len > 0) {
         //
         // exec in child process failed, set to errno for reporting
-        ret = *(int*)info;
+        ret = *cast(int*, info);
     }
     else if (WIFEXITED(status)) {
        *exit_code = WEXITSTATUS(status);
@@ -1173,13 +1189,13 @@ error:
 
 cleanup:
     if (output != NULL && *output != NULL && *output_len <= 0) {
-        OS_FREE(*output);
+        free(*output);
     }
     if (err != NULL && *err != NULL && *err_len <= 0) {
-        OS_FREE(*err);
+        free(*err);
     }
     if (info != NULL) {
-        OS_FREE(info);
+        free(info);
     }
     if (info_pipe[R] > 0) {
         close(info_pipe[R]);
@@ -1267,16 +1283,6 @@ REBNATIVE(call)
     //
     Check_Security(Canon(SYM_CALL), POL_EXEC, ARG(command));
 
-    // Sometimes OS_CREATE_PROCESS passes back a input/output/err pointers,
-    // and sometimes it expects one as input.  If it expects one as input
-    // then we may have to transform the REBVAL into pointer data the OS
-    // expects.  If we do so then we have to clean up after that transform.
-    // (That cleanup could be just a Free_Series(), but an artifact of
-    // implementation forces us to use managed series hence SAVE/UNSAVE)
-    //
-    // !!! With the CALL as a module that can speak the internal API as well
-    // as the OS API, this is being untangled.
-
     // If input_ser is set, it will be both managed and guarded
     //
     REBSER *input_ser;
@@ -1317,67 +1323,8 @@ REBNATIVE(call)
         panic(ARG(in));
     }
 
-    // Note that os_output is actually treated as an *input* parameter in the
-    // case of a FILE! by OS_CREATE_PROCESS.  (In the other cases it is a
-    // pointer of the returned data, which will need to be freed with
-    // OS_FREE().)  Hence the case for FILE! is handled specially, where the
-    // output_ser must be unsaved instead of OS_FREE()d.
-    //
-    REBSER *output_ser;
-    char *os_output;
-    REBCNT output_len;
-
-    UNUSED(REF(output)); // implicit by void ARG(out)
-    switch (VAL_TYPE(ARG(out))) {
-    case REB_FILE:
-        output_ser = Value_To_OS_Path(ARG(out), FALSE);
-        MANAGE_SERIES(output_ser);
-        PUSH_GUARD_SERIES(output_ser);
-        os_output = SER_HEAD(char, output_ser);
-        output_len = SER_LEN(output_ser);
-        break;
-
-    case REB_STRING:
-    case REB_BINARY:
-    case REB_BLANK:
-    case REB_MAX_VOID:
-        output_ser = NULL;
-        os_output = NULL;
-        output_len = 0;
-        break;
-
-    default:
-        panic (ARG(out));
-    }
-
-    // Error case...same note about FILE! case as with Output case above
-    //
-    REBSER *err_ser;
-    char *os_err;
-    REBCNT err_len;
-
-    UNUSED(REF(error)); // implicit by void ARG(err)
-    switch (VAL_TYPE(ARG(err))) {
-    case REB_FILE:
-        err_ser = Value_To_OS_Path(ARG(err), FALSE);
-        MANAGE_SERIES(err_ser);
-        PUSH_GUARD_SERIES(err_ser);
-        os_err = SER_HEAD(char, err_ser);
-        err_len = SER_LEN(err_ser);
-        break;
-
-    case REB_STRING:
-    case REB_BINARY:
-    case REB_BLANK:
-    case REB_MAX_VOID:
-        err_ser = NULL;
-        os_err = NULL;
-        err_len = 0;
-        break;
-
-    default:
-        panic (ARG(err));
-    }
+    UNUSED(REF(output));
+    UNUSED(REF(error));
 
     REBOOL flag_wait;
     if (
@@ -1491,18 +1438,22 @@ REBNATIVE(call)
     else
         fail (ARG(command));
 
-    assert(
-        IS_BLANK(ARG(err)) || IS_VOID(ARG(err))
-        || (os_output == NULL && output_len == 0)
-    );
-
-    assert(
-        IS_BLANK(ARG(err)) || IS_VOID(ARG(err))
-        || (os_err == NULL && err_len == 0)
-    );
-
-    REBU64 pid; // Was REBI64 of -1, but OS_CREATE_PROCESS wants u64
+    REBU64 pid;
     int exit_code;
+
+    // If a STRING! or BINARY! is used for the output or error, then that
+    // is treated as a request to append the results of the pipe to them.
+    //
+    // !!! At the moment this is done by having the OS-specific routine
+    // pass back a buffer it malloc()s and reallocates to be the size of the
+    // full data, which is then appended after the operation is finished.
+    // With CALL now an extension where all parts have access to the internal
+    // API, it could be added directly to the binary or string as it goes.
+    //
+    char *os_output;
+    REBCNT output_len;
+    char *os_err;
+    REBCNT err_len;
 
     REBINT r = OS_Create_Process(
         frame_,
@@ -1520,10 +1471,10 @@ REBNATIVE(call)
         &exit_code,
         os_input,
         input_len,
-        &os_output,
-        &output_len,
-        &os_err,
-        &err_len
+        IS_STRING(ARG(out)) || IS_BINARY(ARG(out)) ? &os_output : NULL,
+        IS_STRING(ARG(out)) || IS_BINARY(ARG(out)) ? &output_len : NULL,
+        IS_STRING(ARG(err)) || IS_BINARY(ARG(err)) ? &os_err : NULL,
+        IS_STRING(ARG(err)) || IS_BINARY(ARG(err)) ? &err_len : NULL
     );
 
     // Call may not succeed if r != 0, but we still have to run cleanup
@@ -1548,14 +1499,14 @@ REBNATIVE(call)
             // !!! Somewhat inefficient: should there be Append_OS_Str?
             REBSER *ser = Copy_OS_Str(os_output, output_len);
             Append_String(VAL_SERIES(ARG(out)), ser, 0, SER_LEN(ser));
-            OS_FREE(os_output);
+            free(os_output);
             Free_Series(ser);
         }
     }
     else if (IS_BINARY(ARG(out))) {
         if (output_len > 0) {
             Append_Unencoded_Len(VAL_SERIES(ARG(out)), os_output, output_len);
-            OS_FREE(os_output);
+            free(os_output);
         }
     }
 
@@ -1564,24 +1515,20 @@ REBNATIVE(call)
             // !!! Somewhat inefficient: should there be Append_OS_Str?
             REBSER *ser = Copy_OS_Str(os_err, err_len);
             Append_String(VAL_SERIES(ARG(err)), ser, 0, SER_LEN(ser));
-            OS_FREE(os_err);
+            free(os_err);
             Free_Series(ser);
         }
     } else if (IS_BINARY(ARG(err))) {
         if (err_len > 0) {
             Append_Unencoded_Len(VAL_SERIES(ARG(err)), os_err, err_len);
-            OS_FREE(os_err);
+            free(os_err);
         }
     }
 
-    // If we used (and possibly created) a series for input/output/err, then
-    // that series was managed and saved from GC.  Unsave them now.  Note
-    // backwardsness: must unsave the most recently saved series first!!
+    // If we used (and possibly created) a series for input, then that series
+    // was managed and saved from GC.  Unsave it now.  Note backwardsness:
+    // must unsave the most recently saved series first!!
     //
-    if (err_ser != NULL)
-        DROP_GUARD_SERIES(err_ser);
-    if (output_ser != NULL)
-        DROP_GUARD_SERIES(output_ser);
     if (input_ser != NULL)
         DROP_GUARD_SERIES(input_ser);
 
@@ -1732,7 +1679,7 @@ REBNATIVE(sleep)
 // solution would presumably solve that problem, so two different functions
 // would not be needed.
 //
-// This function was needed by @GrahamChiu, and puting it in the CALL module
+// This function was needed by @GrahamChiu, and putting it in the CALL module
 // isn't necessarily ideal, but it's better than making the core dependent
 // on Sleep() vs. usleep()...and all the relevant includes have been
 // established here.
