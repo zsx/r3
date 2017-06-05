@@ -557,16 +557,12 @@ REBNATIVE(get_os_browsers)
     DS_PUSH_TRASH;
     Init_String(DS_TOP, Make_UTF8_May_Fail("x-www-browser %1"));
 
-#elif defined(TO_POSIX)
+#else // Just try /usr/bin/open on POSIX, OS X, Haiku, etc.
 
     // Just use /usr/bin/open
     //
     DS_PUSH_TRASH;
     Init_String(DS_TOP, Make_UTF8_May_Fail("/usr/bin/open %1"));
-
-#else
-
-    fail ("Can't detect OS browsers, hijack GET-OS-BROWSERS to override");
 
 #endif
 
