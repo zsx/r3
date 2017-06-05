@@ -28,61 +28,1201 @@
 //=////////////////////////////////////////////////////////////////////////=//
 //
 
-#if !defined( __cplusplus) && defined(TO_LINUX)
-    //
-    // See feature_test_macros(7) -- this definition is redundant under C++
-    //
-    #define _GNU_SOURCE  // Needed for pipe2 on Linux when #include <unistd.h>
-    //
-    // !!! Investigate why moving this lower in the file, e.g. in the unix
-    // include section, is having trouble.  %sys-core.h should not be
-    // including it by default...
-#endif
-
-
-#ifdef IS_ERROR
-#undef IS_ERROR //winerror.h defines this, so undef it to avoid the warning
-#endif
-#include "sys-core.h"
-#include "sys-ext.h"
-
-#include "tmp-mod-call-first.h"
-
-// !!! In the original code for CALL, the division of labor was such that
-// all the "Rebolisms" had to have the properties extracted before calling
-// the "pure C" interface for the host's abstract communication with the
-// process spawning API.  Ren-C's plan is to generally abandon the abstract
-// OS and let extensions interact via ports and natives, so these flags
-// won't be needed.
-
-#define INHERIT_TYPE 0
-#define NONE_TYPE 1
-#define STRING_TYPE 2
-#define FILE_TYPE 3
-#define BINARY_TYPE 4
-
-#define FLAG_WAIT 1
-#define FLAG_CONSOLE 2
-#define FLAG_SHELL 4
-#define FLAG_INFO 8
-
-
 #ifdef TO_WINDOWS
     #include <windows.h>
     #include <process.h>
     #include <shlobj.h>
 
-    #include "call-windows.inc"
+    #ifdef IS_ERROR
+        #undef IS_ERROR //winerror.h defines, Rebol has a different meaning
+    #endif
 #else
+    #if !defined( __cplusplus) && defined(TO_LINUX)
+        //
+        // See feature_test_macros(7), this definition is redundant under C++
+        //
+        #define _GNU_SOURCE // Needed for pipe2 when #including <unistd.h>
+    #endif
+    #include <unistd.h>
+
     #include <errno.h>
     #include <fcntl.h>
     #include <poll.h>
     #include <signal.h>
     #include <sys/stat.h>
     #include <sys/wait.h>
-    #include <unistd.h>
+#endif
 
-    #include "call-posix.inc"
+#include "sys-core.h"
+#include "sys-ext.h"
+
+#include "tmp-mod-call-first.h"
+
+
+#ifdef TO_WINDOWS
+//
+//  OS_Create_Process: C
+//
+// Return -1 on error.
+//
+int OS_Create_Process(
+    REBFRM *frame_, // stopgap: allows access to CALL's ARG() and REF()
+    const wchar_t *call,
+    int argc,
+    const wchar_t * argv[],
+    REBOOL flag_wait,
+    u64 *pid,
+    int *exit_code,
+    char *input,
+    u32 input_len,
+    char **output,
+    u32 *output_len,
+    char **err,
+    u32 *err_len
+) {
+    INCLUDE_PARAMS_OF_CALL;
+
+    UNUSED(ARG(command)); // turned into `call` and `argv/argc` by CALL
+    UNUSED(REF(wait)); // covered by flag_wait
+
+    UNUSED(REF(console)); // actually not paid attention to
+
+    if (call == NULL)
+        fail ("'argv[]'-style launching not implemented on Windows CALL");
+
+#ifdef GET_IS_NT_FLAG // !!! Why was this here?
+    REBOOL is_NT;
+    OSVERSIONINFO info;
+    GetVersionEx(&info);
+    is_NT = info.dwPlatformId >= VER_PLATFORM_WIN32_NT;
+#endif
+
+    UNUSED(argc);
+    UNUSED(argv);
+
+    REBINT result = -1;
+    REBINT ret = 0;
+    HANDLE hOutputRead = 0, hOutputWrite = 0;
+    HANDLE hInputWrite = 0, hInputRead = 0;
+    HANDLE hErrorWrite = 0, hErrorRead = 0;
+    wchar_t *cmd = NULL;
+    char *oem_input = NULL;
+
+    UNUSED(REF(info));
+
+    SECURITY_ATTRIBUTES sa;
+    sa.nLength = sizeof(SECURITY_ATTRIBUTES);
+    sa.lpSecurityDescriptor = NULL;
+    sa.bInheritHandle = TRUE;
+
+    STARTUPINFO si;
+    si.cb = sizeof(si);
+    si.lpReserved = NULL;
+    si.lpDesktop = NULL;
+    si.lpTitle = NULL;
+    si.dwFlags = STARTF_USESHOWWINDOW;
+    si.dwFlags |= STARTF_USESTDHANDLES;
+    si.wShowWindow = SW_SHOWNORMAL;
+    si.cbReserved2 = 0;
+    si.lpReserved2 = NULL;
+
+    UNUSED(REF(input)); // implicitly covered by void ARG(in)
+    switch (VAL_TYPE(ARG(in))) {
+    case REB_STRING:
+    case REB_BINARY:
+        if (!CreatePipe(&hInputRead, &hInputWrite, NULL, 0)) {
+            goto input_error;
+        }
+
+        // make child side handle inheritable
+        if (!SetHandleInformation(
+            hInputRead, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT
+        )){
+            goto input_error;
+        }
+        si.hStdInput = hInputRead;
+        break;
+
+    case REB_FILE:
+        hInputRead = CreateFile(
+            cast(wchar_t*, input), // !!!
+            GENERIC_READ, // desired mode
+            0, // shared mode
+            &sa, // security attributes
+            OPEN_EXISTING, // creation disposition
+            FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN, // flags
+            NULL // template
+        );
+        si.hStdInput = hInputRead;
+        break;
+
+    case REB_BLANK:
+        si.hStdInput = 0;
+        break;
+
+    case REB_MAX_VOID:
+        si.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
+        break;
+
+    default:
+        panic (ARG(in));
+    }
+
+
+    UNUSED(REF(output)); // implicitly covered by void ARG(out)
+    switch (VAL_TYPE(ARG(out))) {
+    case REB_STRING:
+    case REB_BINARY:
+        if (!CreatePipe(&hOutputRead, &hOutputWrite, NULL, 0)) {
+            goto output_error;
+        }
+
+        // make child side handle inheritable
+        //
+        if (!SetHandleInformation(
+            hOutputWrite, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT
+        )){
+            goto output_error;
+        }
+        si.hStdOutput = hOutputWrite;
+        break;
+
+    case REB_FILE:
+        si.hStdOutput = CreateFile(
+            *cast(LPCTSTR*, output),
+            GENERIC_WRITE, // desired mode
+            0, // shared mode
+            &sa, // security attributes
+            CREATE_NEW, // creation disposition
+            FILE_ATTRIBUTE_NORMAL, // flag and attributes
+            NULL // template
+        );
+
+        if (
+            si.hStdOutput == INVALID_HANDLE_VALUE
+            && GetLastError() == ERROR_FILE_EXISTS
+        ){
+            si.hStdOutput = CreateFile(
+                *cast(LPCTSTR*, output),
+                GENERIC_WRITE, // desired mode
+                0, // shared mode
+                &sa, // security attributes
+                OPEN_EXISTING, // creation disposition
+                FILE_ATTRIBUTE_NORMAL, // flag and attributes
+                NULL // template
+            );
+        }
+        break;
+
+    case REB_BLANK:
+        si.hStdOutput = 0;
+        break;
+
+    case REB_MAX_VOID:
+        si.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
+        break;
+
+    default:
+        panic (ARG(out));
+    }
+
+    UNUSED(REF(error)); // implicitly covered by void ARG(err)
+    switch (VAL_TYPE(ARG(err))) {
+    case REB_STRING:
+    case REB_BINARY:
+        if (!CreatePipe(&hErrorRead, &hErrorWrite, NULL, 0)) {
+            goto error_error;
+        }
+
+        // make child side handle inheritable
+        //
+        if (!SetHandleInformation(
+            hErrorWrite, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT
+        )){
+            goto error_error;
+        }
+        si.hStdError = hErrorWrite;
+        break;
+
+    case REB_FILE:
+        si.hStdError = CreateFile(
+            *cast(LPCTSTR*, err),
+            GENERIC_WRITE, // desired mode
+            0, // shared mode
+            &sa, // security attributes
+            CREATE_NEW, // creation disposition
+            FILE_ATTRIBUTE_NORMAL, // flag and attributes
+            NULL // template
+        );
+
+        if (
+            si.hStdError == INVALID_HANDLE_VALUE
+            && GetLastError() == ERROR_FILE_EXISTS
+        ){
+            si.hStdError = CreateFile(
+                *cast(LPCTSTR*, err),
+                GENERIC_WRITE, // desired mode
+                0, // shared mode
+                &sa, // security attributes
+                OPEN_EXISTING, // creation disposition
+                FILE_ATTRIBUTE_NORMAL, // flag and attributes
+                NULL // template
+            );
+        }
+        break;
+
+    case REB_BLANK:
+        si.hStdError = 0;
+        break;
+
+    case REB_MAX_VOID:
+        si.hStdError = GetStdHandle(STD_ERROR_HANDLE);
+        break;
+
+    default:
+        panic (ARG(err));
+    }
+
+    if (REF(shell)) {
+        const wchar_t *sh = L"cmd.exe /C ";
+        size_t len = wcslen(sh) + wcslen(call) + 1;
+
+        // other branch uses _wcsdup and free(), so we can't use
+        // OS_ALLOC_N here (doesn't matter, not returning it to Rebol)
+        cmd = cast(wchar_t*, malloc(len * sizeof(wchar_t)));
+        cmd[0] = L'\0';
+        wcscat(cmd, sh);
+        wcscat(cmd, call);
+    }
+    else {
+        // CreateProcess might write to this memory
+        // Duplicate it to be safe
+        cmd = _wcsdup(call);
+    }
+
+    PROCESS_INFORMATION pi;
+    result = CreateProcess(
+        NULL, // executable name
+        cmd, // command to execute
+        NULL, // process security attributes
+        NULL, // thread security attributes
+        TRUE, // inherit handles, must be TRUE for I/O redirection
+        NORMAL_PRIORITY_CLASS | CREATE_DEFAULT_ERROR_MODE, // creation flags
+        NULL, // environment
+        NULL, // current directory
+        &si, // startup information
+        &pi // process information
+    );
+
+    free(cmd);
+
+    *pid = pi.dwProcessId;
+
+    if (hInputRead != NULL)
+        CloseHandle(hInputRead);
+
+    if (hOutputWrite != NULL)
+        CloseHandle(hOutputWrite);
+
+    if (hErrorWrite != NULL)
+        CloseHandle(hErrorWrite);
+
+    // Wait for termination:
+    if (result != 0 && flag_wait) {
+        HANDLE handles[3];
+        int count = 0;
+        DWORD output_size = 0;
+        DWORD err_size = 0;
+
+#define BUF_SIZE_CHUNK 4096
+
+        if (hInputWrite != NULL && input_len > 0) {
+            if (IS_STRING(ARG(in))) {
+                DWORD dest_len = 0;
+                /* convert input encoding from UNICODE to OEM */
+                // !!! Is cast to wchar_t here legal?
+                dest_len = WideCharToMultiByte(
+                    CP_OEMCP,
+                    0,
+                    cast(wchar_t*, input),
+                    input_len,
+                    oem_input,
+                    dest_len,
+                    NULL,
+                    NULL
+                );
+                if (dest_len > 0) {
+                    // Not returning memory to Rebol, but we don't realloc or
+                    // free, so it's all right to use OS_ALLOC_N anyway
+                    oem_input = OS_ALLOC_N(char, dest_len);
+                    if (oem_input != NULL) {
+                        WideCharToMultiByte(
+                            CP_OEMCP,
+                            0,
+                            cast(wchar_t*, input),
+                            input_len,
+                            oem_input,
+                            dest_len,
+                            NULL,
+                            NULL
+                        );
+                        input_len = dest_len;
+                        input = oem_input;
+                        handles[count ++] = hInputWrite;
+                    }
+                }
+            } else {
+                assert(IS_BINARY(ARG(in)));
+                handles[count ++] = hInputWrite;
+            }
+        }
+        if (hOutputRead != NULL) {
+            output_size = BUF_SIZE_CHUNK;
+            *output_len = 0;
+
+            // Might realloc(), can't use OS_ALLOC_N.  (This memory is not
+            // passed back to Rebol, so it doesn't matter.)
+            *output = cast(char*, malloc(output_size));
+            handles[count ++] = hOutputRead;
+        }
+        if (hErrorRead != NULL) {
+            err_size = BUF_SIZE_CHUNK;
+            *err_len = 0;
+
+            // Might realloc(), can't use OS_ALLOC_N.  (This memory is not
+            // passed back to Rebol, so it doesn't matter.)
+            *err = cast(char*, malloc(err_size));
+            handles[count++] = hErrorRead;
+        }
+
+        while (count > 0) {
+            DWORD wait_result = WaitForMultipleObjects(
+                count, handles, FALSE, INFINITE
+            );
+
+            // If we test wait_result >= WAIT_OBJECT_0 it will tell us "always
+            // true" with -Wtype-limits, since WAIT_OBJECT_0 is 0.  Take that
+            // comparison out but add assert in case you're on some abstracted
+            // Windows and it isn't 0 for that implementation.
+            //
+            assert(WAIT_OBJECT_0 == 0);
+            if (wait_result < WAIT_OBJECT_0 + count) {
+                int i = wait_result - WAIT_OBJECT_0;
+                DWORD input_pos = 0;
+                DWORD n = 0;
+
+                if (handles[i] == hInputWrite) {
+                    if (!WriteFile(
+                        hInputWrite,
+                        cast(char*, input) + input_pos,
+                        input_len - input_pos,
+                        &n,
+                        NULL
+                    )){
+                        if (i < count - 1) {
+                            memmove(
+                                &handles[i],
+                                &handles[i + 1],
+                                (count - i - 1) * sizeof(HANDLE)
+                            );
+                        }
+                        count--;
+                    }
+                    else {
+                        input_pos += n;
+                        if (input_pos >= input_len) {
+                            /* done with input */
+                            CloseHandle(hInputWrite);
+                            hInputWrite = NULL;
+                            OS_FREE(oem_input);
+                            oem_input = NULL;
+                            if (i < count - 1) {
+                                memmove(
+                                    &handles[i],
+                                    &handles[i + 1],
+                                    (count - i - 1) * sizeof(HANDLE)
+                                );
+                            }
+                            count--;
+                        }
+                    }
+                }
+                else if (handles[i] == hOutputRead) {
+                    if (!ReadFile(
+                        hOutputRead,
+                        *cast(char**, output) + *output_len,
+                        output_size - *output_len,
+                        &n,
+                        NULL
+                    )){
+                        if (i < count - 1) {
+                            memmove(
+                                &handles[i],
+                                &handles[i + 1],
+                                (count - i - 1) * sizeof(HANDLE)
+                            );
+                        }
+                        count--;
+                    }
+                    else {
+                        *output_len += n;
+                        if (*output_len >= output_size) {
+                            output_size += BUF_SIZE_CHUNK;
+                            *output = cast(char*, realloc(*output, output_size));
+                            if (*output == NULL) goto kill;
+                        }
+                    }
+                }
+                else if (handles[i] == hErrorRead) {
+                    if (!ReadFile(
+                        hErrorRead,
+                        *cast(char**, err) + *err_len,
+                        err_size - *err_len,
+                        &n,
+                        NULL
+                    )){
+                        if (i < count - 1) {
+                            memmove(
+                                &handles[i],
+                                &handles[i + 1],
+                                (count - i - 1) * sizeof(HANDLE)
+                            );
+                        }
+                        count--;
+                    }
+                    else {
+                        *err_len += n;
+                        if (*err_len >= err_size) {
+                            err_size += BUF_SIZE_CHUNK;
+                            *err = cast(char*, realloc(*err, err_size));
+                            if (*err == NULL) goto kill;
+                        }
+                    }
+                }
+                else {
+                    //printf("Error READ");
+                    if (!ret) ret = GetLastError();
+                    goto kill;
+                }
+            }
+            else if (wait_result == WAIT_FAILED) { /* */
+                //printf("Wait Failed\n");
+                if (!ret) ret = GetLastError();
+                goto kill;
+            }
+            else {
+                //printf("Wait returns unexpected result: %d\n", wait_result);
+                if (!ret) ret = GetLastError();
+                goto kill;
+            }
+        }
+
+        WaitForSingleObject(pi.hProcess, INFINITE); // check result??
+
+        DWORD temp;
+        GetExitCodeProcess(pi.hProcess, &temp);
+        *exit_code = temp;
+
+        CloseHandle(pi.hThread);
+        CloseHandle(pi.hProcess);
+
+        if (IS_STRING(ARG(out)) && *output != NULL && *output_len > 0) {
+            /* convert to wide char string */
+            int dest_len = 0;
+            wchar_t *dest = NULL;
+            dest_len = MultiByteToWideChar(
+                CP_OEMCP, 0, *output, *output_len, dest, 0
+            );
+            if (dest_len <= 0) {
+                OS_FREE(*output);
+                *output = NULL;
+                *output_len = 0;
+            }
+            // We've already established that output is a malloc()'d pointer,
+            // not one we got back from OS_ALLOC_N()
+            dest = cast(wchar_t*, malloc(*output_len * sizeof(wchar_t)));
+            if (dest == NULL)
+                goto cleanup;
+            MultiByteToWideChar(
+                CP_OEMCP, 0, *output, *output_len, dest, dest_len
+            );
+            free(*output);
+            *output = cast(char*, dest);
+            *output_len = dest_len;
+        }
+
+        if (IS_STRING(ARG(err)) && *err != NULL && *err_len > 0) {
+            /* convert to wide char string */
+            int dest_len = 0;
+            wchar_t *dest = NULL;
+            dest_len = MultiByteToWideChar(
+                CP_OEMCP, 0, *err, *err_len, dest, 0
+            );
+            if (dest_len <= 0) {
+                OS_FREE(*err);
+                *err = NULL;
+                *err_len = 0;
+            }
+            // We've already established that output is a malloc()'d pointer,
+            // not one we got back from OS_ALLOC_N()
+            dest = cast(wchar_t*, malloc(*err_len * sizeof(wchar_t)));
+            if (dest == NULL) goto cleanup;
+            MultiByteToWideChar(CP_OEMCP, 0, *err, *err_len, dest, dest_len);
+            free(*err);
+            *err = cast(char*, dest);
+            *err_len = dest_len;
+        }
+    } else if (result) {
+        //
+        // No wait, close handles to avoid leaks
+        //
+        CloseHandle(pi.hThread);
+        CloseHandle(pi.hProcess);
+    }
+    else {
+        // CreateProcess failed
+        ret = GetLastError();
+    }
+
+    goto cleanup;
+
+kill:
+    if (TerminateProcess(pi.hProcess, 0)) {
+        WaitForSingleObject(pi.hProcess, INFINITE);
+
+        DWORD temp;
+        GetExitCodeProcess(pi.hProcess, &temp);
+        *exit_code = temp;
+    }
+    else if (ret == 0) {
+        ret = GetLastError();
+    }
+
+    CloseHandle(pi.hThread);
+    CloseHandle(pi.hProcess);
+
+cleanup:
+    if (oem_input != NULL) {
+        // Since we didn't need realloc() for oem_input, we used the
+        // OS_ALLOC_N allocator.
+        OS_FREE(oem_input);
+    }
+
+    if (output != NULL && *output != NULL && *output_len == 0) {
+        free(*output);
+    }
+
+    if (err != NULL && *err != NULL && *err_len == 0) {
+        free(*err);
+    }
+
+    if (hInputWrite != NULL)
+        CloseHandle(hInputWrite);
+
+    if (hOutputRead != NULL)
+        CloseHandle(hOutputRead);
+
+    if (hErrorRead != NULL)
+        CloseHandle(hErrorRead);
+
+    if (IS_FILE(ARG(err))) {
+        CloseHandle(si.hStdError);
+    }
+
+error_error:
+    if (IS_FILE(ARG(out))) {
+        CloseHandle(si.hStdOutput);
+    }
+
+output_error:
+    if (IS_FILE(ARG(in))) {
+        CloseHandle(si.hStdInput);
+    }
+
+input_error:
+    return ret;  // meaning depends on flags
+}
+
+#else // !defined(TO_WINDOWS), so POSIX, LINUX, OS X, etc.
+
+static REBOOL Open_Nonblocking_Pipe_Fails(int pipefd[2]) {
+#ifdef USE_PIPE2_NOT_PIPE
+    //
+    // NOTE: pipe() is POSIX, but pipe2() is Linux-specific.  With pipe() it
+    // takes an additional call to fcntl() to request non-blocking behavior,
+    // so it's a small amount more work.  However, there are other flags which
+    // if aren't passed atomically at the moment of opening allow for a race
+    // condition in threading if split, e.g. FD_CLOEXEC.
+    //
+    // (If you don't have FD_CLOEXEC set on the file descriptor, then all
+    // instances of CALL will act as a /WAIT.)
+    //
+    // At time of writing, this is mostly academic...but the code needed to be
+    // patched to work with pipe() since some older libcs do not have pipe2().
+    // So the ability to target both are kept around, saving the pipe2() call
+    // for later Linuxes known to have it (and O_CLOEXEC).
+    //
+    if (pipe2(pipefd, O_CLOEXEC | O_NONBLOCK))
+        return TRUE;
+#else
+    if (pipe(pipefd) < 0)
+        return TRUE;
+
+    int direction; // READ=0, WRITE=1
+    for (direction = 0; direction < 2; ++direction) {
+        int oldflags;
+        oldflags = fcntl(pipefd[direction], F_GETFL);
+        if (oldflags < 0)
+            return TRUE;
+        if (fcntl(pipefd[direction], F_SETFL, oldflags | O_NONBLOCK) < 0)
+            return TRUE;
+        oldflags = fcntl(pipefd[direction], F_GETFD);
+        if (oldflags < 0)
+            return TRUE;
+        if (fcntl(pipefd[direction], F_SETFD, oldflags | FD_CLOEXEC) < 0)
+            return TRUE;
+    }
+#endif
+
+    return FALSE;
+}
+
+
+//
+//  OS_Create_Process: C
+//
+// flags:
+//     1: wait, is implied when I/O redirection is enabled
+//     2: console
+//     4: shell
+//     8: info
+//     16: show
+//
+// Return -1 on error, otherwise the process return code.
+//
+// POSIX previous simple version was just 'return system(call);'
+// This uses 'execvp' which is "POSIX.1 conforming, UNIX compatible"
+//
+int OS_Create_Process(
+    REBFRM *frame_, // stopgap: allows access to CALL's ARG() and REF()
+    const char *call,
+    int argc,
+    const char* argv[],
+    REBOOL flag_wait, // distinct from REF(wait)
+    u64 *pid,
+    int *exit_code,
+    char *input,
+    u32 input_len,
+    char **output,
+    u32 *output_len,
+    char **err,
+    u32 *err_len
+) {
+    INCLUDE_PARAMS_OF_CALL;
+
+    UNUSED(ARG(command)); // translated into call and argc/argv
+    UNUSED(REF(wait)); // flag_wait controls this
+    UNUSED(REF(input));
+    UNUSED(REF(output));
+    UNUSED(REF(error));
+
+    UNUSED(REF(console)); // actually not paid attention to
+
+    UNUSED(call);
+
+    int status = 0;
+    int ret = 0;
+    char *info = NULL;
+    off_t info_size = 0;
+    u32 info_len = 0;
+    pid_t fpid = 0;
+
+    const unsigned int R = 0;
+    const unsigned int W = 1;
+
+    // We want to be able to compile with all warnings as errors, and
+    // we'd like to use -Wcast-qual if possible.  This is currently
+    // the only barrier in the codebase...so we tunnel under the cast.
+    //
+    char * const *argv_hack;
+
+    // suppress unused warnings but keep flags for future use
+    UNUSED(REF(info));
+    UNUSED(REF(console));
+
+    int stdin_pipe[] = {-1, -1};
+    int stdout_pipe[] = {-1, -1};
+    int stderr_pipe[] = {-1, -1};
+    int info_pipe[] = {-1, -1};
+
+    if (IS_STRING(ARG(in)) || IS_BINARY(ARG(in))) {
+        if (Open_Nonblocking_Pipe_Fails(stdin_pipe))
+            goto stdin_pipe_err;
+    }
+
+    if (IS_STRING(ARG(out)) || IS_BINARY(ARG(out))) {
+        if (Open_Nonblocking_Pipe_Fails(stdout_pipe))
+            goto stdout_pipe_err;
+    }
+
+    if (IS_STRING(ARG(err)) || IS_BINARY(ARG(err))) {
+        if (Open_Nonblocking_Pipe_Fails(stderr_pipe))
+            goto stdout_pipe_err;
+    }
+
+    if (Open_Nonblocking_Pipe_Fails(info_pipe))
+        goto info_pipe_err;
+
+    fpid = fork();
+    if (fpid == 0) {
+        //
+        // This is the child branch of the fork.  In GDB if you want to debug
+        // the child you need to use `set follow-fork-mode child`:
+        //
+        // http://stackoverflow.com/questions/15126925/
+
+        if (IS_STRING(ARG(in)) || IS_BINARY(ARG(in))) {
+            close(stdin_pipe[W]);
+            if (dup2(stdin_pipe[R], STDIN_FILENO) < 0)
+                goto child_error;
+            close(stdin_pipe[R]);
+        }
+        else if (IS_FILE(ARG(in))) {
+            int fd = open(input, O_RDONLY);
+            if (fd < 0)
+                goto child_error;
+            if (dup2(fd, STDIN_FILENO) < 0)
+                goto child_error;
+            close(fd);
+        }
+        else if (IS_BLANK(ARG(in))) {
+            int fd = open("/dev/null", O_RDONLY);
+            if (fd < 0)
+                goto child_error;
+            if (dup2(fd, STDIN_FILENO) < 0)
+                goto child_error;
+            close(fd);
+        }
+        else {
+            assert(IS_VOID(ARG(in)));
+            // inherit stdin from the parent
+        }
+
+        if (IS_STRING(ARG(out)) || IS_BINARY(ARG(out))) {
+            close(stdout_pipe[R]);
+            if (dup2(stdout_pipe[W], STDOUT_FILENO) < 0)
+                goto child_error;
+            close(stdout_pipe[W]);
+        }
+        else if (IS_FILE(ARG(out))) {
+            int fd = open(*output, O_CREAT | O_WRONLY, 0666);
+            if (fd < 0)
+                goto child_error;
+            if (dup2(fd, STDOUT_FILENO) < 0)
+                goto child_error;
+            close(fd);
+        }
+        else if (IS_BLANK(ARG(out))) {
+            int fd = open("/dev/null", O_WRONLY);
+            if (fd < 0)
+                goto child_error;
+            if (dup2(fd, STDOUT_FILENO) < 0)
+                goto child_error;
+            close(fd);
+        }
+        else {
+            assert(IS_VOID(ARG(out)));
+            // inherit stdout from the parent
+        }
+
+        if (IS_STRING(ARG(err)) || IS_BINARY(ARG(err))) {
+            close(stderr_pipe[R]);
+            if (dup2(stderr_pipe[W], STDERR_FILENO) < 0)
+                goto child_error;
+            close(stderr_pipe[W]);
+        }
+        else if (IS_FILE(ARG(err))) {
+            int fd = open(*err, O_CREAT | O_WRONLY, 0666);
+            if (fd < 0)
+                goto child_error;
+            if (dup2(fd, STDERR_FILENO) < 0)
+                goto child_error;
+            close(fd);
+        }
+        else if (IS_BLANK(ARG(err))) {
+            int fd = open("/dev/null", O_WRONLY);
+            if (fd < 0)
+                goto child_error;
+            if (dup2(fd, STDERR_FILENO) < 0)
+                goto child_error;
+            close(fd);
+        }
+        else {
+            assert(IS_VOID(ARG(err)));
+            // inherit stderr from the parent
+        }
+
+        close(info_pipe[R]);
+
+        /* printf("flag_shell in child: %hhu\n", flag_shell); */
+
+        if (REF(shell)) {
+            const char *sh = getenv("SHELL");
+
+            if (sh == NULL) { // shell does not exist
+                int err = 2;
+                if (write(info_pipe[W], &err, sizeof(err)) == -1) {
+                    //
+                    // Nothing we can do, but need to stop compiler warning
+                    // (cast to void is insufficient for warn_unused_result)
+                }
+                exit(EXIT_FAILURE);
+            }
+
+            const char ** argv_new = c_cast(
+                const char**, OS_ALLOC_N(const char*, argc + 3)
+            );
+            argv_new[0] = sh;
+            argv_new[1] = "-c";
+            memcpy(&argv_new[2], argv, argc * sizeof(argv[0]));
+            argv_new[argc + 2] = NULL;
+
+            memcpy(&argv_hack, &argv_new, sizeof(argv_hack));
+            execvp(sh, argv_hack);
+        }
+        else {
+            memcpy(&argv_hack, &argv, sizeof(argv_hack));
+            execvp(argv[0], argv_hack);
+        }
+
+child_error: ;
+        //
+        // The original implementation of this code would write errno to the
+        // info pipe.  However, errno may be volatile (and it is on Android).
+        // write() does not accept volatile pointers, so copy it to a
+        // temporary value first.
+        //
+        int nonvolatile_errno = errno;
+
+        if (write(info_pipe[W], &nonvolatile_errno, sizeof(int)) == -1) {
+            //
+            // Nothing we can do, but need to stop compiler warning
+            // (cast to void is insufficient for warn_unused_result)
+        }
+        exit(EXIT_FAILURE); /* get here only when exec fails */
+    }
+    else if (fpid > 0) {
+        //
+        // This is the parent branch, so it may (or may not) wait on the
+        // child fork branch, based on /WAIT.  Even if you are not using
+        // /WAIT, it will use the info pipe to make sure the process did
+        // actually start.
+        //
+
+#define BUF_SIZE_CHUNK 4096
+        nfds_t nfds = 0;
+        struct pollfd pfds[4];
+        pid_t xpid;
+        unsigned int i;
+        ssize_t nbytes;
+        off_t input_size = 0;
+        off_t output_size = 0;
+        off_t err_size = 0;
+        int valid_nfds;
+
+        // Only put the input pipe in the consideration if we can write to
+        // it and we have data to send to it.
+
+        if ((stdin_pipe[W] > 0) && (input_size = strlen(input)) > 0) {
+            /* printf("stdin_pipe[W]: %d\n", stdin_pipe[W]); */
+
+            //
+            // the passed in input_len is in characters, not in bytes
+            //
+            input_len = 0;
+
+            pfds[nfds].fd = stdin_pipe[W];
+            pfds[nfds].events = POLLOUT;
+            nfds++;
+
+            close(stdin_pipe[R]);
+            stdin_pipe[R] = -1;
+        }
+        if (stdout_pipe[R] > 0) {
+            /* printf("stdout_pipe[R]: %d\n", stdout_pipe[R]); */
+
+            output_size = BUF_SIZE_CHUNK;
+
+            *output = OS_ALLOC_N(char, output_size);
+
+            pfds[nfds].fd = stdout_pipe[R];
+            pfds[nfds].events = POLLIN;
+            nfds++;
+
+            close(stdout_pipe[W]);
+            stdout_pipe[W] = -1;
+        }
+        if (stderr_pipe[R] > 0) {
+            /* printf("stderr_pipe[R]: %d\n", stderr_pipe[R]); */
+
+            err_size = BUF_SIZE_CHUNK;
+
+            *err = OS_ALLOC_N(char, err_size);
+
+            pfds[nfds].fd = stderr_pipe[R];
+            pfds[nfds].events = POLLIN;
+            nfds++;
+
+            close(stderr_pipe[W]);
+            stderr_pipe[W] = -1;
+        }
+
+        if (info_pipe[R] > 0) {
+            pfds[nfds].fd = info_pipe[R];
+            pfds[nfds].events = POLLIN;
+            nfds++;
+
+            info_size = 4;
+
+            info = OS_ALLOC_N(char, info_size);
+
+            close(info_pipe[W]);
+            info_pipe[W] = -1;
+        }
+
+        valid_nfds = nfds;
+        while (valid_nfds > 0) {
+            xpid = waitpid(fpid, &status, WNOHANG);
+            if (xpid == -1) {
+                ret = errno;
+                goto error;
+            }
+
+            if (xpid == fpid) {
+                //
+                // try one more time to read any remainding output/err
+                //
+                if (stdout_pipe[R] > 0) {
+                    nbytes = read(
+                        stdout_pipe[R],
+                        *output + *output_len,
+                        output_size - *output_len
+                    );
+
+                    if (nbytes > 0) {
+                        *output_len += nbytes;
+                    }
+                }
+
+                if (stderr_pipe[R] > 0) {
+                    nbytes = read(
+                        stderr_pipe[R],
+                        *err + *err_len,
+                        err_size - *err_len
+                    );
+                    if (nbytes > 0) {
+                        *err_len += nbytes;
+                    }
+                }
+
+                if (info_pipe[R] > 0) {
+                    nbytes = read(
+                        info_pipe[R],
+                        info + info_len,
+                        info_size - info_len
+                    );
+                    if (nbytes > 0) {
+                        info_len += nbytes;
+                    }
+                }
+
+                break;
+            }
+
+            /*
+            for (i = 0; i < nfds; ++i) {
+                printf(" %d", pfds[i].fd);
+            }
+            printf(" / %d\n", nfds);
+            */
+            if (poll(pfds, nfds, -1) < 0) {
+                ret = errno;
+                goto kill;
+            }
+
+            for (i = 0; i < nfds && valid_nfds > 0; ++i) {
+                /* printf("check: %d [%d/%d]\n", pfds[i].fd, i, nfds); */
+
+                if (pfds[i].revents & POLLERR) {
+                    /* printf("POLLERR: %d [%d/%d]\n", pfds[i].fd, i, nfds); */
+
+                    close(pfds[i].fd);
+                    pfds[i].fd = -1;
+                    valid_nfds --;
+                }
+                else if (pfds[i].revents & POLLOUT) {
+                    /* printf("POLLOUT: %d [%d/%d]\n", pfds[i].fd, i, nfds); */
+
+                    nbytes = write(pfds[i].fd, input, input_size - input_len);
+                    if (nbytes <= 0) {
+                        ret = errno;
+                        goto kill;
+                    }
+                    /* printf("POLLOUT: %d bytes\n", nbytes); */
+                    input_len += nbytes;
+                    if (cast(off_t, input_len) >= input_size) {
+                        close(pfds[i].fd);
+                        pfds[i].fd = -1;
+                        valid_nfds --;
+                    }
+                }
+                else if (pfds[i].revents & POLLIN) {
+                    /* printf("POLLIN: %d [%d/%d]\n", pfds[i].fd, i, nfds); */
+                    char **buffer = NULL;
+                    u32 *offset;
+                    ssize_t to_read = 0;
+                    size_t size;
+                    if (pfds[i].fd == stdout_pipe[R]) {
+                        buffer = (char**)output;
+                        offset = output_len;
+                        size = output_size;
+                    } else if (pfds[i].fd == stderr_pipe[R]) {
+                        buffer = (char**)err;
+                        offset = err_len;
+                        size = err_size;
+                    } else { /* info pipe */
+                        buffer = &info;
+                        offset = &info_len;
+                        size = info_size;
+                    }
+                    do {
+                        to_read = size - *offset;
+                        /* printf("to read %d bytes\n", to_read); */
+                        nbytes = read(pfds[i].fd, *buffer + *offset, to_read);
+                        if (nbytes < 0) {
+                            break;
+                        }
+                        if (nbytes == 0) { // closed
+                            /* printf("the other end closed\n"); */
+                            close(pfds[i].fd);
+                            pfds[i].fd = -1;
+                            valid_nfds --;
+                            break;
+                        }
+                        /* printf("POLLIN: %d bytes\n", nbytes); */
+                        *offset += nbytes;
+                        if (*offset >= size) {
+                            char *larger =
+                                OS_ALLOC_N(char, size + BUF_SIZE_CHUNK);
+                            if (!larger) goto kill;
+                            memcpy(larger, *buffer, size * sizeof(larger[0]));
+                            OS_FREE(*buffer);
+                            *buffer = larger;
+                            size += BUF_SIZE_CHUNK;
+                        }
+                    } while (nbytes == to_read);
+                }
+                else if (pfds[i].revents & POLLHUP) {
+                    /* printf("POLLHUP: %d [%d/%d]\n", pfds[i].fd, i, nfds); */
+                    close(pfds[i].fd);
+                    pfds[i].fd = -1;
+                    valid_nfds --;
+                }
+                else if (pfds[i].revents & POLLNVAL) {
+                    /* printf("POLLNVAL: %d [%d/%d]\n", pfds[i].fd, i, nfds); */
+                    ret = errno;
+                    goto kill;
+                }
+            }
+        }
+
+        if (valid_nfds == 0 && flag_wait) {
+            if (waitpid(fpid, &status, 0) < 0) {
+                ret = errno;
+                goto error;
+            }
+        }
+
+    }
+    else { // error
+        ret = errno;
+        goto error;
+    }
+
+    if (info_len > 0) {
+        //
+        // exec in child process failed, set to errno for reporting
+        ret = *(int*)info;
+    }
+    else if (WIFEXITED(status)) {
+       *exit_code = WEXITSTATUS(status);
+       *pid = fpid;
+    }
+    else
+        goto error;
+
+    goto cleanup;
+
+kill:
+    kill(fpid, SIGKILL);
+    waitpid(fpid, NULL, 0);
+
+error:
+    if (ret == 0)
+        ret = -1;
+
+cleanup:
+    if (output != NULL && *output != NULL && *output_len <= 0) {
+        OS_FREE(*output);
+    }
+    if (err != NULL && *err != NULL && *err_len <= 0) {
+        OS_FREE(*err);
+    }
+    if (info != NULL) {
+        OS_FREE(info);
+    }
+    if (info_pipe[R] > 0) {
+        close(info_pipe[R]);
+    }
+    if (info_pipe[W] > 0) {
+        close(info_pipe[W]);
+    }
+
+info_pipe_err:
+    if (stderr_pipe[R] > 0) {
+        close(stderr_pipe[R]);
+    }
+    if (stderr_pipe[W] > 0) {
+        close(stderr_pipe[W]);
+    }
+
+    goto stderr_pipe_err; // no jumps here yet, avoid warning
+
+stderr_pipe_err:
+    if (stdout_pipe[R] > 0) {
+        close(stdout_pipe[R]);
+    }
+    if (stdout_pipe[W] > 0) {
+        close(stdout_pipe[W]);
+    }
+
+stdout_pipe_err:
+    if (stdin_pipe[R] > 0) {
+        close(stdin_pipe[R]);
+    }
+    if (stdin_pipe[W] > 0) {
+        close(stdin_pipe[W]);
+    }
+
+stdin_pipe_err:
+    //
+    // We will get to this point on success, as well as error (so ret may
+    // be 0.  This is the return value of the host kit function to Rebol, not
+    // the process exit code (that's written into the pointer arg 'exit_code')
+    //
+    return ret;
+}
+
 #endif
 
 
@@ -120,12 +1260,140 @@ REBNATIVE(call)
 {
     INCLUDE_PARAMS_OF_CALL;
 
-    REBINT r;
-    REBVAL *arg = ARG(command);
-    REBU64 pid = MAX_U64; // Was REBI64 of -1, but OS_CREATE_PROCESS wants u64
-    u32 flags = 0;
+    UNUSED(REF(shell)); // looked at via frame_ by OS_Create_Process
+    UNUSED(REF(console));  // same
 
-    // We synthesize the argc and argv from our REBVAL arg, and in the
+    // SECURE was never actually done for R3-Alpha
+    //
+    Check_Security(Canon(SYM_CALL), POL_EXEC, ARG(command));
+
+    // Sometimes OS_CREATE_PROCESS passes back a input/output/err pointers,
+    // and sometimes it expects one as input.  If it expects one as input
+    // then we may have to transform the REBVAL into pointer data the OS
+    // expects.  If we do so then we have to clean up after that transform.
+    // (That cleanup could be just a Free_Series(), but an artifact of
+    // implementation forces us to use managed series hence SAVE/UNSAVE)
+    //
+    // !!! With the CALL as a module that can speak the internal API as well
+    // as the OS API, this is being untangled.
+
+    // If input_ser is set, it will be both managed and guarded
+    //
+    REBSER *input_ser;
+    char *os_input;
+    REBCNT input_len;
+
+    UNUSED(REF(input)); // implicit by void ARG(in)
+    switch (VAL_TYPE(ARG(in))) {
+    case REB_STRING:
+        input_ser = NULL;
+        os_input = cast(char*, Val_Str_To_OS_Managed(&input_ser, ARG(in)));
+        PUSH_GUARD_SERIES(input_ser);
+        input_len = VAL_LEN_AT(ARG(in));
+        break;
+
+    case REB_BINARY:
+        input_ser = NULL;
+        os_input = s_cast(VAL_BIN_AT(ARG(in)));
+        input_len = VAL_LEN_AT(ARG(in));
+        break;
+        
+    case REB_FILE:
+        input_ser = Value_To_OS_Path(ARG(in), FALSE);
+        MANAGE_SERIES(input_ser);
+        PUSH_GUARD_SERIES(input_ser);
+        os_input = SER_HEAD(char, input_ser);
+        input_len = SER_LEN(input_ser);
+        break;
+
+    case REB_BLANK:
+    case REB_MAX_VOID:
+        input_ser = NULL;
+        os_input = NULL;
+        input_len = 0;
+        break;
+
+    default:
+        panic(ARG(in));
+    }
+
+    // Note that os_output is actually treated as an *input* parameter in the
+    // case of a FILE! by OS_CREATE_PROCESS.  (In the other cases it is a
+    // pointer of the returned data, which will need to be freed with
+    // OS_FREE().)  Hence the case for FILE! is handled specially, where the
+    // output_ser must be unsaved instead of OS_FREE()d.
+    //
+    REBSER *output_ser;
+    char *os_output;
+    REBCNT output_len;
+
+    UNUSED(REF(output)); // implicit by void ARG(out)
+    switch (VAL_TYPE(ARG(out))) {
+    case REB_FILE:
+        output_ser = Value_To_OS_Path(ARG(out), FALSE);
+        MANAGE_SERIES(output_ser);
+        PUSH_GUARD_SERIES(output_ser);
+        os_output = SER_HEAD(char, output_ser);
+        output_len = SER_LEN(output_ser);
+        break;
+
+    case REB_STRING:
+    case REB_BINARY:
+    case REB_BLANK:
+    case REB_MAX_VOID:
+        output_ser = NULL;
+        os_output = NULL;
+        output_len = 0;
+        break;
+
+    default:
+        panic (ARG(out));
+    }
+
+    // Error case...same note about FILE! case as with Output case above
+    //
+    REBSER *err_ser;
+    char *os_err;
+    REBCNT err_len;
+
+    UNUSED(REF(error)); // implicit by void ARG(err)
+    switch (VAL_TYPE(ARG(err))) {
+    case REB_FILE:
+        err_ser = Value_To_OS_Path(ARG(err), FALSE);
+        MANAGE_SERIES(err_ser);
+        PUSH_GUARD_SERIES(err_ser);
+        os_err = SER_HEAD(char, err_ser);
+        err_len = SER_LEN(err_ser);
+        break;
+
+    case REB_STRING:
+    case REB_BINARY:
+    case REB_BLANK:
+    case REB_MAX_VOID:
+        err_ser = NULL;
+        os_err = NULL;
+        err_len = 0;
+        break;
+
+    default:
+        panic (ARG(err));
+    }
+
+    REBOOL flag_wait;
+    if (
+        REF(wait) ||
+        (
+            IS_STRING(ARG(in)) || IS_BINARY(ARG(in))
+            || IS_STRING(ARG(out)) || IS_BINARY(ARG(out))
+            || IS_STRING(ARG(err)) || IS_BINARY(ARG(err))
+        ) // I/O redirection implies /WAIT
+    ){
+        flag_wait = TRUE;
+    }
+    else
+        flag_wait = FALSE;
+        
+    // We synthesize the argc and argv from the "command", and in the
     // process we may need to do dynamic allocations of argc strings.  In
     // Rebol this is always done by making a series, and if those series
     // are managed then we need to keep them SAVEd from the GC for the
@@ -137,174 +1405,23 @@ REBNATIVE(call)
     int argc;
     const REBCHR **argv;
     REBCHR *cmd;
-    REBSER *argv_ser = NULL;
-    REBSER *argv_saved_sers = NULL;
-    REBSER *cmd_ser = NULL;
+    REBSER *argv_ser;
+    REBSER *argv_saved_sers;
+    REBSER *cmd_ser;
 
-    REBVAL *input = NULL;
-    REBVAL *output = NULL;
-    REBVAL *err = NULL;
-
-    // Sometimes OS_CREATE_PROCESS passes back a input/output/err pointers,
-    // and sometimes it expects one as input.  If it expects one as input
-    // then we may have to transform the REBVAL into pointer data the OS
-    // expects.  If we do so then we have to clean up after that transform.
-    // (That cleanup could be just a Free_Series(), but an artifact of
-    // implementation forces us to use managed series hence SAVE/UNSAVE)
-    //
-    REBSER *input_ser = NULL;
-    REBSER *output_ser = NULL;
-    REBSER *err_ser = NULL;
-
-    // Pointers to the string data buffers corresponding to input/output/err,
-    // which may be the data of the expanded path series, the data inside
-    // of a STRING!, or NULL if NONE! or default of INHERIT_TYPE
-    //
-    char *os_input = NULL;
-    char *os_output = NULL;
-    char *os_err = NULL;
-
-    int input_type = INHERIT_TYPE;
-    int output_type = INHERIT_TYPE;
-    int err_type = INHERIT_TYPE;
-
-    REBCNT input_len = 0;
-    REBCNT output_len = 0;
-    REBCNT err_len = 0;
-
-    int exit_code = 0;
-
-    Check_Security(Canon(SYM_CALL), POL_EXEC, arg);
-
-    // If input_ser is set, it will be both managed and saved
-    //
-    if (REF(input)) {
-        REBVAL *param = ARG(in);
-        input = param;
-        if (IS_STRING(param)) {
-            input_type = STRING_TYPE;
-            os_input = cast(char*, Val_Str_To_OS_Managed(&input_ser, param));
-            PUSH_GUARD_SERIES(input_ser);
-            input_len = VAL_LEN_AT(param);
-        }
-        else if (IS_BINARY(param)) {
-            input_type = BINARY_TYPE;
-            os_input = s_cast(VAL_BIN_AT(param));
-            input_len = VAL_LEN_AT(param);
-        }
-        else if (IS_FILE(param)) {
-            input_type = FILE_TYPE;
-            input_ser = Value_To_OS_Path(param, FALSE);
-            MANAGE_SERIES(input_ser);
-            PUSH_GUARD_SERIES(input_ser);
-            os_input = SER_HEAD(char, input_ser);
-            input_len = SER_LEN(input_ser);
-        }
-        else if (IS_BLANK(param)) {
-            input_type = NONE_TYPE;
-        }
-        else
-            fail (param);
-    }
-
-    // Note that os_output is actually treated as an *input* parameter in the
-    // case of a FILE! by OS_CREATE_PROCESS.  (In the other cases it is a
-    // pointer of the returned data, which will need to be freed with
-    // OS_FREE().)  Hence the case for FILE! is handled specially, where the
-    // output_ser must be unsaved instead of OS_FREE()d.
-    //
-    if (REF(output)) {
-        REBVAL *param = ARG(out);
-        output = param;
-        if (IS_STRING(param)) {
-            output_type = STRING_TYPE;
-        }
-        else if (IS_BINARY(param)) {
-            output_type = BINARY_TYPE;
-        }
-        else if (IS_FILE(param)) {
-            output_type = FILE_TYPE;
-            output_ser = Value_To_OS_Path(param, FALSE);
-            MANAGE_SERIES(output_ser);
-            PUSH_GUARD_SERIES(output_ser);
-            os_output = SER_HEAD(char, output_ser);
-            output_len = SER_LEN(output_ser);
-        }
-        else if (IS_BLANK(param)) {
-            output_type = NONE_TYPE;
-        }
-        else
-            fail (param);
-    }
-
-    (void)input; // suppress unused warning but keep variable
-
-    // Error case...same note about FILE! case as with Output case above
-    //
-    if (REF(error)) {
-        REBVAL *param = ARG(err);
-        err = param;
-        if (IS_STRING(param)) {
-            err_type = STRING_TYPE;
-        }
-        else if (IS_BINARY(param)) {
-            err_type = BINARY_TYPE;
-        }
-        else if (IS_FILE(param)) {
-            err_type = FILE_TYPE;
-            err_ser = Value_To_OS_Path(param, FALSE);
-            MANAGE_SERIES(err_ser);
-            PUSH_GUARD_SERIES(err_ser);
-            os_err = SER_HEAD(char, err_ser);
-            err_len = SER_LEN(err_ser);
-        }
-        else if (IS_BLANK(param)) {
-            err_type = NONE_TYPE;
-        }
-        else
-            fail (param);
-    }
-
-    if (
-        REF(wait) ||
-        (
-            input_type == STRING_TYPE
-            || input_type == BINARY_TYPE
-            || output_type == STRING_TYPE
-            || output_type == BINARY_TYPE
-            || err_type == STRING_TYPE
-            || err_type == BINARY_TYPE
-        ) // I/O redirection implies /WAIT
-
-    ){
-        flags |= FLAG_WAIT;
-    }
-
-    if (REF(console))
-        flags |= FLAG_CONSOLE;
-
-    if (REF(shell))
-        flags |= FLAG_SHELL;
-
-    if (REF(info))
-        flags |= FLAG_INFO;
-
-    // Translate the first parameter into an `argc` and a pointer array for
-    // `argv[]`.  The pointer array is backed by `argv_series` which must
-    // be freed after we are done using it.
-    //
-    if (IS_STRING(arg)) {
+    if (IS_STRING(ARG(command))) {
         // `call {foo bar}` => execute %"foo bar"
 
         // !!! Interpreting string case as an invocation of %foo with argument
         // "bar" has been requested and seems more suitable.  Question is
         // whether it should go through the shell parsing to do so.
 
-        cmd = Val_Str_To_OS_Managed(&cmd_ser, arg);
+        cmd = Val_Str_To_OS_Managed(&cmd_ser, ARG(command));
         PUSH_GUARD_SERIES(cmd_ser);
 
         argc = 1;
         argv_ser = Make_Series(argc + 1, sizeof(REBCHR*));
+        argv_saved_sers = NULL;
         argv = SER_HEAD(const REBCHR*, argv_ser);
 
         argv[0] = cmd;
@@ -312,21 +1429,26 @@ REBNATIVE(call)
 
         argv[argc] = NULL;
     }
-    else if (IS_BLOCK(arg)) {
+    else if (IS_BLOCK(ARG(command))) {
         // `call ["foo" "bar"]` => execute %foo with arg "bar"
 
-        int i;
-
         cmd = NULL;
-        argc = VAL_LEN_AT(arg);
+        cmd_ser = NULL;
 
-        if (argc <= 0) fail (Error_Too_Short_Raw());
+        REBVAL *block = ARG(command);
+
+        argc = VAL_LEN_AT(block);
+
+        if (argc <= 0)
+            fail (Error_Too_Short_Raw());
 
         argv_ser = Make_Series(argc + 1, sizeof(REBCHR*));
         argv_saved_sers = Make_Series(argc, sizeof(REBSER*));
         argv = SER_HEAD(const REBCHR*, argv_ser);
+
+        int i;
         for (i = 0; i < argc; i ++) {
-            RELVAL *param = VAL_ARRAY_AT_HEAD(arg, i);
+            RELVAL *param = VAL_ARRAY_AT_HEAD(block, i);
             if (IS_STRING(param)) {
                 REBSER *ser;
                 argv[i] = Val_Str_To_OS_Managed(&ser, KNOWN(param));
@@ -342,22 +1464,23 @@ REBNATIVE(call)
                 SER_HEAD(REBSER*, argv_saved_sers)[i] = path;
             }
             else
-                fail (Error_Invalid_Arg_Core(param, VAL_SPECIFIER(arg)));
+                fail (Error_Invalid_Arg_Core(param, VAL_SPECIFIER(block)));
         }
         argv[argc] = NULL;
     }
-    else if (IS_FILE(arg)) {
+    else if (IS_FILE(ARG(command))) {
         // `call %"foo bar"` => execute %"foo bar"
 
-        REBSER *path = Value_To_OS_Path(arg, FALSE);
-
         cmd = NULL;
+        cmd_ser = NULL;
+
         argc = 1;
         argv_ser = Make_Series(argc + 1, sizeof(REBCHR*));
         argv_saved_sers = Make_Series(argc, sizeof(REBSER*));
 
         argv = SER_HEAD(const REBCHR*, argv_ser);
 
+        REBSER *path = Value_To_OS_Path(ARG(command), FALSE);
         argv[0] = SER_HEAD(REBCHR, path);
         MANAGE_SERIES(path);
         PUSH_GUARD_SERIES(path);
@@ -366,9 +1489,23 @@ REBNATIVE(call)
         argv[argc] = NULL;
     }
     else
-        fail (arg);
+        fail (ARG(command));
 
-    r = OS_Create_Process(
+    assert(
+        IS_BLANK(ARG(err)) || IS_VOID(ARG(err))
+        || (os_output == NULL && output_len == 0)
+    );
+
+    assert(
+        IS_BLANK(ARG(err)) || IS_VOID(ARG(err))
+        || (os_err == NULL && err_len == 0)
+    );
+
+    REBU64 pid; // Was REBI64 of -1, but OS_CREATE_PROCESS wants u64
+    int exit_code;
+
+    REBINT r = OS_Create_Process(
+        frame_,
 #ifdef TO_WINDOWS
         cast(const wchar_t*, cmd),
         argc,
@@ -378,10 +1515,15 @@ REBNATIVE(call)
         argc,
         cast(const char**, argv),
 #endif
-        flags, &pid, &exit_code,
-        input_type, os_input, input_len,
-        output_type, &os_output, &output_len,
-        err_type, &os_err, &err_len
+        flag_wait,
+        &pid,
+        &exit_code,
+        os_input,
+        input_len,
+        &os_output,
+        &output_len,
+        &os_err,
+        &err_len
     );
 
     // Call may not succeed if r != 0, but we still have to run cleanup
@@ -397,39 +1539,37 @@ REBNATIVE(call)
         } while (i != 0);
         Free_Series(argv_saved_sers);
     }
-    if (cmd_ser) DROP_GUARD_SERIES(cmd_ser);
+    if (cmd_ser != NULL)
+        DROP_GUARD_SERIES(cmd_ser);
     Free_Series(argv_ser); // Unmanaged, so we can free it
 
-    if (output_type == STRING_TYPE) {
-        if (output != NULL
-            && output_len > 0) {
+    if (IS_STRING(ARG(out))) {
+        if (output_len > 0) {
             // !!! Somewhat inefficient: should there be Append_OS_Str?
             REBSER *ser = Copy_OS_Str(os_output, output_len);
-            Append_String(VAL_SERIES(output), ser, 0, SER_LEN(ser));
+            Append_String(VAL_SERIES(ARG(out)), ser, 0, SER_LEN(ser));
             OS_FREE(os_output);
             Free_Series(ser);
         }
-    } else if (output_type == BINARY_TYPE) {
-        if (output != NULL
-            && output_len > 0) {
-            Append_Unencoded_Len(VAL_SERIES(output), os_output, output_len);
+    }
+    else if (IS_BINARY(ARG(out))) {
+        if (output_len > 0) {
+            Append_Unencoded_Len(VAL_SERIES(ARG(out)), os_output, output_len);
             OS_FREE(os_output);
         }
     }
 
-    if (err_type == STRING_TYPE) {
-        if (err != NULL
-            && err_len > 0) {
+    if (IS_STRING(ARG(err))) {
+        if (err_len > 0) {
             // !!! Somewhat inefficient: should there be Append_OS_Str?
             REBSER *ser = Copy_OS_Str(os_err, err_len);
-            Append_String(VAL_SERIES(err), ser, 0, SER_LEN(ser));
+            Append_String(VAL_SERIES(ARG(err)), ser, 0, SER_LEN(ser));
             OS_FREE(os_err);
             Free_Series(ser);
         }
-    } else if (err_type == BINARY_TYPE) {
-        if (err != NULL
-            && err_len > 0) {
-            Append_Unencoded_Len(VAL_SERIES(err), os_err, err_len);
+    } else if (IS_BINARY(ARG(err))) {
+        if (err_len > 0) {
+            Append_Unencoded_Len(VAL_SERIES(ARG(err)), os_err, err_len);
             OS_FREE(os_err);
         }
     }
@@ -438,9 +1578,12 @@ REBNATIVE(call)
     // that series was managed and saved from GC.  Unsave them now.  Note
     // backwardsness: must unsave the most recently saved series first!!
     //
-    if (err_ser) DROP_GUARD_SERIES(err_ser);
-    if (output_ser) DROP_GUARD_SERIES(output_ser);
-    if (input_ser) DROP_GUARD_SERIES(input_ser);
+    if (err_ser != NULL)
+        DROP_GUARD_SERIES(err_ser);
+    if (output_ser != NULL)
+        DROP_GUARD_SERIES(output_ser);
+    if (input_ser != NULL)
+        DROP_GUARD_SERIES(input_ser);
 
     if (REF(info)) {
         REBCTX *info = Alloc_Context(REB_OBJECT, 2);

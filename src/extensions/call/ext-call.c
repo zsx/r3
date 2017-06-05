@@ -1,6 +1,6 @@
 //
-//  File: %ext-crypt.c
-//  Summary: "Crypt functions"
+//  File: %ext-call.c
+//  Summary: "CALL functions"
 //  Section: Extension
 //  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
 //  Homepage: https://github.com/metaeducation/ren-c/
