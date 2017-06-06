@@ -193,6 +193,8 @@ modules: [
     ]
 
     BMP ../extensions/bmp/mod-bmp.c []
+
+    Locale ../extensions/locale/mod-locale.c []
 ]
 
 extensions: [
@@ -203,6 +205,7 @@ extensions: [
     + GIF ../extensions/gif/ext-gif.c [GIF] _
     + JPG ../extensions/jpg/ext-jpg.c [JPG] _
     + BMP ../extensions/bmp/ext-bmp.c [BMP] _
+    + Locale ../extensions/locale/ext-locale.c [Locale] ../extensions/locale/ext-locale-init.reb
 ]
 
 made: [
@@ -244,9 +247,6 @@ os-windows: [
 
 os-posix: [
     + generic/host-memory.c
-    + generic/host-locale.c
-    generic/iso-639.c
-    generic/iso-3166.c
     + generic/host-gob.c
 
     posix/host-readline.c
@@ -265,9 +265,6 @@ os-posix: [
 
 os-osx: [
     + generic/host-memory.c
-    + generic/host-locale.c
-    generic/iso-639.c
-    generic/iso-3166.c
     + generic/host-gob.c
 
     ; OSX uses the POSIX file I/O for now
@@ -292,9 +289,6 @@ os-osx: [
 ;
 os-linux: [
     + generic/host-memory.c
-    + generic/host-locale.c
-    generic/iso-639.c
-    generic/iso-3166.c
     + generic/host-gob.c
 
     ; Linux uses the POSIX file I/O for now
@@ -327,9 +321,6 @@ os-linux: [
 ; cloned from os-linux TODO: check'n'fix !!
 os-android: [ 
     + generic/host-memory.c
-    + generic/host-locale.c
-    generic/iso-639.c
-    generic/iso-3166.c
     + generic/host-gob.c
 
     ; Android uses the POSIX file I/O for now

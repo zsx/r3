@@ -334,34 +334,6 @@ REBCHR *OS_Form_Error(int errnum, REBCHR *str, int len)
 
 
 //
-//  OS_Get_Locale: C
-//
-// Used to obtain locale information from the system.
-// The returned value must be freed with OS_FREE_MEM.
-//
-REBCHR *OS_Get_Locale(int what)
-{
-    LCTYPE type;
-    int len;
-    wchar_t *data;
-    LCTYPE types[] = {
-        LOCALE_SENGLANGUAGE,
-        LOCALE_SNATIVELANGNAME,
-        LOCALE_SENGCOUNTRY,
-        LOCALE_SCOUNTRY,
-    };
-
-    type = types[what];
-
-    len = GetLocaleInfo(0, type, 0, 0);
-    data = OS_ALLOC_N(wchar_t, len);
-    len = GetLocaleInfo(0, type, data, len);
-
-    return data;
-}
-
-
-//
 //  OS_Get_Env: C
 //
 // Get a value from the environment.

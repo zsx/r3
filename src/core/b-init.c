@@ -1003,47 +1003,6 @@ void Startup_Task(void)
 
 
 //
-//  Init_Locale: C
-//
-void Init_Locale(void)
-{
-    REBCHR *data;
-
-    if ((data = OS_GET_LOCALE(0))) {
-        Init_String(
-            Get_System(SYS_LOCALE, LOCALE_LANGUAGE),
-            Copy_OS_Str(data, OS_STRLEN(data))
-        );
-        OS_FREE(data);
-    }
-
-    if ((data = OS_GET_LOCALE(1))) {
-        Init_String(
-            Get_System(SYS_LOCALE, LOCALE_LANGUAGE_P),
-            Copy_OS_Str(data, OS_STRLEN(data))
-        );
-        OS_FREE(data);
-    }
-
-    if ((data = OS_GET_LOCALE(2))) {
-        Init_String(
-            Get_System(SYS_LOCALE, LOCALE_LOCALE),
-            Copy_OS_Str(data, OS_STRLEN(data))
-        );
-        OS_FREE(data);
-    }
-
-    if ((data = OS_GET_LOCALE(3))) {
-        Init_String(
-            Get_System(SYS_LOCALE, LOCALE_LOCALE_P),
-            Copy_OS_Str(data, OS_STRLEN(data))
-        );
-        OS_FREE(data);
-    }
-}
-
-
-//
 //  Startup_Core: C
 //
 // Initialize the interpreter core.
@@ -1288,7 +1247,6 @@ void Startup_Core(void)
     DROP_GUARD_ARRAY(datatypes_catalog);
 
     Init_Contexts_Object();
-    Init_Locale();
 
     PG_Boot_Phase = BOOT_ERRORS;
 
