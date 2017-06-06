@@ -449,6 +449,6 @@ void Init_Extension_Words(const REBYTE* strings[], REBSTR *canons[], REBCNT n)
 {
     REBCNT i;
     for (i = 0; i < n; ++i) {
-        canons[i] = Intern_UTF8_Managed(strings[i], LEN_BYTES(strings[i]));
+        canons[i] = STR_CANON(Intern_UTF8_Managed(strings[i], LEN_BYTES(strings[i])));
     }
 }
