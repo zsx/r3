@@ -152,9 +152,8 @@ install:
     # Travis uses the last r3-alpha that was ever published on rebol.com
     # in order to ensure that still works.
     #
-    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then wget  http://www.rebolsource.net/downloads/experimental/r3-linux-x64-gbf237fc-static && cp r3-linux-x64-gbf237fc-static make/r3-make; fi
-    - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then wget http://rebolsource.net/downloads/experimental/r3-osx-x64-gbf237fc && cp r3-osx-x64-gbf237fc make/r3-make; fi
-    - chmod +x make/r3-make
+    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then export REBOL_TOOL=r3-linux-x64-gbf237fc-static ; fi
+    - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then export REBOL_TOOL=r3-osx-x64-gbf237fc ; fi
 
 script:
     # Nice to know what version of gcc this is
@@ -312,12 +311,13 @@ script:
           # we do not apply it to any of the binaries which are uploaded to s3
           # -- not even debug ones.
           #
-          make -f makefile.boot NUM_JOBS=${MAKE_JOBS} REBOL_TOOL=r3-make STANDARD="${STANDARD}" OS_ID="${OS_ID}" RIGOROUS="${RIGOROUS}" DEBUG=sanitize OPTIMIZE=2 STATIC=no
+          make -f makefile.boot NUM_JOBS=${MAKE_JOBS} REBOL_TOOL=${REBOL_TOOL} STANDARD="${STANDARD}" OS_ID="${OS_ID}" RIGOROUS="${RIGOROUS}" DEBUG=sanitize OPTIMIZE=2 STATIC=no
 
           rm r3-make;
           mv r3 r3-make;
           make clean;
           export R3_ALWAYS_MALLOC=1
+          export REBOL_TOOL=r3-make
       fi
 
     # On the second build of building twice, or just building once, include
@@ -325,9 +325,9 @@ script:
     #
     - |
       if [[ -z ${TCC} ]]; then
-          make -f makefile.boot NUM_JOBS=${MAKE_JOBS} REBOL_TOOL=r3-make STANDARD="${STANDARD}" OS_ID="${OS_ID}" DEBUG="${DEBUG}" GIT_COMMIT="${GIT_COMMIT}" RIGOROUS="${RIGOROUS}" STATIC="${STATIC}" WITH_FFI=${FFI} WITH_TCC="no"
+          make -f makefile.boot NUM_JOBS=${MAKE_JOBS} REBOL_TOOL=${REBOL_TOOL} STANDARD="${STANDARD}" OS_ID="${OS_ID}" DEBUG="${DEBUG}" GIT_COMMIT="${GIT_COMMIT}" RIGOROUS="${RIGOROUS}" STATIC="${STATIC}" WITH_FFI=${FFI} WITH_TCC="no"
       else
-          make -f makefile.boot NUM_JOBS=${MAKE_JOBS} REBOL_TOOL=r3-make STANDARD="${STANDARD}" OS_ID="${OS_ID}" DEBUG="${DEBUG}" GIT_COMMIT="${GIT_COMMIT}" RIGOROUS="${RIGOROUS}" STATIC="${STATIC}" WITH_FFI=${FFI} WITH_TCC="${PWD}/tcc/${TCC}"
+          make -f makefile.boot NUM_JOBS=${MAKE_JOBS} REBOL_TOOL=${REBOL_TOOL} STANDARD="${STANDARD}" OS_ID="${OS_ID}" DEBUG="${DEBUG}" GIT_COMMIT="${GIT_COMMIT}" RIGOROUS="${RIGOROUS}" STATIC="${STATIC}" WITH_FFI=${FFI} WITH_TCC="${PWD}/tcc/${TCC}"
       fi
 
     # take a look at the preprocess header file
@@ -393,7 +393,9 @@ script:
     
     - rm -f makefile*
     - rm -f Toolchain*
-    - rm r3-make*
+    - rm -f r3-make* #-f makes retval a success even when r3-make* doesn't exist
+    - rm r3-linux-x64-gbf237fc-static
+    - rm r3-osx-x64-gbf237fc
     - rm -f CMakeLists.txt
     - rm -rf tcc
     
