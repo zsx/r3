@@ -6,9 +6,12 @@ REBOL [
     license: {Apache 2.0}
 ]
 
-;DO NOT EDIT this table
-;It's updated by iso3166.r
-iso-3166-table: make map! lock [
+unless 'Windows = first system/platform [
+    ; Windows has locale implemented as a native
+
+    ;DO NOT EDIT this table
+    ;It's updated by iso3166.r
+    iso-3166-table: make map! lock [
     "AF" "Afghanistan"
     "AX" "Åland Islands"
     "AL" "Albania"
@@ -260,9 +263,9 @@ iso-3166-table: make map! lock [
     "ZW" "Zimbabwe"
 ]
 
-;DO NOT EDIT this table
-;It's updated by iso639.r
-iso-639-table: make map! lock [
+    ;DO NOT EDIT this table
+    ;It's updated by iso639.r
+    iso-639-table: make map! lock [
     "aa" "Afar"
     "ab" "Abkhazian"
     "af" "Afrikaans"
@@ -449,13 +452,12 @@ iso-639-table: make map! lock [
     "zu" "Zulu"
 ]
 
-unless 'Windows = first system/platform [
-    ; Windows has locale implemented as a native
     hijack 'locale function [
         type [word!]
+        <has>
+        iso-639 (iso-639-table)
+        iso-3166 (iso-3166-table)
     ][
-
-
         env-lang: get-env "LANG"
         unless env-lang [
             return _
@@ -469,19 +471,22 @@ unless 'Windows = first system/platform [
         ][
             fail spaced ["Malformated env LANG:" env-lang]
         ]
-        ret: case [
+
+        case [
             find? [language language*] type [
-                select iso-639-table lang
+                select iso-639 lang
             ]
             find? [territory territory*] type [
-                select iso-3166-table territory
+                select iso-3166 territory
             ]
-        ] else [
-            fail spaced ["Invalid locale type:" type]
+            true [
+                fail spaced ["Invalid locale type:" type]
+            ]
         ]
-
-        ret
     ]
+
+    unset 'iso-3166-table
+    unset 'iso-639-table
 ]
 
 ; initialize system/locale
