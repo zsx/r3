@@ -224,7 +224,7 @@ void Remove_Series(REBSER *s, REBCNT index, REBINT len)
         }
         else {
             // Add bias to head:
-            REBCNT bias = SER_BIAS(s);
+            u32 bias = SER_BIAS(s);
             if (REB_U32_ADD_OF(bias, len, &bias))
                 fail (Error_Overflow_Raw());
 

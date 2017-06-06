@@ -1508,8 +1508,8 @@ void GC_Kill_Series(REBSER *s)
         // the GC watermarks interact with Alloc_Mem and the "higher
         // level" allocations.
 
-        if (REB_I32_ADD_OF(GC_Ballast, size, &GC_Ballast))
-            GC_Ballast = MAX_I32;
+        i32 tmp;
+        GC_Ballast = REB_I32_ADD_OF(GC_Ballast, size, &tmp) ? MAX_I32 : tmp;
     }
     else {
         // Special GC processing for HANDLE! when the handle is implemented as

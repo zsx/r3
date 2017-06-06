@@ -1765,11 +1765,13 @@ static REBCNT Sweep_Gobs(void)
             else {
                 Free_Node(GOB_POOL, gob);
 
-                if (REB_I32_ADD_OF(
-                    GC_Ballast, Mem_Pools[GOB_POOL].wide, &GC_Ballast
-                )){
-                    GC_Ballast = MAX_I32;
-                }
+                // GC_Ballast is of type REBINT, which might be long
+                // and REB_I32_ADD_OF takes (int*)
+                // it's illegal to convert form (long*) to (int*) in C++
+                i32 tmp;
+                GC_Ballast = REB_I32_ADD_OF(
+                    GC_Ballast, Mem_Pools[GOB_POOL].wide, &tmp
+                ) ? MAX_I32 : tmp;
 
                 if (GC_Ballast > 0)
                     CLR_SIGNAL(SIG_RECYCLE);
