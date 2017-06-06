@@ -449,41 +449,39 @@ iso-639-table: make map! lock [
     "zu" "Zulu"
 ]
 
-locale: function [
-    type [word!]
-][
-
-    if 'Windows = first system/platform [
-        ; Windows has locale implemented as a native
-        m: import 'locale
-        return m/locale type
-    ]
-
-    env-lang: get-env "LANG"
-    unless env-lang [
-        return _
-    ]
-
-    letter: charset [#"a" - #"z" #"A" - #"Z"]
-    unless parse env-lang [
-        copy lang [some letter]
-        #"_" copy territory: [some letter]
-        to end
+unless 'Windows = first system/platform [
+    ; Windows has locale implemented as a native
+    hijack 'locale function [
+        type [word!]
     ][
-        fail spaced ["Malformated env LANG:" env-lang]
-    ]
-    ret: case [
-        find? [language language*] type [
-            select iso-639-table lang
-        ]
-        find? [territory territory*] type [
-            select iso-3166-table territory
-        ]
-    ] else [
-        fail spaced ["Invalid locale type:" type]
-    ]
 
-    ret
+
+        env-lang: get-env "LANG"
+        unless env-lang [
+            return _
+        ]
+
+        letter: charset [#"a" - #"z" #"A" - #"Z"]
+        unless parse env-lang [
+            copy lang: [some letter]
+            #"_" copy territory: [some letter]
+            to end
+        ][
+            fail spaced ["Malformated env LANG:" env-lang]
+        ]
+        ret: case [
+            find? [language language*] type [
+                select iso-639-table lang
+            ]
+            find? [territory territory*] type [
+                select iso-3166-table territory
+            ]
+        ] else [
+            fail spaced ["Invalid locale type:" type]
+        ]
+
+        ret
+    ]
 ]
 
 ; initialize system/locale
