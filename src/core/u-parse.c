@@ -1423,8 +1423,10 @@ REBNATIVE(subparse)
                     // Note: mincount = maxcount = 1 on entry
                     case SYM_WHILE:
                         flags |= PF_WHILE;
+                        // falls through
                     case SYM_ANY:
                         mincount = 0;
+                        // falls through
                     case SYM_SOME:
                         maxcount = MAX_I32;
                         FETCH_NEXT_RULE_MAYBE_END(f);
@@ -1440,6 +1442,7 @@ REBNATIVE(subparse)
                         goto set_or_copy_pre_rule;
                     case SYM_SET:
                         flags |= PF_SET;
+                        // falls through
                     set_or_copy_pre_rule:
                         FETCH_NEXT_RULE_MAYBE_END(f);
 

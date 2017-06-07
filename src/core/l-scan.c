@@ -1152,6 +1152,7 @@ static void Locate_Token_May_Push_Mold(
                     return;
                 fail (Error_Syntax(ss));
             }
+            // falls through
         case LEX_SPECIAL_LESSER:
             if (IS_LEX_ANY_SPACE(cp[1]) || cp[1] == ']' || cp[1] == 0) {
                 ss->token = TOKEN_WORD; // changed for </tag>
@@ -1764,12 +1765,14 @@ static REBARR *Scan_Array(
                 --ss->end;
             }
             bp++;
+            // falls through
         case TOKEN_SET:
             len--;
             if (mode_char == '/' && ss->token == TOKEN_SET) {
                 ss->token = TOKEN_WORD; // will be a PATH_SET
                 ss->end--;  // put ':' back on end but not beginning
             }
+            // falls through
         case TOKEN_WORD: {
             if (len == 0) {
                 --bp;

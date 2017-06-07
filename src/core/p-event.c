@@ -172,6 +172,7 @@ static REB_R Event_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
     //case A_PATH_SET:  // not allowed: above
         if (!IS_EVENT(arg))
             fail (arg);
+        // falls through
     case SYM_PICK_P:
 act_blk:
         Move_Value(save_port, D_ARG(1)); // save for return

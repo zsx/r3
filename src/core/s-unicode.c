@@ -454,9 +454,9 @@ static Boolean isLegalUTF8(const UTF8 *source, int length) {
     switch (length) {
     default: return false;
     /* Everything else falls through when "true"... */
-    case 4: if ((a = (*--srcptr)) < 0x80 || a > 0xBF) return false;
-    case 3: if ((a = (*--srcptr)) < 0x80 || a > 0xBF) return false;
-    case 2: if ((a = (*--srcptr)) > 0xBF) return false;
+    case 4: if ((a = (*--srcptr)) < 0x80 || a > 0xBF) return false; // falls through
+    case 3: if ((a = (*--srcptr)) < 0x80 || a > 0xBF) return false; // falls through
+    case 2: if ((a = (*--srcptr)) > 0xBF) return false; // falls through
 
         switch (*source) {
             /* no fall-through in this inner switch */
@@ -464,9 +464,10 @@ static Boolean isLegalUTF8(const UTF8 *source, int length) {
             case 0xED: if (a > 0x9F) return false; break;
             case 0xF0: if (a < 0x90) return false; break;
             case 0xF4: if (a > 0x8F) return false; break;
-            default:   if (a < 0x80) return false;
+            default:   if (a < 0x80) return false; break;
         }
 
+        // falls through
     case 1: if (*source >= 0x80 && *source < 0xC2) return false;
     }
 
@@ -837,11 +838,11 @@ const REBYTE *Back_Scan_UTF8_Char_Core(
     // if (!isLegalUTF8(source, slen+1)) return 0;
 
     switch (trail) {
-        case 5: *out += *source++; *out <<= 6;
-        case 4: *out += *source++; *out <<= 6;
-        case 3: *out += *source++; *out <<= 6;
-        case 2: *out += *source++; *out <<= 6;
-        case 1: *out += *source++; *out <<= 6;
+        case 5: *out += *source++; *out <<= 6; // falls through
+        case 4: *out += *source++; *out <<= 6; // falls through
+        case 3: *out += *source++; *out <<= 6; // falls through
+        case 2: *out += *source++; *out <<= 6; // falls through
+        case 1: *out += *source++; *out <<= 6; // falls through
         case 0: *out += *source++;
     }
     *out -= offsetsFromUTF8[trail];
@@ -1173,9 +1174,9 @@ REBCNT Encode_UTF8_Char(REBYTE *dst, REBCNT src)
     dst += len;
 
     switch (len) {
-        case 4: *--dst = (UTF8)((src | mark) & mask); src >>= 6;
-        case 3: *--dst = (UTF8)((src | mark) & mask); src >>= 6;
-        case 2: *--dst = (UTF8)((src | mark) & mask); src >>= 6;
+        case 4: *--dst = (UTF8)((src | mark) & mask); src >>= 6; // falls through
+        case 3: *--dst = (UTF8)((src | mark) & mask); src >>= 6; // falls through
+        case 2: *--dst = (UTF8)((src | mark) & mask); src >>= 6; // falls through
         case 1: *--dst = (UTF8) (src | firstByteMark[len]);
     }
 

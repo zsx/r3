@@ -118,6 +118,7 @@ REBOOL Next_Path_Throws(REBPVS *pvs)
 
     case PE_NONE:
         Init_Blank(pvs->store);
+        // falls through
     case PE_USE_STORE:
         pvs->value = pvs->store;
         pvs->value_specifier = SPECIFIED;
@@ -533,6 +534,7 @@ REBNATIVE(pick_p)
 
     case PE_NONE:
         Init_Blank(pvs->store);
+        // falls through
     case PE_USE_STORE:
         pvs->value = pvs->store;
         pvs->value_specifier = SPECIFIED;

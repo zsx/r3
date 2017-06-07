@@ -435,6 +435,7 @@ static REBYTE *Process_Key(STD_TERM *term, REBYTE *cp)
             // Arrow keys:
             case 'A':   // up arrow
                 term->hist -= 2;
+                // falls through
             case 'B': {  // down arrow
                 int len = term->end;
 
@@ -514,6 +515,7 @@ static REBYTE *Process_Key(STD_TERM *term, REBYTE *cp)
 
         case CR:    // CR
             if (cp[1] == LF) cp++; // eat
+            // falls through
         case LF:    // LF
             WRITE_STR("\r\n");
             Store_Line(term);
