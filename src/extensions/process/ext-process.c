@@ -1,5 +1,5 @@
 //
-//  File: %ext-call.c
+//  File: %ext-process.c
 //  Summary: "CALL functions"
 //  Section: Extension
 //  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
@@ -31,23 +31,23 @@
 #include "sys-ext.h"
 
 
-#include "tmp-ext-call-init.inc"
+#include "tmp-ext-process-init.inc"
 
 
 #define MODULE_INCLUDE_DECLARATION_ONLY
-#include "tmp-mod-call-last.h"
+#include "tmp-mod-process-last.h"
 
-DEFINE_EXT_INIT_COMPRESSED(Call, //name of the extension
+DEFINE_EXT_INIT_COMPRESSED(Process, //name of the extension
     script_bytes, // REBOL script for the extension in the source form
     {
         // init all modules in this extension
-        int init = CALL_MODULE_INIT(Call);
+        int init = CALL_MODULE_INIT(Process);
         if (init < 0) return init;
     }
 )
 
-DEFINE_EXT_QUIT(Call,
+DEFINE_EXT_QUIT(Process,
 {
-    return CALL_MODULE_QUIT(Call);
+    return CALL_MODULE_QUIT(Process);
 }
 )

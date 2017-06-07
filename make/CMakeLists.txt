@@ -766,12 +766,12 @@ endif ()
 # CALL extension
 #
 add_module(
-    Call
-    "${EXT_DIR}/call/mod-call.c"
+    Process
+    "${EXT_DIR}/process/mod-process.c"
     ""
 )
 add_extension(
-    r3-call Call TRUE "${EXT_DIR}/call/ext-call.c" "Call" "${EXT_DIR}/call/ext-call-init.reb"
+    r3-process Process TRUE "${EXT_DIR}/process/ext-process.c" "Process" "${EXT_DIR}/process/ext-process-init.reb"
     "${TOP_GENERATED_SRC_DIR}/include;${TOP_SRC_DIR}/include;${FFI_INCLUDE_DIRS};${INC}"
     "${COMMON_MACROS}"
 )

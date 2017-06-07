@@ -172,7 +172,7 @@ modules: [
         ../extensions/crypt/sha256/sha256.c
     ]
 
-    Call ../extensions/call/mod-call.c []
+    Process ../extensions/process/mod-process.c []
 
     LodePNG ../extensions/png/mod-lodepng.c [../extensions/png/lodepng.c]
 
@@ -200,7 +200,7 @@ modules: [
 extensions: [
     ; [+ (builtin) | - (not builtin)] ext-name ext-file modules (defined in modules) init-script (blank if embedded)
     + Crypt ../extensions/crypt/ext-crypt.c [Crypt] ../extensions/crypt/ext-crypt-init.reb
-    + Call ../extensions/call/ext-call.c [Call] ../extensions/call/ext-call-init.reb
+    + Process ../extensions/process/ext-process.c [Process] ../extensions/process/ext-process-init.reb
     + PNG ../extensions/png/ext-png.c [LodePNG uPNG] _
     + GIF ../extensions/gif/ext-gif.c [GIF] _
     + JPG ../extensions/jpg/ext-jpg.c [JPG] _

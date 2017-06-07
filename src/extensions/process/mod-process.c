@@ -56,7 +56,7 @@
 #include "sys-core.h"
 #include "sys-ext.h"
 
-#include "tmp-mod-call-first.h"
+#include "tmp-mod-process-first.h"
 
 
 // !!! The original implementation of CALL from Atronix had to communicate
@@ -1698,4 +1698,4 @@ REBNATIVE(sleep)
 }
 
 
-#include "tmp-mod-call-last.h"
+#include "tmp-mod-process-last.h"
