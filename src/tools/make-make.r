@@ -874,6 +874,9 @@ emit-file-deps: function [
                 <no-uninitialized> "-Wno-uninitialized"
                 <no-unused-parameter> "-Wno-unused-parameter"
                 <no-shift-negative-value> "-Wno-shift-negative-value"
+                ;-Wno-unknown-warning suppresses a warning when
+                ;-Wimplicit-fallthrough is not recognized, e.g. GCC older than 7
+                <implicit-fallthu> "-Wno-unknown-warning -Wno-implicit-fallthrough"
             ][
                 if not find item setting [continue]
 
