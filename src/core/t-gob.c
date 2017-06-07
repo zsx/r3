@@ -1053,6 +1053,7 @@ REBTYPE(Gob)
 
     case SYM_APPEND:
         index = tail;
+        // falls through
     case SYM_INSERT: {
         INCLUDE_PARAMS_OF_INSERT;
 
@@ -1125,6 +1126,7 @@ REBTYPE(Gob)
 
     case SYM_AT:
         index--;
+        // falls through
     case SYM_SKIP:
         index += VAL_INT32(arg);
         goto set_index;

@@ -447,6 +447,7 @@ static void Mold_String_Series(const REBVAL *value, REB_MOLD *mold)
                 *dp++ = c;
                 break;
             }
+        // falls through
         case '\n':
         case '"':
             *dp++ = c;
@@ -693,6 +694,7 @@ static void Mold_Block(const RELVAL *value, REB_MOLD *mold)
             Pre_Mold(value, mold);
             sep = 0;
 
+        // falls through
         case REB_BLOCK:
             if (GET_MOPT(mold, MOPT_ONLY)) {
                 CLR_FLAG(mold->opts, MOPT_ONLY); // only top level

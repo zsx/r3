@@ -508,6 +508,7 @@ REBTYPE(Integer)
 
     case SYM_EVEN_Q:
         num = ~num;
+        // falls through
     case SYM_ODD_Q:
         if (num & 1)
             return R_TRUE;
