@@ -2052,7 +2052,7 @@ static REBNATIVE(send_signal)
 //
 //  terminate: native [
 //
-//  "Terminate a process"
+//  "Terminate a process (not current one)"
 //
 //      return: [<opt>]
 //      pid [integer!]
@@ -2067,6 +2067,9 @@ static REBNATIVE(terminate)
     INCLUDE_PARAMS_OF_TERMINATE;
 
 #ifdef TO_WINDOWS
+    if (GetCurrentProcessId() == cast(DWORD, VAL_INT32(ARG(pid)))) {
+        fail ("Use QUIT or EXIT-REBOL to terminate current process, instead");
+    }
     REBINT err = 0;
     HANDLE ph = OpenProcess(PROCESS_TERMINATE, FALSE, VAL_INT32(ARG(pid)));
     if (ph == NULL) {
@@ -2099,6 +2102,11 @@ static REBNATIVE(terminate)
          }
     }
 #else
+    if (getpid() == VAL_INT32(ARG(pid))) {
+        // signal is not as reliable for this purpose
+        // it's caught in host-main.c as to stop the evaluation
+        fail ("Use QUIT or EXIT-REBOL to terminate current process, instead");
+    }
     kill_process(VAL_INT32(ARG(pid)), SIGTERM);
 #endif
 
