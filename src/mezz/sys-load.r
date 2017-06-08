@@ -1049,13 +1049,13 @@ load-extension: function [
         ext/header/type: 'extension
     ]
 
-    lock ext/header
-    lock ext
-
     append system/extensions ext
 
     ;run the startup script
     do script
+
+    lock ext/header
+    lock ext
 
     ext
 ]
