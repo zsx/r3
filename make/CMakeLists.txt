@@ -846,6 +846,19 @@ add_extension(
     "${COMMON_MACROS}"
 )
 
+# Locale extension
+#
+add_module(
+    UUID
+    "${EXT_DIR}/uuid/mod-uuid.c"
+    ""
+)
+add_extension(
+    r3-uuid UUID TRUE "${EXT_DIR}/uuid/ext-uuid.c" "UUID" "${EXT_DIR}/uuid/ext-uuid-init.reb"
+    "${TOP_GENERATED_SRC_DIR}/include;${TOP_SRC_DIR}/include;${FFI_INCLUDE_DIRS};${INC}"
+    "${COMMON_MACROS}"
+)
+
 #<------------- end of modules --------->
 
 string(REPLACE ";" "," BOOT_EXTENSION_LIST "${BOOT_EXTENSIONS}")

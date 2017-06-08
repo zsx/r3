@@ -343,7 +343,7 @@ libuuid-objs: map-each s [
     %uuid/libuuid/pack.c
     %uuid/libuuid/randutils.c
 ][
-    gen-obj s
+    gen-obj/dir s "../src/extensions/"
 ]
 
 module-class: make object! [
@@ -437,6 +437,7 @@ available-modules: reduce [
     mod-uuid: make module-class [
         name: 'UUID
         source: %uuid/mod-uuid.c
+        includes: copy [%../src/extensions/uuid/libuuid]
         depends: to-value switch system-config/os-base [
             linux [
                 libuuid-objs
@@ -445,7 +446,12 @@ available-modules: reduce [
 
         libraries: to-value switch system-config/os-base [
             Windows [
-                %rpcrt4.lib
+                [%rpcrt4]
+            ]
+        ]
+        ldflags: to-value switch system-config/os-base [
+            OSX [
+                ["-framework CoreFoundation"]
             ]
         ]
     ]
@@ -516,14 +522,14 @@ available-extensions: reduce [
         init: %locale/ext-locale-init.reb
     ]
 
-;    ext-uuid: make extension-class [
-;        name: 'UUID
-;        modules: reduce [
-;            mod-uuid
-;        ]
-;        source: %uuid/ext-uuid.c
-;        init: %uuid/ext-uuid-init.reb
-;    ]
+    ext-uuid: make extension-class [
+        name: 'UUID
+        modules: reduce [
+            mod-uuid
+        ]
+        source: %uuid/ext-uuid.c
+        init: %uuid/ext-uuid-init.reb
+    ]
 ]
 
 ;dump ext-uuid

@@ -161,6 +161,13 @@ generated: [
     tmp-comptypes.c
 ]
 
+libuuid: [
+    ../extensions/uuid/libuuid/gen_uuid.c
+    ../extensions/uuid/libuuid/unpack.c
+    ../extensions/uuid/libuuid/pack.c
+    ../extensions/uuid/libuuid/randutils.c
+]
+
 modules: [
     ;name module-file other-files
     Crypt ../extensions/crypt/mod-crypt.c [
@@ -195,6 +202,10 @@ modules: [
     BMP ../extensions/bmp/mod-bmp.c []
 
     Locale ../extensions/locale/mod-locale.c []
+
+    UUID ../extensions/uuid/mod-uuid.c [
+        ;if Linux
+    ]
 ]
 
 extensions: [
@@ -206,6 +217,7 @@ extensions: [
     + JPG ../extensions/jpg/ext-jpg.c [JPG] _
     + BMP ../extensions/bmp/ext-bmp.c [BMP] _
     + Locale ../extensions/locale/ext-locale.c [Locale] ../extensions/locale/ext-locale-init.reb
+    + UUID ../extensions/uuid/ext-uuid.c [UUID] ../extensions/uuid/ext-uuid-init.reb
 ]
 
 made: [
