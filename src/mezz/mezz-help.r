@@ -585,12 +585,21 @@ help: procedure [
 ;
 source: make function! [[
     "Prints the source code for a function."
-    'arg [integer! word! path! function!]
+    'arg [integer! word! path! function! tag!]
         {If integer then the function backtrace for that index is shown}
 
     f: name: ; pure locals
 ][
     case [
+        tag? :arg [
+            f: copy "unknown tag"
+            for-each location words-of system/locale/library [
+                if location: select load get location arg [
+                    f: location/1
+                    break
+                ]
+            ]
+        ]
         maybe [word! path!] :arg [
             name: arg
             f: get :arg
@@ -643,12 +652,17 @@ source: make function! [[
         f: :arg
     ]
 
-    either function? :f [
-        print unspaced [mold name ":" space mold :f]
-    ][
-        print [name "is a" mold type-of :f "and not a FUNCTION!"]
+    case [
+        function? :f [
+            print unspaced [mold name ":" space mold :f]
+        ]
+        any [string? :f url? :f][
+            print f
+        ]
+        true [
+            print [name "is a" mold type-of :f "and not a FUNCTION!"]
+        ]
     ]
-
     () ;-- return nothing, as with a PROCEDURE
 ]]
 
