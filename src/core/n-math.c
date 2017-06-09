@@ -421,6 +421,18 @@ REBINT CT_Fail(const RELVAL *a, const RELVAL *b, REBINT mode)
     UNUSED(b);
     UNUSED(mode);
 
+    fail ("Cannot compare type");
+}
+
+
+//  CT_Unhooked: C
+//
+REBINT CT_Unhooked(const RELVAL *a, const RELVAL *b, REBINT mode)
+{
+    UNUSED(a);
+    UNUSED(b);
+    UNUSED(mode);
+
     fail ("Datatype does not have type comparison handler registered");
 }
 

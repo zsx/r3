@@ -1591,13 +1591,15 @@ void Mold_Or_Form_Value(REB_MOLD *mo, const RELVAL *v, REBOOL form)
         break;
 
     case REB_STRUCT: {
-        Pre_Mold(mo, v);
+        panic ("STRUCT! molding temporarily disabled");
+
+        /*Pre_Mold(mo, v);
 
         REBARR *array = Struct_To_Array(VAL_STRUCT(v));
         Mold_Array_At(mo, array, 0, 0);
         Free_Array(array);
 
-        End_Mold(mo);
+        End_Mold(mo);*/
         break; }
 
     case REB_LIBRARY: {

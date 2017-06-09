@@ -672,7 +672,7 @@ enum Reb_Vararg_Op {
 
 #include "sys-scan.h"
 
-#include "reb-struct.h"
+#include "sys-library.h"
 
 #include "host-lib.h"
 
@@ -766,12 +766,17 @@ inline static void SET_SIGNAL(REBFLGS f) {
 // The tables never contain NULL values.  Instead there is a dispatcher in
 // the slot which will fail if it is ever called.
 //
+// !!! These used to be const, but the desire to move REB_STRUCT and REB_GOB
+// into extensions required the tables to be dynamically modified.  This
+// should likely be changed back in the future in case it helps performance,
+// as these will be "user defined types" that are more like a context than
+// a built-in "kind".
 
-extern const REBACT Value_Dispatch[REB_MAX]; // in %tmp-evaltypes.inc
-extern const REBPEF Path_Dispatch[REB_MAX]; // in %tmp-evaltypes.inc
-extern const REBCTF Compare_Types[REB_MAX]; // in %tmp-comptypes.inc
-extern const MAKE_FUNC Make_Dispatch[REB_MAX]; // in %tmp-maketypes.inc
-extern const TO_FUNC To_Dispatch[REB_MAX]; // in %tmp-maketypes.inc
+extern REBACT Value_Dispatch[REB_MAX]; // in %tmp-evaltypes.inc
+extern REBPEF Path_Dispatch[REB_MAX]; // in %tmp-evaltypes.inc
+extern REBCTF Compare_Types[REB_MAX]; // in %tmp-comptypes.inc
+extern MAKE_FUNC Make_Dispatch[REB_MAX]; // in %tmp-maketypes.inc
+extern TO_FUNC To_Dispatch[REB_MAX]; // in %tmp-maketypes.inc
 
 
 #include "sys-do.h"

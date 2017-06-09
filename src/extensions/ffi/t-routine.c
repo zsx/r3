@@ -27,184 +27,10 @@
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// This code was contributed by Atronix Engineering:
-//
-// http://www.atronixengineering.com/downloads/
-//
-// It will only work if your build (-D)efines "-DHAVE_LIBFFI_AVAILABLE".
-//
-// Not defining HAVE_LIBFFI_AVAILABLE will produce a short list of
-// non-working "stubs" that match the interface of <libffi.h>.  These can
-// allow t-routine.c to compile anyway.  That assists with maintenance
-// of the code and keeping it on the radar--even among those doing core
-// coding who are not building against the FFI.
-//
 
 #include "sys-core.h"
 
-#include "mem-pools.h" // low-level memory pool access
-
-#if !defined(HAVE_LIBFFI_AVAILABLE)
-
-    ffi_type ffi_type_void = { 0, 0, FFI_TYPE_VOID, NULL };
-    ffi_type ffi_type_uint8 = { 0, 0, FFI_TYPE_UINT8, NULL };
-    ffi_type ffi_type_sint8 = { 0, 0, FFI_TYPE_SINT8, NULL };
-    ffi_type ffi_type_uint16 = { 0, 0, FFI_TYPE_UINT16, NULL };
-    ffi_type ffi_type_sint16 = { 0, 0, FFI_TYPE_SINT16, NULL };
-    ffi_type ffi_type_uint32 = { 0, 0, FFI_TYPE_UINT32, NULL };
-    ffi_type ffi_type_sint32 = { 0, 0, FFI_TYPE_SINT32, NULL };
-    ffi_type ffi_type_uint64 = { 0, 0, FFI_TYPE_UINT64, NULL };
-    ffi_type ffi_type_sint64 = { 0, 0, FFI_TYPE_SINT64, NULL };
-    ffi_type ffi_type_float = { 0, 0, FFI_TYPE_FLOAT, NULL };
-    ffi_type ffi_type_double = { 0, 0, FFI_TYPE_DOUBLE, NULL };
-    ffi_type ffi_type_pointer = { 0, 0, FFI_TYPE_POINTER, NULL };
-
-    ffi_status ffi_prep_cif(
-        ffi_cif *cif,
-        ffi_abi abi,
-        unsigned int nargs,
-        ffi_type *rtype,
-        ffi_type **atypes
-    ){
-        UNUSED(cif);
-        UNUSED(abi);
-        UNUSED(nargs);
-        UNUSED(rtype);
-        UNUSED(atypes);
-
-        fail (Error_Not_Ffi_Build_Raw());
-    }
-
-    ffi_status ffi_prep_cif_var(
-        ffi_cif *cif,
-        ffi_abi abi,
-        unsigned int nfixedargs,
-        unsigned int ntotalargs,
-        ffi_type *rtype,
-        ffi_type **atypes
-    ){
-        UNUSED(cif);
-        UNUSED(abi);
-        UNUSED(nfixedargs);
-        UNUSED(ntotalargs);
-        UNUSED(rtype);
-        UNUSED(atypes);
-
-        fail (Error_Not_Ffi_Build_Raw());
-    }
-
-    void ffi_call(
-        ffi_cif *cif,
-        void (*fn)(void),
-        void *rvalue,
-        void **avalue
-    ){
-        UNUSED(cif);
-        UNUSED(fn);
-        UNUSED(rvalue);
-        UNUSED(avalue);
-
-        fail (Error_Not_Ffi_Build_Raw());
-    }
-
-    void *ffi_closure_alloc(size_t size, void **code) {
-        UNUSED(size);
-        UNUSED(code);
-
-        fail (Error_Not_Ffi_Build_Raw());
-    }
-
-    ffi_status ffi_prep_closure_loc(
-        ffi_closure *closure,
-        ffi_cif *cif,
-        void (*fun)(ffi_cif *, void *, void **, void *),
-        void *user_data,
-        void *codeloc
-    ){
-        UNUSED(closure);
-        UNUSED(cif);
-        UNUSED(fun);
-        UNUSED(user_data);
-        UNUSED(codeloc);
-
-        fail (Error_Not_Ffi_Build_Raw());
-    }
-
-    void ffi_closure_free(void *closure) {
-        UNUSED(closure);
-
-        fail (Error_Not_Ffi_Build_Raw());
-    }
-#endif
-
-
-// There is a platform-dependent list of legal ABIs which the MAKE-ROUTINE
-// and MAKE-CALLBACK natives take as an option via refinement
-//
-static ffi_abi Abi_From_Word(const REBVAL *word) {
-    switch (VAL_WORD_SYM(word)) {
-    case SYM_DEFAULT:
-        return FFI_DEFAULT_ABI;
-
-#ifdef X86_WIN64
-    case SYM_WIN64:
-        return FFI_WIN64;
-
-#elif defined(X86_WIN32) || defined(TO_LINUX_X86) || defined(TO_LINUX_X64)
-    case SYM_STDCALL:
-        return FFI_STDCALL;
-
-    case SYM_SYSV:
-        return FFI_SYSV;
-
-    case SYM_THISCALL:
-        return FFI_THISCALL;
-
-    case SYM_FASTCALL:
-        return FFI_FASTCALL;
-
-#ifdef X86_WIN32
-    case SYM_MS_CDECL:
-        return FFI_MS_CDECL;
-#else
-    case SYM_UNIX64:
-        return FFI_UNIX64;
-#endif //X86_WIN32
-
-#elif defined (TO_LINUX_ARM)
-    case SYM_VFP:
-        return FFI_VFP;
-
-    case SYM_SYSV:
-        return FFI_SYSV;
-
-#elif defined (TO_LINUX_MIPS)
-    case SYM_O32:
-        return FFI_O32;
-
-    case SYM_N32:
-        return FFI_N32;
-
-    case SYM_N64:
-        return FFI_N64;
-
-    case SYM_O32_SOFT_FLOAT:
-        return FFI_O32_SOFT_FLOAT;
-
-    case SYM_N32_SOFT_FLOAT:
-        return FFI_N32_SOFT_FLOAT;
-
-    case SYM_N64_SOFT_FLOAT:
-        return FFI_N64_SOFT_FLOAT;
-#endif //X86_WIN64
-
-    default:
-        break;
-    }
-
-    fail (word);
-}
-
+#include "reb-struct.h"
 
 //
 // Writes into `out` a Rebol value representing the "schema", which describes
@@ -761,7 +587,7 @@ REB_R Routine_Dispatcher(REBFRM *f)
 {
     REBRIN *rin = FUNC_ROUTINE(f->phase);
 
-    if (RIN_LIB(rin) == NULL) {
+    if (RIN_IS_CALLBACK(rin) || RIN_LIB(rin) == NULL) {
         //
         // lib is NULL when routine is constructed from address directly,
         // so there's nothing to track whether that gets loaded or unloaded
@@ -988,24 +814,23 @@ REB_R Routine_Dispatcher(REBFRM *f)
         }
     }
 
-    // ** THE ACTUAL FFI CALL **
+    // THE ACTUAL FFI CALL
     //
-    // Note that the "offsets" are now actually pointers.
-    {
-        Init_Unreadable_Blank(&Callback_Error); // !!! is it already?
-
-        ffi_call(
-            cif,
-            RIN_CFUNC(rin),
-            ret_offset, // actually a real pointer now (no longer an offset)
-            (num_args == 0)
-                ? NULL
-                : SER_HEAD(void*, arg_offsets) // also real pointers now
-        );
-
-        if (!IS_BLANK_RAW(&Callback_Error))
-            fail (VAL_CONTEXT(&Callback_Error)); // asserts if not ERROR!
-    }
+    // Note that the "offsets" are now direct pointers.  Also note that
+    // any callbacks which run Rebol code during the course of calling this
+    // arbitrary C code are not allowed to propagate failures out of the
+    // callback--they'll panic and crash the interpreter, since they don't
+    // know what to do otherwise.  See MAKE-CALLBACK/FALLBACK for some
+    // mitigation of this problem.
+    //
+    ffi_call(
+        cif,
+        RIN_CFUNC(rin),
+        ret_offset, // actually a real pointer now (no longer an offset)
+        (num_args == 0)
+            ? NULL
+            : SER_HEAD(void*, arg_offsets) // also real pointers now
+    );
 
     if (IS_BLANK(RIN_RET_SCHEMA(rin)))
         Init_Void(f->out);
@@ -1029,12 +854,15 @@ REB_R Routine_Dispatcher(REBFRM *f)
 }
 
 
+//
+// cleanup_ffi_closure: C
+//
 // The GC-able HANDLE! used by callbacks contains a ffi_closure pointer that
 // needs to be freed when the handle references go away (really only one
 // reference is likely--in the FUNC_BODY of the callback, but still this is
 // how the GC gets hooked in Ren-C)
 //
-static void cleanup_ffi_closure(const REBVAL *v) {
+void cleanup_ffi_closure(const REBVAL *v) {
     ffi_closure_free(VAL_HANDLE_POINTER(ffi_closure, v));
 }
 
@@ -1048,6 +876,8 @@ static void cleanup_args_fftypes(const REBVAL *v) {
 
 
 //
+// callback_dispatcher: C
+//
 // Callbacks allow C code to call Rebol functions.  It does so by creating a
 // stub function pointer that can be passed in slots where C code expected
 // a C function pointer.  When such stubs are triggered, the FFI will call
@@ -1057,15 +887,12 @@ static void cleanup_args_fftypes(const REBVAL *v) {
 // function qsort() is made to use a custom comparison function that is
 // actually written in Rebol.
 //
-static void callback_dispatcher(
+void callback_dispatcher(
     ffi_cif *cif,
     void *ret,
     void **args,
     void *user_data
 ){
-    if (!IS_BLANK_RAW(&Callback_Error)) // !!!is this possible?
-        return;
-
     REBRIN *rin = cast(REBRIN*, user_data);
     assert(!RIN_IS_VARIADIC(rin));
     assert(cif->nargs == RIN_NUM_FIXED_ARGS(rin));
@@ -1083,8 +910,11 @@ static void callback_dispatcher(
 // `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
 
     if (error) {
-        Init_Error(&Callback_Error, error);
-        return;
+        //
+        // If a callback encounters an error in mid-run, there's nothing that
+        // can be done 
+        //
+        panic (error);
     }
 
     // Build an array of code to run which represents the call.  The first
@@ -1150,7 +980,7 @@ static void callback_dispatcher(
 //     return: [type] "note"
 // ]
 //
-static REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec, ffi_abi abi) {
+REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec, ffi_abi abi) {
     assert(IS_BLOCK(ffi_spec));
 
     REBRIN *r = Make_Array(IDX_ROUTINE_MAX);
@@ -1361,193 +1191,4 @@ static REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec, ffi_abi abi) {
     Init_Block(FUNC_BODY(fun), r);
 
     return fun; // still needs to have function or callback info added!
-}
-
-
-//
-//  make-routine: native [
-//
-//  {Create a bridge for interfacing with arbitrary C code in a DLL}
-//
-//      return: [function!]
-//      lib [library!]
-//          {Library DLL that function lives in (get with MAKE LIBRARY!)}
-//      name [string!]
-//          {Linker name of the function in the DLL}
-//      ffi-spec [block!]
-//          {Description of what C argument types the function takes}
-//      /abi
-//          {Specify the Application Binary Interface (vs. using default)}
-//      abi-type [word!]
-//          {'CDECL, 'FASTCALL, 'STDCALL, etc.}
-//  ]
-//
-REBNATIVE(make_routine)
-//
-// !!! Would be nice if this could just take a filename and the lib management
-// was automatic, e.g. no LIBRARY! type.
-{
-    INCLUDE_PARAMS_OF_MAKE_ROUTINE;
-
-    ffi_abi abi;
-    if (REF(abi))
-        abi = Abi_From_Word(ARG(abi_type));
-    else
-        abi = FFI_DEFAULT_ABI;
-
-    // Make sure library wasn't closed with CLOSE
-    //
-    REBLIB *lib = VAL_LIBRARY(ARG(lib));
-    if (lib == NULL)
-        fail (ARG(lib));
-
-    // Try to find the C function pointer in the DLL, if it's there.
-    // OS_FIND_FUNCTION takes a char* on both Windows and Posix.  The
-    // string that gets here could be REBUNI wide or BYTE_SIZE(), so
-    // make sure it's turned into a char* before passing.
-    //
-    // !!! Should it error if any bytes need to be UTF8 encoded?
-    //
-    REBVAL *name = ARG(name);
-    REBCNT b_index = VAL_INDEX(name);
-    REBCNT b_len = VAL_LEN_AT(name);
-    REBSER *byte_sized = Temp_Bin_Str_Managed(name, &b_index, &b_len);
-
-    CFUNC *cfunc = OS_FIND_FUNCTION(
-        LIB_FD(lib),
-        SER_AT(char, byte_sized, b_index) // name may not be at head index
-    );
-    if (cfunc == NULL)
-        fail ("FFI: Couldn't find function in library");
-
-    // Process the parameter types into a function, then fill it in
-
-    REBFUN *fun = Alloc_Ffi_Function_For_Spec(ARG(ffi_spec), abi);
-    REBRIN *r = FUNC_ROUTINE(fun);
-
-    Init_Handle_Cfunc(RIN_AT(r, IDX_ROUTINE_CFUNC), cfunc, 0);
-    Move_Value(RIN_AT(r, IDX_ROUTINE_ORIGIN), ARG(lib));
-
-    Move_Value(D_OUT, FUNC_VALUE(fun));
-    return R_OUT;
-}
-
-
-//
-//  make-routine-raw: native [
-//
-//  {Create a bridge for interfacing with a C function, by pointer}
-//
-//      return: [function!]
-//      pointer [integer!]
-//          {Raw address of function in memory}
-//      ffi-spec [block!]
-//          {Description of what C argument types the function takes}
-//      /abi
-//          {Specify the Application Binary Interface (vs. using default)}
-//      abi-type [word!]
-//          {'CDECL, 'FASTCALL, 'STDCALL, etc.}
-//  ]
-//
-REBNATIVE(make_routine_raw)
-//
-// !!! Would be nice if this could just take a filename and the lib management
-// was automatic, e.g. no LIBRARY! type.
-{
-    INCLUDE_PARAMS_OF_MAKE_ROUTINE_RAW;
-
-    ffi_abi abi;
-    if (REF(abi))
-        abi = Abi_From_Word(ARG(abi_type));
-    else
-        abi = FFI_DEFAULT_ABI;
-
-    // Cannot cast directly to a function pointer from a 64-bit value
-    // on 32-bit systems; first cast to (U)nsigned int that holds (P)oin(T)er
-    //
-    CFUNC *cfunc = cast(CFUNC*, cast(REBUPT, VAL_INT64(ARG(pointer))));
-    if (cfunc == NULL)
-        fail ("FFI: NULL pointer not allowed for raw MAKE-ROUTINE");
-
-    REBFUN *fun = Alloc_Ffi_Function_For_Spec(ARG(ffi_spec), abi);
-    REBRIN *r = FUNC_ROUTINE(fun);
-
-    Init_Handle_Cfunc(RIN_AT(r, IDX_ROUTINE_CFUNC), cfunc, 0);
-    Init_Blank(RIN_AT(r, IDX_ROUTINE_ORIGIN)); // no LIBRARY! in this case.
-
-    Move_Value(D_OUT, FUNC_VALUE(fun));
-    return R_OUT;
-}
-
-
-//
-//  make-callback: native [
-//
-//  {Wrap function so it can be called in raw C code with a function pointer.}
-//
-//      return: [function!]
-//      action [function!]
-//          {The existing Rebol function whose functionality is being wrapped}
-//      ffi-spec [block!]
-//          {Description of what C types each Rebol argument should map to}
-//      /abi
-//          {Specify the Application Binary Interface (vs. using default)}
-//      abi-type [word!]
-//          {'CDECL, 'FASTCALL, 'STDCALL, etc.}
-//  ]
-//
-REBNATIVE(make_callback)
-{
-    INCLUDE_PARAMS_OF_MAKE_CALLBACK;
-
-    ffi_abi abi;
-    if (REF(abi))
-        abi = Abi_From_Word(ARG(abi_type));
-    else
-        abi = FFI_DEFAULT_ABI;
-
-    REBFUN *fun = Alloc_Ffi_Function_For_Spec(ARG(ffi_spec), abi);
-    REBRIN *r = FUNC_ROUTINE(fun);
-
-    void *thunk; // actually CFUNC (FFI uses void*, may not be same size!)
-    ffi_closure *closure = cast(ffi_closure*, ffi_closure_alloc(
-        sizeof(ffi_closure), &thunk
-    ));
-
-    if (closure == NULL)
-        fail ("FFI: Couldn't allocate closure");
-
-    ffi_status status = ffi_prep_closure_loc(
-        closure,
-        RIN_CIF(r),
-        callback_dispatcher, // when thunk is called it calls this function...
-        r, // ...and this piece of data is passed to callback_dispatcher
-        thunk
-    );
-
-    if (status != FFI_OK)
-        fail ("FFI: Couldn't prep closure");
-
-    size_t sizeof_CFUNC_ptr = sizeof(CFUNC*);
-    if (sizeof_CFUNC_ptr != sizeof(void*))
-        fail ("FFI does not work when void* size differs from CFUNC* size");
-
-    // It's the FFI's fault for using the wrong type for the thunk.  Use a
-    // memcpy in order to get around strict checks that absolutely refuse to
-    // let you do a cast here.
-    //
-    CFUNC *cfunc_thunk;
-    memcpy(&cfunc_thunk, &thunk, sizeof(cfunc_thunk));
-
-    Init_Handle_Cfunc(RIN_AT(r, IDX_ROUTINE_CFUNC), cfunc_thunk, 0);
-    Init_Handle_Managed(
-        RIN_AT(r, IDX_ROUTINE_CLOSURE),
-        closure,
-        0,
-        &cleanup_ffi_closure
-    );
-    Move_Value(RIN_AT(r, IDX_ROUTINE_ORIGIN), ARG(action));
-
-    Move_Value(D_OUT, FUNC_VALUE(fun));
-    return R_OUT;
 }

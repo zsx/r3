@@ -150,7 +150,7 @@ emit {
 
 /***********************************************************************
 **
-*/  const REBACT Value_Dispatch[REB_MAX] =
+*/  REBACT Value_Dispatch[REB_MAX] =
 /*
 **      The ACTION dispatch function for each datatype.
 **
@@ -159,21 +159,17 @@ emit {
 emit-line "{"
 
 for-each-record type boot-types [
-    if group? type/class [type/class: first type/class]
-
-    case [
-        type/class = 0 [ ; REB_0 should not ever be dispatched, bad news
+    switch/default type/class [
+        0 [ ; REB_0 should not ever be dispatched, bad news
             emit-item "NULL"
         ]
-        type/class = '+ [ ; Extension types just fail until registered
-            emit-item "T_Fail"
+        + [ ; Extension types just fail until registered
+            emit-item "T_Unhooked"
         ]
-        true [ ;-- R3-Alpha needs to bootstrap, do not convert to an ELSE!
-            ;
-            ; All other types should have handlers
-            ;
-            emit-item ["T_" propercase-of type/class]
-        ]
+    ][
+        ; All other types should have handlers
+        ;
+        emit-item ["T_" propercase-of type/class]
     ]
     emit-annotation type/name
 ]
@@ -185,7 +181,7 @@ emit {
 
 /***********************************************************************
 **
-*/  const REBPEF Path_Dispatch[REB_MAX] =
+*/  REBPEF Path_Dispatch[REB_MAX] =
 /*
 **      The path evaluator function for each datatype.
 **
@@ -194,16 +190,15 @@ emit {
 emit-line "{"
 
 for-each-record type boot-types [
-    if group? type/class [type/class: first type/class]
-
-    either type/path = '- [
-        emit-item "PD_Fail"
+    switch/default type/path [
+        - [emit-item "PD_Fail"]
+        * [emit-item ["PD_" propercase-of type/class]]
+        + [emit-item "PD_Unhooked"]
     ][
-        emit-item [
-            "PD_" propercase-of (
-                either type/path = '* [type/class] [type/path]
-            )
-        ]
+        ; !!! Today's PORT! path dispatches through context even though that
+        ; isn't its technical "class" for responding to actions.
+        ;
+        emit-item ["PD_" propercase-of type/path]
     ]
     emit-annotation type/name
 ]
@@ -221,27 +216,13 @@ write-emitted src/tmp-evaltypes.c
 emit-header "Datatype Makers" %maketypes.h
 emit newline
 
-types-used: copy []
-
-for-each-record type boot-types [
-    if group? type/class [type/class: first type/class]
-
-    if all [
-        type/make = '*
-        word? type/class
-        not find types-used type/class
-    ][
-        append types-used type/class
-    ]
-]
-
 emit {
 
 #include "sys-core.h"
 
 /***********************************************************************
 **
-*/  const MAKE_FUNC Make_Dispatch[REB_MAX] =
+*/  MAKE_FUNC Make_Dispatch[REB_MAX] =
 /*
 **      Specifies the make method used for each datatype.
 **
@@ -249,12 +230,12 @@ emit {
 }
 emit-line "{"
 for-each-record type boot-types [
-    if group? type/class [type/class: first type/class]
-
-    either type/make = '* [
-        emit-item ["MAKE_" propercase-of type/class]
+    switch/default type/make [
+        - [emit-item "MAKE_Fail"]
+        * [emit-item ["MAKE_" propercase-of type/class]]
+        + [emit-item "MAKE_Unhooked"]
     ][
-        emit-item "MAKE_Fail"
+        fail "MAKE in %types.r should be, -, *, or +"
     ]
     emit-annotation type/name
 ]
@@ -264,7 +245,7 @@ emit-end
 emit {
 /***********************************************************************
 **
-*/  const TO_FUNC To_Dispatch[REB_MAX] =
+*/  TO_FUNC To_Dispatch[REB_MAX] =
 /*
 **      Specifies the TO method used for each datatype.
 **
@@ -272,12 +253,12 @@ emit {
 }
 emit-line "{"
 for-each-record type boot-types [
-    if group? type/class [type/class: first type/class]
-
-    either type/make = '* [
-        emit-item ["TO_" propercase-of type/class]
+    switch/default type/make [
+        - [emit-item "TO_Fail"]
+        * [emit-item ["TO_" propercase-of type/class]]
+        + [emit-item "TO_Unhooked"]
     ][
-        emit-item "TO_Fail"
+        fail "TO in %types.r should be -, *, or +"
     ]
     emit-annotation type/name
 ]
@@ -295,18 +276,6 @@ write-emitted src/tmp-maketypes.c
 emit-header "Datatype Comparison Functions" %comptypes.h
 emit newline
 
-types-used: copy []
-
-for-each-record type boot-types [
-    if group? type/class [type/class: first type/class]
-
-    if all [
-        word? type/class
-        not find types-used type/class
-    ][
-        append types-used type/class
-    ]
-]
 
 emit {
 
@@ -314,7 +283,7 @@ emit {
 
 /***********************************************************************
 **
-*/  const REBCTF Compare_Types[REB_MAX] =
+*/  REBCTF Compare_Types[REB_MAX] =
 /*
 **      Type comparision functions.
 **
@@ -322,18 +291,15 @@ emit {
 }
 emit-line "{"
 for-each-record type boot-types [
-    if group? type/class [type/class: first type/class]
+    switch/default type/class [
+        0 [emit-item "NULL"]
+        + [emit-item "CT_Unhooked"]
+    ][
+        unless word? type/class [
+            fail ["Type class must be 0, +, or a WORD!"]
+        ]
 
-    case [
-        type/class = 0 [
-            emit-item "NULL"
-        ]
-        type/class = '+ [
-            emit-item "CT_Fail"
-        ]
-        true [  ;-- R3-Alpha needs to bootstrap, do not convert to an ELSE!
-            emit-item ["CT_" propercase-of type/class]
-        ]
+        emit-item ["CT_" propercase-of type/class]
     ]
     emit-annotation type/name
 ]
