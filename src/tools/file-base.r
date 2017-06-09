@@ -134,17 +134,7 @@ core: [
     t-object.c
     t-pair.c
     t-port.c
-    [
-        t-routine.c
-
-        ; FFI is being converted to an extension, but until that happens, the
-        ; stubs for the FFI functions trigger unreachability warnings, since
-        ; all they do is fail.  Bypass the warning for now.
-        ;
-        <no-unreachable>
-    ]
     t-string.c
-    t-struct.c
     t-time.c
     t-tuple.c
     t-typeset.c

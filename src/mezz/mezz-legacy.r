@@ -481,21 +481,6 @@ action?: func [f [<opt> any-value!]] [
     all [function? :f | 3 = func-class-of :f]
 ]
 
-command!: function!
-command?: func [f [<opt> any-value!]] [
-    all [function? :f | 4 = func-class-of :f]
-]
-
-routine!: function!
-routine?: func [f [<opt> any-value!]] [
-    all [function? :f | 5 = func-class-of :f]
-]
-
-callback!: function!
-callback?: func [f [<opt> any-value!]] [
-    all [function? :f | 6 = func-class-of :f]
-]
-
 
 ; In Ren-C, MAKE for OBJECT! does not use the "type" slot for parent
 ; objects.  You have to use the arity-2 CONSTRUCT to get that behavior.
@@ -505,24 +490,23 @@ callback?: func [f [<opt> any-value!]] [
 ; Because of the commonality of the alternate interpretation of MAKE, this
 ; bridges until further notice.
 ;
-; Also: bridge legacy calls to MAKE ROUTINE!, MAKE COMMAND!, and MAKE CALLBACK!
-; while still letting ROUTINE!, COMMAND!, and CALLBACK! be valid to use in
-; typesets invokes the new variadic behavior.  This can only work if the
-; source literally wrote out `make routine!` vs an expression that evaluated
-; to the routine! datatype (for instance) but should cover most cases.
+; Note: This previously used a variadic lookahead to bridge MAKE ROUTINE!,
+; MAKE CALLBACK!, and MAKE COMMAND!.  Those invocations would all end up
+; passing the FUNCTION! datatype, so a hard quoting lookahead was a workaround
+; for dispatching to the necessary actions.  However, COMMAND! has been
+; deprecated, and MAKE-ROUTINE and MAKE-CALLBACK have been moved to an
+; extension which would not be bound here in LIB at an early enough time, so
+; those invocations should be changed for now.
 ;
 lib-make: :make
 make: function [
     "Constructs or allocates the specified datatype."
     return: [any-value!]
-    type [<opt> any-value! <...>]
+    type [any-value!]
         "The datatype or an example value"
-    def [<opt> any-value! <...>]
+    def [any-value!]
         "Attributes or size of the new value (modified)"
 ][
-    type: take type
-    def: take def
-
     case [
         all [
             :type = object!

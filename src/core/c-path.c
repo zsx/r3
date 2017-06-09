@@ -52,6 +52,21 @@ REBINT PD_Fail(REBPVS *pvs)
 
 
 //
+//  PD_Unhooked: C
+//
+// As a temporary workaround for not having real user-defined types, an
+// extension can overtake an "unhooked" type slot to provide behavior.
+//
+REBINT PD_Unhooked(REBPVS *pvs)
+{
+    REBVAL *type = Get_Type(VAL_TYPE(pvs->value)); // put in error message?
+    UNUSED(type);
+
+    fail ("Datatype is provided by an extension which is not loaded.");
+}
+
+
+//
 //  Next_Path_Throws: C
 //
 // Evaluate next part of a path.

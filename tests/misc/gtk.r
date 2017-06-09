@@ -131,10 +131,10 @@ g-signal-connect-data:
 g-signal-connect: func [
     instance [integer!]
     detailed-signal [integer! string! binary!]
-    c-handler [integer!]
+    c-handler [function!]
     data [integer!]
 ][
-    g-signal-connect-data instance detailed-signal c-handler data 0 0
+    g-signal-connect-data instance detailed-signal :c-handler data 0 0
 ]
 
 gtk-button-new-with-label:
@@ -166,7 +166,7 @@ init-gtk: function [app] [
     ]
 
     print ["assign pointer"]
-    argv/args/1: reflect arg0 'addr
+    argv/args/1: addr-of arg0
 
     print ["argv:" argv]
     argc: make struct! [
@@ -174,48 +174,17 @@ init-gtk: function [app] [
     ]
 
     addr-argv: make struct! [
-        addr: [pointer] (reflect argv 'addr)
+        addr: [pointer] (addr-of argv)
     ]
 
     print ["addr-argv:" addr-argv]
-    print ["addr of addr-argv:" reflect addr-argv 'addr]
+    print ["addr of addr-argv:" addr-of addr-argv]
 
-    gtk-init (reflect argc 'addr) (reflect addr-argv 'addr)
+    gtk-init (addr-of argc) (addr-of addr-argv)
     print ["argc:" argc "argv:" argv]
 ]
 
-mk-cb: func [
-    return: [function!]
-    args [block!]
-    body [block!]
-    <local> r-args arg a tmp-func
-][
-    r-args: copy []
-
-    arg:[
-        copy a word! (append r-args a)
-        block!
-        opt string!
-    ]
-    attr: [
-        set-word!
-        block! | word!
-    ]
-
-    parse args [
-        opt string!
-        some [ arg | attr ]
-    ]
-
-    print ["args:" mold args]
-
-    tmp-func: function r-args body
-
-    print ["tmp-func:" mold :tmp-func]
-    make callback! compose/deep [[(args)] :tmp-func]
-]
-
-on-click-callback: mk-cb [
+on-click-callback: make-callback [
     widget [pointer]
     data   [pointer]
 ][
@@ -233,7 +202,7 @@ on-click-callback: mk-cb [
     ]
 ]
 
-app-quit-callback: mk-cb [
+app-quit-callback: make-callback [
 ][
     print ["app quiting"]
     gtk-main-quit
@@ -250,7 +219,7 @@ win: gtk-window-new GTK_WINDOW_TOPLEVEL
 gtk-window-set-default-size win 10 10
 gtk-window-set-resizable win 1
 print ["win:" win]
-g-signal-connect win "destroy" (reflect :app-quit-callback 'addr) NULL
+g-signal-connect win "destroy" :app-quit-callback NULL
 gtk-window-set-title win "gtk+ from rebol"
 
 hbox: gtk-hbox-new
@@ -262,7 +231,7 @@ but1: gtk-button-new-with-label "button 1"
 gtk-box-pack-start hbox but1 1 1 0
 
 n-clicked: make struct! [i: [int32] 0]
-g-signal-connect but1 "clicked" (reflect :on-click-callback 'addr) (reflect n-clicked 'addr)
+g-signal-connect but1 "clicked" :on-click-callback (addr-of n-clicked)
 
 but2: gtk-button-new-with-label "button 2"
 gtk-box-pack-start hbox but2 1 1 0

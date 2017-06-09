@@ -216,7 +216,6 @@ eval proc [
     words-of: | {function, object, or module}
     values-of: | {object or module}
     types-of: | {function}
-    addr-of: | {struct or callback}
     title-of: | {function} ; should work for module
 |
 

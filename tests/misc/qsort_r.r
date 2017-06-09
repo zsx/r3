@@ -15,16 +15,30 @@ REBOL [
         make use of a REBVAL), this shows the use of it to "tunnel" a
         Rebol value through to a written-in-Rebol comparator callback.
     }
+
+    See-Also: {
+        More details about callbacks are mentioned in the demo file for the
+        "plain" qsort, in the %qsort.r demo file.
+    }
 ]
 
 recycle/torture
 
-
-f: func [
-    a [integer!] "pointer to an integer"
-    b [integer!] "pointer to an integer"
-    arg [any-value!] "some tunneled argument"
+; Note: Plain qsort demo tests WRAP-CALLBACK independently.
+;
+cb: make-callback/fallback [
+    return: [int64]
+    a [pointer]
+    b [pointer]
+    arg [rebval]
 ][
+    assert [integer? a]
+    assert [integer? b]
+
+    comment [
+        fail "testing fallback behavior"
+    ]
+
     print mold arg
 
     i: make struct! compose/deep [
@@ -40,41 +54,27 @@ f: func [
         i/i < j/i [-1]
         i/i > j/i [1]
      ]
-]
-
-cb: make callback! [
-    [
-        a [pointer]
-        b [pointer]
-        arg [rebval]
-        return: [int64]
-    ]
-    :f
-]
+] 0
 
 libc: make library! %libc.so.6
 
 x64?: 40 = fifth system/version
 size_t: either x64? ['int64]['int32]
 
-; This tests the compatibility shim for MAKE that lets MAKE ROUTINE! work,
-; though that is deprecated (use MAKE-ROUTINE or MAKE-ROUTINE-RAW)
-;
-qsort_r: make routine! compose/deep [
-    [
-        base [pointer]
-        nmemb [(size_t)]
-        size [(size_t)]
-        comp [pointer]
-        arg [rebval]
-    ]
-    (libc) "qsort_r"
+qsort_r: make-routine libc "qsort_r" compose/deep [
+    base [pointer]
+    nmemb [(size_t)]
+    size [(size_t)]
+    comp [pointer]
+    arg [rebval]
 ]
 
 array: make vector! [integer! 32 5 [10 8 2 9 5]]
-print ["array:" mold array]
-probe (reflect :cb 'addr)
+print ["before:" mold array]
+probe (addr-of :cb)
 qsort_r array 5 4 :cb <A Tunneled Tag>
+print ["after:" mold array]
+
 assert [array = make vector! [integer! 32 5 [2 5 8 9 10]]]
 
 close libc

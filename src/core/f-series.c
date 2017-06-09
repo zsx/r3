@@ -290,7 +290,8 @@ chkDecimal:
         return VAL_LIBRARY(s) - VAL_LIBRARY(t);
 
     case REB_STRUCT:
-        return Cmp_Struct(s, t);
+        fail ("Temporary disablement of comparison of STRUCT!");
+        /* return Cmp_Struct(s, t); */
 
     case REB_BLANK:
     case REB_MAX_VOID:
