@@ -741,24 +741,22 @@ int OS_Create_Process(
 
     int status = 0;
     int ret = 0;
+
+    // An "info" pipe is used to send back an error code from the child
+    // process back to the parent if there is a problem.  It only writes
+    // an integer's worth of data in that case, but it may need a bigger
+    // buffer if more interesting data needs to pass between them.
+    //
     char *info = NULL;
     off_t info_size = 0;
     u32 info_len = 0;
-    pid_t fpid = 0;
-
-    const unsigned int R = 0;
-    const unsigned int W = 1;
-
-    // We want to be able to compile with all warnings as errors, and
-    // we'd like to use -Wcast-qual if possible.  This is currently
-    // the only barrier in the codebase...so we tunnel under the cast.
-    //
-    char * const *argv_hack;
 
     // suppress unused warnings but keep flags for future use
     UNUSED(REF(info));
     UNUSED(REF(console));
 
+    const unsigned int R = 0;
+    const unsigned int W = 1;
     int stdin_pipe[] = {-1, -1};
     int stdout_pipe[] = {-1, -1};
     int stderr_pipe[] = {-1, -1};
@@ -782,6 +780,7 @@ int OS_Create_Process(
     if (Open_Nonblocking_Pipe_Fails(info_pipe))
         goto info_pipe_err;
 
+    pid_t fpid; // gotos would cross initialization
     fpid = fork();
     if (fpid == 0) {
         //
@@ -884,6 +883,12 @@ int OS_Create_Process(
 
         /* printf("flag_shell in child: %hhu\n", flag_shell); */
 
+        // We want to be able to compile with all warnings as errors, and
+        // we'd like to use -Wcast-qual if possible.  This is currently
+        // the only barrier in the codebase...so we tunnel under the cast.
+        //
+        char * const *argv_hack;
+
         if (REF(shell)) {
             const char *sh = getenv("SHELL");
 
@@ -897,7 +902,10 @@ int OS_Create_Process(
                 exit(EXIT_FAILURE);
             }
 
-            const char ** argv_new = cast(const char**, malloc(argc + 3));
+            const char ** argv_new = cast(
+                const char**,
+                malloc((argc + 3) * sizeof(argv[0])
+            ));
             argv_new[0] = sh;
             argv_new[1] = "-c";
             memcpy(&argv_new[2], argv, argc * sizeof(argv[0]));
@@ -910,6 +918,10 @@ int OS_Create_Process(
             memcpy(&argv_hack, &argv, sizeof(argv_hack));
             execvp(argv[0], argv_hack);
         }
+
+        // Note: execvp() will take over the process and not return, unless
+        // there was a problem in the execution.  So you shouldn't be able
+        // to get here *unless* there was an error, which will be in errno.
 
 child_error: ;
         //
@@ -924,6 +936,8 @@ child_error: ;
             //
             // Nothing we can do, but need to stop compiler warning
             // (cast to void is insufficient for warn_unused_result)
+            //
+            assert(FALSE);
         }
         exit(EXIT_FAILURE); /* get here only when exec fails */
     }
@@ -936,7 +950,6 @@ child_error: ;
         //
         nfds_t nfds = 0;
         struct pollfd pfds[4];
-        pid_t xpid;
         unsigned int i;
         ssize_t nbytes;
         off_t input_size = 0;
@@ -950,7 +963,6 @@ child_error: ;
         if ((stdin_pipe[W] > 0) && (input_size = strlen(input)) > 0) {
             /* printf("stdin_pipe[W]: %d\n", stdin_pipe[W]); */
 
-            //
             // the passed in input_len is in characters, not in bytes
             //
             input_len = 0;
@@ -1008,7 +1020,7 @@ child_error: ;
 
         valid_nfds = nfds;
         while (valid_nfds > 0) {
-            xpid = waitpid(fpid, &status, WNOHANG);
+            pid_t xpid = waitpid(fpid, &status, WNOHANG);
             if (xpid == -1) {
                 ret = errno;
                 goto error;
@@ -1099,25 +1111,29 @@ child_error: ;
                     ssize_t to_read = 0;
                     size_t size;
                     if (pfds[i].fd == stdout_pipe[R]) {
-                        buffer = (char**)output;
+                        buffer = output;
                         offset = output_len;
                         size = output_size;
-                    } else if (pfds[i].fd == stderr_pipe[R]) {
-                        buffer = (char**)err;
+                    }
+                    else if (pfds[i].fd == stderr_pipe[R]) {
+                        buffer = err;
                         offset = err_len;
                         size = err_size;
-                    } else { /* info pipe */
+                    }
+                    else {
+                        assert(pfds[i].fd == info_pipe[R]);
                         buffer = &info;
                         offset = &info_len;
                         size = info_size;
                     }
+
                     do {
                         to_read = size - *offset;
                         /* printf("to read %d bytes\n", to_read); */
                         nbytes = read(pfds[i].fd, *buffer + *offset, to_read);
-                        if (nbytes < 0) {
+                        if (nbytes < 0)
                             break;
-                        }
+
                         if (nbytes == 0) { // closed
                             /* printf("the other end closed\n"); */
                             close(pfds[i].fd);
@@ -1125,13 +1141,20 @@ child_error: ;
                             valid_nfds --;
                             break;
                         }
+
                         /* printf("POLLIN: %d bytes\n", nbytes); */
+
                         *offset += nbytes;
-                        if (*offset >= size) {
-                            char *larger =
-                                cast(char*, size + BUF_SIZE_CHUNK);
-                            if (!larger) goto kill;
-                            memcpy(larger, *buffer, size * sizeof(larger[0]));
+                        assert(*offset <= size);
+
+                        if (*offset == size) {
+                            char *larger = cast(
+                                char*,
+                                malloc(size + BUF_SIZE_CHUNK)
+                            );
+                            if (larger == NULL)
+                                goto kill;
+                            memcpy(larger, *buffer, size);
                             free(*buffer);
                             *buffer = larger;
                             size += BUF_SIZE_CHUNK;
@@ -1165,17 +1188,22 @@ child_error: ;
         goto error;
     }
 
-    if (info_len > 0) {
+    if (info_len == sizeof(int)) {
         //
-        // exec in child process failed, set to errno for reporting
+        // exec in child process failed, set to errno for reporting.
+        //
         ret = *cast(int*, info);
     }
     else if (WIFEXITED(status)) {
+        assert(info_len == 0);
+
        *exit_code = WEXITSTATUS(status);
        *pid = fpid;
     }
-    else
+    else {
+        ret = -1;
         goto error;
+    }
 
     goto cleanup;
 
@@ -1188,47 +1216,56 @@ error:
         ret = -1;
 
 cleanup:
-    if (output != NULL && *output != NULL && *output_len <= 0) {
-        free(*output);
-    }
-    if (err != NULL && *err != NULL && *err_len <= 0) {
-        free(*err);
-    }
-    if (info != NULL) {
+    // CALL only expects to have to free the output or error buffer if there
+    // was a non-zero number of bytes returned.  If there was no data, take
+    // care of it here.
+    //
+    // !!! This won't be done this way when this routine actually appends to
+    // the BINARY! or STRING! itself.
+    //
+    if (output != NULL && *output != NULL)
+        if (*output_len == 0) { // buffer allocated but never used
+            free(*output);
+            *output = NULL;
+        }
+
+    if (err != NULL && *err != NULL)
+        if (*err_len == 0) { // buffer allocated but never used
+            free(*err);
+            *err = NULL;
+        }
+
+    if (info != NULL)
         free(info);
-    }
-    if (info_pipe[R] > 0) {
+
+    if (info_pipe[R] > 0)
         close(info_pipe[R]);
-    }
-    if (info_pipe[W] > 0) {
+
+    if (info_pipe[W] > 0)
         close(info_pipe[W]);
-    }
 
 info_pipe_err:
-    if (stderr_pipe[R] > 0) {
+    if (stderr_pipe[R] > 0)
         close(stderr_pipe[R]);
-    }
-    if (stderr_pipe[W] > 0) {
+
+    if (stderr_pipe[W] > 0)
         close(stderr_pipe[W]);
-    }
 
     goto stderr_pipe_err; // no jumps here yet, avoid warning
 
 stderr_pipe_err:
-    if (stdout_pipe[R] > 0) {
+    if (stdout_pipe[R] > 0)
         close(stdout_pipe[R]);
-    }
-    if (stdout_pipe[W] > 0) {
+
+    if (stdout_pipe[W] > 0)
         close(stdout_pipe[W]);
-    }
 
 stdout_pipe_err:
-    if (stdin_pipe[R] > 0) {
+    if (stdin_pipe[R] > 0)
         close(stdin_pipe[R]);
-    }
-    if (stdin_pipe[W] > 0) {
+
+    if (stdin_pipe[W] > 0)
         close(stdin_pipe[W]);
-    }
 
 stdin_pipe_err:
     //
@@ -1277,11 +1314,19 @@ REBNATIVE(call)
     INCLUDE_PARAMS_OF_CALL;
 
     UNUSED(REF(shell)); // looked at via frame_ by OS_Create_Process
-    UNUSED(REF(console));  // same
+    UNUSED(REF(console)); // same
 
     // SECURE was never actually done for R3-Alpha
     //
     Check_Security(Canon(SYM_CALL), POL_EXEC, ARG(command));
+
+    // Make sure that if the output or error series are STRING! or BINARY!,
+    // they are not read-only, before we try appending to them.
+    //
+    if (IS_STRING(ARG(out)) || IS_BINARY(ARG(out)))
+        FAIL_IF_READ_ONLY_SERIES(VAL_SERIES(ARG(out)));
+    if (IS_STRING(ARG(err)) || IS_BINARY(ARG(err)))
+        FAIL_IF_READ_ONLY_SERIES(VAL_SERIES(ARG(err)));
 
     // If input_ser is set, it will be both managed and guarded
     //

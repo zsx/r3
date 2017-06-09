@@ -110,7 +110,7 @@
 //=//// SERIES_FLAG_FIXED_SIZE ////////////////////////////////////////////=//
 //
 // This means a series cannot be expanded or contracted.  Values within the
-// series are still writable (assuming SERIES_INFO_LOCKED isn't set).
+// series are still writable (assuming it isn't otherwise locked).
 //
 // !!! Is there checking in all paths?  Do series contractions check this?
 //
