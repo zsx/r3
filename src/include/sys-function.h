@@ -283,15 +283,8 @@ inline static REBOOL IS_FUNCTION_CHAINER(const RELVAL *v)
 inline static REBOOL IS_FUNCTION_ADAPTER(const RELVAL *v)
     { return LOGICAL(VAL_FUNC_DISPATCHER(v) == &Adapter_Dispatcher); }
 
-inline static REBOOL IS_FUNCTION_RIN(const RELVAL *v)
-    { return LOGICAL(VAL_FUNC_DISPATCHER(v) == &Routine_Dispatcher); }
-
 inline static REBOOL IS_FUNCTION_HIJACKER(const RELVAL *v)
     { return LOGICAL(VAL_FUNC_DISPATCHER(v) == &Hijacker_Dispatcher); }
-
-inline static REBRIN *VAL_FUNC_ROUTINE(const RELVAL *v) {
-    return VAL_ARRAY(VAL_FUNC_BODY(v));
-}
 
 
 // !!! At the moment functions are "all durable" or "none durable" w.r.t. the

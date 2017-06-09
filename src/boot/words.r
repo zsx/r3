@@ -81,7 +81,6 @@ words
 values
 types
 title
-;addr already defined
 
 value ; used by TYPECHECKER to name the argument of the generated function
 
@@ -224,7 +223,6 @@ int64
 float
 ;double ;reuse earlier definition
 pointer
-addr
 raw-memory
 raw-size
 extern

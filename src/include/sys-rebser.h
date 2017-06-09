@@ -623,7 +623,7 @@ struct Reb_Series {
         // OBJECT!-like type extension.  When there is a full story told on
         // user-defined types, this should be excisable from the core.
         //
-        REBARR *schema;
+        REBFLD *schema;
     } link;
 
     union Reb_Series_Content content;

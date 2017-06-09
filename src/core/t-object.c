@@ -787,23 +787,7 @@ REBNATIVE(construct)
     enum Reb_Kind target;
     REBCTX *context;
 
-    if (IS_STRUCT(spec)) {
-        //
-        // !!! Compatibility for `MAKE struct [...]` from Atronix R3.  There
-        // isn't any real "inheritance management" for structs but it allows
-        // the re-use of the structure's field definitions, so it is a means
-        // of saving on memory (?)
-        //
-        REBSTU *stu = Copy_Struct_Managed(VAL_STRUCT(spec));
-
-        Move_Value(D_OUT, STU_VALUE(stu));
-
-        // !!! Comment said "only accept value initialization"
-        //
-        Init_Struct_Fields(D_OUT, body);
-        return R_OUT;
-    }
-    else if (IS_GOB(spec)) {
+    if (IS_GOB(spec)) {
         //
         // !!! Compatibility for `MAKE gob [...]` or `MAKE gob NxN` from
         // R3-Alpha GUI.  Start by copying the gob (minus pane and parent),

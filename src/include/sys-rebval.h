@@ -577,26 +577,28 @@ typedef REBARR REBLIB;
 // should be).  On that path, a struct's internals are simplified to being
 // just an array:
 //
-// [0] is a specification OBJECT! which contains all the information about
+// [0] is a specification array which contains all the information about
 // the structure's layout, regardless of what offset it would find itself at
 // inside of a data blob.  This includes the total size, and arrays of
 // field definitions...essentially, the validated spec.  It also contains
 // a HANDLE! which contains the FFI-type.
 //
 // [1] is the content BINARY!.  The VAL_INDEX of the binary indicates the
-// offset within the struct.
-//
-// As an interim step, the [0] is the ordinary struct fields series as an
-// ordinary BINARY!
+// offset within the struct.  See notes in ADDR-OF from the FFI about how
+// the potential for memory instability of content pointers may not be a
+// match for the needs of an FFI interface.
 //
 struct Reb_Struct {
     REBARR *stu; // [0] is canon self value, ->misc.schema is schema
     REBSER *data; // binary data series (may be shared with other structs)
 };
 
-struct Struct_Field; // forward decl avoids conflict in Prepare_Field_For_FFI
-
+// To help document places in the core that are complicit in the "extension
+// hack", alias arrays being used for the FFI to another name.
+//
 typedef REBARR REBSTU;
+typedef REBARR REBFLD;
+
 
 #include "reb-gob.h"
 

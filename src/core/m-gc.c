@@ -646,22 +646,26 @@ static void Queue_Mark_Opt_Value_Deep(const RELVAL *v)
 
     case REB_STRUCT: {
         //
+        // !!! The ultimate goal for STRUCT! is that it be part of the FFI
+        // extension and fall into the category of a "user defined type".
+        // This essentially means it would be an opaque variant of a context.
+        // User-defined types aren't fully designed, so struct is achieved
+        // through a hacky set of hooks for now...but it does use arrays in
+        // a fairly conventional way that should translate to the user
+        // defined type system once it exists.
+        //
         // The struct gets its GC'able identity and is passable by one
         // pointer from the fact that it is a single-element array that
         // contains the REBVAL of the struct itself.  (Because it is
         // "singular" it is only a REBSER node--no data allocation.)
         //
-        Queue_Mark_Array_Deep(VAL_STRUCT(v));
+        REBSTU *stu = v->payload.structure.stu;
+        Queue_Mark_Array_Deep(stu);
 
         // The schema is the hierarchical description of the struct.
         //
-        REBFLD *schema = SER(VAL_STRUCT(v))->link.schema;
-        assert(FLD_IS_STRUCT(schema));
+        REBFLD *schema = SER(stu)->link.schema;
         Queue_Mark_Array_Deep(schema);
-
-        // The symbol needs to be GC protected, but only fields have them
-        //
-        assert(FLD_NAME(schema) == NULL);
 
         // The data series needs to be marked.  It needs to be marked
         // even for structs that aren't at the 0 offset--because their
@@ -1441,11 +1445,6 @@ REBCNT Recycle_Core(REBOOL shutdown, REBSER *sweeplist)
 
         Mark_Frame_Stack_Deep();
 
-        // Mark potential error object from callback!
-        if (!IS_BLANK_RAW(&Callback_Error)) {
-            assert(NOT_VAL_FLAG(&Callback_Error, VALUE_FLAG_RELATIVE));
-            Queue_Mark_Value_Deep(&Callback_Error);
-        }
         Propagate_All_GC_Marks();
 
         Mark_Devices_Deep();

@@ -1270,9 +1270,6 @@ void Startup_Core(void)
     Startup_True_And_False();
     Add_Lib_Keys_R3Alpha_Cant_Make();
 
-    Prep_Global_Cell(&Callback_Error);
-    Init_Unreadable_Blank(&Callback_Error);
-
 //==//////////////////////////////////////////////////////////////////////==//
 //
 // RUN CODE BEFORE ERROR HANDLING INITIALIZED

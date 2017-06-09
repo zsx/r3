@@ -30,6 +30,8 @@
 
 #include "sys-core.h"
 
+#include "reb-struct.h"
+
 
 // The managed HANDLE! for a ffi_type will have a reference in structs that
 // use it.  Basic non-struct FFI_TYPE_XXX use the stock ffi_type_xxx pointers
@@ -1552,10 +1554,6 @@ REBTYPE(Struct)
             Init_Block(D_OUT, Struct_To_Array(VAL_STRUCT(val)));
             break;
 
-        case SYM_ADDR:
-            Init_Integer(D_OUT, cast(REBUPT, VAL_STRUCT_DATA_AT(val)));
-            break;
-
         default:
             fail (Error_Cannot_Reflect(REB_STRUCT, arg));
         }
@@ -1569,47 +1567,4 @@ REBTYPE(Struct)
         fail (Error_Illegal_Action(REB_STRUCT, action));
     }
     return R_OUT;
-}
-
-
-//
-//  destroy-struct-storage: native [
-//
-//  {Destroy the external memory associated the struct}
-//
-//      struct [struct!]
-//      /free
-//          {Specify the function to free the memory}
-//      free-func [function!]
-//  ]
-//
-REBNATIVE(destroy_struct_storage)
-{
-    INCLUDE_PARAMS_OF_DESTROY_STRUCT_STORAGE;
-
-    REBSER *data = ARG(struct)->payload.structure.data;
-    if (NOT_SER_FLAG(data, SERIES_FLAG_ARRAY))
-        fail (Error_No_External_Storage_Raw());
-
-    RELVAL *handle = ARR_HEAD(ARR(data));
-
-    DECLARE_LOCAL (pointer);
-    Init_Integer(pointer, cast(REBUPT, VAL_HANDLE_POINTER(void, handle)));
-
-    if (VAL_HANDLE_LEN(handle) == 0)
-        fail (Error_Already_Destroyed_Raw(pointer));
-
-    // TBD: assert handle length was correct for memory block size
-
-    SET_HANDLE_LEN(handle, 0);
-
-    if (REF(free)) {
-        if (NOT(IS_FUNCTION_RIN(ARG(free_func))))
-            fail (Error_Free_Needs_Routine_Raw());
-
-        if (Do_Va_Throws(D_OUT, ARG(free_func), pointer, END))
-            return R_OUT_IS_THROWN;
-    }
-
-    return R_VOID;
 }

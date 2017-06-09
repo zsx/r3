@@ -116,7 +116,7 @@ typeset     typeset     -       *       -
 gob         gob         *       *       -
 event       event       *       *       -
 handle      handle      -       -       -
-struct      struct      *       *       -
+struct      +           +       +       -
 library     library     -       *       -
 
 ; Note that the "void?" state has no associated VOID! datatype.  Internally
