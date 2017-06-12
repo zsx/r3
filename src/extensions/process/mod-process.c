@@ -741,6 +741,7 @@ int OS_Create_Process(
 
     int status = 0;
     int ret = 0;
+    REBOOL invalid_errno_in_ret = FALSE; // if the "ret" above has an invalid errno
 
     // An "info" pipe is used to send back an error code from the child
     // process back to the parent if there is a problem.  It only writes
@@ -1064,7 +1065,15 @@ child_error: ;
                     }
                 }
 
-                break;
+                if (WIFSTOPPED(status)) {
+                    // TODO: Review, What's the expected behavior if the child process is stopped?
+                    continue;
+                } else if  (WIFCONTINUED(status)) {
+                    // pass
+                } else {
+                    // exited normally or due to signals
+                    break;
+                }
             }
 
             /*
@@ -1131,16 +1140,16 @@ child_error: ;
                         to_read = size - *offset;
                         /* printf("to read %d bytes\n", to_read); */
                         nbytes = read(pfds[i].fd, *buffer + *offset, to_read);
-                        if (nbytes < 0)
-                            break;
 
-                        if (nbytes == 0) { // closed
-                            /* printf("the other end closed\n"); */
-                            close(pfds[i].fd);
-                            pfds[i].fd = -1;
-                            valid_nfds --;
+                        // The man page of poll says about POLLIN:
+                        //
+                        // POLLIN      Data other than high-priority data may be read without blocking.
+
+                        //    For STREAMS, this flag is set in revents even if the message is of _zero_ length. This flag shall be equivalent to POLLRDNORM | POLLRDBAND.
+                        // POLLHUP     A  device  has been disconnected, or a pipe or FIFO has been closed by the last process that had it open for writing. Once set, the hangup state of a FIFO shall persist until some process opens the FIFO for writing or until all read-only file descriptors for the FIFO  are  closed.  This  event  and POLLOUT  are  mutually-exclusive; a stream can never be writable if a hangup has occurred. However, this event and POLLIN, POLLRDNORM, POLLRDBAND, or POLLPRI are not mutually-exclusive. This flag is only valid in the revents bitmask; it shall be ignored in the events member.
+                        // So "nbytes = 0" could be a valid return with POLLIN, and not indicating the other end closed the pipe, which is indicated by POLLHUP
+                        if (nbytes <= 0)
                             break;
-                        }
 
                         /* printf("POLLIN: %d bytes\n", nbytes); */
 
@@ -1188,23 +1197,6 @@ child_error: ;
         goto error;
     }
 
-    if (info_len == sizeof(int)) {
-        //
-        // exec in child process failed, set to errno for reporting.
-        //
-        ret = *cast(int*, info);
-    }
-    else if (WIFEXITED(status)) {
-        assert(info_len == 0);
-
-       *exit_code = WEXITSTATUS(status);
-       *pid = fpid;
-    }
-    else {
-        ret = -1;
-        goto error;
-    }
-
     goto cleanup;
 
 kill:
@@ -1212,8 +1204,9 @@ kill:
     waitpid(fpid, NULL, 0);
 
 error:
-    if (ret == 0)
-        ret = -1;
+    if (ret == 0) {
+        invalid_errno_in_ret = TRUE;
+    }
 
 cleanup:
     // CALL only expects to have to free the output or error buffer if there
@@ -1268,11 +1261,42 @@ stdout_pipe_err:
         close(stdin_pipe[W]);
 
 stdin_pipe_err:
+
     //
     // We will get to this point on success, as well as error (so ret may
     // be 0.  This is the return value of the host kit function to Rebol, not
     // the process exit code (that's written into the pointer arg 'exit_code')
     //
+    if (info_len == sizeof(int)) {
+        //
+        // exec in child process failed, set to errno for reporting.
+        //
+        ret = *cast(int*, info);
+    }
+    else if (WIFEXITED(status)) {
+        assert(info_len == 0);
+
+       *exit_code = WEXITSTATUS(status);
+       *pid = fpid;
+    }
+    else if (WIFSIGNALED(status)) {
+        DECLARE_LOCAL(i);
+        Init_Integer(i, WTERMSIG(status));
+        fail (Error(RE_EXT_PROCESS_CHILD_TERMINATED_BY_SIGNAL, i, END));
+    }
+    else if (WIFSTOPPED(status)) {
+        // Shouldn't be here, as the current behavior is keeping waiting when child is stopped
+        assert(FALSE);
+        fail (Error(RE_EXT_PROCESS_CHILD_STOPPED, END));
+    }
+    else {
+        invalid_errno_in_ret = TRUE;
+    }
+
+    if (invalid_errno_in_ret) {
+        fail ("Unknown error happened in CALL");
+    }
+
     return ret;
 }
 
@@ -1304,6 +1328,10 @@ stdin_pipe_err:
 //      /error
 //          "Redirects stderr to err"
 //      err [string! binary! file! blank!]
+//  ]
+//  new-errors: [
+//      child-terminated-by-signal: ["Child process is terminated by signal:" :arg1]
+//      child-stopped: ["Child process is stopped"]
 //  ]
 //
 REBNATIVE(call)
