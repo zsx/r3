@@ -1118,26 +1118,27 @@ child_error: ;
                     char **buffer = NULL;
                     u32 *offset;
                     ssize_t to_read = 0;
-                    size_t size;
+                    off_t *size;
                     if (pfds[i].fd == stdout_pipe[R]) {
                         buffer = output;
                         offset = output_len;
-                        size = output_size;
+                        size = &output_size;
                     }
                     else if (pfds[i].fd == stderr_pipe[R]) {
                         buffer = err;
                         offset = err_len;
-                        size = err_size;
+                        size = &err_size;
                     }
                     else {
                         assert(pfds[i].fd == info_pipe[R]);
                         buffer = &info;
                         offset = &info_len;
-                        size = info_size;
+                        size = &info_size;
                     }
 
                     do {
-                        to_read = size - *offset;
+                        to_read = *size - *offset;
+                        assert (to_read > 0);
                         /* printf("to read %d bytes\n", to_read); */
                         nbytes = read(pfds[i].fd, *buffer + *offset, to_read);
 
@@ -1154,20 +1155,21 @@ child_error: ;
                         /* printf("POLLIN: %d bytes\n", nbytes); */
 
                         *offset += nbytes;
-                        assert(*offset <= size);
+                        assert(*offset <= *size);
 
-                        if (*offset == size) {
+                        if (*offset == *size) {
                             char *larger = cast(
                                 char*,
-                                malloc(size + BUF_SIZE_CHUNK)
+                                malloc(*size + BUF_SIZE_CHUNK)
                             );
                             if (larger == NULL)
                                 goto kill;
-                            memcpy(larger, *buffer, size);
+                            memcpy(larger, *buffer, *size);
                             free(*buffer);
                             *buffer = larger;
-                            size += BUF_SIZE_CHUNK;
+                            *size += BUF_SIZE_CHUNK;
                         }
+                        assert(*offset < *size);
                     } while (nbytes == to_read);
                 }
                 else if (pfds[i].revents & POLLHUP) {
