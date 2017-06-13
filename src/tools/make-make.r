@@ -665,7 +665,7 @@ unless any [blank? args/WITH_TCC | args/WITH_TCC = "no"] [
     {    $(REBOL) $T/make-embedded-header.r} newline
 ]
 
-    append file-base/generated [tmp-symbols.c e-embedded-header.c]
+    append file-base/generated [tmp-symbols.c tmp-embedded-header.c]
 ]
 
 emit [

@@ -951,14 +951,14 @@ if (R3_WITH_TCC)
         )
 
     add_custom_command(OUTPUT
-        ${CORE_GENERATED_DIR}/e-embedded-header.c
+        ${CORE_GENERATED_DIR}/tmp-embedded-header.c
         COMMAND ${REBOL} ${TOOLS_DIR}/make-embedded-header.r OUTDIR=${TOP_GENERATED_SRC_DIR}
         DEPENDS
         ${TOOLS_DIR}/make-embedded-header.r
         ${SYS_CORE_PREP}
         )
 
-    list (APPEND GENERATED_CORE_SOURCE ${CORE_GENERATED_DIR}/e-embedded-header.c)
+    list (APPEND GENERATED_CORE_SOURCE ${CORE_GENERATED_DIR}/tmp-embedded-header.c)
 
 endif()
 

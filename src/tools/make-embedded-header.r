@@ -50,7 +50,7 @@ remove/part inp -1 + index? find inp to binary! "#define REN_C_STDIO_OK"
 
 ;write %/tmp/sys-core.i inp
 out: unspaced [
-    form-header/gen "Embedded sys-core.h" %e-embedded-header.c %make-embedded-header.r
+    form-header/gen "Embedded sys-core.h" %tmp-embedded-header.c %make-embedded-header.r
 
     {#include "sys-core.h"^/}
     "extern const REBYTE core_header_source[];^/"
@@ -59,4 +59,4 @@ out: unspaced [
     "};^/"
 ]
 print "------ Writing embedded header file"
-write-if-changed output-dir/core/e-embedded-header.c out
+write-if-changed output-dir/core/tmp-embedded-header.c out
