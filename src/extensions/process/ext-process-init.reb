@@ -22,7 +22,7 @@ browse: procedure [
     ; easy to do rather than have to add processing on the C side.  Review.
     ;
     for-each template get-os-browsers [
-        command: replace (copy template) "%1" location
+        command: replace/all (copy template) "%1" either file? location [to-local-file location][location]
         trap/with [
             call/shell command ; don't use /WAIT
             leave
