@@ -322,7 +322,7 @@ int OS_Create_Process(
         cmd[0] = L'\0';
         wcscat(cmd, sh);
         wcscat(cmd, call);
-        wcscat(cmd, "\"");
+        wcscat(cmd, L"\"");
     }
     else {
         // CreateProcess might write to this memory
