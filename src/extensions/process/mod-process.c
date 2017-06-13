@@ -314,13 +314,15 @@ int OS_Create_Process(
     }
 
     if (REF(shell)) {
-        const wchar_t *sh = L"cmd.exe /C ";
-        size_t len = wcslen(sh) + wcslen(call) + 1;
+        // command to cmd.exe needs to be surrounded by quotes to preserve the inner quotes
+        const wchar_t *sh = L"cmd.exe /C \"";
+        size_t len = wcslen(sh) + wcslen(call) + 3;
 
         cmd = cast(wchar_t*, malloc(len * sizeof(wchar_t)));
         cmd[0] = L'\0';
         wcscat(cmd, sh);
         wcscat(cmd, call);
+        wcscat(cmd, "\"");
     }
     else {
         // CreateProcess might write to this memory
