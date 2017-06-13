@@ -238,6 +238,12 @@ title-of: function [
     ]
 ]
 
+browse: procedure [
+    "stub function for browse* in extensions/process/ext-process-init.reb"
+    location [url! file! blank!]
+][
+    print "Browse needs redefining"
+]
 
 help: procedure [
     "Prints information about words and values (if no args, general help)."

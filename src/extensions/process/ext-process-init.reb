@@ -10,7 +10,7 @@ REBOL [
 ; as some potentially OS-specific detection on how to launch URLs (e.g. looks
 ; at registry keys on Windows.
 
-browse: procedure [
+browse*: procedure [
     "Open web browser to a URL or local file."
 
     location [url! file! blank!]
@@ -32,3 +32,5 @@ browse: procedure [
     ]
     fail "Could not open web browser"
 ]
+
+hijack 'browse :browse*
