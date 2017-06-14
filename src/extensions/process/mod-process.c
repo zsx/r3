@@ -692,6 +692,7 @@ static inline REBOOL Open_Pipe_Fails(int pipefd[2]) {
             return TRUE;
     }
 #endif
+    return FALSE;
 }
 
 static REBOOL Set_Nonblocking_Fails(int fd) {
