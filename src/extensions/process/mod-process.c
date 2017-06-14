@@ -661,7 +661,7 @@ input_error:
 
 #else // !defined(TO_WINDOWS), so POSIX, LINUX, OS X, etc.
 
-static REBOOL Open_Nonblocking_Pipe_Fails(int pipefd[2]) {
+static inline REBOOL Open_Pipe_Fails(int pipefd[2]) {
 #ifdef USE_PIPE2_NOT_PIPE
     //
     // NOTE: pipe() is POSIX, but pipe2() is Linux-specific.  With pipe() it
@@ -678,20 +678,13 @@ static REBOOL Open_Nonblocking_Pipe_Fails(int pipefd[2]) {
     // So the ability to target both are kept around, saving the pipe2() call
     // for later Linuxes known to have it (and O_CLOEXEC).
     //
-    if (pipe2(pipefd, O_CLOEXEC | O_NONBLOCK))
+    if (pipe2(pipefd, O_CLOEXEC))
         return TRUE;
 #else
     if (pipe(pipefd) < 0)
         return TRUE;
-
     int direction; // READ=0, WRITE=1
     for (direction = 0; direction < 2; ++direction) {
-        int oldflags;
-        oldflags = fcntl(pipefd[direction], F_GETFL);
-        if (oldflags < 0)
-            return TRUE;
-        if (fcntl(pipefd[direction], F_SETFL, oldflags | O_NONBLOCK) < 0)
-            return TRUE;
         oldflags = fcntl(pipefd[direction], F_GETFD);
         if (oldflags < 0)
             return TRUE;
@@ -699,6 +692,15 @@ static REBOOL Open_Nonblocking_Pipe_Fails(int pipefd[2]) {
             return TRUE;
     }
 #endif
+}
+
+static REBOOL Set_Nonblocking_Fails(int fd) {
+    int oldflags;
+    oldflags = fcntl(fd, F_GETFL);
+    if (oldflags < 0)
+        return TRUE;
+    if (fcntl(fd, F_SETFL, oldflags | O_NONBLOCK) < 0)
+        return TRUE;
 
     return FALSE;
 }
@@ -771,21 +773,21 @@ int OS_Create_Process(
     int info_pipe[] = {-1, -1};
 
     if (IS_STRING(ARG(in)) || IS_BINARY(ARG(in))) {
-        if (Open_Nonblocking_Pipe_Fails(stdin_pipe))
+        if (Open_Pipe_Fails(stdin_pipe))
             goto stdin_pipe_err;
     }
 
     if (IS_STRING(ARG(out)) || IS_BINARY(ARG(out))) {
-        if (Open_Nonblocking_Pipe_Fails(stdout_pipe))
+        if (Open_Pipe_Fails(stdout_pipe))
             goto stdout_pipe_err;
     }
 
     if (IS_STRING(ARG(err)) || IS_BINARY(ARG(err))) {
-        if (Open_Nonblocking_Pipe_Fails(stderr_pipe))
+        if (Open_Pipe_Fails(stderr_pipe))
             goto stdout_pipe_err;
     }
 
-    if (Open_Nonblocking_Pipe_Fails(info_pipe))
+    if (Open_Pipe_Fails(info_pipe))
         goto info_pipe_err;
 
     pid_t fpid; // gotos would cross initialization
@@ -970,6 +972,8 @@ child_error: ;
 
         if ((stdin_pipe[W] > 0) && (input_size = strlen(input)) > 0) {
             /* printf("stdin_pipe[W]: %d\n", stdin_pipe[W]); */
+            if (Set_Nonblocking_Fails(stdin_pipe[W]))
+                goto kill;
 
             // the passed in input_len is in characters, not in bytes
             //
@@ -984,6 +988,8 @@ child_error: ;
         }
         if (stdout_pipe[R] > 0) {
             /* printf("stdout_pipe[R]: %d\n", stdout_pipe[R]); */
+            if (Set_Nonblocking_Fails(stdout_pipe[R]))
+                goto kill;
 
             output_size = BUF_SIZE_CHUNK;
 
@@ -999,6 +1005,8 @@ child_error: ;
         }
         if (stderr_pipe[R] > 0) {
             /* printf("stderr_pipe[R]: %d\n", stderr_pipe[R]); */
+            if (Set_Nonblocking_Fails(stderr_pipe[R]))
+                goto kill;
 
             err_size = BUF_SIZE_CHUNK;
 
@@ -1014,6 +1022,9 @@ child_error: ;
         }
 
         if (info_pipe[R] > 0) {
+            if (Set_Nonblocking_Fails(info_pipe[R]))
+                goto kill;
+
             pfds[nfds].fd = info_pipe[R];
             pfds[nfds].events = POLLIN;
             nfds++;
