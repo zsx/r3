@@ -685,7 +685,7 @@ static inline REBOOL Open_Pipe_Fails(int pipefd[2]) {
         return TRUE;
     int direction; // READ=0, WRITE=1
     for (direction = 0; direction < 2; ++direction) {
-        oldflags = fcntl(pipefd[direction], F_GETFD);
+        int oldflags = fcntl(pipefd[direction], F_GETFD);
         if (oldflags < 0)
             return TRUE;
         if (fcntl(pipefd[direction], F_SETFD, oldflags | FD_CLOEXEC) < 0)
@@ -695,7 +695,7 @@ static inline REBOOL Open_Pipe_Fails(int pipefd[2]) {
     return FALSE;
 }
 
-static REBOOL Set_Nonblocking_Fails(int fd) {
+static inline REBOOL Set_Nonblocking_Fails(int fd) {
     int oldflags;
     oldflags = fcntl(fd, F_GETFL);
     if (oldflags < 0)
