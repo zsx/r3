@@ -64,8 +64,7 @@
 //
 // The result should be freed after copy/conversion.
 //
-// See
-// https://stackoverflow.com/questions/1023306/finding-current-executables-path-without-proc-self-exe 
+// https://stackoverflow.com/questions/1023306/
 //
 int OS_Get_Current_Exec(REBCHR **path)
 {

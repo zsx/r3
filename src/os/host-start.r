@@ -312,7 +312,7 @@ host-start: function [
         return: [blank! file!]
             {Blank if not found}
     ][
-        home: attempt [ 
+        home: attempt [
             any [
                 get-env 'HOME
                 ; join-of could fail because it doesn't accept blank

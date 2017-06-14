@@ -8,7 +8,7 @@ REBOL [
 
 ; CALL is a native built by the C code, BROWSE depends on using that, as well
 ; as some potentially OS-specific detection on how to launch URLs (e.g. looks
-; at registry keys on Windows.
+; at registry keys on Windows)
 
 browse*: procedure [
     "Open web browser to a URL or local file."
@@ -22,7 +22,11 @@ browse*: procedure [
     ; easy to do rather than have to add processing on the C side.  Review.
     ;
     for-each template get-os-browsers [
-        command: replace/all (copy template) "%1" either file? location [to-local-file location][location]
+        command: replace/all (copy template) "%1" either file? location [
+            to-local-file location
+        ][
+            location
+        ]
         trap/with [
             call/shell command ; don't use /WAIT
             leave

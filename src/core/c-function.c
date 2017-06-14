@@ -960,8 +960,8 @@ REBCNT Find_Param_Index(REBARR *paramlist, REBSTR *spelling)
 REBFUN *Make_Function(
     REBARR *paramlist,
     REBNAT dispatcher, // native C function called by Do_Core
-    REBFUN *opt_underlying, // function which has size of actual frame to push
-    REBCTX *opt_exemplar // specialization (or inherit from underlying)
+    REBFUN *opt_interface, // function whose facade is to be inherited
+    REBCTX *opt_exemplar // specialization (or inherit from interface)
 ) {
     ASSERT_ARRAY_MANAGED(paramlist);
 
@@ -1049,13 +1049,13 @@ done_caching:;
     // may have new parameter classes through a "facade".  This facade is
     // initially just the underlying function's paramlist, but may change.
     //
-    if (opt_underlying) {
+    if (opt_interface) {
         SER(paramlist)->misc.facade =
-            SER(FUNC_PARAMLIST(opt_underlying))->misc.facade;
+            SER(FUNC_PARAMLIST(opt_interface))->misc.facade;
     }
     else {
         // To avoid NULL checking when a function is called and looking for
-        // the underlying function, the functions own pointer in if needed
+        // the facade, just use the functions own paramlist if needed
         //
         SER(paramlist)->misc.facade = paramlist;
     }
@@ -1068,10 +1068,10 @@ done_caching:;
 
         SER(body_holder)->link.exemplar = opt_exemplar;
     }
-    else if (opt_underlying)
+    else if (opt_interface)
         SER(body_holder)->link.exemplar =
             SER(
-                FUNC_VALUE(opt_underlying)->payload.function.body_holder
+                FUNC_VALUE(opt_interface)->payload.function.body_holder
             )->link.exemplar;
     else
         SER(body_holder)->link.exemplar = NULL;

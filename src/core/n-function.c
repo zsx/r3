@@ -520,7 +520,7 @@ REBNATIVE(adapt)
     REBFUN *fun = Make_Function(
         paramlist,
         &Adapter_Dispatcher,
-        underlying, // cache in paramlist
+        VAL_FUNC(adaptee), // inherit interface/facade from adaptee
         NULL // not changing the specialization
     );
 
