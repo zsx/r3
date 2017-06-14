@@ -261,7 +261,7 @@ proto-parser: context [
         format2015-func-section: copy/deep [
             doubleslashed-lines
             and is-format2015-intro
-            function-proto some white-space
+            function-proto any white-space
             function-body
             (
                 style: 'format2015

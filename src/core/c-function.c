@@ -962,7 +962,7 @@ REBFUN *Make_Function(
     REBNAT dispatcher, // native C function called by Do_Core
     REBFUN *opt_interface, // function whose facade is to be inherited
     REBCTX *opt_exemplar // specialization (or inherit from interface)
-) {
+){
     ASSERT_ARRAY_MANAGED(paramlist);
 
     RELVAL *rootparam = ARR_HEAD(paramlist);
