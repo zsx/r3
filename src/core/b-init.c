@@ -938,6 +938,32 @@ static void Init_Contexts_Object(void)
     Init_Object(Get_System(SYS_CONTEXTS, CTX_USER), Lib_Context);
 }
 
+#ifndef NDEBUG
+//
+//  Init_Break_Point: C
+//
+// This initializes the break point from env in the debug build
+//
+static void Init_Break_Point(void)
+{
+    TG_Break_At = 0;
+
+    const char *env_break_at = getenv("R3_BREAK_AT");
+    if (env_break_at != NULL) {
+        i64 break_at = CHR_TO_INT(cb_cast(env_break_at));;
+        if(break_at > 0) {
+            Debug_Str(
+                "**\n"
+                "** R3_ALWAYS_MALLOC is TRUE in environment variable!\n"
+                "** Memory allocations aren't pooled, expect slowness...\n"
+                "**\n"
+            );
+            TG_Break_At = cast(REBUPT, break_at);
+        }
+    }
+}
+#endif
+
 
 //
 //  Startup_Task: C
@@ -1097,6 +1123,11 @@ void Startup_Core(void)
 
     Assert_Basics();
     PG_Boot_Time = OS_DELTA_TIME(0, 0);
+
+#ifndef NDEBUG
+    // This might call Debug_Str, which depends on StdIO, and must be called after Start_StdIO;
+    Init_Break_Point();
+#endif
 
 //==//////////////////////////////////////////////////////////////////////==//
 //
