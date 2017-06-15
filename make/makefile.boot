@@ -69,7 +69,7 @@
 # try and get casual builders to bear a modest useful burden, the default
 # is set to just including the asserts.
 #
-OS_ID?= detect
+OS_ID?= "_"
 DEBUG?= asserts
 OPTIMIZE?=auto
 GIT_COMMIT?= unknown
@@ -78,6 +78,7 @@ RIGOROUS?= no
 WITH_FFI?= no
 WITH_TCC?= no
 STATIC?= no
+CONFIG?=default-config.r
 
 NUM_JOBS?=8
 
@@ -96,12 +97,13 @@ else
 endif
 
 REBOL_TOOL= r3-make$(BIN_SUFFIX)
-REBOL= $(CD)$(REBOL_TOOL) -qs
+REBOL= $(REBOL_TOOL) -qs
 
 ### Build targets:
 top: makefile
 	$(MAKE) clean
 	$(MAKE) prep
+	$(MAKE) folders
 	echo "Going to build with $(NUM_JOBS) jobs"
 	$(MAKE) -j $(NUM_JOBS) top
 
@@ -113,10 +115,11 @@ top: makefile
 
 makefile: $(REBOL_TOOL) .FORCE
 	$(REBOL) $T/make-make.r OS_ID="$(OS_ID)" DEBUG="$(DEBUG)" \
-		GIT_COMMIT="$(GIT_COMMIT)" SANITIZE="$(SANITIZE)" \
+		GIT_COMMIT="{$(GIT_COMMIT)}" SANITIZE="$(SANITIZE)" \
 		STANDARD="$(STANDARD)" RIGOROUS="$(RIGOROUS)" WITH_FFI="$(WITH_FFI)" \
-		WITH_TCC="$(WITH_TCC)" STATIC="$(STATIC)" SYMBOLS="$(SYMBOLS)" \
-		OPTIMIZE="$(OPTIMIZE)"
+		WITH_TCC="$(WITH_TCC)" STATIC="$(STATIC)" \
+		OPTIMIZE="$(OPTIMIZE)" TARGET=makefile CONFIG="$(CONFIG)"
+		#SYMBOLS="$(SYMBOLS)"
 
 # Synonym for `make -f makefile.boot makefile` which can also be used in the
 # generated makefile (without causing repeated regenerations)

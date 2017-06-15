@@ -31,112 +31,115 @@ REBOL [
 
 systems: [
     ;-------------------------------------------------------------------------
-    [id         os-name         os-base
-            build-flags]
+    [id         os-name         os-base    definitions             cflags
+                 libraries      ldflags]
     ;-------------------------------------------------------------------------
-    0.1.03      amiga           posix
-            [BEN LLC HID NPS +SC CMT COP -SP -LM F64]
+    0.1.03      amiga           posix   [BEN LLC F64]               [NPS HID]
+                [M]             [HID]
     ;-------------------------------------------------------------------------
-    0.2.04      osx-ppc         osx
-            [BEN LLC NCM -LM NSO F64]
+    0.2.04      osx-ppc         osx     [BEN LLC F64]               [NCM]
+                [M]             [HID]
 
-    0.2.05      osx-x86         osx
-            [ARC LEN LLC NPS PIC NCM HID STX -LM F64]
+    0.2.05      osx-x86         osx     [LEN LLC NSER F64]          [NCM NPS ARC]
+                [M]             [HID ARC]
 
-    0.2.40      osx-x64         osx
-            [LP64 LEN LLC NPS PIC NCM HID STX -LM F64]
+    0.2.40      osx-x64         osx     [LEN LLC NSER F64]          [NCM NPS]
+                [M]             [HID]
+
     ;-------------------------------------------------------------------------
-    0.3.01      windows-x86     windows
-            [LEN LL? UNI W32 CON S4M EXE DIR -LM F64]
+    0.3.01      windows-x86     windows [LEN UNI F64 W32]           _
+                [W32 M]         [CON S4M]
 
-    0.3.40      windows-x64     windows
-            [LLP64 LEN LL? UNI W32 CON S4M EXE DIR -LM F64]
+    0.3.40      windows-x64     windows [LEN UNI F64 W32 LLP64]     _
+                [W32 M]         [CON S4M]
+
     ;-------------------------------------------------------------------------
-    0.4.02      linux-x86       linux
-            [M32 LEN LLC LDL ST1 -LM LC23 UFS NSP NSER F64]
+    0.4.02      linux-x86       linux   [LEN LLC NSER F64]          [M32 NSP UFS]
+                [M DL]          [M32];gliblc-2.3
 
-    0.4.03      linux-x86       linux
-            [M32 LEN LLC LDL ST1 -LM LC25 UFS HID F64]
+    0.4.03      linux-x86       linux   [LEN LLC F64]               [M32 UFS]
+                [M DL]          [M32];gliblc-2.5
 
-    0.4.04      linux-x86       linux
-            [M32 LEN LLC LDL ST1 -LM LC211 HID PIP2 F64]
+    0.4.04      linux-x86       linux   [LEN LLC F64 PIP2]          [M32 HID]
+                [M DL]          [M32 HID];glibc-2.11
 
-    0.4.10      linux-ppc       linux
-            [BEN LLC HID LDL ST1 -LM PIP2 F64]
+    0.4.10      linux-ppc       linux   [BEN LLC F64 PIP2]          [HID]
+                [M DL]          [HID]
 
-    0.4.11      linux-ppc64     linux
-            [LP64 BEN LLC HID LDL ST1 -LM PIP2 F64]
+    0.4.11      linux-ppc64     linux   [BEN LLC F64 PIP2 LP64]     [HID]
+                [M DL]          [HID]
 
-    0.4.20      linux-arm       linux
-            [LEN LLC HID LDL ST1 -LM PIP2 F64]
+    0.4.20      linux-arm       linux   [LEN LLC F64 PIP2]          [HID]
+                [M DL]          [HID]
 
-    0.4.21      linux-arm       linux
-            [LEN LLC HID LDL ST1 -LM PIE LCB PIP2 F64]
+    0.4.21      linux-arm       linux   [LEN LLC F64 PIP2]          [HID PIE]
+                [M DL]          [HID]   ;android
 
-    0.4.22      linux-aarch64       linux
-            [LP64 LEN LLC HID LDL ST1 -LM PIP2 F64]
+    0.4.22      linux-aarch64   linux   [LEN LLC F64 PIP2 LP64]     [HID]
+                [M DL]          [HID]
 
-    0.4.30      linux-mips      linux
-            [LEN LLC HID LDL ST1 -LM PIP2 F64]
+    0.4.30      linux-mips      linux   [LEN LLC F64 PIP2]          [HID]
+                [M DL]          [HID]
 
-    0.4.31      linux-mips32be  linux
-            [BEN LLC HID LDL ST1 -LM PIP2 F64]
+    0.4.31      linux-mips32be  linux   [BEN LLC F64 PIP2]          [HID]
+                [M DL]          [HID]
 
-    0.4.40      linux-x64       linux
-            [LP64 LEN LLC HID LDL ST1 -LM PIP2 F64]
+    0.4.40      linux-x64       linux   [LEN LLC F64 PIP2 LP64]     [HID]
+                [M DL]          [HID]
 
-    0.4.60      linux-axp       linux
-            [LP64 LEN LLC HID LDL ST1 -LM PIP2 F64]
+    0.4.60      linux-axp       linux   [LEN LLC F64 PIP2 LP64]     [HID]
+                [M DL]          [HID]
 
-    0.4.61      linux-ia64      linux
-            [LP64 LEN LLC HID LDL ST1 -LM PIP2 F64]
+    0.4.61      linux-ia64      linux   [LEN LLC F64 PIP2 LP64]     [HID]
+                [M DL]          [HID]
+
     ;-------------------------------------------------------------------------
-    0.5.75      haiku           posix
-            [LEN LLC ST1 NWK F64]
-    ;-------------------------------------------------------------------------
-    0.7.02      freebsd-x86     posix
-            [LEN LLC ST1 -LM F64]
+    0.5.75      haiku           posix   [LEN LLC]                   _
+                [NWK]           _
 
-    0.7.40      freebsd-x64     posix
-            [LP64 LEN LLC ST1 -LM F64]
     ;-------------------------------------------------------------------------
-    0.9.04      openbsd         posix
-            [LEN LLC ST1 -LM F64]
+    0.7.02      freebsd-x86     posix   [LEN LLC F64]               _
+                [M]             _
 
-    0.9.40      openbsd         posix
-            [LP64 LEN LLC ST1 -LM F64]
+    0.7.40      freebsd-x64     posix   [LEN LLC F64 LP64]          _
+                [M]             _
     ;-------------------------------------------------------------------------
-    0.13.01     android-arm     android
-            [LEN LLC HID F64 LDL LLOG -LM F64]
-    ;-------------------------------------------------------------------------
-    0.13.02     android5-arm        android
-            [LEN LLC HID F64 LDL LLOG -LM PIE PIC F64]
-    ;-------------------------------------------------------------------------
-    0.14.01     syllable-dtp    posix
-            [LEN LLC HID LDL ST1 -LM LC25 F64]
+    0.9.04      openbsd-x86     posix   [LEN LLC F64]               _
+                [M]             _
 
-    0.14.02     syllable-svr    linux
-            [M32 LEN LLC HID LDL ST1 -LM LC211 F64]
+    0.9.40      openbsd-x64     posix   [LEN LLC F64 LP64]          _
+                [M]             _
+
+    ;-------------------------------------------------------------------------
+    0.13.01     android-arm     android [LEN LLC F64]               [HID PIC]
+                [M DL LOG]      [HID]
+
+    ;-------------------------------------------------------------------------
+    0.13.02     android5-arm    android [LEN LLC F64]               [HID PIC]
+                [M DL LOG]      [HID PIE]
+
+    ;-------------------------------------------------------------------------
+    0.14.01     syllable-dtp    posix   [LEN LLC F64]               [HID]
+                [M DL]             [HID]
+
+    0.14.02     syllable-svr    linux   [LEN LLC F64]               [M32 HID]
+                [M DL]             [HID]
 ]
 
-compiler-flags: context [
-    M32: "-m32"                     ; use 32-bit memory model
-    ARC: "-arch i386"               ; x86 32 bit architecture (OSX)
+system-definitions: make object! [
+    LP64: "__LP64__"              ; 64-bit, and 'void *' is sizeof(long)
+    LLP64: "__LLP64__"            ; 64-bit, and 'void *' is sizeof(long long)
 
-    LP64: "-D__LP64__"              ; 64-bit, and 'void *' is sizeof(long)
-    LLP64: "-D__LLP64__"            ; 64-bit, and 'void *' is sizeof(long long)
+    BEN: "ENDIAN_BIG"             ; big endian byte order
+    LEN: "ENDIAN_LITTLE"          ; little endian byte order
 
-    BEN: "-DENDIAN_BIG"             ; big endian byte order
-    LEN: "-DENDIAN_LITTLE"          ; little endian byte order
+    LLC: "HAS_LL_CONSTS"          ; supports e.g. 0xffffffffffffffffLL
+    ;LL?: _                       ; might have LL consts, reb-config.h checks
 
-    LLC: "-DHAS_LL_CONSTS"          ; supports e.g. 0xffffffffffffffffLL
-    LL?: _                          ; might have LL consts, reb-config.h checks
+    W32: <msc:WIN32>              ; aes.c requires this
+    UNI: "UNICODE"                ; win32 wants it
+    F64: "_FILE_OFFSET_BITS=64"   ; allow larger files
 
-    UNI: "-DUNICODE"                ; win32 wants it
-    HID: "-fvisibility=hidden"      ; all syms are hidden
-    F64: "-D_FILE_OFFSET_BITS=64"   ; allow larger files
-    NPS: "-Wno-pointer-sign"        ; OSX fix
-    PIE: "-fPIE"                    ; position independent (executables)
 
     ; There are variations in what functions different compiler versions will
     ; wind up linking in to support the same standard C functions.  This
@@ -161,99 +164,92 @@ compiler-flags: context [
     ; to handle both "platform" and "compiler" variations; each OS_ID is
     ; intended to be used with the standard compiler for that platform.
     ;
-    NSP: "-fno-stack-protector"     ; stack protect pulls in glibc 2.4 calls
-    PIP2: "-DUSE_PIPE2_NOT_PIPE"    ; pipe2() linux only, glibc 2.9 or later
-    UFS: "-U_FORTIFY_SOURCE"        ; don't link to _chk variants of C calls
-    NSER:                           ; strerror_r() in glibc 2.3.4, not 2.3.0
-        "-DUSE_STRERROR_NOT_STRERROR_R"
+    PIP2: "USE_PIPE2_NOT_PIPE"    ; pipe2() linux only, glibc 2.9 or later
+    NSER:                         ; strerror_r() in glibc 2.3.4, not 2.3.0
+        "USE_STRERROR_NOT_STRERROR_R"
 ]
 
+compiler-flags: make object! [
+    M32: <gnu:-m32>                 ;use 32-bit memory model
+    ARC: <gnu:-arch i386>           ; x86 32 bit architecture (OSX)
+    HID: <gnu:-fvisibility=hidden>  ; all sysms are hidden
+    NPS: <gnu:-Wno-pointer-sign>    ; OSX fix
+    PIE: <gnu:-fPIE>                ; position independent (executable)
+    NCM: <gnu:-fno-common>          ; lib cannot have common vars
+    UFS: <gnu:-U_FORTIFY_SOURCE>    ; _chk variants of C calls
 
-; These flags are only applicable to the library, so %make-make.r considers
-; them separately from the common flags.
-;
-lib-compiler-flags: context [
-    PIC: "-fPIC"                    ; position independent (used for libs)
-    NCM: "-fno-common"              ; lib cannot have common vars
+    ; See comments about the glibc version above
+    NSP: <gnu:-fno-stack-protector> ; stack protect pulls in glibc 2.4 calls
+    PIC: <gnu:-fPIC>                ; Android requires this
 ]
 
-
-linker-flags: context [
-    M32: "-m32"                     ; use 32-bit memory model (Linux x64)
-    ARC: "-arch i386"               ; x86 32 bit architecture (OSX)
-
-    NSO: _                          ; no shared libs
-    LDL: "-ldl"                     ; link with dynamic lib lib
-    LLOG: "-llog"                   ; on Android, link with liblog.so
-
-    W32: "-lwsock32 -lcomdlg32"
-    CON: "-mconsole"                ; build as Windows Console binary
-    S4M: "-Wl,--stack=4194300"
-    -LM: "-lm"                      ; Math library (Haiku has it in libroot)
-    NWK: "-lnetwork"                ; Needed by HaikuOS
-    
-    PIE: "-pie"
-
-    ; Which libc is used is commentary, it has to be influenced by other
-    ; flags.  See notes above about NSP, PIP1, UFS which are used to try and
-    ; actually control these outcomes.
-    ;
-    LC23: _                         ; libc 2.3
-    LC25: _                         ; libc 2.5
-    LC211: _                        ; libc 2.11
-    LCB: _                          ; bionic (Android)
+system-libraries: make object! [
+    M: <gnu:m>                      ; Math library (Haiku has it in libroot), needed only when compiled with GCC
+    DL: "dl"                        ; dynamic lib
+    LOG: "log"                      ; Link with liblog.so on Android
+    W32: ["wsock32" "comdlg32" "user32" "shell32" "advapi32"]
+    NWK: "network"                  ; Nedded by HaikuOS
 ]
 
+linker-flags: make object! [
+    M32: <gnu:-m32>
+    ARC: <gnu:-arch i386>
+    PIE: <gnu:-pie>
+    HID: <gnu:-fvisibility=hidden>  ; all sysms are hidden
 
-other-flags: context [
-    +SC: _                          ; has smart console
-    -SP: _                          ; non standard paths
-    COP: _                          ; use COPY as cp program
-    DIR: _                          ; use DIR as ls program
-    ST1: "-s"                       ; strip flags...
-    STX: "-x"
-    CMT: "-R.comment"
-    EXE: _                          ; use %.exe as binary file suffix
+    CON: [<gnu:-mconsole> <msc:/subsystem:console>]
+    S4M: [<gnu:-Wl,--stack=4194300> <msc:/stack:4194300>]
 ]
-
 
 ; A little bit of sanity-checking on the systems table
-use [rec unknown-flags used-flags] [
+use [rec unknown-flags used-flags build-flags word context] [
     ;
     ; !!! See notes about RETURN from FOR-EACH-RECORD in its definition.
     ;
     used-flags: copy []
     for-each-record rec systems [
+        ;print ["rec =>" mold rec]
         assert [
             | tuple? rec/id
             | (to-string rec/os-name) == (lowercase to-string rec/os-name)
             | (to-string rec/os-base) == (lowercase to-string rec/os-base)
             | not find (to-string rec/os-base) charset [#"-" #"_"]
-            | block? rec/build-flags
+            | any [blank? rec/definitions block? rec/definitions]
+            | any [blank? rec/cflags block? rec/cflags]
+            | any [blank? rec/libraries block? rec/libraries]
+            | any [blank? rec/ldflags block? rec/ldflags]
         ]
 
-        for-each flag rec/build-flags [assert [word? flag]]
+        for-each flag rec/definitions [assert [word? flag]]
+        for-each flag rec/cflags [assert [word? flag]]
+        for-each flag rec/libraries [assert [word? flag]]
+        for-each flag rec/ldflags [assert [word? flag]]
 
-        ; Exclude should mutate (CC#2222), but this works either way
-        unknown-flags: exclude (unknown_flags: copy rec/build-flags) compose [
-            (words-of compiler-flags)
-            (words-of linker-flags)
-            (words-of other-flags)
-            (words-of lib-compiler-flags)
-        ]
-        if not empty? unknown-flags [
-            print mold unknown-flags
-            fail "Unknown flag used in %systems.r specification"
+        for-each [word context] reduce [
+            'definitions system-definitions
+            'libraries system-libraries
+            'cflags     compiler-flags
+            'ldflags    linker-flags
+        ][
+            ; Exclude should mutate (CC#2222), but this works either way
+            unknown-flags: exclude (
+                    unknown_flags: copy any [build-flags: get in rec word []]
+                )
+                words-of context
+            unless empty? unknown-flags [
+                print mold unknown-flags
+                fail spaced ["Unknown" word "used in %systems.r specification"]
+            ]
+            used-flags: union used-flags any [build-flags []]
         ]
 
-        used-flags: union used-flags rec/build-flags
     ]
 
     unused-flags: exclude compose [
         (words-of compiler-flags)
         (words-of linker-flags)
-        (words-of other-flags)
-        (words-of lib-compiler-flags)
+        (words-of system-definitions)
+        (words-of system-libraries)
     ] used-flags
 
     if not empty? unused-flags [
@@ -277,6 +273,9 @@ config-system: function [
         ]
         string? hint [
             load hint
+        ]
+        tuple? hint [
+            hint
         ]
     ]
 

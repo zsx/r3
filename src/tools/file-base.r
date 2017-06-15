@@ -52,7 +52,7 @@ core: [
     ; (F)???
     f-blocks.c
     f-deci.c
-    [f-dtoa.c <no-uninitialized> <implicit-fallthu>]
+    [f-dtoa.c <no-uninitialized> <implicit-fallthru>]
     f-enbase.c
     f-extension.c
     f-int.c
@@ -146,10 +146,10 @@ core: [
 
     ; (U)??? (3rd-party code extractions)
     u-compress.c
-    [u-md5.c <implicit-fallthu>]
+    [u-md5.c <implicit-fallthru>]
     u-parse.c
-    [u-sha1.c <implicit-fallthu>]
-    [u-zlib.c <no-make-header> <implicit-fallthu>]
+    [u-sha1.c <implicit-fallthru>]
+    [u-zlib.c <no-make-header> <implicit-fallthru>]
 ]
 
 ; Files created by the make-boot process

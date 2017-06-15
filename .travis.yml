@@ -23,7 +23,7 @@ matrix:
         - os: osx
           osx_image: xcode8.2
           language: cpp
-          env: OS_ID=0.2.40 DEBUG=asserts STANDARD=c++14 RIGOROUS=no STATIC=no FFI="dynamic"
+          env: CONFIG=generic-c++.r OS_ID=0.2.40 DEBUG=asserts STANDARD=c++14 RIGOROUS=no STATIC=no FFI="dynamic"
 
         # OSX x64, debug, gcc
         #
@@ -34,7 +34,7 @@ matrix:
         - os: osx
           osx_image: xcode8.2
           language: c
-          env: OS_ID=0.2.40 DEBUG=asserts STANDARD=c99 RIGOROUS=no STATIC=no FFI="dynamic"
+          env: CONFIG=generic.r OS_ID=0.2.40 DEBUG=asserts STANDARD=c99 RIGOROUS=no STATIC=no FFI="dynamic"
 
         # OSX x64, release, gcc
         #
@@ -42,14 +42,14 @@ matrix:
         #
         - os: osx
           language: c
-          env: OS_ID=0.2.40 DEBUG=none STANDARD=c RIGOROUS=no STATIC=no FFI="dynamic"
+          env: CONFIG=generic.r OS_ID=0.2.40 DEBUG=none STANDARD=c RIGOROUS=no STATIC=no FFI="dynamic"
 
         # Linux x86, release, gcc
         #
         - os: linux
           sudo: false #Force new container-based infrastructure.
           language: c
-          env: OS_ID=0.4.4 DEBUG=none STANDARD=gnu89 RIGOROUS=yes STATIC=yes TCC=i386-tcc ARCH_CFLAGS=-m32 FFI="dynamic"
+          env: CONFIG=generic.r OS_ID=0.4.4 DEBUG=none STANDARD=gnu89 RIGOROUS=yes STATIC=yes TCC=i386-tcc ARCH_CFLAGS=-m32 FFI="dynamic"
 
         # Linux x64, debug, g++
         #
@@ -60,28 +60,28 @@ matrix:
           dist: trusty #gcc on Ubuntu 12.04 does not support sanitizers
           sudo: false #Force new container-based infrastructure.
           language: cpp
-          env: OS_ID=0.4.40 DEBUG=asserts STANDARD=c++0x RIGOROUS=yes STATIC=yes TCC=tcc FFI="dynamic"
+          env: CONFIG=generic-c++.r OS_ID=0.4.40 DEBUG=asserts STANDARD=c++0x RIGOROUS=yes STATIC=yes TCC=tcc FFI="dynamic"
 
         # Linux x64, release, gcc
         #
         - os: linux
           sudo: false #Force new container-based infrastructure.
           language: c
-          env: OS_ID=0.4.40 DEBUG=none STANDARD=gnu99 RIGOROUS=yes STATIC=yes TCC=tcc FFI="dynamic"
+          env: CONFIG=generic.r OS_ID=0.4.40 DEBUG=none STANDARD=gnu99 RIGOROUS=yes STATIC=yes TCC=tcc FFI="dynamic"
 
         # Windows x86, release, gcc
         #
         - os: linux
           sudo: false #Force new container-based infrastructure.
           language: c
-          env: OS_ID=0.3.1 DEBUG=none TOOLS=i686-w64-mingw32- STANDARD=c RIGOROUS=yes STATIC=yes TCC=i386-win32-tcc TCC_CPP_EXTRA_FLAGS='-I../external/tcc/win32/include -DPVAR=TVAR -DTVAR="extern __attribute__((dllimport))"' HOST=i686-w64-mingw32 ARCH_CFLAGS=-m32 FFI="dynamic"
+          env: CONFIG=mingw-x86.r OS_ID=0.3.1 DEBUG=none TOOLS=i686-w64-mingw32- STANDARD=c RIGOROUS=yes STATIC=yes TCC=i386-win32-tcc TCC_CPP_EXTRA_FLAGS='-I../external/tcc/win32/include -DPVAR=TVAR -DTVAR="extern __attribute__((dllimport))"' HOST=i686-w64-mingw32 ARCH_CFLAGS=-m32 FFI="dynamic"
         
         # Windows x64, debug, gcc
         #
         - os: linux
           sudo: false #Force new container-based infrastructure.
           language: c
-          env: OS_ID=0.3.40 DEBUG=asserts TOOLS=x86_64-w64-mingw32- STANDARD=c RIGOROUS=yes STATIC=yes TCC=x86_64-win32-tcc TCC_CPP_EXTRA_FLAGS='-I../external/tcc/win32/include -DPVAR=TVAR -DTVAR="extern __attribute__((dllimport))"' HOST=x86_64-w64-mingw32 FFI="dynamic"
+          env: CONFIG=mingw-x64.r OS_ID=0.3.40 DEBUG=asserts TOOLS=x86_64-w64-mingw32- STANDARD=c RIGOROUS=yes STATIC=yes TCC=x86_64-win32-tcc TCC_CPP_EXTRA_FLAGS='-I../external/tcc/win32/include -DPVAR=TVAR -DTVAR="extern __attribute__((dllimport))"' HOST=x86_64-w64-mingw32 FFI="dynamic"
 
         # Windows x64, debug, g++
         #
@@ -90,7 +90,7 @@ matrix:
         - os: linux
           sudo: false #Force new container-based infrastructure.
           language: cpp
-          env: OS_ID=0.3.40 DEBUG=asserts TOOLS=x86_64-w64-mingw32- STANDARD=c++ RIGOROUS=yes STATIC=yes TCC=x86_64-win32-tcc TCC_CPP_EXTRA_FLAGS='-I../external/tcc/win32/include -DPVAR=TVAR -DTVAR="extern __attribute__((dllimport))"' HOST=x86_64-w64-mingw32 FFI="dynamic"
+          env: CONFIG=mingw-x64-c++.r OS_ID=0.3.40 DEBUG=asserts TOOLS=x86_64-w64-mingw32- STANDARD=c++ RIGOROUS=yes STATIC=yes TCC=x86_64-win32-tcc TCC_CPP_EXTRA_FLAGS='-I../external/tcc/win32/include -DPVAR=TVAR -DTVAR="extern __attribute__((dllimport))"' HOST=x86_64-w64-mingw32 FFI="dynamic"
         
         # Android5, debug, gcc
         #
@@ -98,7 +98,7 @@ matrix:
           dist: trusty #gcc on Ubuntu 12.04 does not support sanitizers
           sudo: false #Force new container-based infrastructure.
           language: c
-          env: OS_ID=0.13.2 DEBUG=asserts STANDARD=c RIGOROUS=yes STATIC=yes HOST=arm-eabi FFI="no"
+          env: CONFIG=android5-arm.r OS_ID=0.13.2 DEBUG=asserts STANDARD=c RIGOROUS=yes STATIC=yes HOST=arm-eabi FFI="no"
 
         # Android5, release, gcc
         #
@@ -106,7 +106,7 @@ matrix:
           dist: trusty #gcc on Ubuntu 12.04 does not support sanitizers
           sudo: false #Force new container-based infrastructure.
           language: c
-          env: OS_ID=0.13.2 DEBUG=none STANDARD=c RIGOROUS=yes STATIC=yes HOST=arm-eabi FFI="no"
+          env: CONFIG=android5-arm.r OS_ID=0.13.2 DEBUG=none STANDARD=c RIGOROUS=yes STATIC=yes HOST=arm-eabi FFI="no"
 
 env:
     global:
@@ -152,8 +152,8 @@ install:
     # Travis uses the last r3-alpha that was ever published on rebol.com
     # in order to ensure that still works.
     #
-    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then export REBOL_TOOL=r3-linux-x64-gbf237fc-static ; fi
-    - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then export REBOL_TOOL=r3-osx-x64-gbf237fc ; fi
+    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then export REBOL_TOOL=./r3-linux-x64-368bd5a ; fi
+    - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then export REBOL_TOOL=./r3-osx-x64-368bd5a-debug ; fi
 
 script:
     # Nice to know what version of gcc this is
@@ -164,7 +164,7 @@ script:
     - TOP_DIR=${PWD}
     - |
       if [[ ${OS_ID} = "0.13.2" || ${OS_ID} = "0.13.1" ]]; then
-          if [ `uname -m` = x86_64 ]; then wget https://github.com/giuliolunati/android-travis/releases/download/v1.0.0/android-ndk-r13.tgz; ANDROID_NDK=$TOP_DIR/android-ndk-r13; else exit 1; fi
+          if [ `uname -m` = x86_64 ]; then wget https://github.com/giuliolunati/android-travis/releases/download/v1.0.0/android-ndk-r13.tgz; export ANDROID_NDK=$TOP_DIR/android-ndk-r13; else exit 1; fi
           tar zxf android-ndk-r13.tgz
           echo $PWD
           ls -dl $PWD/android-ndk-r13
@@ -311,13 +311,12 @@ script:
           # we do not apply it to any of the binaries which are uploaded to s3
           # -- not even debug ones.
           #
-          make -f makefile.boot NUM_JOBS=${MAKE_JOBS} REBOL_TOOL=${REBOL_TOOL} STANDARD="${STANDARD}" OS_ID="${OS_ID}" RIGOROUS="${RIGOROUS}" DEBUG=sanitize OPTIMIZE=2 STATIC=no
+          make -f makefile.boot NUM_JOBS=${MAKE_JOBS} REBOL_TOOL=${REBOL_TOOL} CONFIG="configs/${CONFIG}" STANDARD="${STANDARD}" OS_ID="${OS_ID}" RIGOROUS="${RIGOROUS}" DEBUG=sanitize OPTIMIZE=2 STATIC=no
 
-          rm r3-make;
           mv r3 r3-make;
           make clean;
           export R3_ALWAYS_MALLOC=1
-          export REBOL_TOOL=r3-make
+          export REBOL_TOOL=./r3-make
       fi
 
     # On the second build of building twice, or just building once, include
@@ -325,9 +324,9 @@ script:
     #
     - |
       if [[ -z ${TCC} ]]; then
-          make -f makefile.boot NUM_JOBS=${MAKE_JOBS} REBOL_TOOL=${REBOL_TOOL} STANDARD="${STANDARD}" OS_ID="${OS_ID}" DEBUG="${DEBUG}" GIT_COMMIT="${GIT_COMMIT}" RIGOROUS="${RIGOROUS}" STATIC="${STATIC}" WITH_FFI=${FFI} WITH_TCC="no"
+          make -f makefile.boot NUM_JOBS=${MAKE_JOBS} REBOL_TOOL=${REBOL_TOOL} CONFIG="configs/${CONFIG}" STANDARD="${STANDARD}" OS_ID="${OS_ID}" DEBUG="${DEBUG}" GIT_COMMIT="${GIT_COMMIT}" RIGOROUS="${RIGOROUS}" STATIC="${STATIC}" WITH_FFI=${FFI} WITH_TCC="no"
       else
-          make -f makefile.boot NUM_JOBS=${MAKE_JOBS} REBOL_TOOL=${REBOL_TOOL} STANDARD="${STANDARD}" OS_ID="${OS_ID}" DEBUG="${DEBUG}" GIT_COMMIT="${GIT_COMMIT}" RIGOROUS="${RIGOROUS}" STATIC="${STATIC}" WITH_FFI=${FFI} WITH_TCC="${PWD}/tcc/${TCC}"
+          make -f makefile.boot NUM_JOBS=${MAKE_JOBS} REBOL_TOOL=${REBOL_TOOL} CONFIG="configs/${CONFIG}" STANDARD="${STANDARD}" OS_ID="${OS_ID}" DEBUG="${DEBUG}" GIT_COMMIT="${GIT_COMMIT}" RIGOROUS="${RIGOROUS}" STATIC="${STATIC}" WITH_FFI=${FFI} WITH_TCC="%${PWD}/tcc/${TCC}"
       fi
 
     # take a look at the preprocess header file
