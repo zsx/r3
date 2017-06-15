@@ -426,3 +426,36 @@ REBNATIVE(check)
     return R_TRUE;
 #endif
 }
+
+//
+//  c-break-debug: native [
+//
+//  "Break at next evaluation point, use ONLY when running under a C debugger"
+//      return: [<opt>]
+//      /skip
+//          points [integer!]
+//          {points to skip before breaking: 0 being next point}
+//      /at
+//          point [integer!]
+//          {Break at a certain point}
+//  ]
+//
+REBNATIVE(c_break_debug)
+{
+#ifndef NDEBUG
+    INCLUDE_PARAMS_OF_C_BREAK_DEBUG;
+
+    if (REF(skip) && REF(at)) {
+        fail (Error_Bad_Refines_Raw());
+    } else if (REF(skip)) {
+        TG_Break_At = frame_->do_count_debug + 1 + VAL_INT64(ARG(points));
+    } else if (REF(at)) {
+        TG_Break_At = VAL_INT64(ARG(point));
+    } else {
+        TG_Break_At = frame_->do_count_debug + 1;
+    }
+#else
+    UNUSED(frame_);
+#endif
+    return R_VOID;
+}

@@ -151,6 +151,7 @@ TVAR REBUPT Stack_Limit;    // Limit address for CPU stack.
     // other than Do_Next that are contingent on a certain "tick" elapsing.
     //
     TVAR REBUPT TG_Do_Count;
+    TVAR REBUPT TG_Break_At; // The do_count to break
 
     TVAR REBIPT TG_Num_Black_Series;
 #endif

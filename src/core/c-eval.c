@@ -122,7 +122,7 @@ static inline REBOOL Start_New_Expression_Throws(REBFRM *f) {
         do { \
             START_NEW_EXPRESSION_MAY_THROW_COMMON(f, g); \
             do_count = Do_Core_Expression_Checks_Debug(f); \
-            if (do_count == DO_COUNT_BREAKPOINT) { \
+            if (do_count == TG_Break_At || do_count == DO_COUNT_BREAKPOINT) { \
                 Debug_Fmt("DO_COUNT_BREAKPOINT at %d", f->do_count_debug); \
                 Dump_Frame_Location(f); \
                 debug_break(); /* see %debug_break.h */ \
