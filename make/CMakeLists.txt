@@ -639,7 +639,7 @@ macro(add_module name source other)
         )
     add_custom_command(OUTPUT
         ${GENERATED_MOD_${u_name}_HEADER}
-        COMMAND ${REBOL} ${TOOLS_DIR}/make-ext-natives.r SRC=${source} MODULE=${name} OUTDIR=${TOP_GENERATED_SRC_DIR}
+        COMMAND ${REBOL} ${TOOLS_DIR}/make-ext-natives.r SRC=${source} MODULE=${name} OUTDIR=${TOP_GENERATED_SRC_DIR} OS_ID=${R3_OS_ID}
         DEPENDS
         ${TOOL_DEPENDS}
         ${TOOLS_DIR}/make-ext-natives.r

@@ -638,7 +638,7 @@ for-each [is-built-in ext-name ext-src modules init-script] file-base/extensions
         ;
         emit [
             {    $(REBOL) $T/make-ext-natives.r} space
-            {MODULE=} m-spec/1 space {SRC=} m-spec/2 newline
+            {MODULE=} m-spec/1 space {SRC=} m-spec/2 space {OS_ID=$(OS_ID)} newline
         ]
 
         append/only boot-extension-src m-spec/2 ; main C file

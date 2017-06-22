@@ -26,9 +26,12 @@ do %r2r3-future.r
 do %common.r
 do %common-emitter.r
 do %form-header.r
+do %systems.r
 
 
 args: parse-args system/options/args
+
+config: config-system to-value :args/OS_ID
 
 m-name: ensure string! args/MODULE
 l-m-name: lowercase copy m-name
@@ -88,14 +91,27 @@ proto-parser/process source.text
 ;
 
 native-list: load unsorted-buffer
-word-list: copy []
-export-list: copy []
-error-list: copy []
-num-native: 0
+;print ["*** specs:" mold native-list]
+
+native-spec: make object! [
+    spec: _
+    words: _
+    errors: _
+    platforms: _
+    name: _
+]
+
+native-specs: copy []
+
+spec: _
+words: _
+errors: _
+platforms: _
+n-name: _
+n-spec: _
 unless parse native-list [
     while [
-        set w set-word!
-        [
+        set w set-word! copy spec [
             'native block!
                 |
             'native/body 2 block!
@@ -107,16 +123,36 @@ unless parse native-list [
                     |
                 'native/body/export 2 block!
             ]
-            (append export-list to word! w)
-        ]
-        (++ num-native)
+        ](
+            unless blank? n-name [
+                dump n-name
+                append native-specs make native-spec compose/only [
+                    name: (to lit-word! n-name)
+                    spec: (copy n-spec)
+                    errors: (either errors [copy errors][_])
+                    words: (either words [copy words][_])
+                    platforms: (either platforms [copy platforms][_])
+                ]
+            ]
+
+            n-name: w
+            n-spec: spec
+            spec: _
+            words: _
+            errors: _
+            platforms: _
+        )
             |
         remove [
-            quote new-words: set words block! (append word-list words)
+            quote new-words: set words block!
         ]
             |
         remove [
-            quote new-errors: set errors block! (append error-list errors)
+            quote new-errors: set errors block!
+        ]
+            |
+        remove [
+            quote platforms: set platforms block!
         ]
     ]
 ][
@@ -125,6 +161,58 @@ unless parse native-list [
         "current word-list:" mold word-list
     ]
 ]
+
+unless blank? n-name [
+    dump n-name
+    append native-specs make native-spec compose/only [
+        name: (to lit-word! n-name)
+        spec: (copy n-spec)
+        errors: (either errors [copy errors][_])
+        words: (either words [copy words][_])
+        platforms: (either platforms [copy platforms][_])
+    ]
+]
+
+clear native-list
+word-list: copy []
+export-list: copy []
+error-list: copy []
+num-native: 0
+for-each native native-specs [
+    dump native
+    unless blank? native/platforms [
+        supported?: false
+        for-each plat native/platforms [
+            case [
+                word? plat [; could be os-base or os-name
+                    if find reduce [config/os-name config/os-base] plat [
+                        supported?: true
+                        break
+                    ]
+                ]
+                path? plat [; os-base/os-name format
+                    if plat = to path! reduce [config/os-base config/os-name][
+                        supported?: true
+                        break
+                    ]
+                ]
+                true [
+                    fail ["Unrecognized platform spec:" mold plat]
+                ]
+            ]
+        ]
+        unless supported? [continue]
+    ]
+
+    ++ num-native
+    dump (to block! first native/spec)
+    if find to block! first native/spec 'export [append export-list to word! native/name]
+    unless blank? native/errors [append error-list native/errors]
+    unless blank? native/words [append word-list native/words]
+    append native-list reduce [to set-word! native/name]
+    append native-list native/spec
+]
+
 ;print ["specs:" mold native-list]
 word-list: unique word-list
 spec: compose/deep/only [
@@ -287,7 +375,7 @@ unless empty? error-list [
             fail ["key (" mold key ") must be a set-word!"]
         ]
         if find error-collected key [
-            fail ["Duplicate error key" to word! key]
+            fail ["Duplicate error key" (to word! key)]
         ]
         append error-collected key
         emit-item/upper [
