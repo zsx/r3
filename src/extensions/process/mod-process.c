@@ -1794,357 +1794,9 @@ REBNATIVE(sleep)
     return R_VOID;
 }
 
-
-//
-//  get-pid: native [
-//
-//  "Get ID of the process"
-//
-//      return: [integer!]
-//
-//  ]
-//
-static REBNATIVE(get_pid)
-{
-    INCLUDE_PARAMS_OF_GET_PID;
-
-#ifdef TO_WINDOWS
-    Init_Integer(D_OUT, GetCurrentProcessId());
-#else
-    Init_Integer(D_OUT, getpid());
+#if defined(TO_LINUX) || defined(TO_ANDROID) || defined(TO_POSIX) || defined(TO_OSX)
+static void kill_process(REBINT pid, REBINT signal);
 #endif
-
-    return R_OUT;
-}
-
-
-
-//
-//  get-uid: native [
-//
-//  "Get real user ID of the process"
-//
-//      return: [integer!]
-//
-//  ]
-//
-static REBNATIVE(get_uid)
-{
-    INCLUDE_PARAMS_OF_GET_UID;
-
-#ifdef TO_WINDOWS
-    UNUSED(frame_);
-    fail ("get-uid is not implemented on Windows");
-#else
-    Init_Integer(D_OUT, getuid());
-#endif
-
-    return R_OUT;
-}
-
-
-
-//
-//  get-euid: native [
-//
-//  "Get effective user ID of the process"
-//
-//      return: [integer!]
-//
-//  ]
-//
-static REBNATIVE(get_euid)
-{
-    INCLUDE_PARAMS_OF_GET_EUID;
-
-#ifdef TO_WINDOWS
-    UNUSED(frame_);
-    fail ("get-euid is not implemented on Windows");
-#else
-    Init_Integer(D_OUT, geteuid());
-#endif
-
-    return R_OUT;
-}
-
-//
-//  get-gid: native [
-//
-//  "Get real group ID of the process"
-//
-//      return: [integer!]
-//
-//  ]
-//
-static REBNATIVE(get_gid)
-{
-    INCLUDE_PARAMS_OF_GET_UID;
-
-#ifdef TO_WINDOWS
-    UNUSED(frame_);
-    fail ("get-gid is not implemented on Windows");
-#else
-    Init_Integer(D_OUT, getgid());
-#endif
-
-    return R_OUT;
-}
-
-
-
-//
-//  get-egid: native [
-//
-//  "Get effective group ID of the process"
-//
-//      return: [integer!]
-//
-//  ]
-//
-static REBNATIVE(get_egid)
-{
-    INCLUDE_PARAMS_OF_GET_EUID;
-
-#ifdef TO_WINDOWS
-    UNUSED(frame_);
-    fail ("get-egid is not implemented on Windows");
-#else
-    Init_Integer(D_OUT, getegid());
-#endif
-
-    return R_OUT;
-}
-
-
-
-//
-//  set-uid: native [
-//
-//  "Set real user ID of the process"
-//
-//      return: [<opt>]
-//      uid [integer!]
-//          {The effective user ID}
-//  ]
-//  new-errors: [
-//      invalid-uid: ["User id is invalid or not supported:" :arg1]
-//      permission-denied: ["The process does not have enough permission"]
-//      set-uid-failed: ["set-uid failed with error number:" :arg1]
-//  ]
-//
-static REBNATIVE(set_uid)
-{
-    INCLUDE_PARAMS_OF_SET_UID;
-
-#ifdef TO_WINDOWS
-    UNUSED(frame_);
-    UNUSED(ARG(uid));
-    fail ("set-uid is not implemented on Windows");
-#else
-    if (setuid(VAL_INT32(ARG(uid))) < 0) {
-        switch (errno) {
-            case EINVAL:
-                fail (Error(RE_EXT_PROCESS_INVALID_UID, ARG(uid), END));
-            case EPERM:
-                fail (Error(RE_EXT_PROCESS_PERMISSION_DENIED, END));
-            default: {
-                DECLARE_LOCAL(err);
-                Init_Integer(err, errno);
-                fail (Error(RE_EXT_PROCESS_SET_UID_FAILED, err, END));
-             }
-        }
-    }
-#endif
-
-    return R_VOID;
-}
-
-
-
-//
-//  set-euid: native [
-//
-//  "Get effective user ID of the process"
-//
-//      return: [<opt>]
-//      euid [integer!]
-//          {The effective user ID}
-//  ]
-//  new-errors: [
-//      invalid-euid: ["user id is invalid or not supported:" :arg1]
-//      set-euid-failed: ["set-euid failed with error number:" :arg1]
-//  ]
-//
-static REBNATIVE(set_euid)
-{
-    INCLUDE_PARAMS_OF_SET_EUID;
-
-#ifdef TO_WINDOWS
-    UNUSED(frame_);
-    UNUSED(ARG(euid));
-    fail ("set-euid is not implemented on Windows");
-#else
-    if (seteuid(VAL_INT32(ARG(euid))) < 0) {
-        switch (errno) {
-            case EINVAL:
-                fail (Error(RE_EXT_PROCESS_INVALID_EUID, ARG(euid), END));
-            case EPERM:
-                fail (Error(RE_EXT_PROCESS_PERMISSION_DENIED, END));
-            default: {
-                DECLARE_LOCAL(err);
-                Init_Integer(err, errno);
-                fail (Error(RE_EXT_PROCESS_SET_EUID_FAILED, err, END));
-             }
-        }
-    }
-#endif
-
-    return R_VOID;
-}
-
-
-
-//
-//  set-gid: native [
-//
-//  "Set real group ID of the process"
-//
-//      return: [<opt>]
-//      gid [integer!]
-//          {The effective group ID}
-//  ]
-//  new-errors: [
-//      invalid-gid: ["group id is invalid or not supported:" :arg1]
-//      set-gid-failed: ["set-gid failed with error number:" :arg1]
-//  ]
-//
-static REBNATIVE(set_gid)
-{
-    INCLUDE_PARAMS_OF_SET_GID;
-
-#ifdef TO_WINDOWS
-    UNUSED(frame_);
-    UNUSED(ARG(gid));
-    fail ("set-gid is not implemented on Windows");
-#else
-    if (setgid(VAL_INT32(ARG(gid))) < 0) {
-        switch (errno) {
-            case EINVAL:
-                fail (Error(RE_EXT_PROCESS_INVALID_GID, ARG(gid), END));
-            case EPERM:
-                fail (Error(RE_EXT_PROCESS_PERMISSION_DENIED, END));
-            default: {
-                DECLARE_LOCAL(err);
-                Init_Integer(err, errno);
-                fail (Error(RE_EXT_PROCESS_SET_GID_FAILED, err, END));
-             }
-        }
-    }
-#endif
-
-    return R_VOID;
-}
-
-
-
-//
-//  set-egid: native [
-//
-//  "Get effective group ID of the process"
-//
-//      return: [<opt>]
-//      egid [integer!]
-//          {The effective group ID}
-//  ]
-//  new-errors: [
-//      invalid-egid: ["group id is invalid or not supported:" :arg1]
-//      set-egid-failed: ["set-egid failed with error number:" :arg1]
-//  ]
-//
-static REBNATIVE(set_egid)
-{
-    INCLUDE_PARAMS_OF_SET_EGID;
-
-#ifdef TO_WINDOWS
-    UNUSED(frame_);
-    UNUSED(ARG(egid));
-    fail ("set-egid is not implemented on Windows");
-#else
-    if (setegid(VAL_INT32(ARG(egid))) < 0) {
-        switch (errno) {
-            case EINVAL:
-                fail (Error(RE_EXT_PROCESS_INVALID_EGID, ARG(egid), END));
-            case EPERM:
-                fail (Error(RE_EXT_PROCESS_PERMISSION_DENIED, END));
-            default: {
-                DECLARE_LOCAL(err);
-                Init_Integer(err, errno);
-                fail (Error(RE_EXT_PROCESS_SET_EGID_FAILED, err, END));
-             }
-        }
-    }
-#endif
-
-    return R_VOID;
-}
-
-#if !defined(TO_WINDOWS)
-static void kill_process(REBINT pid, REBINT signal)
-{
-    if (kill(pid, signal) < 0) {
-        DECLARE_LOCAL(arg1);
-        switch (errno) {
-            case EINVAL:
-                Init_Integer(arg1, signal);
-                fail (Error(RE_EXT_PROCESS_INVALID_SIGNAL, arg1, END));
-            case EPERM:
-                fail (Error(RE_EXT_PROCESS_PERMISSION_DENIED, END));
-            case ESRCH:
-                Init_Integer(arg1, pid);
-                fail (Error(RE_EXT_PROCESS_NO_PROCESS, arg1, END));
-            default:
-                Init_Integer(arg1, errno);
-                fail (Error(RE_EXT_PROCESS_SEND_SIGNAL_FAILED, arg1, END));
-        }
-    }
-}
-#endif
-
-
-//
-//  send-signal: native [
-//
-//  "Send signal to a process"
-//
-//      return: [<opt>]
-//      pid [integer!]
-//          {The process ID}
-//      signal [integer!]
-//          {The signal number}
-//  ]
-//  new-errors: [
-//      invalid-signal: ["An invalid signal is specified:" :arg1]
-//      no-process: ["The target process (group) does not exist:" :arg1]
-//      send-signal-failed: ["send-signal failed with error number:" :arg1]
-//  ]
-//
-static REBNATIVE(send_signal)
-{
-    INCLUDE_PARAMS_OF_SEND_SIGNAL;
-
-#ifdef TO_WINDOWS
-    UNUSED(frame_);
-    UNUSED(ARG(pid));
-    UNUSED(ARG(signal));
-    fail ("send-signal is not implemented on Windows");
-#else
-    kill_process(VAL_INT32(ARG(pid)), VAL_INT32(ARG(signal)));
-#endif
-
-    return R_VOID;
-}
-
-
 
 //
 //  terminate: native [
@@ -2157,6 +1809,8 @@ static REBNATIVE(send_signal)
 //  ]
 //  new-errors: [
 //      terminate-failed: ["terminate failed with error number:" :arg1]
+//      permission-denied: ["The process does not have enough permission"]
+//      no-process: ["The target process (group) does not exist:" :arg1]
 //  ]
 //
 static REBNATIVE(terminate)
@@ -2198,17 +1852,326 @@ static REBNATIVE(terminate)
             fail (Error(RE_EXT_PROCESS_TERMINATE_FAILED, val, END));
          }
     }
-#else
+#elif defined(TO_LINUX) || defined(TO_ANDROID) || defined(TO_POSIX) || defined(TO_OSX)
     if (getpid() == VAL_INT32(ARG(pid))) {
         // signal is not as reliable for this purpose
         // it's caught in host-main.c as to stop the evaluation
         fail ("Use QUIT or EXIT-REBOL to terminate current process, instead");
     }
     kill_process(VAL_INT32(ARG(pid)), SIGTERM);
+#else
+    UNUSED(frame_);
+    fail ("terminate is not implemented for this platform");
 #endif
 
     return R_VOID;
 }
+
+
+
+#if defined(TO_LINUX) || defined(TO_ANDROID) || defined(TO_POSIX) || defined(TO_OSX)
+//
+//  get-pid: native [
+//
+//  "Get ID of the process"
+//
+//      return: [integer!]
+//
+//  ]
+//  platforms: [linux android posix osx]
+//
+static REBNATIVE(get_pid)
+{
+    INCLUDE_PARAMS_OF_GET_PID;
+
+    Init_Integer(D_OUT, getpid());
+
+    return R_OUT;
+}
+
+
+
+//
+//  get-uid: native [
+//
+//  "Get real user ID of the process"
+//
+//      return: [integer!]
+//
+//  ]
+//  platforms: [linux android posix osx]
+//
+static REBNATIVE(get_uid)
+{
+    INCLUDE_PARAMS_OF_GET_UID;
+
+    Init_Integer(D_OUT, getuid());
+
+    return R_OUT;
+}
+
+
+
+//
+//  get-euid: native [
+//
+//  "Get effective user ID of the process"
+//
+//      return: [integer!]
+//
+//  ]
+//  platforms: [linux android posix osx]
+//
+static REBNATIVE(get_euid)
+{
+    INCLUDE_PARAMS_OF_GET_EUID;
+
+    Init_Integer(D_OUT, geteuid());
+
+    return R_OUT;
+}
+
+//
+//  get-gid: native [
+//
+//  "Get real group ID of the process"
+//
+//      return: [integer!]
+//
+//  ]
+//  platforms: [linux android posix osx]
+//
+static REBNATIVE(get_gid)
+{
+    INCLUDE_PARAMS_OF_GET_UID;
+
+    Init_Integer(D_OUT, getgid());
+
+    return R_OUT;
+}
+
+
+
+//
+//  get-egid: native [
+//
+//  "Get effective group ID of the process"
+//
+//      return: [integer!]
+//
+//  ]
+//  platforms: [linux android posix osx]
+//
+static REBNATIVE(get_egid)
+{
+    INCLUDE_PARAMS_OF_GET_EUID;
+
+    Init_Integer(D_OUT, getegid());
+
+    return R_OUT;
+}
+
+
+
+//
+//  set-uid: native [
+//
+//  "Set real user ID of the process"
+//
+//      return: [<opt>]
+//      uid [integer!]
+//          {The effective user ID}
+//  ]
+//  new-errors: [
+//      invalid-uid: ["User id is invalid or not supported:" :arg1]
+//      set-uid-failed: ["set-uid failed with error number:" :arg1]
+//  ]
+//  platforms: [linux android posix osx]
+//
+static REBNATIVE(set_uid)
+{
+    INCLUDE_PARAMS_OF_SET_UID;
+
+    if (setuid(VAL_INT32(ARG(uid))) < 0) {
+        switch (errno) {
+            case EINVAL:
+                fail (Error(RE_EXT_PROCESS_INVALID_UID, ARG(uid), END));
+            case EPERM:
+                fail (Error(RE_EXT_PROCESS_PERMISSION_DENIED, END));
+            default: {
+                DECLARE_LOCAL(err);
+                Init_Integer(err, errno);
+                fail (Error(RE_EXT_PROCESS_SET_UID_FAILED, err, END));
+             }
+        }
+    }
+
+    return R_VOID;
+}
+
+
+
+//
+//  set-euid: native [
+//
+//  "Get effective user ID of the process"
+//
+//      return: [<opt>]
+//      euid [integer!]
+//          {The effective user ID}
+//  ]
+//  new-errors: [
+//      invalid-euid: ["user id is invalid or not supported:" :arg1]
+//      set-euid-failed: ["set-euid failed with error number:" :arg1]
+//  ]
+//  platforms: [linux android posix osx]
+//
+static REBNATIVE(set_euid)
+{
+    INCLUDE_PARAMS_OF_SET_EUID;
+
+    if (seteuid(VAL_INT32(ARG(euid))) < 0) {
+        switch (errno) {
+            case EINVAL:
+                fail (Error(RE_EXT_PROCESS_INVALID_EUID, ARG(euid), END));
+            case EPERM:
+                fail (Error(RE_EXT_PROCESS_PERMISSION_DENIED, END));
+            default: {
+                DECLARE_LOCAL(err);
+                Init_Integer(err, errno);
+                fail (Error(RE_EXT_PROCESS_SET_EUID_FAILED, err, END));
+             }
+        }
+    }
+
+    return R_VOID;
+}
+
+
+
+//
+//  set-gid: native [
+//
+//  "Set real group ID of the process"
+//
+//      return: [<opt>]
+//      gid [integer!]
+//          {The effective group ID}
+//  ]
+//  new-errors: [
+//      invalid-gid: ["group id is invalid or not supported:" :arg1]
+//      set-gid-failed: ["set-gid failed with error number:" :arg1]
+//  ]
+//  platforms: [linux android posix osx]
+//
+static REBNATIVE(set_gid)
+{
+    INCLUDE_PARAMS_OF_SET_GID;
+
+    if (setgid(VAL_INT32(ARG(gid))) < 0) {
+        switch (errno) {
+            case EINVAL:
+                fail (Error(RE_EXT_PROCESS_INVALID_GID, ARG(gid), END));
+            case EPERM:
+                fail (Error(RE_EXT_PROCESS_PERMISSION_DENIED, END));
+            default: {
+                DECLARE_LOCAL(err);
+                Init_Integer(err, errno);
+                fail (Error(RE_EXT_PROCESS_SET_GID_FAILED, err, END));
+             }
+        }
+    }
+
+    return R_VOID;
+}
+
+
+
+//
+//  set-egid: native [
+//
+//  "Get effective group ID of the process"
+//
+//      return: [<opt>]
+//      egid [integer!]
+//          {The effective group ID}
+//  ]
+//  new-errors: [
+//      invalid-egid: ["group id is invalid or not supported:" :arg1]
+//      set-egid-failed: ["set-egid failed with error number:" :arg1]
+//  ]
+//  platforms: [linux android posix osx]
+//
+static REBNATIVE(set_egid)
+{
+    INCLUDE_PARAMS_OF_SET_EGID;
+
+    if (setegid(VAL_INT32(ARG(egid))) < 0) {
+        switch (errno) {
+            case EINVAL:
+                fail (Error(RE_EXT_PROCESS_INVALID_EGID, ARG(egid), END));
+            case EPERM:
+                fail (Error(RE_EXT_PROCESS_PERMISSION_DENIED, END));
+            default: {
+                DECLARE_LOCAL(err);
+                Init_Integer(err, errno);
+                fail (Error(RE_EXT_PROCESS_SET_EGID_FAILED, err, END));
+             }
+        }
+    }
+
+    return R_VOID;
+}
+
+
+
+static void kill_process(REBINT pid, REBINT signal)
+{
+    if (kill(pid, signal) < 0) {
+        DECLARE_LOCAL(arg1);
+        switch (errno) {
+            case EINVAL:
+                Init_Integer(arg1, signal);
+                fail (Error(RE_EXT_PROCESS_INVALID_SIGNAL, arg1, END));
+            case EPERM:
+                fail (Error(RE_EXT_PROCESS_PERMISSION_DENIED, END));
+            case ESRCH:
+                Init_Integer(arg1, pid);
+                fail (Error(RE_EXT_PROCESS_NO_PROCESS, arg1, END));
+            default:
+                Init_Integer(arg1, errno);
+                fail (Error(RE_EXT_PROCESS_SEND_SIGNAL_FAILED, arg1, END));
+        }
+    }
+}
+
+
+//
+//  send-signal: native [
+//
+//  "Send signal to a process"
+//
+//      return: [<opt>]
+//      pid [integer!]
+//          {The process ID}
+//      signal [integer!]
+//          {The signal number}
+//  ]
+//  new-errors: [
+//      invalid-signal: ["An invalid signal is specified:" :arg1]
+//      send-signal-failed: ["send-signal failed with error number:" :arg1]
+//  ]
+//  platforms: [linux android posix osx]
+//
+static REBNATIVE(send_signal)
+{
+    INCLUDE_PARAMS_OF_SEND_SIGNAL;
+
+    kill_process(VAL_INT32(ARG(pid)), VAL_INT32(ARG(signal)));
+
+    return R_VOID;
+}
+#endif // defined(TO_LINUX) || defined(TO_ANDROID) || defined(TO_POSIX) || defined(TO_OSX)
 
 
 
