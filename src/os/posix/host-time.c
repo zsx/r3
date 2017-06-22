@@ -28,6 +28,16 @@
 //
 // Provide platform support for times and timing information.
 //
+// UNIX/POSIX time functions are a bit of a catastrophe,  For a good
+// overview, see this article:
+//
+// http://www.catb.org/esr/time-programming/
+//
+// The methods used here are from R3-Alpha.  To see how the GNU
+// `date` program gets its information, see:
+//
+// http://git.savannah.gnu.org/cgit/coreutils.git/tree/src/date.c
+//
 
 #ifndef __cplusplus
     // See feature_test_macros(7)
@@ -66,24 +76,41 @@
 // !!! "local_tm->tm_gmtoff / 60 would make the most sense,
 // but is no longer used" (said a comment)
 //
-static int Get_Timezone(struct tm *local_tm)
+static int Get_Timezone(struct tm *utc_tm_unused)
 {
-    UNUSED(local_tm);
+    time_t now_secs;
+    time(&now_secs); // UNIX seconds (since "epoch")
+    struct tm local_tm = *localtime(&now_secs);
 
-#ifdef HAS_SMART_TIMEZONE
-    time_t rightnow;
-    time(&rightnow);
-    return cast(int,
-        difftime(mktime(localtime(&rightnow)), mktime(gmtime(&rightnow))) / 60
-    );
-#else
-    struct tm tm2;
-    time_t rightnow;
-    time(&rightnow);
-    tm2 = *localtime(&rightnow);
-    tm2.tm_isdst=0;
-    return (int)difftime(mktime(&tm2), mktime(gmtime(&rightnow))) / 60;
+#if !defined(HAS_SMART_TIMEZONE)
+    //
+    // !!! The R3-Alpha host code would always give back times in UTC plus a
+    // timezone.  Then, functions like NOW would have ways of adjusting for
+    // the timezone (unless you asked to do something like NOW/UTC), but
+    // without taking daylight savings time into account.
+    //
+    // We don't want to return a fake UTC time to the caller for the sake of
+    // keeping the time zone constant.  So this should return e.g. GMT-7
+    // during pacific daylight time, and GMT-8 during pacific standard time.
+    // Get that effect by erasing the is_dst flag out of the local time.
+    //
+    local_tm.tm_isdst = 0;
 #endif
+
+    // mktime() function inverts localtime()... there is no equivalent for
+    // gmtime().  However, we feed it a gmtime() as if it were the localtime.
+    // Then the time zone can be calculated by diffing it from a mktime()
+    // inversion of a suitable local time.
+    //
+    // !!! For some reason, R3-Alpha expected the caller to pass in a utc tm
+    // structure pointer but then didn't use it, choosing to make another call
+    // to gmtime().  Review.
+    //
+    UNUSED(utc_tm_unused);
+    time_t now_secs_gm = mktime(gmtime(&now_secs));
+
+    double diff = difftime(mktime(&local_tm), now_secs_gm);
+    return cast(int, diff / 60);
 }
 
 
@@ -95,16 +122,28 @@ static int Get_Timezone(struct tm *local_tm)
 //
 void Convert_Date(REBVAL *out, time_t *stime, long usec)
 {
-    struct tm *time = gmtime(stime);
+    // gmtime() is badly named.  It's utc time.  Note we have to be careful as
+    // it returns a system static buffer, so we have to copy the result
+    // via dereference to avoid calls to localtime() inside Get_Timezone
+    // from corrupting the buffer before it gets used.
+    //
+    // !!! Consider usage of the thread-safe variants, though they are not
+    // available on all older systems.
+    //
+    struct tm utc_tm = *gmtime(stime);
+
+    int zone = Get_Timezone(&utc_tm);
 
     RL_Init_Date(
         out,
-        time->tm_year + 1900, // year
-        time->tm_mon + 1, // month
-        time->tm_mday, // day
-        time->tm_hour * 3600 + time->tm_min * 60 + time->tm_sec, // "time"
+        utc_tm.tm_year + 1900, // year
+        utc_tm.tm_mon + 1, // month
+        utc_tm.tm_mday, // day
+        utc_tm.tm_hour * 3600
+            + utc_tm.tm_min * 60
+            + utc_tm.tm_sec, // secs
         usec * 1000, // nano
-        Get_Timezone(time) // zone
+        zone // zone
     );
 }
 
@@ -117,10 +156,17 @@ void Convert_Date(REBVAL *out, time_t *stime, long usec)
 void OS_Get_Time(REBVAL *out)
 {
     struct timeval tv;
-    time_t stime;
+    struct timezone * const tz_ptr = NULL; // obsolete
+    if (gettimeofday(&tv, tz_ptr) != 0)
+        assert(FALSE); // should fail(), but not currently included
 
-    gettimeofday(&tv, 0); // (tz field obsolete)
-    stime = tv.tv_sec;
+    // tv.tv_sec is the time in seconds 1 January 1970, 00:00:00 UTC
+    // (epoch-1970).  It does not account for the time zone.  In POSIX, these
+    // values are generally passed around as `time_t`...e.g. functions for
+    // converting to local time expect that.
+    //
+    time_t stime = tv.tv_sec;
+
     Convert_Date(out, &stime, tv.tv_usec);
 }
 
