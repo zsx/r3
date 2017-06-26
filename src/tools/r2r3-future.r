@@ -75,6 +75,11 @@ unless (copy/part words-of :function 2) = [spec body] [
 *opt-legacy*: unset!
 
 
+; PROTECT/DEEP isn't exactly the same thing as LOCK, since you can unprotect
+;
+lock: func [x] [protect/deep :x]
+
+
 blank?: get 'none?
 blank!: get 'none!
 blank: get 'none
