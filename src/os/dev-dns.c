@@ -42,7 +42,6 @@
 
 extern DEVICE_CMD Init_Net(REBREQ *); // Share same init
 extern DEVICE_CMD Quit_Net(REBREQ *);
-extern i32 Request_Size_Net(REBREQ *); // Share same request struct
 
 extern void Signal_Device(REBREQ *req, REBINT type);
 
@@ -197,7 +196,6 @@ DEVICE_CMD Poll_DNS(REBREQ *dr)
 
 static DEVICE_CMD_FUNC Dev_Cmds[RDC_MAX] =
 {
-    Request_Size_Net,
     Init_Net,   // Shared init - called only once
     Quit_Net,   // Shared
     Open_DNS,
@@ -207,4 +205,4 @@ static DEVICE_CMD_FUNC Dev_Cmds[RDC_MAX] =
     Poll_DNS
 };
 
-DEFINE_DEV(Dev_DNS, "DNS", 1, Dev_Cmds, RDC_MAX);
+DEFINE_DEV(Dev_DNS, "DNS", 1, Dev_Cmds, RDC_MAX, sizeof(struct devreq_net));

@@ -48,7 +48,6 @@
 #include "reb-host.h"
 
 extern void Signal_Device(REBREQ *req, REBINT type);
-extern i32 Request_Size_Rebreq(REBREQ *);
 
 //
 //  Open_Clipboard: C
@@ -195,7 +194,6 @@ DEVICE_CMD Poll_Clipboard(REBREQ *req)
 
 static DEVICE_CMD_FUNC Dev_Cmds[RDC_MAX] =
 {
-    Request_Size_Rebreq,
     0,
     0,
     Open_Clipboard,
@@ -205,4 +203,4 @@ static DEVICE_CMD_FUNC Dev_Cmds[RDC_MAX] =
     Poll_Clipboard,
 };
 
-DEFINE_DEV(Dev_Clipboard, "Clipboard", 1, Dev_Cmds, RDC_MAX);
+DEFINE_DEV(Dev_Clipboard, "Clipboard", 1, Dev_Cmds, RDC_MAX, sizeof(REBREQ));

@@ -75,8 +75,14 @@ void Set_Port_Open(REBCTX *port, REBOOL open)
 //
 REBREQ *Ensure_Port_State(REBCTX *port, REBCNT device)
 {
+    REBDEV *dev;
+
+    // Validate device:
+    if (device >= RDI_MAX || !(dev = Devices[device]))
+        return 0;
+
     REBVAL *state = CTX_VAR(port, STD_PORT_STATE);
-    REBCNT req_size = OS_DEVREQ_SIZE(device);
+    REBCNT req_size = dev->req_size;
 
     if (!IS_BINARY(state)) {
         assert(IS_BLANK(state));

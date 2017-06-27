@@ -58,7 +58,6 @@ enum {
 
 // REBOL Device Commands:
 enum {
-    RDC_DEVREQ_SIZE,// Find out the devreq size
     RDC_INIT,       // init device driver resources
     RDC_QUIT,       // cleanup device driver resources
 
@@ -155,12 +154,13 @@ struct rebol_device {
     u32 date;               // year, month, day, hour
     DEVICE_CMD_FUNC *commands;  // command dispatch table
     u32 max_command;        // keep commands in bounds
+    u32 req_size;            // size of the request state
     REBREQ *pending;        // pending requests
     u32 flags;              // state: open, signal
 };
 
 // Inializer (keep ordered same as above)
-#define DEFINE_DEV(w,t,v,c,m) REBDEV w = {t, v, 0, c, m, 0, 0}
+#define DEFINE_DEV(w,t,v,c,m,s) REBDEV w = {t, v, 0, c, m, s, 0, 0}
 
 // Request structure:       // Allowed to be extended by some devices
 struct rebol_devreq {

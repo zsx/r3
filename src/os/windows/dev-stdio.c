@@ -55,8 +55,6 @@ static wchar_t *Std_Buf = NULL; // Used for UTF-8 conversion of stdin/stdout.
 static BOOL Redir_Out = 0;
 static BOOL Redir_Inp = 0;
 
-extern i32 Request_Size_Rebreq(REBREQ *);
-
 //**********************************************************************
 
 
@@ -287,15 +285,6 @@ DEVICE_CMD Read_IO(REBREQ *req)
 }
 
 
-//
-//  Request_Size_IO: C
-//
-static i32 Request_Size_IO(REBREQ *req)
-{
-    UNUSED(req);
-    return sizeof(struct devreq_file);
-}
-
 /***********************************************************************
 **
 **  Command Dispatch Table (RDC_ enum order)
@@ -304,7 +293,6 @@ static i32 Request_Size_IO(REBREQ *req)
 
 static DEVICE_CMD_FUNC Dev_Cmds[RDC_MAX] =
 {
-    Request_Size_IO,
     0,  // init
     Quit_IO,
     Open_IO,
@@ -318,5 +306,8 @@ static DEVICE_CMD_FUNC Dev_Cmds[RDC_MAX] =
     0,  // CREATE was once used for opening echo file
 };
 
-DEFINE_DEV(Dev_StdIO, "Standard IO", 1, Dev_Cmds, RDC_MAX);
+DEFINE_DEV(
+    Dev_StdIO,
+    "Standard IO", 1, Dev_Cmds, RDC_MAX, sizeof(struct devreq_file)
+);
 

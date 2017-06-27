@@ -670,11 +670,6 @@ DEVICE_CMD Accept_Socket(REBREQ *req)
     return DR_PEND;
 }
 
-i32 Request_Size_Net(REBREQ *sock)
-{
-    UNUSED(sock);
-    return sizeof(struct devreq_net);
-}
 
 /***********************************************************************
 **
@@ -683,7 +678,6 @@ i32 Request_Size_Net(REBREQ *sock)
 ***********************************************************************/
 
 static DEVICE_CMD_FUNC Dev_Cmds[RDC_MAX] = {
-    Request_Size_Net,
     Init_Net,
     Quit_Net,
     Open_Socket,
@@ -700,4 +694,7 @@ static DEVICE_CMD_FUNC Dev_Cmds[RDC_MAX] = {
     Lookup_Socket
 };
 
-DEFINE_DEV(Dev_Net, "TCP/IP Network", 1, Dev_Cmds, RDC_MAX);
+DEFINE_DEV(
+    Dev_Net,
+    "TCP/IP Network", 1, Dev_Cmds, RDC_MAX, sizeof(struct devreq_net)
+);

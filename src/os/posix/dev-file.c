@@ -540,15 +540,6 @@ DEVICE_CMD Poll_File(REBREQ *req)
     return DR_DONE;     // files are synchronous (currently)
 }
 
-//
-//  Request_Size_File: C
-//
-static i32 Request_Size_File(REBREQ *req)
-{
-    (void)req; //unused
-    return sizeof(struct devreq_file);
-}
-
 
 /***********************************************************************
 **
@@ -557,7 +548,6 @@ static i32 Request_Size_File(REBREQ *req)
 ***********************************************************************/
 
 static DEVICE_CMD_FUNC Dev_Cmds[RDC_MAX] = {
-    Request_Size_File,
     0,
     0,
     Open_File,
@@ -573,4 +563,7 @@ static DEVICE_CMD_FUNC Dev_Cmds[RDC_MAX] = {
     Rename_File,
 };
 
-DEFINE_DEV(Dev_File, "File IO", 1, Dev_Cmds, RDC_MAX);
+DEFINE_DEV(
+    Dev_File,
+    "File IO", 1, Dev_Cmds, RDC_MAX, sizeof(struct devreq_file)
+);

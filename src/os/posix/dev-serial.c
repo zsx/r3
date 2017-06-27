@@ -347,16 +347,6 @@ DEVICE_CMD Query_Serial(REBREQ *req)
 }
 
 
-//
-//  Request_Size_Serial: C
-//
-static i32 Request_Size_Serial(REBREQ *req)
-{
-    UNUSED(req);
-    return sizeof(struct devreq_serial);
-}
-
-
 /***********************************************************************
 **
 **  Command Dispatch Table (RDC_ enum order)
@@ -364,7 +354,6 @@ static i32 Request_Size_Serial(REBREQ *req)
 ***********************************************************************/
 
 static DEVICE_CMD_FUNC Dev_Cmds[RDC_MAX] = {
-    Request_Size_Serial,
     0,
     0,
     Open_Serial,
@@ -380,5 +369,7 @@ static DEVICE_CMD_FUNC Dev_Cmds[RDC_MAX] = {
     0   // rename
 };
 
-DEFINE_DEV(Dev_Serial, "Serial IO", 1, Dev_Cmds, RDC_MAX);
-
+DEFINE_DEV(
+    Dev_Serial,
+    "Serial IO", 1, Dev_Cmds, RDC_MAX, sizeof(struct devreq_serial)
+);
