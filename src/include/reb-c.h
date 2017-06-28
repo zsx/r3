@@ -781,7 +781,7 @@ typedef u16 REBUNI;
 // Though the version here is more verbose, it uses the specializations to
 // avoid excessive calls to memset() in the debug build.
 //
-#if defined(NDEBUG) || !defined(__cplusplus) || __cplusplus < 199711L
+#if defined(NDEBUG) || !defined(__cplusplus) || __cplusplus < 201103L
     #define UNUSED(x) \
         ((void)(x))
 #else
