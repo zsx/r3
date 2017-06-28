@@ -477,7 +477,7 @@ typedef unsigned long   REBUPT;     // unsigned counterpart of void*
     #endif
 #endif
 
-#if defined(__cplusplus) && __cplusplus >= 199711L
+#if defined(__cplusplus) && __cplusplus >= 201103L
     //
     // In the C++ build, we can help reduce confusion by making sure that
     // LOGICAL and NOT are only applied to integral types.  Using it on
