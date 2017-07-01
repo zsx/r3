@@ -551,7 +551,7 @@ return_defaulted:
         const REBOOL only = FALSE; // !!! Should it use REF(only)?
 
         if (Run_Branch_Throws(D_OUT, ARG(default_case), only))
-            goto return_thrown;
+            return R_OUT_IS_THROWN;
 
         if (REF(opt))
             return R_OUT;
