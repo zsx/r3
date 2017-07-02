@@ -160,7 +160,9 @@ struct rebol_device {
 };
 
 // Inializer (keep ordered same as above)
-#define DEFINE_DEV(w,t,v,c,m,s) REBDEV w = {t, v, 0, c, m, s, 0, 0}
+#define DEFINE_DEV(w,t,v,c,m,s) \
+    EXTERN_C REBDEV w; \
+    REBDEV w = {t, v, 0, c, m, s, 0, 0}
 
 // Request structure:       // Allowed to be extended by some devices
 struct rebol_devreq {

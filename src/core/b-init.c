@@ -1029,6 +1029,40 @@ void Startup_Task(void)
 
 
 //
+//  Set_Stack_Limit: C
+//
+// See C_STACK_OVERFLOWING for remarks on this **non-standard** technique of
+// stack overflow detection.  Note that each thread would have its own stack
+// address limits, so this has to be updated for threading.
+//
+// Note that R3-Alpha tried to use a trick to determine whether the stack grew
+// up or down.  This is even less likely to work, and the solutions that might
+// actually work are too wacky to justify using:
+//
+// http://stackoverflow.com/a/33222085/211160
+//
+// So it's better to go with a build configuration #define.  Note that stacks
+// growing up is uncommon (e.g. Debian hppa architecture)
+//
+// Currently, this is called every time PUSH_UNHALTABLE_TRAP() is called, and
+// hopefully only one instance of it per thread will be in effect (otherwise,
+// the bounds would add and be useless).
+//
+void Set_Stack_Limit(void *base) {
+    REBUPT bounds;
+    bounds = cast(REBUPT, OS_CONFIG(1, 0));
+    if (bounds == 0)
+        bounds = cast(REBUPT, STACK_BOUNDS);
+
+#ifdef OS_STACK_GROWS_UP
+    Stack_Limit = cast(REBUPT, base) + bounds;
+#else
+    Stack_Limit = cast(REBUPT, base) - bounds;
+#endif
+}
+
+
+//
 //  Startup_Core: C
 //
 // Initialize the interpreter core.
@@ -1059,29 +1093,17 @@ void Startup_Core(void)
 //
 //==//////////////////////////////////////////////////////////////////////==//
 
-    // See C_STACK_OVERFLOWING for remarks on this **non-standard** technique
-    // of stack overflow detection.  Note that each thread would have its
-    // own stack address limits, so this has to be updated for threading.
-    //
-    // Note that R3-Alpha tried to use a trick (which it got wrong) to
-    // determine whether the stack grew up or down.  This doesn't work, and
-    // the solutions that might actually work are too wacky to justify using:
-    //
-    // http://stackoverflow.com/a/33222085/211160
-    //
-    // So it's better to go with a build configuration #define.  Note that
-    // stacks growing up is uncommon (e.g. Debian hppa architecture)
+    // The general trick of the moment is to have PUSH_UNHALTABLE_TRAP reset
+    // the stack limit.  This is because even with a single evaluator used
+    // on multiple threads, you have to trap errors to make sure an attempt
+    // is not made to longjmp the state to an address from another thread--
+    // hence every thread switch must also be a site of trapping all errors.
+    // However, if we are to use any routines which call C_STACK_OVERFLOWING
+    // in the code below before we've actually pushed a trap, we must start
+    // up the stack limit to something valid.
 
-    REBUPT bounds;
-    bounds = cast(REBUPT, OS_CONFIG(1, 0));
-    if (bounds == 0)
-        bounds = cast(REBUPT, STACK_BOUNDS);
-
-#ifdef OS_STACK_GROWS_UP
-    Stack_Limit = cast(REBUPT, &bounds) + bounds;
-#else
-    Stack_Limit = cast(REBUPT, &bounds) - bounds;
-#endif
+    int dummy; // variable whose address acts as base of stack for below code
+    Set_Stack_Limit(&dummy);
 
 //==//////////////////////////////////////////////////////////////////////==//
 //

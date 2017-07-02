@@ -294,7 +294,7 @@
     //
     #define CHECK_VALUE_FLAGS_EVIL_MACRO_DEBUG(flags) \
         REBUPT category = RIGHT_8_BITS(flags); \
-        assert(kind >= REB_0 && kind <= REB_MAX); \
+        assert(kind <= REB_MAX); /* REB_0 is okay here */ \
         if (category != REB_0) { \
             if (kind != category) { \
                 if (category == REB_WORD) \

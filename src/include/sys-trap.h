@@ -195,10 +195,10 @@
         Snap_State_Core(s); \
         (s)->last_state = Saved_State; \
         Saved_State = (s); \
-        if (haltable) { \
-            /* the topmost TRAP must be PUSH_UNHALTABLE_TRAP */ \
-            assert((s)->last_state != NULL); \
-        } \
+        if (haltable) \
+            assert((s)->last_state != NULL); /* top must be unhaltable */ \
+        else \
+            Set_Stack_Limit(s); /* for thread switches; see comments */ \
         if (!SET_JUMP((s)->cpu_state)) { \
             /* this branch will always be run */ \
             *(e) = NULL; \
