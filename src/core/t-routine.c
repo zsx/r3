@@ -984,7 +984,7 @@ REB_R Routine_Dispatcher(REBFRM *f)
     //
     // Note that the "offsets" are now actually pointers.
     {
-        SET_UNREADABLE_BLANK(&Callback_Error); // !!! is it already?
+        Init_Unreadable_Blank(&Callback_Error); // !!! is it already?
 
         ffi_call(
             cif,
@@ -1151,9 +1151,9 @@ static REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec, ffi_abi abi) {
 
     // Caller will update these in the returned function.
     //
-    SET_UNREADABLE_BLANK(RIN_AT(r, IDX_ROUTINE_CFUNC));
-    SET_UNREADABLE_BLANK(RIN_AT(r, IDX_ROUTINE_CLOSURE));
-    SET_UNREADABLE_BLANK(RIN_AT(r, IDX_ROUTINE_ORIGIN)); // LIBRARY!/FUNCTION!
+    Init_Unreadable_Blank(RIN_AT(r, IDX_ROUTINE_CFUNC));
+    Init_Unreadable_Blank(RIN_AT(r, IDX_ROUTINE_CLOSURE));
+    Init_Unreadable_Blank(RIN_AT(r, IDX_ROUTINE_ORIGIN)); // LIBRARY!/FUNCTION!
 
     Init_Blank(RIN_AT(r, IDX_ROUTINE_RET_SCHEMA)); // returns void as default
 

@@ -99,7 +99,7 @@ static inline void CATCH_THROWN(REBVAL *arg_out, REBVAL *thrown) {
 
     assert(!IS_UNREADABLE_IF_DEBUG(&TG_Thrown_Arg));
     Move_Value(arg_out, &TG_Thrown_Arg);
-    SET_UNREADABLE_BLANK(&TG_Thrown_Arg);
+    Init_Unreadable_Blank(&TG_Thrown_Arg);
 }
 
 

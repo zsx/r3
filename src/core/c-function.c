@@ -195,7 +195,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     // it is turned into a rootkey for param_notes.
     //
     DS_PUSH_TRASH; // paramlist[0] (will become FUNCTION! canon value)
-    SET_UNREADABLE_BLANK(DS_TOP);
+    Init_Unreadable_Blank(DS_TOP);
     DS_PUSH(EMPTY_BLOCK); // param_types[0] (to be OBJECT! canon value, if any)
     DS_PUSH(EMPTY_STRING); // param_notes[0] (holds description, then canon)
 

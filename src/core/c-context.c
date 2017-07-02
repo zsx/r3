@@ -322,7 +322,7 @@ void Collect_Keys_Start(REBFLGS flags)
     // then the copy routine that grabs the varlist as a copy of this array would
     // have to support copying trash--which they do not allow.
     //
-    SET_UNREADABLE_BLANK(ARR_HEAD(BUF_COLLECT));
+    Init_Unreadable_Blank(ARR_HEAD(BUF_COLLECT));
     SET_ARRAY_LEN_NOTERM(BUF_COLLECT, 1);
 }
 

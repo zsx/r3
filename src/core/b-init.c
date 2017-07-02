@@ -802,25 +802,25 @@ static void Init_Root_Vars(void)
     // BUF_UTF8 not initialized, can't init function tags yet
     //(at least not how Init_Function_Tags() is written)
     //
-    SET_UNREADABLE_BLANK(ROOT_WITH_TAG);
-    SET_UNREADABLE_BLANK(ROOT_ELLIPSIS_TAG);
-    SET_UNREADABLE_BLANK(ROOT_OPT_TAG);
-    SET_UNREADABLE_BLANK(ROOT_END_TAG);
-    SET_UNREADABLE_BLANK(ROOT_LOCAL_TAG);
-    SET_UNREADABLE_BLANK(ROOT_DURABLE_TAG);
+    Init_Unreadable_Blank(ROOT_WITH_TAG);
+    Init_Unreadable_Blank(ROOT_ELLIPSIS_TAG);
+    Init_Unreadable_Blank(ROOT_OPT_TAG);
+    Init_Unreadable_Blank(ROOT_END_TAG);
+    Init_Unreadable_Blank(ROOT_LOCAL_TAG);
+    Init_Unreadable_Blank(ROOT_DURABLE_TAG);
 
     // Evaluator not initialized, can't do system construction yet
     //
-    SET_UNREADABLE_BLANK(ROOT_SYSTEM);
+    Init_Unreadable_Blank(ROOT_SYSTEM);
 
     // Data stack not initialized, can't do typeset construction yet
     // (at least not how Startup_Typesets() is written)
     //
-    SET_UNREADABLE_BLANK(ROOT_TYPESETS);
+    Init_Unreadable_Blank(ROOT_TYPESETS);
 
     // Symbols system not initialized, can't init the function meta shim yet
     //
-    SET_UNREADABLE_BLANK(ROOT_FUNCTION_META);
+    Init_Unreadable_Blank(ROOT_FUNCTION_META);
 
     TERM_ARRAY_LEN(root, ROOT_MAX);
     ASSERT_ARRAY(root);
@@ -1010,7 +1010,7 @@ void Startup_Task(void)
     // seen by the GC.
     //
     Prep_Global_Cell(&TG_Thrown_Arg);
-    SET_UNREADABLE_BLANK(&TG_Thrown_Arg);
+    Init_Unreadable_Blank(&TG_Thrown_Arg);
 
     Startup_Raw_Print();
     Startup_Scanner();
@@ -1019,8 +1019,8 @@ void Startup_Task(void)
 
     // Symbols system not initialized, can't init the errors just yet
     //
-    SET_UNREADABLE_BLANK(TASK_HALT_ERROR);
-    SET_UNREADABLE_BLANK(TASK_STACK_ERROR);
+    Init_Unreadable_Blank(TASK_HALT_ERROR);
+    Init_Unreadable_Blank(TASK_STACK_ERROR);
 
     TERM_ARRAY_LEN(task, TASK_MAX);
     ASSERT_ARRAY(task);
@@ -1238,7 +1238,7 @@ void Startup_Core(void)
     Add_Lib_Keys_R3Alpha_Cant_Make();
 
     Prep_Global_Cell(&Callback_Error);
-    SET_UNREADABLE_BLANK(&Callback_Error);
+    Init_Unreadable_Blank(&Callback_Error);
 
 //==//////////////////////////////////////////////////////////////////////==//
 //

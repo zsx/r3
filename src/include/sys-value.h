@@ -294,7 +294,7 @@
     //
     #define CHECK_VALUE_FLAGS_EVIL_MACRO_DEBUG(flags) \
         REBUPT category = RIGHT_8_BITS(flags); \
-        assert(kind > REB_0 && kind <= REB_MAX); \
+        assert(kind >= REB_0 && kind <= REB_MAX); \
         if (category != REB_0) { \
             if (kind != category) { \
                 if (category == REB_WORD) \
@@ -713,7 +713,7 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
     VAL_RESET_HEADER_EXTRA((v), REB_BLANK, VALUE_FLAG_CONDITIONAL_FALSE)
 
 #ifdef NDEBUG
-    #define SET_UNREADABLE_BLANK(v) \
+    #define Init_Unreadable_Blank(v) \
         Init_Blank(v)
 
     #define IS_BLANK_RAW(v) \
@@ -725,7 +725,7 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
     #define SINK(v) \
         cast(REBVAL*, (v))
 #else
-    #define SET_UNREADABLE_BLANK(v) \
+    #define Init_Unreadable_Blank(v) \
         VAL_RESET_HEADER_EXTRA((v), REB_BLANK, \
             VALUE_FLAG_CONDITIONAL_FALSE | BLANK_FLAG_UNREADABLE_DEBUG)
 

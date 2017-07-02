@@ -81,7 +81,7 @@ void Startup_Stacks(REBCNT size)
     // are building a context varlist or similar.
     //
     DS_Array = Make_Array_Core(1, ARRAY_FLAG_VOIDS_LEGAL);
-    SET_UNREADABLE_BLANK(ARR_HEAD(DS_Array));
+    Init_Unreadable_Blank(ARR_HEAD(DS_Array));
 
     // The END marker will signal DS_PUSH that it has run out of space,
     // and it will perform the allocation at that time.
@@ -191,7 +191,7 @@ void Expand_Data_Stack_May_Fail(REBCNT amount)
     REBCNT len_new = len_old + amount;
     REBCNT n;
     for (n = len_old; n < len_new; ++n) {
-        SET_UNREADABLE_BLANK(value);
+        Init_Unreadable_Blank(value);
         ++value;
     }
 

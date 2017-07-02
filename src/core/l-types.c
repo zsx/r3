@@ -42,7 +42,7 @@
 //
 
 #define return_NULL \
-    do { SET_UNREADABLE_BLANK(out); return NULL; } while (TRUE)
+    do { Init_Unreadable_Blank(out); return NULL; } while (TRUE)
 
 
 //
@@ -1292,7 +1292,7 @@ REBNATIVE(scan_net_header)
                         SPECIFIED // no relative values added
                     );
                     val = Alloc_Tail_Array(array);
-                    SET_UNREADABLE_BLANK(val); // for Init_Block
+                    Init_Unreadable_Blank(val); // for Init_Block
                     Init_Block(item + 1, array);
                 }
                 break;

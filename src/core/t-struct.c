@@ -1071,7 +1071,7 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
     // we'll be filling in the IDX_FIELD_TYPE slot with an array of fields
     Init_Blank(FLD_AT(schema, IDX_FIELD_DIMENSION)); // not an array
 
-    SET_UNREADABLE_BLANK(FLD_AT(schema, IDX_FIELD_FFTYPE));
+    Init_Unreadable_Blank(FLD_AT(schema, IDX_FIELD_FFTYPE));
 
     Init_Blank(FLD_AT(schema, IDX_FIELD_OFFSET)); // the offset is not used
     // we'll be filling in the IDX_FIELD_WIDE at the end.
@@ -1123,7 +1123,7 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
 
         REBFLD *field = Make_Array(IDX_FIELD_MAX);
 
-        SET_UNREADABLE_BLANK(FLD_AT(field, IDX_FIELD_FFTYPE));
+        Init_Unreadable_Blank(FLD_AT(field, IDX_FIELD_FFTYPE));
         Init_Integer(FLD_AT(field, IDX_FIELD_OFFSET), offset);
 
         // Must be a word or a set-word, with set-words initializing

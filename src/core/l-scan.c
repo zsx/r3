@@ -2022,7 +2022,7 @@ static REBARR *Scan_Array(
                 //
                 DECLARE_LOCAL (cell);
                 PUSH_GUARD_ARRAY(array);
-                SET_UNREADABLE_BLANK(cell);
+                Init_Unreadable_Blank(cell);
                 PUSH_GUARD_VALUE(cell);
 
                 dispatcher(cell, kind, KNOWN(ARR_AT(array, 1))); // may fail()
