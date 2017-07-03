@@ -9,21 +9,21 @@ environment:
     OPTIMIZE: "NO"
     STANDARD: "C++14"
     TARGET: "EXECUTION"
-    EXTENSIONS: "configs/zero-ext.r"
+    EXTENSIONS: "[]"
   - platform: Win32
     CONFIG: vs2017-x86.r
     DEBUG: "YES"
     OPTIMIZE: "NO"
     STANDARD: "C++14"
     TARGET: "VISUAL-STUDIO"
-    EXTENSIONS: "configs/zero-ext.r"
+    EXTENSIONS: "[]"
   - platform: x64
     CONFIG: vs2017-x64.r
     DEBUG: "YES"
     OPTIMIZE: "NO"
     STANDARD: "C++"
     TARGET: "NMAKE"
-    EXTENSIONS: "[]"
+    EXTENSIONS: "configs/zero-ext.r"
   - platform: Win32
     CONFIG: vs2017-x86.r
     DEBUG: "YES"
@@ -45,6 +45,27 @@ environment:
     STANDARD: "C"
     TARGET: "NMAKE"
     EXTENSIONS: "[]"
+  - platform: x64
+    CONFIG: vs2017-x64.r
+    DEBUG: "NO"
+    OPTIMIZE: "2"
+    STANDARD: "C"
+    TARGET: "VISUAL-STUDIO"
+    EXTENSIONS: "configs/zero-ext.r"
+  - platform: Win32
+    CONFIG: vs2017-x86.r
+    DEBUG: "NO"
+    OPTIMIZE: "2"
+    STANDARD: "C"
+    TARGET: "NMAKE"
+    EXTENSIONS: "configs/all-ext-dynamic.r"
+  - platform: x64
+    CONFIG: vs2017-x64.r
+    DEBUG: "YES"
+    OPTIMIZE: "NO"
+    STANDARD: "C"
+    TARGET: "EXECUTION"
+    EXTENSIONS: "configs/zero-ext.r"
 
 build_script:
 - ps: >-
