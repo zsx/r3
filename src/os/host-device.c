@@ -58,24 +58,24 @@
 **
 ***********************************************************************/
 
-extern REBDEV Dev_StdIO;
-extern REBDEV Dev_File;
-extern REBDEV Dev_Event;
-extern REBDEV Dev_Net;
-extern REBDEV Dev_DNS;
+EXTERN_C REBDEV Dev_StdIO;
+EXTERN_C REBDEV Dev_File;
+EXTERN_C REBDEV Dev_Event;
+EXTERN_C REBDEV Dev_Net;
+EXTERN_C REBDEV Dev_DNS;
 
 #ifdef TO_WINDOWS
-extern REBDEV Dev_Clipboard;
+EXTERN_C REBDEV Dev_Clipboard;
 #endif
 
 // There should be a better decoupling of these devices so the core
 // does not need to know about them...
 #if defined(TO_WINDOWS) || defined(TO_LINUX)
-extern REBDEV Dev_Serial;
+EXTERN_C REBDEV Dev_Serial;
 #endif
 
 #ifdef HAS_POSIX_SIGNAL
-extern REBDEV Dev_Signal;
+EXTERN_C REBDEV Dev_Signal;
 #endif
 
 REBDEV *Devices[RDI_LIMIT] =
