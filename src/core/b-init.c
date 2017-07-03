@@ -954,8 +954,8 @@ static void Init_Break_Point(void)
         if(break_at > 0) {
             Debug_Str(
                 "**\n"
-                "** R3_ALWAYS_MALLOC is TRUE in environment variable!\n"
-                "** Memory allocations aren't pooled, expect slowness...\n"
+                "** R3_BREAK_AT is set in environment variable!\n"
+                "** Will break in Do_Core or crash (if not launched by a debugger)\n"
                 "**\n"
             );
             TG_Break_At = cast(REBUPT, break_at);
