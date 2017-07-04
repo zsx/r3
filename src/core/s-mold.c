@@ -587,6 +587,37 @@ static void Mold_All_String(const REBVAL *value, REB_MOLD *mold)
 }
 
 
+// !!! Used for detecting cycles in MOLD
+//
+static REBCNT Find_Pointer_In_Series(REBSER *s, void *p)
+{
+    REBCNT index = 0;
+    for (; index < SER_LEN(s); ++index) {
+        if (*SER_AT(void*, s, index) == p)
+            return index;
+    }
+    return NOT_FOUND;
+}
+
+static void Push_Pointer_To_Series(REBSER *s, void *p)
+{
+    if (SER_FULL(s))
+        Extend_Series(s, 8);
+    *SER_AT(void*, s, SER_LEN(s)) = p;
+    SET_SERIES_LEN(s, SER_LEN(s) + 1);
+}
+
+static void Drop_Pointer_From_Series(REBSER *s, void *p)
+{
+    assert(p == *SER_AT(void*, s, SER_LEN(s) - 1));
+    UNUSED(p);
+    SET_SERIES_LEN(s, SER_LEN(s) - 1);
+
+    // !!! Could optimize so mold stack is always dynamic, and just use
+    // s->content.dynamic.len--
+}
+
+
 /***********************************************************************
 ************************************************************************
 **
@@ -600,37 +631,24 @@ static void Mold_All_String(const REBVAL *value, REB_MOLD *mold)
 //
 void Mold_Array_At(
     REB_MOLD *mold,
-    REBARR *array,
+    REBARR *a,
     REBCNT index,
     const char *sep
 ) {
     REBSER *out = mold->series;
     REBOOL line_flag = FALSE; // newline was part of block
     REBOOL had_lines = FALSE;
-    RELVAL *value = ARR_AT(array, index);
 
-    if (!sep) sep = "[]";
-
-    if (IS_END(value)) {
-        Append_Unencoded(out, sep);
-        return;
-    }
+    if (sep == NULL)
+        sep = "[]";
 
     // Recursion check:
-    if (Find_Same_Array(MOLD_STACK, value) != NOT_FOUND) {
+    if (Find_Pointer_In_Series(TG_Mold_Stack, a) != NOT_FOUND) {
         Emit(mold, "C...C", sep[0], sep[1]);
         return;
     }
 
-    // We don't want to use Init_Block because it will create an implicit
-    // managed value, and the incoming series may be from an unmanaged source
-    // !!! Review how to avoid needing to put the series into a value
-    {
-        REBVAL *temp = Alloc_Tail_Array(MOLD_STACK);
-        VAL_RESET_HEADER(temp, REB_BLOCK);
-        INIT_VAL_ARRAY(temp, array); // copies args
-        VAL_INDEX(temp) = 0;
-    }
+    Push_Pointer_To_Series(TG_Mold_Stack, a);
 
     if (sep[1]) {
         Append_Codepoint_Raw(out, sep[0]);
@@ -638,10 +656,11 @@ void Mold_Array_At(
     }
 //  else out->tail--;  // why?????
 
-    value = ARR_AT(array, index);
+    RELVAL *value = ARR_AT(a, index);
     while (NOT_END(value)) {
         if (GET_VAL_FLAG(value, VALUE_FLAG_LINE)) {
-            if (sep[1] || line_flag) New_Indented_Line(mold);
+            if (sep[1] || line_flag)
+                New_Indented_Line(mold);
             had_lines = TRUE;
         }
         line_flag = TRUE;
@@ -658,7 +677,7 @@ void Mold_Array_At(
         Append_Codepoint_Raw(out, sep[1]);
     }
 
-    TERM_ARRAY_LEN(MOLD_STACK, ARR_LEN(MOLD_STACK) - 1);
+    Drop_Pointer_From_Series(TG_Mold_Stack, a);
 }
 
 
@@ -912,15 +931,15 @@ static void Mold_Function(const REBVAL *value, REB_MOLD *mold)
 
 static void Mold_Map(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
 {
-    REBARR *mapser = MAP_PAIRLIST(VAL_MAP(value));
-    RELVAL *val;
+    REBMAP *m = VAL_MAP(value);
 
     // Prevent endless mold loop:
-    if (Find_Same_Array(MOLD_STACK, value) != NOT_FOUND) {
+    if (Find_Pointer_In_Series(TG_Mold_Stack, m) != NOT_FOUND) {
         Append_Unencoded(mold->series, "...]");
         return;
     }
-    Append_Value(MOLD_STACK, value);
+
+    Push_Pointer_To_Series(TG_Mold_Stack, m);
 
     if (molded) {
         Pre_Mold(value, mold);
@@ -931,12 +950,18 @@ static void Mold_Map(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
     // valid entries but indicate the absence of a value.
     //
     mold->indent++;
-    for (val = ARR_HEAD(mapser); NOT_END(val) && NOT_END(val+1); val += 2) {
-        if (!IS_VOID(val + 1)) {
-            if (molded) New_Indented_Line(mold);
-            Emit(mold, "V V", val, val+1);
-            if (!molded) Append_Codepoint_Raw(mold->series, '\n');
-        }
+
+    RELVAL *val = ARR_HEAD(MAP_PAIRLIST(m));
+    for (; NOT_END(val); val += 2) {
+        assert(NOT_END(val + 1));
+        if (IS_VOID(val + 1))
+            continue;
+
+        if (molded)
+            New_Indented_Line(mold);
+        Emit(mold, "V V", val, val + 1);
+        if (NOT(molded))
+            Append_Codepoint_Raw(mold->series, '\n');
     }
     mold->indent--;
 
@@ -946,25 +971,28 @@ static void Mold_Map(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
     }
 
     End_Mold(mold);
-    TERM_ARRAY_LEN(MOLD_STACK, ARR_LEN(MOLD_STACK) - 1);
+
+    Drop_Pointer_From_Series(TG_Mold_Stack, m);
 }
 
 
 static void Form_Object(const REBVAL *value, REB_MOLD *mold)
 {
-    REBVAL *key = CTX_KEYS_HEAD(VAL_CONTEXT(value));
-    REBVAL *var = CTX_VARS_HEAD(VAL_CONTEXT(value));
-    REBOOL had_output = FALSE;
+    REBCTX *c = VAL_CONTEXT(value);
 
     // Prevent endless mold loop:
-    if (Find_Same_Array(MOLD_STACK, value) != NOT_FOUND) {
+    //
+    if (Find_Pointer_In_Series(TG_Mold_Stack, c) != NOT_FOUND) {
         Append_Unencoded(mold->series, "...]");
         return;
     }
-
-    Append_Value(MOLD_STACK, value);
+    Push_Pointer_To_Series(TG_Mold_Stack, c);
 
     // Mold all words and their values:
+    //
+    REBVAL *key = CTX_KEYS_HEAD(c);
+    REBVAL *var = CTX_VARS_HEAD(c);
+    REBOOL had_output = FALSE;
     for (; NOT_END(key); key++, var++) {
         if (NOT_VAL_FLAG(key, TYPESET_FLAG_HIDDEN)) {
             had_output = TRUE;
@@ -973,42 +1001,32 @@ static void Form_Object(const REBVAL *value, REB_MOLD *mold)
     }
 
     // Remove the final newline...but only if WE added something to the buffer
+    //
     if (had_output) {
         SET_SERIES_LEN(mold->series, SER_LEN(mold->series) - 1);
         TERM_SEQUENCE(mold->series);
     }
 
-    TERM_ARRAY_LEN(MOLD_STACK, ARR_LEN(MOLD_STACK) - 1);
+    Drop_Pointer_From_Series(TG_Mold_Stack, c);
 }
 
 
 static void Mold_Object(const REBVAL *value, REB_MOLD *mold)
 {
-    REBVAL *keys_head = CTX_KEYS_HEAD(VAL_CONTEXT(value));
-
-    REBVAL *vars_head;
-    if (CTX_VARS_UNAVAILABLE(VAL_CONTEXT(value))) {
-        //
-        // If something like a function call has gone of the stack, the data
-        // for the vars will no longer be available.  The keys should still
-        // be good, however.
-        //
-        vars_head = NULL;
-    }
-    else
-        vars_head = CTX_VARS_HEAD(VAL_CONTEXT(value));
+    REBCTX *c = VAL_CONTEXT(value);
 
     Pre_Mold(value, mold);
 
     Append_Codepoint_Raw(mold->series, '[');
 
     // Prevent infinite looping:
-    if (Find_Same_Array(MOLD_STACK, value) != NOT_FOUND) {
+    //
+    if (Find_Pointer_In_Series(TG_Mold_Stack, c) != NOT_FOUND) {
         Append_Unencoded(mold->series, "...]");
         return;
     }
+    Push_Pointer_To_Series(TG_Mold_Stack, c);
 
-    Append_Value(MOLD_STACK, value);
     mold->indent++;
 
     // !!! New experimental Ren-C code for the [[spec][body]] format of the
@@ -1027,8 +1045,20 @@ static void Mold_Object(const REBVAL *value, REB_MOLD *mold)
     New_Indented_Line(mold);
     Append_Codepoint_Raw(mold->series, '[');
 
-    REBVAL *key = keys_head;
+    REBVAL *keys_head = CTX_KEYS_HEAD(c);
+    REBVAL *vars_head;
+    if (CTX_VARS_UNAVAILABLE(VAL_CONTEXT(value))) {
+        //
+        // If something like a function call has gone of the stack, the data
+        // for the vars will no longer be available.  The keys should still
+        // be good, however.
+        //
+        vars_head = NULL;
+    }
+    else
+        vars_head = CTX_VARS_HEAD(VAL_CONTEXT(value));
 
+    REBVAL *key = keys_head;
     for (; NOT_END(key); ++key) {
         if (key != keys_head)
             Append_Codepoint_Raw(mold->series, ' ');
@@ -1088,24 +1118,22 @@ static void Mold_Object(const REBVAL *value, REB_MOLD *mold)
     Append_Codepoint_Raw(mold->series, ']');
 
     End_Mold(mold);
-    TERM_ARRAY_LEN(MOLD_STACK, ARR_LEN(MOLD_STACK) - 1);
+
+    Drop_Pointer_From_Series(TG_Mold_Stack, c);
 }
 
 
 static void Mold_Error(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
 {
-    ERROR_VARS *vars;
-    REBCTX *context;
-
     // Protect against recursion. !!!!
-
+    //
     if (molded) {
         Mold_Object(value, mold);
         return;
     }
 
-    context = VAL_CONTEXT(value);
-    vars = VAL_ERR_VARS(value);
+    REBCTX *error = VAL_CONTEXT(value);
+    ERROR_VARS *vars = ERR_VARS(error);
 
     // Form: ** <type> Error:
     if (IS_BLANK(&vars->type))
@@ -1117,7 +1145,7 @@ static void Mold_Error(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
 
     // Append: error message ARG1, ARG2, etc.
     if (IS_BLOCK(&vars->message))
-        Form_Array_At(VAL_ARRAY(&vars->message), 0, mold, context);
+        Form_Array_At(VAL_ARRAY(&vars->message), 0, mold, error);
     else if (IS_STRING(&vars->message))
         Mold_Value(mold, &vars->message, FALSE);
     else
@@ -1904,7 +1932,8 @@ void Startup_Mold(REBCNT size)
     REBYTE c;
     const REBYTE *dc;
 
-    Init_Block(TASK_MOLD_STACK, Make_Array(size/10));
+    TG_Mold_Stack = Make_Series(10, sizeof(void*));
+
     Init_String(TASK_UNI_BUF, Make_Unicode(size));
 
     // Create quoted char escape table:
@@ -1928,6 +1957,8 @@ void Startup_Mold(REBCNT size)
 //
 void Shutdown_Mold(void)
 {
+    Free_Series(TG_Mold_Stack);
+
     FREE_N(REBYTE, MAX_ESC_CHAR + 1, Char_Escapes);
     FREE_N(REBYTE, MAX_URL_CHAR + 1, URL_Escapes);
 }

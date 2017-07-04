@@ -673,7 +673,6 @@ inline static void SET_SIGNAL(REBFLGS f) {
 //   These are reused for cases for appending, when length cannot be known.
 
 #define BUF_COLLECT     VAL_ARRAY(TASK_BUF_COLLECT)
-#define MOLD_STACK       VAL_ARRAY(TASK_MOLD_STACK)
 
 #define BYTE_BUF        VAL_SERIES(TASK_BYTE_BUF)
 #define UNI_BUF        VAL_SERIES(TASK_UNI_BUF)

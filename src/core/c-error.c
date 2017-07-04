@@ -62,7 +62,7 @@ void Snap_State_Core(struct Reb_State *s)
 
     s->manuals_len = SER_LEN(GC_Manuals);
     s->uni_buf_len = SER_LEN(UNI_BUF);
-    s->mold_loop_tail = ARR_LEN(MOLD_STACK);
+    s->mold_loop_tail = ARR_LEN(TG_Mold_Stack);
 
     // !!! Is this initialization necessary?
     s->error = NULL;
@@ -139,7 +139,7 @@ void Assert_State_Balanced_Debug(
     }
 
     assert(s->uni_buf_len == SER_LEN(UNI_BUF));
-    assert(s->mold_loop_tail == ARR_LEN(MOLD_STACK));
+    assert(s->mold_loop_tail == ARR_LEN(TG_Mold_Stack));
 
     assert(s->error == NULL); // !!! necessary?
 }
@@ -217,7 +217,7 @@ REBOOL Trapped_Helper_Halted(struct Reb_State *s)
     TG_Pushing_Mold = FALSE;
 #endif
 
-    TERM_ARRAY_LEN(MOLD_STACK, s->mold_loop_tail);
+    SET_SERIES_LEN(TG_Mold_Stack, s->mold_loop_tail);
 
     Saved_State = s->last_state;
     Stack_Limit = s->stack_limit;

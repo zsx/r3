@@ -472,58 +472,6 @@ REBVAL *Alloc_Tail_Array(REBARR *a)
 
 
 //
-//  Find_Same_Array: C
-//
-// Scan a block for any values that reference blocks related
-// to the value provided.
-//
-// !!! This was used for detection of cycles during MOLD.  The idea is that
-// while it is outputting a series, it doesn't want to see that series
-// again.  For the moment the only places to worry about with that are
-// context varlists and block series or maps.  (Though a function contains
-// series for the spec, body, and paramlist...the spec and body are blocks,
-// and so recursion would be found when the blocks were output.)
-//
-REBCNT Find_Same_Array(REBARR *search_values, const RELVAL *value)
-{
-    REBCNT index = 0;
-    REBARR *array;
-    RELVAL *other;
-
-    if (ANY_ARRAY(value))
-        array = VAL_ARRAY(value);
-    else if (IS_MAP(value))
-        array = MAP_PAIRLIST(VAL_MAP(value));
-    else if (ANY_CONTEXT(value))
-        array = CTX_VARLIST(VAL_CONTEXT(value));
-    else {
-        // Value being worked with is not a candidate for containing an
-        // array that could form a loop with one of the search_list values
-        //
-        return NOT_FOUND;
-    }
-
-    other = ARR_HEAD(search_values);
-    for (; NOT_END(other); other++, index++) {
-        if (ANY_ARRAY(other)) {
-            if (array == VAL_ARRAY(other))
-                return index;
-        }
-        else if (IS_MAP(other)) {
-            if (array == MAP_PAIRLIST(VAL_MAP(other)))
-                return index;
-        }
-        else if (ANY_CONTEXT(other)) {
-            if (array == CTX_VARLIST(VAL_CONTEXT(other)))
-                return index;
-        }
-    }
-
-    return NOT_FOUND;
-}
-
-
-//
 //  Uncolor_Array: C
 //
 void Uncolor_Array(REBARR *a)

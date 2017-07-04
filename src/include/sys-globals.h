@@ -138,6 +138,8 @@ TVAR REBSER *GC_Guarded; // A stack of GC protected series and values
 PVAR REBSER *GC_Mark_Stack; // Series pending to mark their reachables as live
 TVAR REBSER **Prior_Expand; // Track prior series expansions (acceleration)
 
+TVAR REBSER *TG_Mold_Stack; // Used to prevent infinite loop in cyclical molds
+
 // These manually-managed series must either be freed with Free_Series()
 // or handed over to the GC at certain synchronized points, else they
 // would represent a memory leak in the release build.

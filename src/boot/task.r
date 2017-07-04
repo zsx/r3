@@ -24,7 +24,4 @@ halt-error      ; special halt error object
 buf-collect     ; temporary cache for collecting object keys or words
 buf-utf8        ; UTF8 reused buffer
 byte-buf        ; temporary byte buffer - used mainly by raw print
-uni-buf         ; temporary unicode buffer - used mainly by mold 
-
-mold-stack      ; mold loop detection
-
+uni-buf         ; temporary unicode buffer - used mainly by mold
