@@ -193,6 +193,8 @@ project-class: make object! [
     generated?: false
     implib: _ ;for windows, an application/library with exported symbols will generate an implib file
 
+    post-build-commands: _ ; commands to run after the "build" command
+
     complier: _
 
     ; common settings applying to all included obj-files
@@ -1223,7 +1225,7 @@ makefile: make generator-class [
                     append buf gen-rule/(all [nmake 'nmake]) make entry-class [
                         target: dep/output
                         depends: join-of dep/depends objs
-                        commands: dep/command
+                        commands: append reduce [dep/command] opt dep/post-build-commands
                     ]
                     emit buf dep
                 ]
@@ -1772,6 +1774,17 @@ visual-studio: make generator-class [
       </Command>
     </PreBuildEvent>}
             ]
+        ]
+    ]
+    if all [
+        find? words-of project 'post-build-commands
+        project/post-build-commands
+    ][
+        unspaced [ {
+    <PostBuildEvent>
+      <Command>} use [cmd][delimit map-each cmd project/post-build-commands [reify cmd] "^M^/"] {
+      </Command>
+    </PostBuildEvent>}
         ]
     ] {
   </ItemDefinitionGroup>
