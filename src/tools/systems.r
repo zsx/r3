@@ -35,16 +35,16 @@ systems: [
                  libraries      ldflags]
     ;-------------------------------------------------------------------------
     0.1.03      amiga           posix   [BEN LLC F64]               [NPS HID]
-                [M]             [HID]
+                [M]             [HID DYN]
     ;-------------------------------------------------------------------------
     0.2.04      osx-ppc         osx     [BEN LLC F64]               [NCM]
-                [M]             [HID]
+                [M]             [HID DYN]
 
     0.2.05      osx-x86         osx     [LEN LLC NSER F64]          [NCM NPS ARC]
-                [M]             [HID ARC]
+                [M]             [HID ARC DYN]
 
     0.2.40      osx-x64         osx     [LEN LLC NSER F64]          [NCM NPS]
-                [M]             [HID]
+                [M]             [HID DYN]
 
     ;-------------------------------------------------------------------------
     0.3.01      windows-x86     windows [LEN UNI F64 W32]           []
@@ -61,37 +61,37 @@ systems: [
                 [M DL]          [M32];gliblc-2.5
 
     0.4.04      linux-x86       linux   [LEN LLC F64 PIP2]          [M32 HID]
-                [M DL]          [M32 HID];glibc-2.11
+                [M DL]          [M32 HID DYN];glibc-2.11
 
     0.4.10      linux-ppc       linux   [BEN LLC F64 PIP2]          [HID]
-                [M DL]          [HID]
+                [M DL]          [HID DYN]
 
     0.4.11      linux-ppc64     linux   [BEN LLC F64 PIP2 LP64]     [HID]
-                [M DL]          [HID]
+                [M DL]          [HID DYN]
 
     0.4.20      linux-arm       linux   [LEN LLC F64 PIP2]          [HID]
-                [M DL]          [HID]
+                [M DL]          [HID DYN]
 
     0.4.21      linux-arm       linux   [LEN LLC F64 PIP2]          [HID PIE]
-                [M DL]          [HID]   ;android
+                [M DL]          [HID DYN]   ;android
 
     0.4.22      linux-aarch64   linux   [LEN LLC F64 PIP2 LP64]     [HID]
-                [M DL]          [HID]
+                [M DL]          [HID DYN]
 
     0.4.30      linux-mips      linux   [LEN LLC F64 PIP2]          [HID]
-                [M DL]          [HID]
+                [M DL]          [HID DYN]
 
     0.4.31      linux-mips32be  linux   [BEN LLC F64 PIP2]          [HID]
-                [M DL]          [HID]
+                [M DL]          [HID DYN]
 
     0.4.40      linux-x64       linux   [LEN LLC F64 PIP2 LP64]     [HID]
-                [M DL]          [HID]
+                [M DL]          [HID DYN]
 
     0.4.60      linux-axp       linux   [LEN LLC F64 PIP2 LP64]     [HID]
-                [M DL]          [HID]
+                [M DL]          [HID DYN]
 
     0.4.61      linux-ia64      linux   [LEN LLC F64 PIP2 LP64]     [HID]
-                [M DL]          [HID]
+                [M DL]          [HID DYN]
 
     ;-------------------------------------------------------------------------
     0.5.75      haiku           posix   [LEN LLC]                   []
@@ -112,18 +112,18 @@ systems: [
 
     ;-------------------------------------------------------------------------
     0.13.01     android-arm     android [LEN LLC F64]               [HID PIC]
-                [M DL LOG]      [HID]
+                [M DL LOG]      [HID DYN]
 
     ;-------------------------------------------------------------------------
     0.13.02     android5-arm    android [LEN LLC F64]               [HID PIC]
-                [M DL LOG]      [HID PIE]
+                [M DL LOG]      [HID PIE DYN]
 
     ;-------------------------------------------------------------------------
     0.14.01     syllable-dtp    posix   [LEN LLC F64]               [HID]
-                [M DL]             [HID]
+                [M DL]             [HID DYN]
 
     0.14.02     syllable-svr    linux   [LEN LLC F64]               [M32 HID]
-                [M DL]             [HID]
+                [M DL]             [HID DYN]
 ]
 
 system-definitions: make object! [
@@ -196,6 +196,7 @@ linker-flags: make object! [
     ARC: <gnu:-arch i386>
     PIE: <gnu:-pie>
     HID: <gnu:-fvisibility=hidden>  ; all sysms are hidden
+    DYN: <gnu:-rdynamic>
 
     CON: [<gnu:-mconsole> <msc:/subsystem:console>]
     S4M: [<gnu:-Wl,--stack=4194300> <msc:/stack:4194300>]
