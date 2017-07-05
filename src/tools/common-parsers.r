@@ -47,7 +47,7 @@ decode-key-value-text: function [
     data-field-char: charset [#"A" - #"Z" #"a" - #"z"]
     data-field-name: [some data-field-char any [#" " some data-field-char] #":"]
 
-    emit-meta: func [/local key] [
+    emit-meta: func [<local> key] [
         key: replace/all copy/part position eof #" " #"-"
         remove back tail key
         append meta reduce [
@@ -95,7 +95,7 @@ encode-lines: func [
     text [string!]
     line-prefix [string!] {Usually "**" or "//".}
     indent [string!] {Usually "  ".}
-    /local bol pos
+    <local> bol pos
 ] [
 
     ; Note: Preserves newline formatting of the block.

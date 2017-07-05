@@ -15,16 +15,11 @@ Rebol [
 
 do %test-parsing.r
 
-make-diff: func [
+make-diff: function [
     old-log [file!]
     new-log [file!]
     diff-file [file!]
-    /local old-log-contents new-log-contents
-    old-test old-result new-test new-result
-    new-successes new-failures new-crashes
-    progressions regressions removed summary
-    next-old-log next-new-log
-] [
+][
     if exists? diff-file [delete diff-file]
 
     collect-logs old-log-contents: copy [] old-log

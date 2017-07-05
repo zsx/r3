@@ -172,7 +172,7 @@ delta-time: function [
 delta-profile: func [
     {Delta-profile of running a specific block.}
     block [block!]
-    /local start end
+    <local> start end
 ][
     start: values-of stats/profile
     do block

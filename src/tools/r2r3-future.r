@@ -34,19 +34,16 @@ REBOL [
     }
 ]
 
-
 if true = attempt [void? :some-undefined-thing] [
     ;
-    ; Ren-C, define an "optional" marker for returns.  (You can't use <opt>
-    ; on parameters in code designed to run Ren-C-like code in R3-Alpha.)
-    ;
-    *opt-legacy*: _
-
-    ; ELSE uses a mechanic (non-tight infix evaluation) that is simply
+    ; THEN and ELSE use a mechanic (non-tight infix evaluation) that is simply
     ; impossible in R3-Alpha or Rebol2.
     ;
     else: does [
         fail "Do not use ELSE in scripts which want compatibility w/R3-Alpha" 
+    ]
+    then: does [
+        fail "Do not use THEN in scripts which want compatibility w/R3-Alpha"
     ]
 
     QUIT ;-- !!! stops running if Ren-C here.
@@ -59,20 +56,70 @@ void?: :unset?
 void: does []
 
 
-; Older versions of Rebol had a different concept of what FUNCTION meant
-; (an arity-3 variation of FUNC).  Eventually the arity-2 construct that
-; did locals-gathering by default named FUNCT overtook it, with the name
-; FUNCT deprecated.
-;
-unless (copy/part words-of :function 2) = [spec body] [
-    function: :funct
-]
+unset 'function ;-- we'll define it later, use FUNC until then
 
 
-; `func [x [*opt-legacy* integer!]]` is like `func [x [<opt> integer!]]`,
-; and with these modifications can work in either Ren-C or R3-Alpha/Rebol2.
-;
+; Capture the UNSET! datatype, so that `func [x [*opt-legacy* integer!]]` can
+; be used to implement `func [x [<opt> integer!]]`.
+; 
 *opt-legacy*: unset!
+
+
+; Ren-C changed the function spec dialect to use TAG!s.  Although MAKE of
+; a FUNCTION! as a fundamental didn't know keywords (e.g. RETURN), FUNC
+; was implemented as a native that could also be implemented in usermode.
+; FUNCTION added some more features.
+;
+old-func: :func
+func: old-func [
+    spec [block!]
+    body [block!]
+    /local pos type
+][
+    spec: copy/deep spec
+    parse spec [while [
+        pos:
+        [
+            <local> (change pos quote /local)
+        |
+            ; WITH is just commentary in FUNC, but for it to work we'd have
+            ; to go through and take words that followed it out.
+            ;
+            <with> (fail "<with> not supported in R3-Alpha FUNC")
+        |
+            and block! into [any [
+                type:
+                [
+                    <opt> (change type '*opt-legacy*)
+                |
+                    <end> (fail "<end> not supported in R3-Alpha mode")
+                |
+                    skip
+                ]
+            ]]
+        |
+            ; Just get rid of any RETURN: specifications (purely commentary)
+            ;
+            remove [quote return: opt block! opt string!]
+        |
+            ; We could conceivably gather the SET-WORD!s and put them into
+            ; the /local list, but that's annoying work.
+            ;
+            copy s set-word! (
+                fail ["SET-WORD!" s "not supported for <local> in R3-Alpha"]
+            )
+        |
+            skip
+        ]
+    ]]
+
+    ; R3-Alpha did not copy the spec or body in MAKE FUNCTION!, but FUNC and
+    ; FUNCTION would do it.  Since we copied above in order to mutate to
+    ; account for differences in the spec language, don't do it again.
+    ;
+    print mold spec
+    make function! reduce [spec body]
+]
 
 
 ; PROTECT/DEEP isn't exactly the same thing as LOCK, since you can unprotect
@@ -85,11 +132,14 @@ blank!: get 'none!
 blank: get 'none
 _: none
 
+; BAR! is really just a WORD!, but can be recognized
+;
+bar?: func [x] [x = '|]
 
 ; ANY-VALUE! is anything that isn't void.
 ;
 any-value!: difference any-type! (make typeset! [unset!])
-any-value?: func [item [*opt-legacy* any-value!]] [not void? :item]
+any-value?: func [item [<opt> any-value!]] [not void? :item]
 
 
 ; Used in function definitions before the mappings
@@ -120,10 +170,12 @@ proc: func [spec body] [
     func spec compose [(body) void]
 ]
 
-procedure: func [spec body] [
-    function spec compose [(body) void]
-]
 
+; No specializations in R3-Alpha, cover simple cases
+;
+find?: func [series value] [
+    true? find :series :value
+]
 
 ; Ren-C replaces the awkward term PAREN! with GROUP!  (Retaining PAREN!
 ; for compatibility as pointing to the same datatype).  Older Rebols
@@ -145,7 +197,7 @@ has: :context
 
 construct-legacy: :construct
 
-construct: function [
+construct: func [
     "Creates an ANY-CONTEXT! instance"
     spec [datatype! block! any-context!]
         "Datatype to create, specification, or parent/prototype context"
@@ -194,7 +246,7 @@ set: func [
     target [any-word! any-path! block! any-context!]
         {Word, block of words, path, or object to be set (modified)}
 
-    value [*opt-legacy* any-value!]
+    value [<opt> any-value!]
         "Value or block of values"
     /opt
         "Value is optional, and if no value is provided then unset the word"
@@ -216,7 +268,7 @@ set: func [
 ; via <r3-legacy>.  But Rebol2 and R3-Alpha do not know /OPT.
 ;
 lib-get: get 'get
-get: function [
+get: func [
     {Gets the value of a word or path, or values of a context.}
     source
         "Word, path, context to get"
@@ -224,6 +276,8 @@ get: function [
         "The source may optionally have no value (allows returning void)"
     /any
         "Deprecated legacy synonym for /OPT"
+    <local>
+        set_ANY opt_ANY
 ][
     set_ANY: any
     any: :lib/any ;-- in case it needs to be used
@@ -407,19 +461,19 @@ any-number!: number!
 ; "optional" (a.k.a. void) handling
 opt: func [
     {Turns blanks to voids, all other value types pass through.}
-    value [*opt-legacy* any-value!]
+    value [<opt> any-value!]
 ][
     either* blank? :value [()] [:value]
 ]
 
 to-value: func [
     {Turns voids to blank, with ANY-VALUE! passing through. (See: OPT)}
-    value [*opt-legacy* any-value!]
+    value [<opt> any-value!]
 ][
     get 'value
 ]
 
-something?: func [value [*opt-legacy* any-value!]] [
+something?: func [value [<opt> any-value!]] [
     not any [
         void? :value
         blank? :value
@@ -451,22 +505,242 @@ xor?: func [a b] [true? any [all [:a (not :b)] all [(not :a) :b]]]
 
 ; UNSPACED in Ren-C corresponds rougly to AJOIN, and SPACED corresponds very
 ; roughly to REFORM.  A similar "sort-of corresponds" applies to REJOIN being
-; like JOIN-ALL.  There are missing features in the handling of voids and
-; blanks, as well as CHAR!s and BAR!s.
+; like JOIN-ALL.
 ;
-; Since the only code really running modern Ren-C-named constructs through an
-; R3-Alpha is the bootstrap, the necessity of making this work well depends
-; on how aggressive the use of modern features in bootstrap are.
-;
-unspaced: :ajoin
-spaced: :reform
+delimit: func [x delimiter] [
+    either block? x [
+        pending: false
+        out: make string! 10
+        while [not tail? x] [
+            if bar? first x [
+                pending: false
+                append out newline
+                x: next x
+                continue
+            ]
+            set/opt 'item do/next x 'x
+            case [
+                any [blank? :item | void? :item] [
+                    ;-- append nothing
+                ]
+
+                true [
+                    case [
+                        ; Characters (e.g. space or newline) are not counted
+                        ; in delimiting.
+                        ;
+                        char? :item [
+                            append out item
+                            pending: false
+                        ]
+                        all [pending | not blank? :delimiter] [
+                            append out form :delimiter
+                            append out form :item
+                            pending: true
+                        ]
+                        true [
+                            append out form :item
+                            pending: true
+                        ]
+                    ]
+                ]
+            ]
+        ]
+        out
+    ][
+        reform :x
+    ]
+]
+
+unspaced: func [x] [
+    delimit x blank
+]
+
+spaced: func [x] [
+    delimit :x space
+]
+
 join-all: :rejoin
+
+
+make-action: func [
+    {Internal generator used by FUNCTION and PROCEDURE specializations.}
+    return: [function!]
+    generator [function!]
+        {Arity-2 "lower"-level function generator to use (e.g. FUNC or PROC)}
+    spec [block!]
+        {Help string (opt) followed by arg words (and opt type and string)}
+    body [block!]
+        {The body block of the function}
+    <local>
+        new-spec var other
+        new-body exclusions locals defaulters statics
+][
+    exclusions: copy []
+    new-spec: make block! length-of spec
+    new-body: _
+    statics: _
+    defaulters: _
+    var: _
+    locals: copy []
+
+    ;; dump [spec]
+
+    ; Gather the SET-WORD!s in the body, excluding the collected ANY-WORD!s
+    ; that should not be considered.  Note that COLLECT is not defined by
+    ; this point in the bootstrap.
+    ;
+    ; !!! REVIEW: ignore self too if binding object?
+    ;
+    parse spec [any [
+        if (set? 'var) [
+            set var: any-word! (
+                append exclusions :var ;-- exclude args/refines
+                append new-spec :var ;-- need GET-WORD! for R3-Alpha lit decay
+            )
+        |
+            set other: [block! | string!] (
+                append/only new-spec other ;-- spec notes or data type blocks
+            )
+        ]
+    |
+        other:
+        [group!] (
+            if not var [
+                fail [
+                    ; <where> spec
+                    ; <near> other
+                    "Default value not paired with argument:" (mold other/1)
+                ]
+            ]
+            unless defaulters [
+                defaulters: copy []
+            ]
+            append defaulters compose/deep [
+                (to set-word! var) default [(reduce other/1)]
+            ]
+        )
+    |
+        (unset 'var) ;-- everything below this line clears var
+        fail ;-- failing here means rolling over to next rule (<durable>)
+    |
+        <local>
+        any [set var: word! (other: _) opt set other: group! (
+            append locals var
+            append exclusions var
+            if other [
+                unless defaulters [
+                    defaulters: copy []
+                ]
+                append defaulters compose/deep [
+                    (to set-word! var) default [(reduce other)]
+                ]
+            ]
+        )]
+        (unset 'var) ;-- don't consider further GROUP!s or variables
+    |
+        <in> (
+            unless new-body [
+                append exclusions 'self
+                new-body: copy/deep body
+            ]
+        )
+        any [
+            set other: [word! | path!] (
+                other: ensure any-context! get other
+                bind new-body other
+                for-each [key val] other [
+                    append exclusions key
+                ]
+            )
+        ]
+    |
+        <with> any [
+            set other: [word! | path!] (append exclusions other)
+        |
+            string! ;-- skip over as commentary
+        ]
+    |
+        ; While <static> is a well-known computer science term, it is an
+        ; un-intuitive word.  <has> is Ren-C's preference in mezzanine or
+        ; official code, relating it to the HAS object constructor.
+        ;
+        [<has> | <static>] (
+            unless statics [
+                statics: copy []
+            ]
+            unless new-body [
+                append exclusions 'self
+                new-body: copy/deep body
+            ]
+        )
+        any [
+            set var: word! (other: quote ()) opt set other: group! (
+                append exclusions var
+                append statics compose/only [
+                    (to set-word! var) (other)
+                ]
+            )
+        ]
+        (unset 'var)
+    |
+        end accept
+    |
+        other: (
+            fail [
+                ; <where> spec
+                ; <near> other
+                "Invalid spec item:" (mold other/1)
+            ]
+        )
+    ]]
+
+    collected-locals: collect-words/deep/set/ignore body exclusions
+
+    ;; dump [{before} statics new-spec exclusions]
+
+    if statics [
+        statics: has statics
+        bind new-body statics
+    ]
+
+    ; !!! The words that come back from COLLECT-WORDS are all WORD!, but we
+    ; need SET-WORD! to specify pure locals to the generators.  Review the
+    ; COLLECT-WORDS interface to efficiently give this result, as well as
+    ; a possible COLLECT-WORDS/INTO
+    ;
+    append new-spec <local> ;-- SET-WORD! not supported in R3-Alpha mode
+    for-next collected-locals [
+        append new-spec collected-locals/1
+    ]
+    for-next locals [
+        append new-spec locals/1
+    ]
+
+    ;; dump [{after} new-spec defaulters]
+
+    generator new-spec either defaulters [
+        append/only defaulters as group! any [new-body body]
+    ][
+        any [new-body body]
+    ]
+]
+
+;-- These are "redescribed" after REDESCRIBE is created
+;
+function: func [spec body] [
+    make-action :func spec body
+]
+
+procedure: func [spec body] [
+    make-action :proc spec body
+]
 
 
 ; This isn't a full implementation of ENSURE with function-oriented testing,
 ; but it works well enough for types.
 ;
-ensure: function [type [datatype!] value [*opt-legacy* any-value!]] [
+ensure: function [type [datatype!] value [<opt> any-value!]] [
     if type != type-of :value [
         probe :value
         fail ["ENSURE expected:" (mold type) "but got" (mold type-of :value)]

@@ -15,9 +15,8 @@ Rebol [
 
 do %test-parsing.r
 
-log-filter: func [
+log-filter: function [
     source-log [file!]
-    /local source-log-contents target-log
 ] [
     ; if the source log is r_2_7_8_3_1_1DEF65_002052.log
     ; the target log will be f_2_7_8_3_1_1DEF65_002052.log

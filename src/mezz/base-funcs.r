@@ -916,7 +916,7 @@ module: func [
     body [block!] "The body block of the module (modified)"
     /mixin "Mix in words from other modules"
     mixins [object!] "Words collected into an object"
-    /local hidden w mod
+    <local> hidden w mod
 ][
     mixins: to-value :mixins
 

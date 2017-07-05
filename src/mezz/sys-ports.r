@@ -217,7 +217,7 @@ init-schemes: func [
             sport "System port (State block holds events)"
             ports "Port list (Copy of block passed to WAIT)"
             /only
-            /local event event-list n-event port waked
+            <local> event event-list n-event port waked
         ][
             waked: sport/data ; The wake list (pending awakes)
 
@@ -275,7 +275,7 @@ init-schemes: func [
         name: 'file
         actor: get-file-actor-handle
         info: system/standard/file-info ; for C enums
-        init: proc [port /local path] [
+        init: proc [port <local> path] [
             if url? port/spec/ref [
                 parse port/spec/ref [thru #":" 0 2 slash path:]
                 append port/spec compose [path: (to file! path)]
@@ -345,7 +345,7 @@ init-schemes: func [
         name: 'serial
         actor: get-serial-actor-handle
         spec: system/standard/port-spec-serial
-        init: proc [port /local path speed] [
+        init: proc [port <local> path speed] [
             if url? port/spec/ref [
                 parse port/spec/ref
                     [thru #":" 0 2 slash copy path [to slash | end] skip copy speed to end]

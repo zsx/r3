@@ -188,7 +188,7 @@ mk-cb: func [
     return: [function!]
     args [block!]
     body [block!]
-    /local r-args arg a tmp-func
+    <local> r-args arg a tmp-func
 ][
     r-args: copy []
 

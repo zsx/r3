@@ -32,7 +32,7 @@ mkdir/deep output-dir/include
 collect-files: func [
     "Collect contents of several source files and return combined with header."
     files [block!]
-    /local source data header
+    <local> source data header
 ][
     source: make block! 1000
 
@@ -69,11 +69,10 @@ form-name: func [word] [
     uppercase replace/all replace/all to-string word #"-" #"_" #"?" #"Q"
 ]
 
-emit-file: func [
+emit-file: function [
     "Emit command enum and source script code."
     file [file!]
     source [block!]
-    /local title name data exports words exported-words src prefix
 ][
     source: collect-files source
 

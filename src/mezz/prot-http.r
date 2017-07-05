@@ -213,7 +213,7 @@ make-http-request: func [
     content [any-string! binary! blank!]
         {Request contents (Content-Length is created automatically).}
         {Empty string not exactly like blank.}
-    /local result
+    <local> result
 ] [
     result: unspaced [
         uppercase form method space
@@ -235,7 +235,7 @@ make-http-request: func [
 do-request: func [
     "Perform an HTTP request"
     port [port!]
-    /local spec info req
+    <local> spec info req
 ] [
     spec: port/spec
     info: port/state/info
@@ -257,7 +257,8 @@ do-request: func [
     spec/headers spec/content
     net-log/C to string! req
 ]
-parse-write-dialect: func [port block /local spec debug] [
+
+parse-write-dialect: func [port block <local> spec debug] [
     spec: port/spec
     parse block [
         opt [ 'headers ( spec/debug: true ) ]
@@ -270,7 +271,8 @@ parse-write-dialect: func [port block /local spec debug] [
         ]
     ]
 ]
-check-response: func [port /local conn res headers d1 d2 line info state awake spec body] [
+
+check-response: function [port] [
     state: port/state
     conn: state/connection
     info: state/info
@@ -455,7 +457,12 @@ http-response-headers: context [
     Transfer-Encoding: _
     Last-Modified: _
 ]
-do-redirect: func [port [port!] new-uri [url! string! file!] /local spec state] [
+
+do-redirect: func [
+    port [port!]
+    new-uri [url! string! file!]
+    <local> spec state
+][
     spec: port/spec
     state: port/state
     if #"/" = first new-uri [
@@ -490,7 +497,8 @@ do-redirect: func [port [port!] new-uri [url! string! file!] /local spec state] 
         state/awake make event! [type: 'error port: port]
     ]
 ]
-check-data: func [port /local headers res data out chunk-size mk1 mk2 trailer state conn] [
+
+check-data: function [port] [
     state: port/state
     headers: state/info/headers
     conn: state/connection

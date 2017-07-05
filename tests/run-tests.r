@@ -19,11 +19,7 @@ do %include.r
 
 do %test-framework.r
 
-run-tests: func [
-    tests
-    /local
-    result log-file summary log-file-prefix suffix
-] [
+run-tests: function [tests] [
     if dir? tests [
         tests: dirize tests
         change-dir tests
@@ -40,7 +36,7 @@ run-tests: func [
 
     print "Testing ..."
     change-dir first split-path tests
-    set [log-file summary] do-recover tests [] blank log-file-prefix
+    set [log-file: summary:] do-recover tests [] blank log-file-prefix
 ]
 
 run-tests to-rebol-file system/script/args

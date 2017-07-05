@@ -15,7 +15,7 @@ Rebol [
 
 line-number?: func [
     s [string! binary!]
-    /local t line-number
+    <local> t line-number
 ] [
     line-number: 1
     t: head s

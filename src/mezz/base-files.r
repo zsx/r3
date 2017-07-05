@@ -100,7 +100,7 @@ make-dir: func [
     "Creates the specified directory. No error if already exists."
     path [file! url!]
     /deep "Create subdirectories too"
-    /local dirs end created
+    <local> dirs end created
 ][
     if empty? path [return path]
     if slash <> last path [path: dirize path]
@@ -147,7 +147,7 @@ make-dir: func [
 delete-dir: func [
     {Deletes a directory including all files and subdirectories.}
     dir [file! url!]
-    /local files
+    <local> files
 ][
     if all [
         dir? dir
@@ -183,7 +183,7 @@ file-type?: func [
 split-path: func [
     "Splits and returns directory path and file as a block."
     target [file! url! string!]
-    /local dir pos
+    <local> dir pos
 ][
     parse target [
         [#"/" | 1 2 #"." opt #"/"] end (dir: dirize target) |

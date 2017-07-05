@@ -306,7 +306,7 @@ parse-args: function [
 
 fix-win32-path: func [
     path [file!]
-    /local letter colon
+    <local> letter colon
 ][
     if 3 != fourth system/version [return path] ;non-windows system
 

@@ -906,7 +906,7 @@ for-each [action name modules] user-config/extensions [
         ]
         * - [
             item: _
-            forall builtin-extensions [
+            for-next builtin-extensions [
                 if builtin-extensions/1/name = name [
                     item: take builtin-extensions
                     if all [

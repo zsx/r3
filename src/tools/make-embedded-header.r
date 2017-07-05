@@ -31,7 +31,7 @@ replace/all inp "<ce>" "##" ;bug in tcc??
 ;remove "#define __BASE_FILE__" to avoid duplicates
 remove-macro: proc [
     macro [any-string!]
-    /local pos-m inc eol
+    <local> pos-m inc eol
 ][
     unless binary? macro [macro: to binary! macro]
     pos-m: find inp macro

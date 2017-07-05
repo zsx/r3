@@ -107,7 +107,7 @@ array: func [
     size [integer! block!] "Size or block of sizes for each dimension"
     /initial "Specify an initial value for all elements"
     value "Initial value (will be called each time if a function)"
-    /local block rest
+    <local> block rest
 ][
     if block? size [
         if tail? rest: next size [rest: _]
@@ -440,7 +440,7 @@ extract: func [
     value "The value to use (will be called each time if a function)"
     /into "Insert into a buffer instead (returns position after insert)"
     output [any-series!] "The buffer series (modified)"
-    /local len val
+    <local> len val
 ][  ; Default value is "" for any-string! output
     if zero? width [return any [output make series 0]]  ; To avoid an infinite loop
     len: either positive? width [  ; Length to preallocate

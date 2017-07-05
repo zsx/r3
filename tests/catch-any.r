@@ -55,7 +55,7 @@ make object! [
         return: [<opt> any-value!]
         block [block!] {block to evaluate}
         exception [word!] {used to return the exception type}
-        /local result
+        <local> result
     ][
         ; !!! outdated comment, RETURN/REDO no longer exists, look into what
         ; this was supposed to be for.  --HF

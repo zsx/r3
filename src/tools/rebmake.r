@@ -28,10 +28,6 @@ ends-with?: func [
     ]
 ]
 
-starts-with?: specialize 'find? [
-    match: true
-]
-
 filter-flag: function [
     flag [any-string!]
     prefix [any-string!]
@@ -1477,24 +1473,22 @@ visual-studio: make generator-class [
     find-compile-as: function [
         cflags [block!]
     ][
-        compile-as: _
-        while [not tail? cflags] [
+        for-next cflags [
             if i: filter-flag/leading-char cflags/1 "msc" #"/" [
                 case [
-                    starts-with? i "/TP" [
-                        compile-as: "CompileAsCpp"
+                    parse i ["/TP" to end] [
+                        remove cflags
+                        return "CompileAsCpp"
                     ]
-                    starts-with? i "/TC" [
-                        compile-as: "CompileAsC"
+                    parse i ["/TC" to end] [
+                        remove cflags
+                        return "CompileAsC"
                     ]
-                ] then [
-                    remove cflags
-                    return compile-as
                 ]
             ]
             cflags: next cflags
         ]
-        compile-as
+        return blank
     ]
 
     find-stack-size: function [

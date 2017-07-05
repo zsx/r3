@@ -12,12 +12,12 @@ error-template: trim/auto {
     <a href="http://www.rebol.com/rebol3/">REBOL 3</a> $r3</body></html>
 }
 
-error-response: func [code uri /local values] [
+error-response: func [code uri <local> values] [
     values: [code (code) text (code-map/:code) uri (uri) r3 (system/version)]
     reduce [code "text/html" reword error-template compose values]
 ]
 
-start-response: func [port res /local code text type body] [
+start-response: func [port res <local> code text type body] [
     set [code type body] res
     write port unspaced [
         "HTTP/1.0" space code space code-map/:code crlf
@@ -70,7 +70,7 @@ awake-client: function [event] [
     ]
 ]
 
-awake-server: func [event /local client] [
+awake-server: func [event <local> client] [
     if event/type = 'accept [
         client: first event/port
         client/awake: :awake-client
@@ -78,7 +78,7 @@ awake-server: func [event /local client] [
     ]
 ]
 
-serve: func [web-port web-root /local listen-port] [
+serve: func [web-port web-root <local> listen-port] [
     listen-port: open join-of tcp://: web-port
     listen-port/locals: has compose/deep [
         config: [root: (web-root)]

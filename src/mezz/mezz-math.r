@@ -20,7 +20,7 @@ pi: 3.14159265358979323846
 ++: func [
     {Increment an integer or series index. Return its prior value.}
     'word [word!] "Integer or series variable"
-    /local prior
+    <local> prior
 ][
     also (prior: get word) (
         set word either series? prior [next prior] [prior + 1]
@@ -30,7 +30,7 @@ pi: 3.14159265358979323846
 --: func [
     {Decrement an integer or series index. Return its prior value.}
     'word [word!] "Integer or series variable"
-    /local prior
+    <local> prior
 ][
     also (prior: get word) (
         set word either series? prior [back prior] [prior - 1]
@@ -93,7 +93,7 @@ minimum-of: func [
     series [any-series!] {Series to search}
     /skip {Treat the series as records of fixed size}
     size [integer!]
-    /local spot
+    <local> spot
 ][
     size: any [size 1]
     if 1 > size [cause-error 'script 'out-of-range size]
@@ -109,7 +109,7 @@ maximum-of: func [
     series [any-series!] {Series to search}
     /skip {Treat the series as records of fixed size}
     size [integer!]
-    /local spot
+    <local> spot
 ][
     size: any [:size 1]
     if 1 > size [cause-error 'script 'out-of-range size]
@@ -124,7 +124,7 @@ maximum-of: func [
 ; A simple iterative implementation; returns 1 for negative
 ; numbers. FEEL FREE TO IMPROVE THIS!
 ;
-factorial: func [n [integer!] /local res] [
+factorial: func [n [integer!] <local> res] [
     if n < 2 [return 1]
     res: 1
     ; should avoid doing the loop for i = 1...

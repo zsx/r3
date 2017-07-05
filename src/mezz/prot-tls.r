@@ -1236,7 +1236,7 @@ sys/make-scheme [
     actor: [
         read: func [
             port [port!]
-            /local
+            <local>
                 resp data msg
         ][
             debug ["READ" open? port/state/connection]
@@ -1253,7 +1253,7 @@ sys/make-scheme [
             ]
         ]
 
-        open: func [port [port!] /local conn] [
+        open: func [port [port!] <local> conn] [
             if port/state [return port]
 
             unless port/spec/host [
@@ -1331,7 +1331,7 @@ sys/make-scheme [
             all? [port/state open? port/state/connection]
         ]
 
-        close: func [port [port!] /local ctx] [
+        close: func [port [port!] <local> ctx] [
             unless port/state [return port]
 
             close port/state/connection
