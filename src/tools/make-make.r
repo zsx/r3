@@ -279,8 +279,20 @@ add-new-obj-folders: procedure [
     ]
 ]
 
+set [cc cc-exe] any [
+    find user-config/toolset 'gcc
+    find user-config/toolset 'cl
+]
 
-set [cc cc-exe linker linker-exe] user-config/toolset
+set [linker linker-exe] any [
+    find user-config/toolset 'ld
+    find user-config/toolset 'link
+]
+
+set [strip strip-exe] any [
+    find user-config/toolset 'strip
+]
+
 switch cc [
     gcc [
         rebmake/default-compiler: rebmake/gcc
@@ -304,6 +316,12 @@ switch cc [
     ]
 ][
     fail ["Unrecognized compiler (gcc or cl):" cc]
+]
+
+if strip [
+    rebmake/default-strip: rebmake/strip
+    rebmake/default-strip/options: [<gnu:-S> <gnu:-x> <gnu:-X>]
+    set-exec-path rebmake/default-strip strip-exe
 ]
 
 system-config: config-system user-config/os-id
@@ -1106,6 +1124,16 @@ app: make rebmake/application-class [
         (ext-objs)
         (app-config/libraries)
     ]
+    post-build-commands: either cfg-symbols [
+        _
+    ][
+        reduce [
+            make rebmake/cmd-strip-class [
+                file: join-of output opt rebmake/target-platform/exe-suffix
+            ]
+        ]
+    ]
+
     searches: app-config/searches
     ldflags: app-config/ldflags
     cflags: app-config/cflags
@@ -1155,6 +1183,17 @@ for-each ext dynamic-extensions [
             (app) ;all dynamic extensions depend on r3
             (app-config/libraries)
         ] ext-libs
+
+        post-build-commands: either cfg-symbols [
+            _
+        ][
+            reduce [
+                make rebmake/cmd-strip-class [
+                    file: join-of output opt rebmake/target-platform/dll-suffix
+                ]
+            ]
+        ]
+
         ldflags: to-value unless empty? ext-ldflags [ext-ldflags]
     ]
 
@@ -1220,6 +1259,22 @@ clean: make rebmake/entry-class [
     ]
 ]
 
+check: make rebmake/entry-class [
+    target: "check"
+    depends: join-of dynamic-libs app
+    commands: append reduce [
+        make rebmake/cmd-strip-class [
+            file: join-of app/output opt rebmake/target-platform/exe-suffix
+        ]
+    ] map-each s dynamic-libs [
+        make rebmake/cmd-strip-class [
+            file: join-of s/output opt rebmake/target-platform/dll-suffix
+        ]
+    ]
+]
+
+;print ["check:" mold check]
+
 solution: make rebmake/solution-class [
     name: 'app
     depends: flatten reduce [
@@ -1233,6 +1288,7 @@ solution: make rebmake/solution-class [
         app
         dynamic-libs
         ext-dynamic-objs
+        check
         clean
     ]
     debug: app-config/debug

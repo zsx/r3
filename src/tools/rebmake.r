@@ -4,6 +4,7 @@ REBOL [
 
 default-compiler: _
 default-linker: _
+default-strip: _
 target-platform: _
 
 map-to-local-file: func [
@@ -252,6 +253,7 @@ application-class: make project-class [
             searches
             ldflags
     ]
+
 ]
 
 dynamic-library-class: make project-class [
@@ -792,6 +794,48 @@ link: make linker-class [
     ]
 ]
 
+strip-class: make object! [
+    class-name: 'linker-class
+    name: _
+    id: _ ;flag prefix
+    exec-file: _
+    options: _
+    commands: function [
+        target [file!]
+        /params flags [block! any-string! blank!]
+        <local>
+        flag
+    ][
+        spaced [
+            case [
+                file? exec-file [to-local-file exec-file]
+                true? exec-file [exec-file]
+                true [ {strip} ]
+            ]
+            if flags: any [
+                all [params flags]
+                options
+            ][
+                case [
+                    block? flags [
+                        spaced map-each flag flags [
+                            filter-flag flag id
+                        ]
+                    ]
+                    string? flags [
+                        flags
+                    ]
+                ]
+            ]
+            to-local-file target
+        ]
+    ]
+]
+
+strip: make strip-class [
+    id: "gnu"
+]
+
 ; includes/definitions/cflags will be inherited from its immediately ancester
 object-file-class: make object! [
     class-name: 'object-file-class
@@ -947,6 +991,25 @@ cmd-delete-class: make object! [
     ]
 ]
 
+cmd-strip-class: make object! [
+    class-name: 'cmd-strip-class
+    file: _
+    options: _
+    strip: _
+    cmd: function [
+        /posix ;ignored
+        <local>
+        tool
+    ][
+        tool: any [:strip :default-strip]
+        either :tool [
+            tool/commands/params file opt options
+        ][
+            ""
+        ]
+    ]
+]
+
 generator-class: make object! [
     class-name: 'generator-class
 
@@ -961,7 +1024,7 @@ generator-class: make object! [
         localize (func [v][either file? v [to-local-file v][v]])
     ][
         if object? cmd [
-            assert [find? [cmd-create-class cmd-delete-class] cmd/class-name]
+            assert [find? [cmd-create-class cmd-delete-class cmd-strip-class] cmd/class-name]
             cmd: cmd/cmd
         ]
         stop: false
@@ -1102,6 +1165,7 @@ makefile: make generator-class [
         /nmake
         <local>
         w
+        cmd
     ][
         switch/default entry/class-name [
             var-class [
@@ -1154,17 +1218,20 @@ makefile: make generator-class [
                         ]
                     ]
                     newline
-                    if entry/commands [
+                    if all [
+                        entry/commands
+                        not empty? entry/commands
+                    ][
                         unspaced [
                             "^-"
                             either block? entry/commands [
-                                delimit map-each cmd entry/commands [
+                                delimit map-each cmd (map-each cmd entry/commands [
                                     either string? cmd [
                                         cmd
                                     ][
                                         cmd/cmd/(all [not nmake 'posix])
                                     ]
-                                ] "^/^-"
+                                ]) [unless empty? cmd [cmd]] "^/^-"
                             ][
                                 either string? entry/commands [
                                     entry/commands
@@ -1424,6 +1491,26 @@ visual-studio: make generator-class [
         {{a95d235d-af5a-4b7b-a5c3-640fe34333e5}}
         {{f5c1f9da-c24b-4160-b121-d16d0ae5b143}}
         {{d08ce3e5-c68d-4f2c-b949-95554081ebfa}}
+        {{4e9e6993-4898-4121-9674-d9924dcead2d}}
+        {{8c972c49-d2ed-4cd1-a11e-5f62a0ca18f6}}
+        {{f4af8888-f2b9-473a-a630-b95dc29b33e3}}
+        {{015eb329-e714-44f1-b6a2-6f08fcbe5ca0}}
+        {{82521230-c50a-4687-b0bb-99fe47ebb2ef}}
+        {{4eb6851f-1b4e-4c40-bdb8-f006eca60bd3}}
+        {{59a8f079-5fb8-4d54-894d-536b120f048e}}
+        {{7f4e6cf3-7a50-4e96-95ed-e001acb44a04}}
+        {{0f3c59b5-479c-4883-8d90-33fc6ca5926c}}
+        {{44ea8d3d-4509-4977-a00e-579dbf50ff75}}
+        {{8782fd76-184b-4f0a-b9fe-260d30bb21ae}}
+        {{7c4813f4-6ffb-4dba-8cf5-6b8c0a390904}}
+        {{452822f8-e133-47ea-9788-7da10de23dc0}}
+        {{6ea04743-626f-43f3-86be-a9fad5cd9215}}
+        {{91c41a9d-4f5a-441a-9e80-c51551c754c3}}
+        {{2a676e01-5fd1-4cbd-a3eb-461b45421433}}
+        {{07bb66be-d5c7-4c08-88cd-534cf18d65c7}}
+        {{f3e1c165-8ae5-4735-beb7-ca2d95f979eb}}
+        {{608f81e0-3057-4a3b-bb9d-2a8a9883f54b}}
+        {{e20f9729-4575-459a-98be-c69167089b8c}}
     ]
 
     emit: function [

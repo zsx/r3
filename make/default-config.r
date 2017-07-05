@@ -23,6 +23,7 @@ toolset: [
     ;name executable-file-path (_ being default)
     gcc _
     ld _
+    strip _
 ]
 
 ;one of 'no', 'assert', 'symbols' or 'sanitize'
