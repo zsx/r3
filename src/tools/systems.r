@@ -203,10 +203,7 @@ linker-flags: make object! [
 ]
 
 ; A little bit of sanity-checking on the systems table
-use [rec unknown-flags used-flags build-flags word context] [
-    ;
-    ; !!! See notes about RETURN from FOR-EACH-RECORD in its definition.
-    ;
+use [unknown-flags used-flags build-flags word context] [
     used-flags: copy []
     for-each-record rec systems [
         ;print ["rec =>" mold rec]
