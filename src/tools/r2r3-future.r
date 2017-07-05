@@ -117,7 +117,6 @@ func: old-func [
     ; FUNCTION would do it.  Since we copied above in order to mutate to
     ; account for differences in the spec language, don't do it again.
     ;
-    print mold spec
     make function! reduce [spec body]
 ]
 
