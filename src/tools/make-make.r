@@ -1231,8 +1231,8 @@ solution: make rebmake/solution-class [
         libr3-core
         libr3-os
         app
-        ext-dynamic-objs
         dynamic-libs
+        ext-dynamic-objs
         clean
     ]
     debug: app-config/debug
