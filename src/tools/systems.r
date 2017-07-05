@@ -47,10 +47,10 @@ systems: [
                 [M]             [HID]
 
     ;-------------------------------------------------------------------------
-    0.3.01      windows-x86     windows [LEN UNI F64 W32]           _
+    0.3.01      windows-x86     windows [LEN UNI F64 W32]           []
                 [W32 M]         [CON S4M]
 
-    0.3.40      windows-x64     windows [LEN UNI F64 W32 LLP64]     _
+    0.3.40      windows-x64     windows [LEN UNI F64 W32 LLP64]     []
                 [W32 M]         [CON S4M]
 
     ;-------------------------------------------------------------------------
@@ -94,21 +94,21 @@ systems: [
                 [M DL]          [HID]
 
     ;-------------------------------------------------------------------------
-    0.5.75      haiku           posix   [LEN LLC]                   _
-                [NWK]           _
+    0.5.75      haiku           posix   [LEN LLC]                   []
+                [NWK]           []
 
     ;-------------------------------------------------------------------------
-    0.7.02      freebsd-x86     posix   [LEN LLC F64]               _
-                [M]             _
+    0.7.02      freebsd-x86     posix   [LEN LLC F64]               []
+                [M]             []
 
-    0.7.40      freebsd-x64     posix   [LEN LLC F64 LP64]          _
-                [M]             _
+    0.7.40      freebsd-x64     posix   [LEN LLC F64 LP64]          []
+                [M]             []
     ;-------------------------------------------------------------------------
-    0.9.04      openbsd-x86     posix   [LEN LLC F64]               _
-                [M]             _
+    0.9.04      openbsd-x86     posix   [LEN LLC F64]               []
+                [M]             []
 
-    0.9.40      openbsd-x64     posix   [LEN LLC F64 LP64]          _
-                [M]             _
+    0.9.40      openbsd-x64     posix   [LEN LLC F64 LP64]          []
+                [M]             []
 
     ;-------------------------------------------------------------------------
     0.13.01     android-arm     android [LEN LLC F64]               [HID PIC]
@@ -214,10 +214,10 @@ use [rec unknown-flags used-flags build-flags word context] [
             | (to-string rec/os-name) == (lowercase to-string rec/os-name)
             | (to-string rec/os-base) == (lowercase to-string rec/os-base)
             | not find (to-string rec/os-base) charset [#"-" #"_"]
-            | any [blank? rec/definitions block? rec/definitions]
-            | any [blank? rec/cflags block? rec/cflags]
-            | any [blank? rec/libraries block? rec/libraries]
-            | any [blank? rec/ldflags block? rec/ldflags]
+            | block? rec/definitions
+            | block? rec/cflags
+            | block? rec/libraries
+            | block? rec/ldflags
         ]
 
         for-each flag rec/definitions [assert [word? flag]]
