@@ -383,7 +383,7 @@ gcc: make compiler-class [
             ]
             if O [
                 case [
-                    all [logic? opt-level opt-level] ["-O2"]
+                    logic? opt-level [either opt-level ["-O2"]["-O0"]]
                     true [unspaced ["-O" opt-level]]
                 ]
             ]

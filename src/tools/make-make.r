@@ -566,7 +566,7 @@ switch/default user-config/debug [
 ]
 
 switch user-config/optimize [
-    #[false] no off [
+    #[false] false no off 0 [
         app-config/optimization: false
     ]
     1 2 3 4 "s" [
