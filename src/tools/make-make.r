@@ -1195,7 +1195,7 @@ for-each ext dynamic-extensions [
             ]
         ]
 
-        ldflags: to-value unless empty? ext-ldflags [ext-ldflags]
+        ldflags: append-of either empty? ext-ldflags [[]][ext-ldflags] [<gnu:-Wl,--as-needed>]
     ]
 
     add-project-flags/I/D/c/O/g ext-proj
