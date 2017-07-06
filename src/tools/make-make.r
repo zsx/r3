@@ -766,6 +766,7 @@ either block? user-config/with-ffi [
                     flags: either user-config/with-ffi = 'static [[static]][_]
                 ]
             ]
+            append app-config/definitions [ {HAVE_LIBFFI_AVAILABLE} ]
         ]
         _ no off false #[false] [
             ;pass
