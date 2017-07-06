@@ -825,8 +825,8 @@ REBNATIVE(resolve)
 //
 //      return: [<opt> any-value!]
 //          {Will be the values set to, or void if any set values are void}
-//      target [blank! any-word! any-path! block!]
-//          {Word or path, or block of words and paths (blanks are no-ops)}
+//      target [any-word! any-path! block!]
+//          {Word or path, or block of words and paths}
 //      value [<opt> any-value!]
 //          "Value or block of values"
 //      /only
@@ -900,7 +900,6 @@ REBNATIVE(set)
         assert(
             ANY_WORD(ARG(target))
             || ANY_PATH(ARG(target))
-            || IS_BLANK(ARG(target))
         );
 
         Move_Value(D_CELL, ARG(target));
@@ -930,12 +929,12 @@ REBNATIVE(set)
         }
 
         if (IS_BAR(target)) {
-            if (NOT_END(value) || NOT(IS_BAR(value)))
-                fail ("BAR! can only line up with other BAR! in SET");
-        }
-        else if (IS_BLANK(target)) {
             //
-            // Just skip it
+            // Just skip it, e.g. `set [a | b] [1 2 3]` sets a to 1, and b
+            // to 3, but drops the 2.  This functionality was achieved
+            // initially with blanks, but with setting in particular there
+            // are cases of `in obj 'word` which give back blank if the word
+            // is not there, so it leads to too many silent errors.
         }
         else if (ANY_WORD(target)) {
             if (REF(lookback) && NOT(IS_FUNCTION(ARG(value))))
