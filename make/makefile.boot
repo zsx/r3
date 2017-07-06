@@ -96,7 +96,7 @@ else
 	BIN_SUFFIX =
 endif
 
-REBOL_TOOL= r3-make$(BIN_SUFFIX)
+REBOL_TOOL= $(CD)r3-make$(BIN_SUFFIX)
 REBOL= $(REBOL_TOOL) -qs
 
 ### Build targets:
