@@ -1425,7 +1425,7 @@ Execution: make generator-class [
                     assert [obj/class-name = 'object-file-class]
                     unless obj/generated? [
                         obj/generated?: true
-                        run-target obj/gen-entries/(all [project/class-name = 'dynamic-library-class 'PIC]) project
+                        run-target obj/gen-entries/(all [p-project/class-name = 'dynamic-library-class 'PIC]) project
                     ]
                 ]
             ]
