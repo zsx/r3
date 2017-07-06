@@ -365,7 +365,7 @@ gcc: make compiler-class [
         spaced [
             case [
                 file? exec-file [to-local-file exec-file]
-                true? exec-file [exec-file]
+                exec-file [exec-file]
                 true [{gcc}]
             ]
             either E ["-E"]["-c"]
@@ -502,7 +502,7 @@ cl: make compiler-class [
         spaced [
             case [
                 file? exec-file [to-local-file exec-file]
-                true? exec-file [exec-file]
+                exec-file [exec-file]
                 true [{cl}]
             ]
             "/nologo" ;suppress display of logo
@@ -600,7 +600,7 @@ ld: make linker-class [
         spaced [
             case [
                 file? exec-file [to-local-file exec-file]
-                true? exec-file [exec-file]
+                exec-file [exec-file]
                 true [{gcc}]
             ]
             if dynamic ["-shared"]
@@ -713,7 +713,7 @@ link: make linker-class [
         spaced [
             case [
                 file? exec-file [to-local-file exec-file]
-                true? exec-file [exec-file]
+                exec-file [exec-file]
                 true [{link}]
             ]
             "/NOLOGO"
@@ -809,7 +809,7 @@ strip-class: make object! [
         spaced [
             case [
                 file? exec-file [to-local-file exec-file]
-                true? exec-file [exec-file]
+                exec-file [exec-file]
                 true [ {strip} ]
             ]
             if flags: any [

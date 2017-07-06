@@ -353,7 +353,7 @@ check-response: function [port] [
             | (info/response-parsed: 'version-not-supported)
         ]
     ]
-    if all [logic? spec/debug true? spec/debug]  [
+    if spec/debug = true [
         spec/debug: info
     ]
     switch/all info/response-parsed [
