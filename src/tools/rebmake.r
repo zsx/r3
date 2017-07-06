@@ -1575,7 +1575,6 @@ visual-studio: make generator-class [
                     ]
                 ]
             ]
-            cflags: next cflags
         ]
         return blank
     ]
