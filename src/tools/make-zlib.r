@@ -43,7 +43,7 @@ file-source: %u-zlib.c
 ; https is in Rebol core, github is not an option; you have to clone
 ; locally and reset this path to wherever you put it.
 ; 
-path-zlib: https://raw.github.com/madler/zlib/master/
+path-zlib: https://raw.githubusercontent.com/madler/zlib/master/
 
 
 ;
@@ -75,10 +75,13 @@ disable-user-includes: func [
         line-iter: next line-iter
     ]
 
-    ; If we inline a header, it should happen once and only once for each
-    unless empty? headers [
-        fail [{Not all headers inlined by make-zlib:} (mold headers)]
+    if inline [
+        ; If we inline a header, it should happen once and only once for each
+        unless empty? headers [
+            fail [{Not all headers inlined by make-zlib:} (mold headers)]
+        ]
     ]
+    return <opt>
 ]
 
 
@@ -202,7 +205,7 @@ for-each c-file [
     append source-lines read/lines join-all [path-zlib c-file]
 ]
 
-disable-user-includes/inline source-lines [%trees.h %inffixed.h %crc32.h]
+disable-user-includes/inline source-lines copy [%trees.h %inffixed.h %crc32.h]
 
 insert source-lines [
     {}
