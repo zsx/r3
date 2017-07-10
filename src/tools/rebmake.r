@@ -1884,7 +1884,7 @@ visual-studio: make generator-class [
     ] {
   </ItemDefinitionGroup>
   <ItemGroup>
-} use [o sources][
+} use [o sources collected][
     sources: make string! 1024
     for-each o project/depends [
         case [
@@ -1943,12 +1943,18 @@ visual-studio: make generator-class [
                     ]
 
                     if o/cflags [
-                        unspaced [
-                            {        <AdditionalOptions>}
-                            spaced map-each i o/cflags [
-                                opt filter-flag/leading-char i "msc" #"/"
+                        collected: map-each i o/cflags [
+                            opt filter-flag/leading-char i "msc" #"/"
+                        ]
+                        unless empty? collected [
+                            unspaced [
+                                {        <AdditionalOptions>}
+                                spaced compose [
+                                    {%(AdditionalOptions)}
+                                    (collected)
+                                ]
+                                {</AdditionalOptions>^/}
                             ]
-                            {</AdditionalOptions>^/}
                         ]
                     ]
                     {    </ClCompile>^/}
