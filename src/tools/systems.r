@@ -47,10 +47,10 @@ systems: [
                 [M]             [HID DYN]
 
     ;-------------------------------------------------------------------------
-    0.3.01      windows-x86     windows [LEN UNI F64 W32 NSEC]      []
+    0.3.01      windows-x86     windows [LEN UNI F64 W32 NSEC]      [WLOSS]
                 [W32 M]         [CON S4M]
 
-    0.3.40      windows-x64     windows [LEN UNI F64 W32 LLP64 NSEC] []
+    0.3.40      windows-x64     windows [LEN UNI F64 W32 LLP64 NSEC] [WLOSS]
                 [W32 M]         [CON S4M]
 
     ;-------------------------------------------------------------------------
@@ -185,6 +185,11 @@ compiler-flags: make object! [
     ; See comments about the glibc version above
     NSP: <gnu:-fno-stack-protector> ; stack protect pulls in glibc 2.4 calls
     PIC: <gnu:-fPIC>                ; Android requires this
+
+    WLOSS: [
+        <msc:/wd4244>               ; conversion' conversion from 'type1' to 'type2', possible loss of data
+        <msc:/wd4267>               ; var' : conversion from 'size_t' to 'type', possible loss of data
+    ]
 ]
 
 system-libraries: make object! [
