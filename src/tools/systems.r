@@ -47,10 +47,10 @@ systems: [
                 [M]             [HID DYN]
 
     ;-------------------------------------------------------------------------
-    0.3.01      windows-x86     windows [LEN UNI F64 W32]           []
+    0.3.01      windows-x86     windows [LEN UNI F64 W32 NSEC]      []
                 [W32 M]         [CON S4M]
 
-    0.3.40      windows-x64     windows [LEN UNI F64 W32 LLP64]     []
+    0.3.40      windows-x64     windows [LEN UNI F64 W32 LLP64 NSEC] []
                 [W32 M]         [CON S4M]
 
     ;-------------------------------------------------------------------------
@@ -139,6 +139,10 @@ system-definitions: make object! [
     W32: <msc:WIN32>              ; aes.c requires this
     UNI: "UNICODE"                ; win32 wants it
     F64: "_FILE_OFFSET_BITS=64"   ; allow larger files
+
+    ; MSC deprecates all non-*_s version string functions
+    ; As Ren-C has been constantly tested with ASAN, this shouldn't be an issue.
+    NSEC: <msc:_CRT_SECURE_NO_WARNINGS>
 
 
     ; There are variations in what functions different compiler versions will
