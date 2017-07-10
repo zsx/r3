@@ -1098,6 +1098,7 @@ generator-class: make object! [
             'application-class target-platform/exe-suffix
             'dynamic-library-class target-platform/dll-suffix
             'static-library-class target-platform/archive-suffix
+            'object-library-class target-platform/archive-suffix
             'object-file-class target-platform/obj-suffix
         ] project/class-name [leave]
 
@@ -1105,8 +1106,16 @@ generator-class: make object! [
 
         case [
             blank? project/output [
-                assert [project/class-name = 'object-file-class]
-                project/output: copy project/source
+                switch/default project/class-name [
+                    object-file-class [
+                        project/output: copy project/source
+                    ]
+                    object-library-class [
+                        project/output: to string! project/name
+                    ]
+                ][
+                    fail ["Unexpected project class:" (project/class-name)]
+                ]
                 output-ext: find/last project/output #"."
                 remove output-ext
                 basename: project/output
@@ -1291,7 +1300,7 @@ makefile: make generator-class [
                     ]
                     append buf gen-rule/(all [nmake 'nmake]) make entry-class [
                         target: dep/output
-                        depends: join-of dep/depends objs
+                        depends: join-of objs map-each ddep dep/depends [unless ddep/class-name = 'object-library-class [ddep]]
                         commands: append reduce [dep/command] opt dep/post-build-commands
                     ]
                     emit buf dep
