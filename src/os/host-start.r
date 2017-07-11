@@ -495,7 +495,7 @@ host-start: function [
             )
         |
             "--script" end (
-                o/script: param-or-die "SCRIPT"
+                o/script: to-rebol-file param-or-die "SCRIPT"
                 quit-when-done: default true ;-- overrides blank, not false
             )
         |
@@ -534,7 +534,7 @@ host-start: function [
     ; the first item after the options is implicitly the script.
     ;
     if all [not o/script | not tail? argv] [
-        o/script: to file! take argv
+        o/script: to-rebol-file take argv
         quit-when-done: default true
     ]
 
