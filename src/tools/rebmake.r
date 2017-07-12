@@ -123,6 +123,10 @@ platform-class: make object! [
     dll-suffix: _
     archive-suffix: _ ;static library
     obj-suffix: _
+
+    gen-cmd-create:
+    gen-cmd-delete:
+    gen-cmd-strip: _
 ]
 
 unknown-platform: make platform-class [
@@ -134,6 +138,33 @@ posix: make platform-class [
     dll-suffix: ".so"
     obj-suffix: ".o"
     archive-suffix: ".a"
+
+    gen-cmd-create: function [
+        cmd [object!]
+    ][
+        either dir? cmd/file [
+            spaced ["mkdir -p" cmd/file]
+        ][
+            spaced ["touch" cmd/file]
+        ]
+    ]
+
+    gen-cmd-delete: function [
+        cmd [object!]
+    ][
+        spaced ["rm -fr" cmd/file]
+    ]
+
+    gen-cmd-strip: function [
+        cmd [object!]
+    ][
+        tool: any [:cmd/strip :default-strip]
+        either :tool [
+            tool/commands/params cmd/file opt cmd/options
+        ][
+            ""
+        ]
+    ]
 ]
 
 linux: make posix [
@@ -155,6 +186,36 @@ windows: make platform-class [
     dll-suffix: ".dll"
     obj-suffix: ".obj"
     archive-suffix: ".lib"
+
+    gen-cmd-create: function [
+        cmd [object!]
+    ][
+        d: to-local-file cmd/file
+        if #"\" = last d [remove back tail d]
+        either dir? cmd/file [
+            spaced ["mkdir" d]
+        ][
+            unspaced ["echo . 2>" d]
+        ]
+    ]
+    gen-cmd-delete: function [
+        cmd [object!]
+    ][
+        d: to-local-file cmd/file
+        if #"\" = last d [remove back tail d]
+        either dir? cmd/file [
+            spaced ["rmdir /S /Q" d]
+        ][
+            spaced ["del" d]
+        ]
+    ]
+
+    gen-cmd-strip: function [
+        cmd [object!]
+    ][
+        ;not implemented
+        _
+    ]
 ]
 
 set-target-platform: func [
@@ -948,51 +1009,11 @@ var-class: make object! [
 cmd-create-class: make object! [
     class-name: 'cmd-create-class
     file: _
-    cmd: function [
-        /posix
-    ][
-        d: to-local-file file
-        either all [
-            not posix
-            Windows = target-platform
-        ][
-            if #"\" = last d [remove back tail d]
-            either dir? file [
-                spaced ["mkdir" d]
-            ][
-                unspaced ["echo . 2>" d]
-            ]
-        ][
-            either dir? file [
-                spaced ["mkdir -p" d]
-            ][
-                spaced ["touch" d]
-            ]
-        ]
-    ]
 ]
 
 cmd-delete-class: make object! [
     class-name: 'cmd-delete-class
     file: _
-    cmd: function [
-        /posix
-    ][
-        d: to-local-file file
-        either all [
-            not posix
-            Windows = target-platform
-        ][
-            if #"\" = last d [remove back tail d]
-            either dir? file [
-                spaced ["rmdir /S /Q" d]
-            ][
-                spaced ["del" d]
-            ]
-        ][
-            spaced ["rm -fr" d]
-        ]
-    ]
 ]
 
 cmd-strip-class: make object! [
@@ -1000,24 +1021,34 @@ cmd-strip-class: make object! [
     file: _
     options: _
     strip: _
-    cmd: function [
-        /posix ;ignored
-        <local>
-        tool
-    ][
-        tool: any [:strip :default-strip]
-        either :tool [
-            tool/commands/params file opt options
-        ][
-            ""
-        ]
-    ]
 ]
 
 generator-class: make object! [
     class-name: 'generator-class
 
     vars: make map! 128
+
+    gen-cmd-create:
+    gen-cmd-delete:
+    gen-cmd-strip: _
+
+    gen-cmd: func [
+        cmd [object!]
+    ][
+        switch/default cmd/class-name [
+            cmd-create-class [
+                apply any [:gen-cmd-create :target-platform/gen-cmd-create] compose [cmd: (cmd)]
+            ]
+            cmd-delete-class [
+                apply any [:gen-cmd-delete :target-platform/gen-cmd-delete] compose [cmd: (cmd)]
+            ]
+            cmd-strip-class [
+                apply any [:gen-cmd-strip :target-platform/gen-cmd-strip] compose [cmd: (cmd)]
+            ]
+        ][
+            fail ["Unkonwn cmd class:" cmd/class-name]
+        ]
+    ]
 
     reify: function [
         "Substitue variables in the command with its value, will recursively substitue if the value has variables"
@@ -1029,8 +1060,10 @@ generator-class: make object! [
     ][
         if object? cmd [
             assert [find? [cmd-create-class cmd-delete-class cmd-strip-class] cmd/class-name]
-            cmd: cmd/cmd
+            cmd: gen-cmd cmd
         ]
+        unless cmd [return _]
+
         stop: false
         while [not stop][
             stop: true
@@ -1173,9 +1206,15 @@ generator-class: make object! [
 ]
 
 makefile: make generator-class [
+    nmake?: false ; Generating for Microsoft nmake
+
+    ;by default makefiles are for POSIX platform
+    gen-cmd-create: :posix/gen-cmd-create
+    gen-cmd-delete: :posix/gen-cmd-delete
+    gen-cmd-strip: :posix/gen-cmd-strip
+
     gen-rule: func [
         entry [object!]
-        /nmake
         <local>
         w
         cmd
@@ -1184,7 +1223,7 @@ makefile: make generator-class [
             var-class [
                 unspaced [
                     entry/name either entry/default [
-                        unspaced [either nmake ["="]["?="] entry/default]
+                        unspaced [either nmake? ["="]["?="] entry/default]
                     ][
                         unspaced ["=" entry/value]
                     ]
@@ -1242,14 +1281,14 @@ makefile: make generator-class [
                                     either string? cmd [
                                         cmd
                                     ][
-                                        cmd/cmd/(all [not nmake 'posix])
+                                        gen-cmd cmd
                                     ]
                                 ]) [unless empty? cmd [cmd]] "^/^-"
                             ][
                                 either string? entry/commands [
                                     entry/commands
                                 ][
-                                    entry/commands/cmd/(all [not nmake 'posix])
+                                    gen-cmd entry/commands
                                 ]
                             ]
                             newline
@@ -1266,7 +1305,6 @@ makefile: make generator-class [
     emit: proc [
         buf [binary!]
         project [object!]
-        /nmake
         /parent parent-object
         <local>
         dep
@@ -1302,7 +1340,7 @@ makefile: make generator-class [
                             append objs obj/depends
                         ]
                     ]
-                    append buf gen-rule/(all [nmake 'nmake]) make entry-class [
+                    append buf gen-rule make entry-class [
                         target: dep/output
                         depends: join-of objs map-each ddep dep/depends [unless ddep/class-name = 'object-library-class [ddep]]
                         commands: append reduce [dep/command] opt dep/post-build-commands
@@ -1315,16 +1353,16 @@ makefile: make generator-class [
                         assert [obj/class-name = 'object-file-class]
                         unless obj/generated? [
                             obj/generated?: true
-                            append buf gen-rule/(all [nmake 'nmake]) obj/gen-entries/(all [project/class-name = 'dynamic-library-class 'PIC]) dep
+                            append buf gen-rule obj/gen-entries/(all [project/class-name = 'dynamic-library-class 'PIC]) dep
                         ]
                     ]
                 ]
                 object-file-class [
                     ;print ["generate object rule"]
-                    append buf gen-rule/(all [nmake 'nmake]) dep/gen-entries project
+                    append buf gen-rule dep/gen-entries project
                 ]
                 entry-class var-class [
-                    append buf gen-rule/(all [nmake 'nmake]) dep
+                    append buf gen-rule dep
                 ]
                 ext-dynamic-class ext-static-class [
                     ;pass
@@ -1339,7 +1377,6 @@ makefile: make generator-class [
     generate: function [
         output [file!]
         solution [object!]
-        /nmake {Generating Microsoft NMake file}
         <with>
         entry-class
     ][
@@ -1348,18 +1385,45 @@ makefile: make generator-class [
 
         prepare solution
 
-        emit/(all [nmake 'nmake]) buf solution
+        emit buf solution
 
         write output buf
     ]
 ]
 
-nmake: make object! [
-    generate: specialize 'makefile/generate [nmake: true]
+nmake: make makefile [
+    nmake?: true
+
+    ; reset them, so they will be chosen by the target platform
+    gen-cmd-create: _
+    gen-cmd-delete: _
+    gen-cmd-strip: _
+]
+
+; For mingw-make on Windows
+mingw-make: make makefile [
+    ; reset them, so they will be chosen by the target platform
+    gen-cmd-create: _
+    gen-cmd-delete: _
+    gen-cmd-strip: _
 ]
 
 ; Execute the command to generate the target directly
 Execution: make generator-class [
+    host: switch/default system/platform/1 [
+        Windows [windows]
+        Linux [linux]
+        OSX [osx]
+        Android [android]
+    ][
+        print unspaced ["Untested platform " system/platform ", assuming is POSIX compilant"]
+        posix
+    ]
+
+    gen-cmd-create: :host/gen-cmd-create
+    gen-cmd-delete: :host/gen-cmd-delete
+    gen-cmd-strip: :host/gen-cmd-strip
+
     run-target: proc [
         target [object!]
         /cwd dir [file!]
