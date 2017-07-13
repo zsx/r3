@@ -423,6 +423,8 @@ gcc: make compiler-class [
         flg
         fs
     ][
+        if file? output [output: to-local-file output]
+        if file? source [source: to-local-file source]
         spaced [
             case [
                 file? exec-file [to-local-file exec-file]
@@ -1232,7 +1234,8 @@ makefile: make generator-class [
             ]
             entry-class [
                 unspaced [
-                    entry/target ":" space case [
+                    either file? entry/target [to-local-file entry/target][entry/target]
+                    ":" space case [
                         block? entry/depends [
                             spaced map-each w entry/depends [
                                 switch/default w/class-name [
