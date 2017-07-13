@@ -587,7 +587,7 @@ cl: make compiler-class [
                 case [
                     opt-level = true ["/O2"]
                     not any [
-                        false? opt-level
+                        not opt-level
                         zero? opt-level
                     ][unspaced ["/O" opt-level]]
                 ]
