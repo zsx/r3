@@ -383,18 +383,20 @@ gcc: make compiler-class [
             ]
             if O [
                 case [
-                    logic? opt-level [either opt-level ["-O2"]["-O0"]]
-                    true [unspaced ["-O" opt-level]]
+                    opt-level = true ["-O2"]
+                    opt-level = false ["-O0"]
+                    integer? opt-level [unspaced ["-O" opt-level]]
+                    true [fail ["unrecognized optimization level:" opt-level]]
                 ]
             ]
             if g [
                 ;print mold debug
                 case [
                     blank? debug [] ;FIXME: _ should be passed in at all
-                    all [logic? debug debug]["-g -g3"]
-                    all [logic? debug not debug][]
-                    integer? debug [ unspaced ["-g" debug]]
-                    true [fail spaced ["unrecognized debug option:" debug]]
+                    debug = true ["-g -g3"]
+                    debug = false []
+                    integer? debug [unspaced ["-g" debug]]
+                    true [fail ["unrecognized debug option:" debug]]
                 ]
             ]
             if all [F block? cflags][
@@ -449,18 +451,20 @@ tcc: make compiler-class [
             ]
             if O [
                 case [
-                    all [logic? opt-level opt-level] ["-O2"]
-                    true [unspaced ["-O" opt-level]]
+                    opt-level = true ["-O2"]
+                    opt-level = false ["-O0"]
+                    integer? opt-level [unspaced ["-O" opt-level]]
+                    true [fail ["unknown optimization level" opt-level]]
                 ]
             ]
             if g [
                 ;print mold debug
                 case [
                     blank? debug [] ;FIXME: _ should be passed in at all
-                    all [logic? debug debug]["-g"]
-                    all [logic? debug not debug][]
-                    integer? debug [ unspaced ["-g" debug]]
-                    true [fail spaced ["unrecognized debug option:" debug]]
+                    debug = true ["-g"]
+                    debug = false []
+                    integer? debug [unspaced ["-g" debug]]
+                    true [fail ["unrecognized debug option:" debug]]
                 ]
             ]
             if all [F block? cflags][
@@ -520,7 +524,7 @@ cl: make compiler-class [
             ]
             if O [
                 case [
-                    all [logic? opt-level opt-level] ["/O2"]
+                    opt-level = true ["/O2"]
                     not any [
                         false? opt-level
                         zero? opt-level
@@ -1041,7 +1045,7 @@ generator-class: make object! [
                     | skip
                 ]
             ][
-                fail spaced ["failed to do var substitution:" cmd]
+                fail ["failed to do var substitution:" cmd]
             ]
         ]
         cmd
@@ -1255,7 +1259,7 @@ makefile: make generator-class [
                 ]
             ]
         ][
-            fail spaced ["Unrecognized entry class:" entry/class-name]
+            fail ["Unrecognized entry class:" entry/class-name]
         ]
     ]
 
@@ -1327,7 +1331,7 @@ makefile: make generator-class [
                 ]
             ][
                 dump dep
-                fail spaced ["unrecognized project type:" dep/class-name]
+                fail ["unrecognized project type:" dep/class-name]
             ]
         ]
     ]
@@ -1456,7 +1460,7 @@ Execution: make generator-class [
             ]
         ][
             dump project
-            fail spaced ["unrecognized project type:" project/class-name]
+            fail ["unrecognized project type:" project/class-name]
         ]
     ]
 ]

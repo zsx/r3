@@ -245,7 +245,7 @@ use [unknown-flags used-flags build-flags word context] [
                 words-of context
             unless empty? unknown-flags [
                 print mold unknown-flags
-                fail spaced ["Unknown" word "used in %systems.r specification"]
+                fail ["Unknown" word "used in %systems.r specification"]
             ]
             used-flags: union used-flags any [build-flags []]
         ]

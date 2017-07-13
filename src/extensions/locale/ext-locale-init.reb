@@ -470,7 +470,7 @@ unless 'Windows = first system/platform [
             opt [#"_" copy territory: [some letter]]
             to end
         ][
-            print spaced ["Malformated env LANG:" env-lang]
+            print ["Malformated env LANG:" env-lang]
             return _
         ]
 
@@ -485,7 +485,7 @@ unless 'Windows = first system/platform [
                 all [territory select iso-3166 territory]
             ]
             true [
-                fail spaced ["Invalid locale type:" type]
+                fail ["Invalid locale type:" type]
             ]
         ]
     ]
