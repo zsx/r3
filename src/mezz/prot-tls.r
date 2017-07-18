@@ -1251,6 +1251,7 @@ sys/make-scheme [
                 ]
                 return port
             ]
+            return blank
         ]
 
         open: func [port [port!] <local> conn] [

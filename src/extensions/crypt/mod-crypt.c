@@ -106,7 +106,7 @@ static void cleanup_rc4_ctx(const REBVAL *v)
 //
 //  "Encrypt/decrypt data (modifies) using RC4 algorithm."
 //
-//      return: [handle!]
+//      return: [handle! logic!]
 //          "Returns stream cipher context handle."
 //      /key
 //          "Provided only for the first time to get stream HANDLE!"
@@ -148,10 +148,14 @@ static REBNATIVE(rc4)
         return R_TRUE;
     }
 
-    if (IS_BINARY(ARG(crypt_key))) { // Key defined - setup new context
+    if (REF(key)) { // Key defined - setup new context
         RC4_CTX *rc4_ctx = ALLOC_ZEROFILL(RC4_CTX);
 
-        RC4_setup(rc4_ctx, VAL_BIN_AT(ARG(key)), VAL_LEN_AT(ARG(key)));
+        RC4_setup(
+            rc4_ctx,
+            VAL_BIN_AT(ARG(crypt_key)),
+            VAL_LEN_AT(ARG(crypt_key))
+        );
 
         Init_Handle_Managed(D_OUT, rc4_ctx, 0, &cleanup_rc4_ctx);
         return R_OUT;
