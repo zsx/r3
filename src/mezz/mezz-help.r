@@ -269,10 +269,12 @@ browse: procedure [
 
 help: procedure [
     "Prints information about words and values (if no args, general help)."
-    'word [<end> any-value!]
-    /doc "Open web browser to related documentation."
+    :topic [<end> any-value!]
+        "WORD! whose value to explain, or other HELP target (try HELP HELP)"
+    /doc
+        "Open web browser to related documentation."
 ][
-    if not set? 'word [
+    if not set? 'topic [
         ;
         ; Was just `>> help` or `do [help]` or similar.
         ; Print out generic help message.
@@ -332,59 +334,45 @@ help: procedure [
         leave
     ]
 
-                ;docs - open DocBase document wiki website
-                ;demo - run demo launcher (from rebol.com)
-
-
-;           Word completion:
-;
-;               The command line can perform word
-;               completion. Type a few chars and press TAB
-;               to complete the word. If nothing happens,
-;               there may be more than one word that
-;               matches. Press TAB again to see choices.
-;
-;               Local filenames can also be completed.
-;               Begin the filename with a %.
-;
-;           Other useful functions:
-;
-;               about - see general product info
-;               usage - view program options
-;               license - show terms of user license
-;               source func - view source of a function
-;               upgrade - updates your copy of REBOL
-;
-;           More information: http://www.rebol.com/docs.html
+    ; HELP quotes, but someone might want to use an expression, e.g.
+    ; `help (...)`.  However, enfix functions which hard quote the left would
+    ; win over a soft-quoting non-enfix function that quotes to the right.
+    ; (It is generally discouraged to make hard-quoting left enfix functions,
+    ; but they exist...e.g. DEFAULT.)  To make sure HELP DEFAULT works, HELP
+    ; must hard quote and simulate its own soft quote semantics.
+    ;
+    if maybe [group! get-word! get-path!] :topic [
+        topic: reduce target
+    ]
 
     r3n: https://r3n.github.io/
 
     ;; help #topic (browse r3n for topic)
-    if issue? :word [
+    if issue? :topic [
         say-browser
-        browse join-all [r3n "topics/" next to-string :word]
+        browse join-all [r3n "topics/" next to-string :topic]
         leave
     ]
 
-    if all [word? :word | blank? context-of word] [
-        print [word "is an unbound WORD!"]
+    if all [word? :topic | blank? context-of topic] [
+        print [topic "is an unbound WORD!"]
         leave
     ]
 
-    if all [word? :word | not set? word] [
-        print [word "is bound to a context, but has no value."]
+    if all [word? :topic | not set? topic] [
+        print [topic "is a WORD! bound to a context, but has no value."]
         leave
     ]
 
     ; Open the web page for it?
     if all [
         doc
-        word? :word
-        any [function? get :word datatype? get :word]
+        word? :topic
+        maybe [function! datatype!] get :topic
     ][
-        item: form :word
+        item: form :topic
         browse join-of 
-        either function? get :word [
+        either function? get :topic [
             for-each [a b] [ ; need a better method !
                 "!" "-ex"
                 "?" "-q"
@@ -406,25 +394,25 @@ help: procedure [
         [item tmp]
     ]
 
-    if all [word? :word | set? :word | datatype? get :word] [
-        types: dump-obj/match make lib system/contexts/user :word
+    if all [word? :topic | set? :topic | datatype? get :topic] [
+        types: dump-obj/match make lib system/contexts/user :topic
         if not empty? types [
-            print ["Found these" (uppercase form word) "words:" newline types]
+            print ["Found these" (uppercase form topic) "words:" newline types]
         ] else [
-            print [word {is a datatype}]
+            print [topic {is a datatype}]
         ]
         leave
     ]
 
     ; If arg is a string, search the system:
-    if string? :word [
-        types: dump-obj/match make lib system/contexts/user :word
+    if string? :topic [
+        types: dump-obj/match make lib system/contexts/user :topic
         sort types
         if not empty? types [
             print ["Found these related words:" newline types]
             leave
         ]
-        print ["No information on" word]
+        print ["No information on" topic]
         leave
     ]
 
@@ -436,8 +424,8 @@ help: procedure [
     ]
 
     ; Print literal values:
-    if not any [word? :word path? :word][
-        print [mold :word "is" type-name :word]
+    if not any [word? :topic | path? :topic][
+        print [mold :topic "is" type-name :topic]
         leave
     ]
 
@@ -445,24 +433,24 @@ help: procedure [
     ; we have to read the infixness off of the word before GETting it.
 
     ; Get value (may be a function, so handle with ":")
-    either path? :word [
+    either path? :topic [
         print ["!!! NOTE: Infix testing not currently supported for paths !!!"]
         lookback: false
         if any [
-            error? set/opt 'value trap [get :word] ;trap reduce [to-get-path word]
+            error? value: trap [get :topic] ;trap reduce [to-get-path topic]
             not set? 'value
         ][
-            print ["No information on" word "(path has no value)"]
+            print ["No information on" topic "(path has no value)"]
             leave
         ]
     ][
-        lookback: lookback? :word
-        value: get :word
+        lookback: lookback? :topic
+        value: get :topic
     ]
 
     unless function? :value [
         print/only spaced [
-            (uppercase mold word) "is" (type-name :value) "of value: "
+            (uppercase mold topic) "is" (type-name :value) "of value: "
         ]
         print unspaced collect [
             either maybe [object! port!] value [
@@ -477,7 +465,7 @@ help: procedure [
 
     ; Must be a function...
     ; If it has refinements, strip them:
-    ;if path? :word [word: first :word]
+    ;if path? :topic [topic: first :topic]
 
     space4: unspaced [space space space space] ;-- use instead of tab
 
@@ -498,9 +486,9 @@ help: procedure [
     ; !!! Should refinement args be shown for lookback case??
     ;
     either lookback [
-        print [space4 args/1 (uppercase mold word) next args]
+        print [space4 args/1 (uppercase mold topic) next args]
     ][
-        print [space4 (uppercase mold word) args refinements]
+        print [space4 (uppercase mold topic) args refinements]
     ]
 
     ; Dig deeply, but try to inherit the most specific meta fields available
@@ -560,7 +548,7 @@ help: procedure [
             |
         space4 (any [description | "(undocumented)"])
             |
-        space4 (uppercase mold word) {is} classification {.}
+        space4 (uppercase mold topic) {is} classification {.}
     ]
 
     print-args: procedure [list /indent-words] [
