@@ -468,6 +468,9 @@ redescribe [
     {Define an action with set-words as locals, that doesn't return a value.}
 ] :procedure
 
+; Though this name is questionable, it's nice to be easier to call
+;
+semiquote: specialize 'identity [quote: true]
 
 get*: redescribe [
     {Variation of GET which returns void if the source is not set}
@@ -729,8 +732,6 @@ nfix?: function [
             "Use LOOKBACK? for generalized (tricky) testing"
         ]
     ]
-
-
 ]
 
 endfix?: redescribe [

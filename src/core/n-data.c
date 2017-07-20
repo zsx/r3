@@ -1126,24 +1126,37 @@ REBNATIVE(semiquoted_q)
 
 
 //
-//  semiquote: native [
+//  identity: native [
 //
-//  {Marks a function argument to be treated as if it had been literal source}
+//  {Function for returning the same value that it got in (identity function)}
 //
-//      value [any-value!]
+//      return: [<opt> any-value!]
+//      value [<opt> any-value!]
+//      /quote
+//          {Make it seem that the return result was quoted}
 //  ]
 //
-REBNATIVE(semiquote)
+REBNATIVE(identity)
+//
+// https://en.wikipedia.org/wiki/Identity_function
+// https://stackoverflow.com/q/3136338
+//
+// !!! Quoting version is currently specialized as SEMIQUOTE, for convenience.
 {
-    INCLUDE_PARAMS_OF_SEMIQUOTE;
+    INCLUDE_PARAMS_OF_IDENTITY;
 
     Move_Value(D_OUT, ARG(value));
 
-    // We cannot set the VALUE_FLAG_UNEVALUATED bit here and make it stick,
-    // because the bit would just get cleared off by Do_Core when the
-    // function finished.  So ask the evaluator to set the bit for us.
+    if (REF(quote)) {
+        //
+        // We can't set the VALUE_FLAG_UNEVALUATED bit here and make it stick,
+        // because the bit would just get cleared off by Do_Core when the
+        // function finished.  So ask the evaluator to set the bit for us.
+        //
+        return R_OUT_UNEVALUATED;
+    }
 
-    return R_OUT_UNEVALUATED;
+    return R_OUT; // clears VALUE_FLAG_UNEVALUATED by default
 }
 
 

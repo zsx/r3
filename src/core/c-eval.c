@@ -1612,7 +1612,11 @@ reevaluate:;
             goto finished;
         }
 
-        CLEAR_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED);
+        // Leave VALUE_FLAG_UNEVALUATED as it was.  If we added it, then
+        // things like `if condition (semiquote do [1 + 1])` wouldn't work, so
+        // one would be forced to write `if condition semiquote do [1 + 1]`.
+        // This would limit the flexiblity of grouping.
+        //
         break; }
 
 //==//////////////////////////////////////////////////////////////////////==//
