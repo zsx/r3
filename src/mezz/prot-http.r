@@ -162,7 +162,7 @@ make-http-error: func [
     "Make an error for the HTTP protocol"
     msg [string! block!]
     /inf obj
-    /otherhost new-url [url!]
+    /otherhost new-url [url!] headers
 ] [
     ; cannot call it "message" because message is the error template.  :-/
     ; hence when the error is created it has message defined as blank, and
@@ -191,6 +191,7 @@ make-http-error: func [
                 type: 'Access
                 id: 'Protocol
                 arg1: msg
+                arg2: headers
                 arg3: new-url
             ]
         ]
@@ -314,7 +315,7 @@ check-response: function [port] [
             if trap? [
                 body: to string! conn/data
                 dump body
-            ][print ajoin ["S: " length-of conn/data " binary bytes in buffer ..."]]
+            ][print unspaced ["S: " length-of conn/data " binary bytes in buffer ..."]]
         ]
     ]
     unless headers [
@@ -393,7 +394,7 @@ check-response: function [port] [
                     ]
                     in headers 'Location
                 ] [
-                    res: do-redirect port headers/location
+                    res: do-redirect port headers/location headers
                 ] [
                     state/error: make-http-error/inf "Redirect requires manual intervention" info
                     res: awake make event! [type: 'error port: port]
@@ -461,6 +462,7 @@ http-response-headers: context [
 do-redirect: func [
     port [port!]
     new-uri [url! string! file!]
+    headers
     <local> spec state
 ][
     spec: port/spec
@@ -493,7 +495,7 @@ do-redirect: func [
     ] [
         state/error: make-http-error/otherhost
             "Redirect to other host - requires custom handling"
-            as url! unspaced [new-uri/scheme "://" new-uri/host new-uri/path]
+            as url! unspaced [new-uri/scheme "://" new-uri/host new-uri/path] headers
         state/awake make event! [type: 'error port: port]
     ]
 ]
