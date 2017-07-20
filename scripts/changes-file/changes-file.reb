@@ -310,11 +310,15 @@ make-changes-file: procedure [
     ;; summary text for each change
     for-each release changes-block [
         ;; ## [version]
-        write-line either/only release/date [
-            {## [} release/version {]}
-            { - } release/date
+        write-line either release/date [
+            [
+                {## [} release/version {]}
+                { - } release/date
+            ]
         ][
-            {## [} release/version {]}
+            [
+                {## [} release/version {]}
+            ]
         ]
 
         ;; ### Category (type)

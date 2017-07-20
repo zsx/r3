@@ -106,7 +106,6 @@ load-header: function [
         "Script header is required"
 
     <has>
-
     non-ws (make bitset! [not 1 - 32])
 ][
     ; This function decodes the script header from the script body.
@@ -154,10 +153,10 @@ load-header: function [
         ]
 
         ; get 'rebol keyword
-        set* [key: rest:] transcode/only data blank
+        set* [key: rest:] transcode/only data [blank]
 
         ; get header block
-        set* [hdr: rest:] transcode/next/relax rest blank
+        set* [hdr: rest:] transcode/next/relax rest [blank]
 
         not block? :hdr [
             ; header block is incomplete
@@ -245,11 +244,12 @@ load-header: function [
                         return 'bad-compress
                     ]
 
-                    if all [sum sum != checksum/secure rest] [
+                    if all [sum | sum != checksum/secure rest] [
                         return 'bad-checksum
                     ]
                 ]
-                all [sum sum != checksum/secure/part tmp back end] [
+
+                all [sum | sum != checksum/secure/part tmp back end] [
                     return 'bad-checksum
                 ]
             ]
@@ -384,11 +384,9 @@ load: function [
 
         ;-- Bind code to user context:
         not any [
-            'unbound = :ftype ;-- may be void
-                |
-            'module = select hdr 'type
-                |
-            find select hdr 'options 'unbound
+            | 'unbound = :ftype ;-- may be void
+            | 'module = select hdr 'type
+            | find select hdr 'options 'unbound
         ][
             data: intern data
         ]
@@ -753,7 +751,9 @@ load-module: function [
             set [hdr: code:] load-header/required data
             case [
                 word? hdr [cause-error 'syntax hdr source]
-                import blank ; /import overrides 'delay option
+                import [
+                    ; /import overrides 'delay option
+                ]
                 not delay [delay: find? hdr/options 'delay]
             ]
             if hdr/checksum [modsum: copy hdr/checksum]
@@ -781,9 +781,8 @@ load-module: function [
         ; See if it's there already, or there is something more recent
         all [
             ; set to false later if existing module is used
-            override?: not no-lib
-
-            set [name0: mod0: sum0:] pos: find/skip system/modules name 3
+            | override?: not no-lib
+            | set [name0: mod0: sum0:] pos: find/skip system/modules name 3
         ] [
             ; Get existing module's info
             case/all [
@@ -943,7 +942,9 @@ import: function [
     ]
 
     case [
-        mod  blank  ; success!
+        mod [
+            ; success!
+        ]
 
         word? module [
             ; Module (as word!) is not loaded already, so let's try to find it.
@@ -979,10 +980,13 @@ import: function [
     ; Do any imports to the user context that are necessary.
     ; The lib imports were handled earlier by LOAD-MODULE.
     case [
-        ; Do nothing if /no-user or no exports.
-        no-user  blank
-        not block? exports: select hdr: meta-of mod 'exports  blank
-        empty? exports  blank
+        any [
+            | no-user
+            | not block? exports: select hdr: meta-of mod 'exports
+            | empty? exports
+        ][
+            ; Do nothing if /no-user or no exports.
+        ]
 
         any [
             no-lib
@@ -1004,13 +1008,15 @@ import: function [
 
 
 load-extension: function [
-    file [file! handle!] "library file or handle to init function in the builtin extension"
-    /no-user "Do not export to the user context"
-    /no-lib "Do not export to the lib context"
+    file [file! handle!]
+        "library file or handle to init function in the builtin extension"
+    /no-user
+        "Do not export to the user context"
+    /no-lib
+        "Do not export to the lib context"
 ][
-
     ext: load-extension-helper file
-    ;print ["ext:" mold ext]
+
     if locked? ext [; already loaded
         return ext
     ]
@@ -1035,12 +1041,12 @@ load-extension: function [
     modules: make block! 1
     for-each [spec impl error-base] ext/modules [
         append modules apply 'load-ext-module [
-                spec: spec
-                impl: impl
-                error-base: error-base
-                unloadable: true
-                no-user: no-user
-                no-lib: no-lib
+            spec: spec
+            impl: impl
+            error-base: error-base
+            unloadable: true
+            no-user: no-user
+            no-lib: no-lib
         ]
     ]
 

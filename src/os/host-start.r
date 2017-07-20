@@ -422,7 +422,7 @@ host-start: function [
             "--do" end (
                 o/quiet: true ;-- don't print banner, just run code string
                 do-string: param-or-die "DO"
-                quit-when-done: default true ;-- override blank, not false
+                quit-when-done: default [true] ;-- override blank, not false
             )
         |
             ["--halt" | "-h"] end (
@@ -431,7 +431,7 @@ host-start: function [
         |
             ["--help" | "-?"] end (
                 usage
-                quit-when-done: default true
+                quit-when-done: default [true]
             )
         |
             "--import" end (
@@ -496,7 +496,7 @@ host-start: function [
         |
             "--script" end (
                 o/script: to-rebol-file param-or-die "SCRIPT"
-                quit-when-done: default true ;-- overrides blank, not false
+                quit-when-done: default [true] ;-- overrides blank, not false
             )
         |
             ["-t" | "--trace"] end (
@@ -509,7 +509,7 @@ host-start: function [
         |
             ["-v" | "-V" | "--version"] end (
                 boot-print ["Rebol 3" system/version] ;-- version tuple
-                quit-when-done: default true
+                quit-when-done: default [true]
             )
         |
             "-w" end (
@@ -535,7 +535,7 @@ host-start: function [
     ;
     if all [not o/script | not tail? argv] [
         o/script: to-rebol-file take argv
-        quit-when-done: default true
+        quit-when-done: default [true]
     ]
 
     ; Whatever is left is the positional arguments, available to the script.
@@ -678,7 +678,7 @@ comment [
 
     ; Evaluate any script argument, e.g. `r3 test.r` or `r3 --script test.r`
     ;
-    either file? o/script [
+    if file? o/script [
         trap/with [
             do/only/args o/script script-args ;-- /ONLY so QUIT/WITH exit code bubbles out
         ] func [error <with> return] [
@@ -686,6 +686,7 @@ comment [
             return 1
         ]
     ]
+
     host-start: 'done
 
     ; Evaluate the DO string, e.g. `r3 --do "print {Hello}"`
@@ -774,9 +775,9 @@ comment [
     ] else [
        loud-print [
             space space
-            either/only proto-skin/loaded? {Loaded skin} {Skin does not exist}
+            either proto-skin/loaded? {Loaded skin} {Skin does not exist}
             "-" skin-file
-            unspaced ["(CONSOLE " unless/only proto-skin/updated? {not } "updated)"]
+            spaced ["(CONSOLE" unless proto-skin/updated? {not} "updated)"]
         ]
     ]
 

@@ -101,7 +101,7 @@ read-sync-awake: function [event [event!]] [
             event/port/state/error: _
             fail error
         ]
-    ] else false
+    ] else [false]
 ]
 
 http-awake: function [event] [
@@ -155,7 +155,7 @@ http-awake: function [event] [
             close http-port
             res
         ]
-    ] else true
+    ] else [true]
 ]
 
 make-http-error: func [
