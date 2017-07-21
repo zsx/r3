@@ -407,7 +407,7 @@ REBOOL Redo_Func_Throws(REBFRM *f, REBFUN *func_new)
         }
 
         if (pclass == PARAM_CLASS_REFINEMENT) {
-            if (IS_CONDITIONAL_FALSE(f->arg)) {
+            if (IS_FALSEY(f->arg)) {
                 //
                 // If the refinement is not in use, do not add it and ignore
                 // args until the next refinement.

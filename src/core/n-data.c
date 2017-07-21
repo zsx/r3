@@ -125,7 +125,7 @@ REBNATIVE(verify)
             return R_OUT_IS_THROWN;
         }
 
-        if (!IS_VOID(D_OUT) && IS_CONDITIONAL_TRUE(D_OUT))
+        if (!IS_VOID(D_OUT) && IS_TRUTHY(D_OUT))
             continue;
 
         Init_Block(
@@ -173,7 +173,7 @@ inline static REB_R Do_Test_For_Maybe(
         if (IS_VOID(out))
             fail (Error_No_Return_Raw());
 
-        if (IS_CONDITIONAL_FALSE(out))
+        if (IS_FALSEY(out))
             return R_BLANK;
 
         Move_Value(out, value);
@@ -205,7 +205,7 @@ REBNATIVE(maybe)
     REBVAL *value = ARG(value);
 
     if (IS_LOGIC(test)) {
-        if (!IS_VOID(value) && VAL_LOGIC(test) == IS_CONDITIONAL_TRUE(value))
+        if (!IS_VOID(value) && VAL_LOGIC(test) == IS_TRUTHY(value))
             goto type_matched;
         return REF(q) ? R_FALSE : R_BLANK;
     }
@@ -257,7 +257,7 @@ type_matched:
     // why /? (and its specialization MAYBE?) exist, but to help avoid
     // likely mistakes this returns a void.
     //
-    if (IS_CONDITIONAL_FALSE(value))
+    if (IS_FALSEY(value))
         return R_VOID;
 
     return R_OUT;
@@ -1332,7 +1332,7 @@ REBNATIVE(to_logic)
 {
     INCLUDE_PARAMS_OF_TO_LOGIC;
 
-    return R_FROM_BOOL(IS_CONDITIONAL_TRUE(ARG(value)));
+    return R_FROM_BOOL(IS_TRUTHY(ARG(value)));
 }
 
 

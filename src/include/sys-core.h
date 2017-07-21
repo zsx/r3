@@ -703,7 +703,7 @@ inline static void SET_SIGNAL(REBFLGS f) {
 #else
     #define LEGACY(option) ( \
         (PG_Boot_Phase >= BOOT_ERRORS) \
-        && IS_CONDITIONAL_TRUE(Get_System(SYS_OPTIONS, (option))) \
+        && IS_TRUTHY(Get_System(SYS_OPTIONS, (option))) \
     )
 
     #define LEGACY_RUNNING(option) \

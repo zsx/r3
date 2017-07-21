@@ -150,7 +150,7 @@ REBNATIVE(new_line)
     INCLUDE_PARAMS_OF_NEW_LINE;
 
     RELVAL *value = VAL_ARRAY_AT(ARG(position));
-    REBOOL mark = IS_CONDITIONAL_TRUE(ARG(mark));
+    REBOOL mark = IS_TRUTHY(ARG(mark));
     REBINT skip = 0;
     REBCNT n;
 

@@ -1571,7 +1571,7 @@ REBNATIVE(subparse)
 
                         FETCH_NEXT_RULE_MAYBE_END(f);
 
-                        if (IS_CONDITIONAL_TRUE(condition))
+                        if (IS_TRUTHY(condition))
                             continue;
 
                         P_POS = NOT_FOUND;

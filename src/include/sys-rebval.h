@@ -106,7 +106,7 @@
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  VALUE_FLAG_CONDITIONAL_FALSE
+//  VALUE_FLAG_FALSEY
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -125,7 +125,7 @@
 // the modern codebase, this optimization may need to be sacrificed to
 // reclaim the bit for a "higher purpose".
 //
-#define VALUE_FLAG_CONDITIONAL_FALSE \
+#define VALUE_FLAG_FALSEY \
     FLAGIT_LEFT(GENERAL_VALUE_BIT + 0)
 
 

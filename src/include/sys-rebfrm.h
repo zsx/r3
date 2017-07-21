@@ -561,9 +561,9 @@ struct Reb_Frame {
     //   left-hand argument of a lookback operation.  After that fulfillment,
     //   it will be transitioned to EMPTY_BLOCK.
     //
-    // Because of how this lays out, IS_CONDITIONAL_TRUE() can be used to
-    // determine if an argument should be type checked normally...while
-    // IS_CONDITIONAL_FALSE() means that the arg's bits must be set to void.
+    // Because of how this lays out, IS_TRUTHY() can be used to determine if
+    // an argument should be type checked normally...while IS_FALSEY() means
+    // that the arg's bits must be set to void.
     //
     REBVAL *refine;
     REBOOL doing_pickups; // want to encode

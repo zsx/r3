@@ -74,9 +74,7 @@ REBNATIVE(if)
 {
     INCLUDE_PARAMS_OF_IF;
 
-    // Test is "safe", e.g. no literal blocks like `if [x] [...]`
-    //
-    if (IS_CONDITIONAL_TRUE_SAFE(ARG(condition))) {
+    if (IS_CONDITIONAL_TRUE(ARG(condition), REF(only))) {
         if (Run_Branch_Throws(D_OUT, ARG(branch), REF(only)))
             return R_OUT_IS_THROWN;
 
@@ -109,9 +107,7 @@ REBNATIVE(unless)
 {
     INCLUDE_PARAMS_OF_UNLESS;
 
-    // Test is "safe", e.g. no literal blocks like `unless [x] [...]`
-    //
-    if (NOT(IS_CONDITIONAL_TRUE_SAFE(ARG(condition)))) {
+    if (IS_CONDITIONAL_FALSE(ARG(condition), REF(only))) {
         if (Run_Branch_Throws(D_OUT, ARG(branch), REF(only)))
             return R_OUT_IS_THROWN;
 
@@ -143,9 +139,7 @@ REBNATIVE(either)
 {
     INCLUDE_PARAMS_OF_EITHER;
 
-    // Test is "safe", e.g. no literal blocks like `either [x] [...] [...]`
-    //
-    if (IS_CONDITIONAL_TRUE_SAFE(ARG(condition))) {
+    if (IS_CONDITIONAL_TRUE(ARG(condition), REF(only))) {
         if (Run_Branch_Throws(D_OUT, ARG(true_branch), REF(only)))
             return R_OUT_IS_THROWN;
     }
@@ -190,7 +184,7 @@ REBNATIVE(all)
         if (IS_VOID(D_CELL)) // voids do not "vote" true or false
             continue;
 
-        if (IS_CONDITIONAL_FALSE(D_CELL)) { // a failed ALL returns BLANK!
+        if (IS_FALSEY(D_CELL)) { // a failed ALL returns BLANK!
             Drop_Frame(f);
             return R_BLANK;
         }
@@ -235,7 +229,7 @@ REBNATIVE(any)
         if (IS_VOID(D_OUT)) // voids do not "vote" true or false
             continue;
 
-        if (IS_CONDITIONAL_TRUE(D_OUT)) { // successful ANY returns the value
+        if (IS_TRUTHY(D_OUT)) { // successful ANY returns the value
             Drop_Frame(f);
             return R_OUT;
         }
@@ -284,7 +278,7 @@ REBNATIVE(none)
         if (IS_VOID(D_OUT)) // voids do not "vote" true or false
             continue;
 
-        if (IS_CONDITIONAL_TRUE(D_OUT)) { // any true results mean failure
+        if (IS_TRUTHY(D_OUT)) { // any true results mean failure
             Drop_Frame(f);
             return R_BLANK;
         }
@@ -364,7 +358,7 @@ REBNATIVE(case)
         // `foo: [x] | case [foo [y]]`, since it is evaluated, or use a
         // GROUP! as in `case [([x]) [y]]`.
         //
-        if (NOT(IS_CONDITIONAL_TRUE_SAFE(D_CELL))) {
+        if (IS_CONDITIONAL_FALSE(D_CELL, REF(only))) {
             if (Do_Next_In_Frame_Throws(D_CELL, f)) {
                 Move_Value(D_OUT, D_CELL);
                 goto return_thrown;
@@ -548,9 +542,7 @@ return_defaulted:
     Drop_Frame(f);
 
     if (REF(default)) {
-        const REBOOL only = FALSE; // !!! Should it use REF(only)?
-
-        if (Run_Branch_Throws(D_OUT, ARG(default_case), only))
+        if (Run_Branch_Throws(D_OUT, ARG(default_case), REF(opt)))
             return R_OUT_IS_THROWN;
 
         if (REF(opt))

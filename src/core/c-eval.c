@@ -216,9 +216,9 @@ static inline void Link_Vararg_Param_To_Frame(REBFRM *f, REBOOL make) {
 //   left-hand argument of a lookback operation.  After that fulfillment,
 //   it will be transitioned to EMPTY_BLOCK.
 //
-// Because of how this lays out, IS_CONDITIONAL_TRUE() can be used to
+// Because of how this lays out, IS_TRUTHY() can be used to
 // determine if an argument should be type checked normally...while
-// IS_CONDITIONAL_FALSE() means that the arg's bits must be set to void.
+// IS_FALSEY() means that the arg's bits must be set to void.
 //
 // These special values are all pointers to read-only cells, but are cast to
 // mutable in order to be held in the same pointer that might write to a
@@ -645,7 +645,7 @@ reevaluate:;
                     if (!IS_LOGIC(f->arg))
                         fail (Error_Non_Logic_Refinement(f));
 
-                    if (IS_CONDITIONAL_TRUE(f->arg))
+                    if (IS_TRUTHY(f->arg))
                         f->refine = f->arg; // remember so we can revoke!
                     else
                         f->refine = ARG_TO_UNUSED_REFINEMENT; // (read-only)
@@ -947,7 +947,7 @@ reevaluate:;
 
             assert(
                 f->refine == ORDINARY_ARG
-                || (IS_LOGIC(f->refine) && IS_CONDITIONAL_TRUE(f->refine))
+                || (IS_LOGIC(f->refine) && IS_TRUTHY(f->refine))
             );
 
     //=//// ERROR ON END MARKER, BAR! IF APPLICABLE //////////////////////=//
@@ -1066,7 +1066,7 @@ reevaluate:;
                 f->refine == LOOKBACK_ARG ||
                 f->refine == ARG_TO_UNUSED_REFINEMENT ||
                 f->refine == ARG_TO_REVOKED_REFINEMENT ||
-                (IS_LOGIC(f->refine) && IS_CONDITIONAL_TRUE(f->refine)) // used
+                (IS_LOGIC(f->refine) && IS_TRUTHY(f->refine)) // used
             );
 
             if (IS_VOID(f->arg)) {
@@ -1083,7 +1083,7 @@ reevaluate:;
                     f->refine = ARG_TO_REVOKED_REFINEMENT;
                     goto continue_arg_loop; // don't type check for optionality
                 }
-                else if (IS_CONDITIONAL_FALSE(f->refine)) {
+                else if (IS_FALSEY(f->refine)) {
                     //
                     // FALSE means the refinement has already been revoked so
                     // the void is okay.  BLANK! means the refinement was
@@ -1104,7 +1104,7 @@ reevaluate:;
                 // If the argument is set, then the refinement shouldn't be
                 // in a revoked or unused state.
                 //
-                if (IS_CONDITIONAL_FALSE(f->refine))
+                if (IS_FALSEY(f->refine))
                     fail (Error_Bad_Refine_Revoke(f));
             }
 
@@ -1326,7 +1326,7 @@ reevaluate:;
         case R_OUT_VOID_IF_UNWRITTEN_TRUTHIFY:
             if (IS_END(f->out))
                 Init_Void(f->out);
-            else if (IS_VOID(f->out) || IS_CONDITIONAL_FALSE(f->out))
+            else if (IS_VOID(f->out) || IS_FALSEY(f->out))
                 Init_Bar(f->out);
             else
                 CLEAR_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED);

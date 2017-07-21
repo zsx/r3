@@ -523,8 +523,8 @@ REBINT PD_Bitset(REBPVS *pvs)
         ser,
         pvs->picker,
         BITS_NOT(ser)
-            ? IS_CONDITIONAL_FALSE(pvs->opt_setval)
-            : IS_CONDITIONAL_TRUE(pvs->opt_setval)
+            ? IS_FALSEY(pvs->opt_setval)
+            : IS_TRUTHY(pvs->opt_setval)
     )) {
         return PE_OK;
     }

@@ -710,7 +710,7 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
     c_cast(const REBVAL*, &PG_Blank_Value[0])
 
 #define Init_Blank(v) \
-    VAL_RESET_HEADER_EXTRA((v), REB_BLANK, VALUE_FLAG_CONDITIONAL_FALSE)
+    VAL_RESET_HEADER_EXTRA((v), REB_BLANK, VALUE_FLAG_FALSEY)
 
 #ifdef NDEBUG
     #define Init_Unreadable_Blank(v) \
@@ -727,7 +727,7 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
 #else
     #define Init_Unreadable_Blank(v) \
         VAL_RESET_HEADER_EXTRA((v), REB_BLANK, \
-            VALUE_FLAG_CONDITIONAL_FALSE | BLANK_FLAG_UNREADABLE_DEBUG)
+            VALUE_FLAG_FALSEY | BLANK_FLAG_UNREADABLE_DEBUG)
 
     inline static REBOOL IS_BLANK_RAW(const RELVAL *v) {
         return LOGICAL(VAL_TYPE_RAW(v) == REB_BLANK);
@@ -762,7 +762,7 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
             VAL_RESET_HEADER_EXTRA_Debug(
                 v,
                 REB_BLANK,
-                VALUE_FLAG_CONDITIONAL_FALSE | BLANK_FLAG_UNREADABLE_DEBUG,
+                VALUE_FLAG_FALSEY | BLANK_FLAG_UNREADABLE_DEBUG,
                 file,
                 line
             );
@@ -805,47 +805,57 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
 
 #define Init_Logic(v,b) \
     VAL_RESET_HEADER_EXTRA((v), REB_LOGIC, \
-        (b) ? 0 : VALUE_FLAG_CONDITIONAL_FALSE)
+        (b) ? 0 : VALUE_FLAG_FALSEY)
 
 #ifdef NDEBUG
-    #define IS_CONDITIONAL_FALSE(v) \
-        GET_VAL_FLAG((v), VALUE_FLAG_CONDITIONAL_FALSE)
+    #define IS_FALSEY(v) \
+        GET_VAL_FLAG((v), VALUE_FLAG_FALSEY)
 #else
-    inline static REBOOL IS_CONDITIONAL_FALSE_Debug(
+    inline static REBOOL IS_FALSEY_Debug(
         const RELVAL *v, const char *file, int line
     ){
         if (IS_VOID(v)) {
             printf("Conditional true/false test on void\n");
             panic_at (v, file, line);
         }
-        return GET_VAL_FLAG(v, VALUE_FLAG_CONDITIONAL_FALSE);
+        return GET_VAL_FLAG(v, VALUE_FLAG_FALSEY);
     }
 
-    #define IS_CONDITIONAL_FALSE(v) \
-        IS_CONDITIONAL_FALSE_Debug((v), __FILE__, __LINE__)
+    #define IS_FALSEY(v) \
+        IS_FALSEY_Debug((v), __FILE__, __LINE__)
 #endif
 
-#define IS_CONDITIONAL_TRUE(v) \
-    NOT(IS_CONDITIONAL_FALSE(v)) // macro gets file + line # in debug build
+#define IS_TRUTHY(v) \
+    NOT(IS_FALSEY(v)) // macro gets file + line # in debug build
 
 // Although a BLOCK! value is true, some constructs are safer by not allowing
 // literal blocks.  e.g. `if [x] [print "this is not safe"`.  The evaluated
 // bit can let these instances be distinguished.  Note that making *all*
 // evaluations safe would be limiting, e.g. `foo: any [false-thing []]`.
 //
-inline static REBOOL IS_CONDITIONAL_TRUE_SAFE(const REBVAL *v) {
-    if (IS_BLOCK(v)) {
+inline static REBOOL IS_CONDITIONAL_TRUE(const REBVAL *v, REBOOL only) {
+    if (NOT(only) && IS_BLOCK(v)) {
         if (GET_VAL_FLAG(v, VALUE_FLAG_UNEVALUATED))
             fail (Error_Block_Conditional_Raw(v));
             
         return TRUE;
     }
-    return IS_CONDITIONAL_TRUE(v);
+    return IS_TRUTHY(v);
+}
+
+inline static REBOOL IS_CONDITIONAL_FALSE(const REBVAL *v, REBOOL only) {
+    if (NOT(only) && IS_BLOCK(v)) {
+        if (GET_VAL_FLAG(v, VALUE_FLAG_UNEVALUATED))
+            fail (Error_Block_Conditional_Raw(v));
+            
+        return FALSE;
+    }
+    return IS_FALSEY(v);
 }
 
 inline static REBOOL VAL_LOGIC(const RELVAL *v) {
     assert(IS_LOGIC(v));
-    return NOT_VAL_FLAG((v), VALUE_FLAG_CONDITIONAL_FALSE);
+    return NOT_VAL_FLAG((v), VALUE_FLAG_FALSEY);
 }
 
 

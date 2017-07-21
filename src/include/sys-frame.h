@@ -333,7 +333,7 @@ inline static void SET_FRAME_VALUE(REBFRM *f, const RELVAL *value) {
         FUNC_PARAM(frame_->phase, (p_##name)) /* a TYPESET! */
 
     #define REF(name) \
-        IS_CONDITIONAL_TRUE(ARG(name))
+        IS_TRUTHY(ARG(name))
 #else
     struct Native_Param {
         enum Reb_Kind kind_cache;
@@ -356,7 +356,7 @@ inline static void SET_FRAME_VALUE(REBFRM *f, const RELVAL *value) {
 
     #define REFINE(n,name) \
         const struct Native_Refine p_##name = { \
-            IS_CONDITIONAL_TRUE(FRM_ARG(frame_, (n))), /* watchlist cache */ \
+            IS_TRUTHY(FRM_ARG(frame_, (n))), /* watchlist cache */ \
             FRM_ARG(frame_, (n)), /* watchlist cache */ \
             (n) \
         }
@@ -369,8 +369,8 @@ inline static void SET_FRAME_VALUE(REBFRM *f, const RELVAL *value) {
 
     #define REF(name) \
         ((p_##name).used_cache /* used_cache use stops REF() on PARAM()s */ \
-            ? IS_CONDITIONAL_TRUE(ARG(name)) \
-            : IS_CONDITIONAL_TRUE(ARG(name)))
+            ? IS_TRUTHY(ARG(name)) \
+            : IS_TRUTHY(ARG(name)))
 #endif
 
 

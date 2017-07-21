@@ -45,7 +45,7 @@ REBNATIVE(and_q)
 {
     INCLUDE_PARAMS_OF_AND_Q;
 
-    if (IS_CONDITIONAL_TRUE(ARG(value1)) && IS_CONDITIONAL_TRUE(ARG(value2)))
+    if (IS_TRUTHY(ARG(value1)) && IS_TRUTHY(ARG(value2)))
         return R_TRUE;
 
     return R_FALSE;
@@ -65,7 +65,7 @@ REBNATIVE(nor_q)
 {
     INCLUDE_PARAMS_OF_NOR_Q;
 
-    if (IS_CONDITIONAL_FALSE(ARG(value1)) && IS_CONDITIONAL_FALSE(ARG(value2)))
+    if (IS_FALSEY(ARG(value1)) && IS_FALSEY(ARG(value2)))
         return R_TRUE;
 
     return R_FALSE;
@@ -86,7 +86,7 @@ REBNATIVE(nand_q)
     INCLUDE_PARAMS_OF_NAND_Q;
 
     return R_FROM_BOOL(LOGICAL(
-        IS_CONDITIONAL_TRUE(ARG(value1)) && IS_CONDITIONAL_TRUE(ARG(value2))
+        IS_TRUTHY(ARG(value1)) && IS_TRUTHY(ARG(value2))
     ));
 }
 
@@ -104,7 +104,7 @@ REBNATIVE(not_q)
 {
     INCLUDE_PARAMS_OF_NOT_Q;
 
-    return R_FROM_BOOL(IS_CONDITIONAL_FALSE(ARG(value)));
+    return R_FROM_BOOL(IS_FALSEY(ARG(value)));
 }
 
 
@@ -122,7 +122,7 @@ REBNATIVE(or_q)
     INCLUDE_PARAMS_OF_OR_Q;
 
     return R_FROM_BOOL(LOGICAL(
-        IS_CONDITIONAL_TRUE(ARG(value1)) || IS_CONDITIONAL_TRUE(ARG(value2))
+        IS_TRUTHY(ARG(value1)) || IS_TRUTHY(ARG(value2))
     ));
 }
 
@@ -143,7 +143,7 @@ REBNATIVE(xor_q)
     // Note: no boolean ^^ in C; normalize to booleans and check unequal
     //
     return R_FROM_BOOL(LOGICAL(
-        !IS_CONDITIONAL_TRUE(ARG(value1)) != !IS_CONDITIONAL_TRUE(ARG(value2))
+        !IS_TRUTHY(ARG(value1)) != !IS_TRUTHY(ARG(value2))
     ));
 }
 
@@ -172,7 +172,7 @@ void MAKE_Logic(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
     // "zero is false" concept?  Is there a reason it should?
     //
     if (
-        IS_CONDITIONAL_FALSE(arg)
+        IS_FALSEY(arg)
         || (IS_INTEGER(arg) && VAL_INT64(arg) == 0)
         || (
             (IS_DECIMAL(arg) || IS_PERCENT(arg))
@@ -198,7 +198,7 @@ void TO_Logic(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
     // interpreter canon that all non-none non-logic-false values are
     // considered effectively "truth".
     //
-    Init_Logic(out, IS_CONDITIONAL_TRUE(arg));
+    Init_Logic(out, IS_TRUTHY(arg));
 }
 
 

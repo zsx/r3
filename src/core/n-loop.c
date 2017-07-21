@@ -619,7 +619,7 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
             // a CONTINUE with no /WITH (which most sensibly does not do
             // a removal.)
             //
-            if (IS_VOID(D_OUT) || IS_CONDITIONAL_FALSE(D_OUT)) {
+            if (IS_VOID(D_OUT) || IS_FALSEY(D_OUT)) {
                 //
                 // memory areas may overlap, so use memmove and not memcpy!
                 //
@@ -646,7 +646,7 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
             if (IS_VOID(D_OUT)) {
                 // Unsets "opt out" of the vote, as with ANY and ALL
             }
-            else if (IS_CONDITIONAL_FALSE(D_OUT))
+            else if (IS_FALSEY(D_OUT))
                 Init_Blank(D_CELL); // at least one false means blank result
             else if (IS_END(D_CELL) || !IS_BLANK(D_CELL))
                 Move_Value(D_CELL, D_OUT);
@@ -1043,7 +1043,7 @@ REBNATIVE(loop)
 
     REBI64 count;
 
-    if (IS_CONDITIONAL_FALSE(ARG(count))) {
+    if (IS_FALSEY(ARG(count))) {
         //
         // A NONE! or LOGIC! FALSE means don't run the loop at all.
         //
@@ -1182,7 +1182,7 @@ inline static REB_R Loop_While_Until_Core(REBFRM *frame_, REBOOL trigger)
             goto skip_check;
 
     perform_check:;
-    } while (IS_CONDITIONAL_TRUE(D_OUT) == trigger);
+    } while (IS_TRUTHY(D_OUT) == trigger);
 
     // Though LOOP-UNTIL will always have a truthy result, LOOP-WHILE never
     // will, and needs to have the result overwritten with something TRUE?
@@ -1191,7 +1191,7 @@ inline static REB_R Loop_While_Until_Core(REBFRM *frame_, REBOOL trigger)
     if (trigger == TRUE)
         return R_BAR;
 
-    assert(IS_CONDITIONAL_TRUE(D_OUT));
+    assert(IS_TRUTHY(D_OUT));
     return R_OUT;
 }
 
@@ -1256,7 +1256,7 @@ inline static REB_R While_Until_Core(REBFRM *frame_, REBOOL trigger)
         if (IS_VOID(D_CELL))
             fail (Error_No_Return_Raw());
 
-        if (IS_CONDITIONAL_TRUE(D_CELL) != trigger) {
+        if (IS_TRUTHY(D_CELL) != trigger) {
             //
             // Successfully completed loops aren't allowed to return a
             // FALSE? value, so they get BAR! as a truthy-result if the
