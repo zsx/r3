@@ -60,7 +60,7 @@ register-codec*: func [
 
 
 ; Special import case for extensions:
-append system/options/file-types (switch fourth system/version [
+append system/options/file-types switch fourth system/version [
     3 [
         [%.rx %.dll extension] ; Windows
     ]
@@ -73,7 +73,7 @@ append system/options/file-types (switch fourth system/version [
     ]
 ] else [
     [%.rx extension]
-])
+]
 
 
 decode: function [

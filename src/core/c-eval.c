@@ -874,12 +874,6 @@ reevaluate:;
 
                 switch (pclass) {
                 case PARAM_CLASS_NORMAL:
-                    //
-                    // The deferment of arguments for normal parameters means
-                    // this situation should not happen--only an END marker
-                    // should be in f->out if fulfilling an argument.
-                    //
-                    assert(NOT(f->flags.bits & DO_FLAG_FULFILLING_ARG));
                     Move_Value(f->arg, f->out);
                     break;
 
@@ -2022,20 +2016,7 @@ reevaluate:;
         f->eval_type = REB_FUNCTION;
 
         if (GET_VAL_FLAG(f->gotten, VALUE_FLAG_ENFIXED)) {
-            if (
-                GET_VAL_FLAG(f->gotten, FUNC_FLAG_DEFERS_LOOKBACK)
-                && (f->flags.bits & DO_FLAG_FULFILLING_ARG)
-            ){
-                // This is the special case; we have a lookback function
-                // pending but it wants to defer its first argument as
-                // long as possible--and we're on the last parameter of
-                // some function.  Skip the "lookahead" and let whoever
-                // is gathering arguments (or whoever's above them) finish
-                // the expression before taking the pending operation.
-                //
-                assert(NOT(f->flags.bits & DO_FLAG_TO_END));
-            }
-            else if (GET_VAL_FLAG(f->gotten, FUNC_FLAG_QUOTES_FIRST_ARG)) {
+            if (GET_VAL_FLAG(f->gotten, FUNC_FLAG_QUOTES_FIRST_ARG)) {
                 //
                 // Left-quoting by enfix needs to be done in the lookahead
                 // before an evaluation, not this one that's after.  This
@@ -2048,7 +2029,46 @@ reevaluate:;
                 //
                 fail (Error_Lookback_Quote_Too_Late(f->value, f->specifier));
             }
+
+            if (
+                GET_VAL_FLAG(f->gotten, FUNC_FLAG_DEFERS_LOOKBACK)
+                && (f->flags.bits & DO_FLAG_FULFILLING_ARG)
+                && NOT(f->flags.bits & DO_FLAG_DAMPEN_DEFER)
+            ){
+                assert(NOT(f->flags.bits & DO_FLAG_TO_END));
+                assert(Is_Function_Frame_Fulfilling(f->prior));
+
+                // We have a lookback function pending, but it wants its first
+                // argument to be one "complete expression".  Consider ELSE in
+                // the case of:
+                //
+                //     print if false ["a"] else ["b"]
+                //
+                // The first time ELSE is seen, PRINT and IF are on the stack
+                // above it, fulfilling their arguments...and we've just
+                // written `["a"]` into f->out in the switch() above.  ELSE
+                // wants us to let IF finish before it runs, but it doesn't
+                // want to repeat the deferment a second time, such that PRINT
+                // completes also before running.
+                //
+                // Defer this lookahead, but tell the frame above (e.g. IF in
+                // the above example) not to continue this pattern when it
+                // finishes and sees itself in the same position.
+                //
+                assert(NOT(f->prior->flags.bits & DO_FLAG_DAMPEN_DEFER));
+                f->prior->flags.bits |= DO_FLAG_DAMPEN_DEFER;
+            }
             else {
+                // The DAMPEN_DEFER bit should only be set if we're taking
+                // the result now for a deferred lookback function.  Clear it
+                // in any case.
+                //
+                assert(
+                    NOT(f->flags.bits & DO_FLAG_DAMPEN_DEFER)
+                    || GET_VAL_FLAG(f->gotten, FUNC_FLAG_DEFERS_LOOKBACK)
+                );
+                f->flags.bits &= ~DO_FLAG_DAMPEN_DEFER;
+
                 // This is a case for an evaluative lookback argument we
                 // don't want to defer, e.g. a #tight argument or a normal
                 // one which is not being requested in the context of

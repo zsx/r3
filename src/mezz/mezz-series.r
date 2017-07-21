@@ -560,11 +560,11 @@ format: function [
     for-each rule rules [
         if word? :rule [rule: get rule]
 
-        val: val + (switch type-of :rule [
+        val: val + switch type-of :rule [
             :integer! [abs rule]
             :string! [length-of rule]
             :char! [1]
-        ] else 0)
+        ] else 0
     ]
 
     out: make string! val
@@ -630,7 +630,7 @@ split: function [
         size: dlm   ; alias for readability
         
         res: collect [
-            parse series (case [
+            parse series case [
                 all [integer? size | into] [
                     if size < 1 [cause-error 'Script 'invalid-arg size]
                     count: size - 1
@@ -660,7 +660,7 @@ split: function [
                         keep/only copy/part mk1 mk2
                     )]
                 ]
-            ])
+            ]
         ]
 
         ; Special processing, to handle cases where the spec'd more items in

@@ -581,7 +581,7 @@ host-start: function [
     ;;       file (below) -> o/bin (would have been same)
 
 comment [
-    lib/secure (case [
+    lib/secure case [
         o/secure [
             o/secure
         ]
@@ -590,7 +590,7 @@ comment [
         ]
     ] else [
         compose [file throw (file) [allow read] %. allow] ; default
-    ])
+    ]
 ]
 
     ;
