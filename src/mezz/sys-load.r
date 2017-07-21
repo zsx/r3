@@ -508,8 +508,9 @@ do-needs: function [
     ]
 
     case [
-        block [mods] ; /block: return block of modules
-        not empty? to-value :mixins [mixins] ; else return mixins, if any
+        block [mods] ; /block refinement asks for block of modules
+        not empty? to-value :mixins [mixins] ; else if any mixins, return them
+        true [blank] ; return blank otherwise
     ]
 ]
 
