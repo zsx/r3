@@ -47,7 +47,7 @@ gt: (pick [>] 1)
 gteq: (pick [>=] 1)
 dv: (pick [/] 1) ;-- "slash" is the character #"/"
 dvdv: (pick [//] 1)
-should-be-empty-tag: (pick [<>] 1)
+ltgt: (pick [<>] 1)
 
 right-arrow: bind (pick make block! "->" 1) context-of 'lambda
 left-arrow: bind (pick make block! "<-" 1) context-of 'lambda
@@ -56,29 +56,38 @@ right-flag: bind (pick make block! "|>" 1) context-of 'lambda
 
 
 ; While Ren-C has no particular concept of "infix OP!s" as a unique datatype,
-; a function which is arity-2 and bound lookback to a variable acts similarly. 
-; Yet the default is to obey the same lookahead rules as prefix operations
-; historically applied.  Also, the left hand argument will be evaluated as
-; complete an expression as it can.
+; a function which is arity-2 and "enfix bound" to a variable acts similarly.
 ;
-; The <tight> annotation is long-term likely a legacy-only property, which
-; requests as *minimal* a complete expression on a slot as possible.  So if 
-; you have SOME-INFIX with tight parameters on the left and the right it
-; would see:
+;     some-infix: enfix func [a b] [...]
+;
+; However, the default parameter convention for the left argument is to
+; consume "one unit of expression" to the left.  So if you have:
 ;
 ;     add 1 2 some-infix add 1 2 + 10
 ;
-; and interpret it as:
-;
-;     add 1 (2 some-infix add 1 2) + 10
-;
-; Whereas if the arguments were not tight, it would see this as:
+; This would be interpreted as:
 ;
 ;     (add 1 2) some-infix (add 1 2 + 10)
 ;
-; For the moment while the features settle, the operators "in the box" are
-; all wrapped to behave with tight left and right arguments.  Long term the
-; feature is theorized to be unnecessary.
+; This is different from how OP!s acted in Rebol2 and R3-Alpha. They would
+; "greedily" consume the immediate evaluative unit to the left:
+;
+;     add 1 (2 some-infix add 1 2) + 10
+;
+; These are two fundamentally different parameter conventions.  Ren-C lets
+; you specify you want the latter by using an ISSUE! to indicate the parameter
+; class is what is known as "tight":
+;
+;     some-infix: enfix func [#a #b] [...]
+;
+; Eventually it will be possible to "re-skin" a function with arbitrary new
+; parameter conventions...e.g. to convert a function that doesn't quote one
+; of its arguments so that it quotes it, without incurring any additional
+; runtime overhead of a "wrapper".  Today a more limited version of this
+; optimization is provided via TIGHTEN, which will convert all a function's
+; parameters to be tight.  Hence a function with "normal" parameters (like
+; ADD) can be translated into an equivalent function with "tight" parameters,
+; to be bound to `+` and act compatibly with historical Rebol expectations.
 ;
 
 +: enfix tighten :add
@@ -86,8 +95,8 @@ right-flag: bind (pick make block! "|>" 1) context-of 'lambda
 *: enfix tighten :multiply
 **: enfix tighten :power
 
-set/lookback dv tighten :divide
-set/lookback dvdv tighten :remainder
+set/enfix dv tighten :divide
+set/enfix dvdv tighten :remainder
 
 =: enfix tighten :equal?
 =?: enfix tighten :same?
@@ -96,13 +105,13 @@ set/lookback dvdv tighten :remainder
 !=: enfix tighten :not-equal?
 !==: enfix tighten :strict-not-equal?
 
-set/lookback should-be-empty-tag tighten :not-equal?
+set/enfix ltgt tighten :not-equal?
 
-set/lookback lt tighten :lesser?
-set/lookback lteq tighten :lesser-or-equal?
+set/enfix lt tighten :lesser?
+set/enfix lteq tighten :lesser-or-equal?
 
-set/lookback gt tighten :greater?
-set/lookback gteq tighten :greater-or-equal?
+set/enfix gt tighten :greater?
+set/enfix gteq tighten :greater-or-equal?
 
 and: enfix tighten :and?
 or: enfix tighten :or?
@@ -206,16 +215,16 @@ then*: enfix redescribe [
 
 ; Lambdas are experimental quick function generators via a symbol
 ;
-set/lookback right-arrow :lambda
-set/lookback left-arrow (specialize :lambda [only: true])
+set/enfix right-arrow :lambda
+set/enfix left-arrow (specialize :lambda [only: true])
 
 
 ; These usermode expression-barrier like constructs may not necessarily use
 ; their left-hand arguments...however by being enfixed and not having <tight>
 ; first args, they are able to force complete expressions to their left.
 
-set/lookback left-flag :left-bar
-set/lookback right-flag :right-bar
+set/enfix left-flag :left-bar
+set/enfix right-flag :right-bar
 ||: enfix :once-bar
 
 

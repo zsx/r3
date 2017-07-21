@@ -835,8 +835,8 @@ REBNATIVE(resolve)
 //          {Treat void values as unsetting the target instead of an error}
 //      /some
 //          {Blank values (or values past end of block) are not set.}
-//      /lookback
-//          {Function uses evaluator lookahead to "look back" (see ENFIX)}
+//      /enfix
+//          {Function calls through this word should get first arg from left}
 //  ]
 //
 REBNATIVE(set)
@@ -850,8 +850,6 @@ REBNATIVE(set)
 //     1
 //     >> print b
 //     2
-//
-// !!! Should the /LOOKBACK refinement be called /ENFIX?
 {
     INCLUDE_PARAMS_OF_SET;
 
@@ -937,8 +935,8 @@ REBNATIVE(set)
             // is not there, so it leads to too many silent errors.
         }
         else if (ANY_WORD(target)) {
-            if (REF(lookback) && NOT(IS_FUNCTION(ARG(value))))
-                fail ("Attempt to SET/LOOKBACK on a non-function");
+            if (REF(enfix) && NOT(IS_FUNCTION(ARG(value))))
+                fail ("Attempt to SET/ENFIX on a non-function");
 
             REBVAL *var = Sink_Var_May_Fail(target, target_specifier);
             Derelativize(
@@ -946,7 +944,7 @@ REBNATIVE(set)
                 IS_END(value) ? BLANK_VALUE : value,
                 value_specifier
             );
-            if (REF(lookback))
+            if (REF(enfix))
                 SET_VAL_FLAG(var, VALUE_FLAG_ENFIXED);
         }
         else if (ANY_PATH(target)) {
@@ -961,12 +959,12 @@ REBNATIVE(set)
                 if (IS_GROUP(temp))
                     fail ("GROUP! can't be in paths with SET");
 
-            // !!! For starters, just the word form is supported for lookback.
-            // Though you can't dispatch a lookback from a path, you should be
-            // able to set a word in a context to one.
+            // !!! For starters, just the word form is supported for enfixing.
+            // Though you can't dispatch enfix from a path (at least not at
+            // present), you should be able to enfix a word in a context.
             //
-            if (REF(lookback))
-                fail ("Cannot currently SET/LOOKBACK on a PATH!");
+            if (REF(enfix))
+                fail ("Cannot currently SET/ENFIX on a PATH!");
 
             DECLARE_LOCAL (specific);
             if (IS_END(value))
@@ -1064,16 +1062,16 @@ REBNATIVE(unset)
 
 
 //
-//  lookback?: native [
+//  enfixed?: native [
 //
 //  {TRUE if looks up to a function and gets first argument before the call}
 //
 //      source [any-word! any-path!]
 //  ]
 //
-REBNATIVE(lookback_q)
+REBNATIVE(enfixed_q)
 {
-    INCLUDE_PARAMS_OF_LOOKBACK_Q;
+    INCLUDE_PARAMS_OF_ENFIXED_Q;
 
     REBVAL *source = ARG(source);
 
@@ -1092,7 +1090,7 @@ REBNATIVE(lookback_q)
 
         // Not implemented yet...
 
-        fail ("LOOKBACK? testing is not currently implemented on PATH!");
+        fail ("ENFIXED? testing is not currently implemented on PATH!");
     }
 }
 

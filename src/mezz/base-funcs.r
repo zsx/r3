@@ -31,15 +31,16 @@ assert: func [
     ; a default hijacking to set it to be equivalent to VERIFY, late in boot.)
 ]
 
-set/lookback quote enfix: proc [
-    "Convenience version of SET/LOOKBACK, e.g `+: enfix :add`"
+set/enfix quote enfix: proc [
+    "Convenience version of SET/ENFIX, e.g `+: enfix :add`"
     :target [set-word! set-path!]
     action [function!]
 ][
-    set/lookback target :action
+    set/enfix target :action
 
     ; return value can't currently be given back as enfix, since it is a
-    ; property of words and not values.  Should it be given back at all?
+    ; property of words and not values.  So it isn't given back at all (as
+    ; this is a PROC).  Is this sensible?
 ]
 
 default: enfix func [
@@ -723,7 +724,7 @@ nfix?: function [
     source [any-word! any-path!]
 ][
     case [
-        not lookback? source [false]
+        not enfixed? source [false]
         equal? n arity: arity-of source [true]
         n < arity [
             ; If the queried arity is lower than the arity of the function,
@@ -733,21 +734,15 @@ nfix?: function [
         ]
     ] else [
         fail [
-            name "used on lookback function with arity" arity
+            name "used on enfixed function with arity" arity
                 |
-            "Use LOOKBACK? for generalized (tricky) testing"
+            "Use ENFIXED? for generalized (tricky) testing"
         ]
     ]
 ]
 
-endfix?: redescribe [
-    {TRUE if a no-argument function is SET/LOOKBACK to not allow right infix.}
-](
-    specialize :nfix? [n: 0 | name: "ENDFIX?"]
-)
-
 postfix?: redescribe [
-    {TRUE if an arity 1 function is SET/LOOKBACK to act as postfix.}
+    {TRUE if an arity 1 function is SET/ENFIX to act as postfix.}
 ](
     specialize :nfix? [n: 1 | name: "POSTFIX?"]
 )
@@ -757,39 +752,6 @@ infix?: redescribe [
 ](
     specialize :nfix? [n: 2 | name: "INFIX?"]
 )
-
-
-set-nfix: function [
-    return: [function!]
-    n [integer!]
-    name [string!]
-    target [any-word! any-path!]
-    value [function!]
-][
-    unless equal? n arity-of :value [
-        fail [name "requires arity" n "functions, see SET/LOOKAHEAD"]
-    ]
-    set/lookback target :value
-]
-
-set-endfix: redescribe [
-    {Convenience wrapper for SET/LOOKBACK that ensures function is arity 0.}
-](
-    specialize :set-nfix [n: 0 | name: "SET-ENDFIX"]
-)
-
-set-postfix: redescribe [
-    {Convenience wrapper for SET/LOOKBACK that ensures a function is arity 1.}
-](
-    specialize :set-nfix [n: 1 | name: "SET-POSTFIX"]
-)
-
-set-infix: redescribe [
-    {Convenience wrapper for SET/LOOKBACK that ensures a function is arity 2.}
-](
-    specialize :set-nfix [n: 2 | name: "SET-INFIX"]
-)
-
 
 lambda: function [
     {Convenience variadic wrapper for FUNC and FUNCTION constructors}

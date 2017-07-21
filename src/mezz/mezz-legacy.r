@@ -331,7 +331,7 @@ set: function [
         "Treat void values as unsetting the target instead of an error"
     /some
         {Blank values (or values past end of block) are not set.}
-    /lookback
+    /enfix
         {If value is a function, then make the bound word dispatch infix}
     /any
         "Deprecated legacy synonym for /opt"
@@ -349,7 +349,7 @@ set: function [
         only: only
         opt: any? [set_ANY set_OPT]
         some: set_SOME
-        lookback: lookback
+        enfix: enfix
     ]
 ]
 

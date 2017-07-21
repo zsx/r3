@@ -1,6 +1,6 @@
 ; datatypes/op.r
-[lookback? '+]
-[error? try [lookback? 1]]
+[enfixed? '+]
+[error? try [enfixed? 1]]
 [function? get '+]
 
 ; #1934

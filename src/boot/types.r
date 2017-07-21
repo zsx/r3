@@ -120,6 +120,4 @@ struct      struct      *       *       -
 library     library     -       *       -
 
 ; Note that the "void?" state has no associated VOID! datatype.  Internally
-; it uses REB_MAX, but like the REB_0 it stays off the type map.  (REB_0
-; is used for lookback as opposed to void in order to implement an
-; optimization in Get_Var_Core())
+; it uses REB_MAX, but like the REB_0 it stays off the type map.

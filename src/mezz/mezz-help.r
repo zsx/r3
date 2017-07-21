@@ -434,8 +434,8 @@ help: procedure [
 
     ; Get value (may be a function, so handle with ":")
     either path? :topic [
-        print ["!!! NOTE: Infix testing not currently supported for paths !!!"]
-        lookback: false
+        print ["!!! NOTE: Enfix testing not currently supported for paths"]
+        enfixed: false
         if any [
             error? value: trap [get :topic] ;trap reduce [to-get-path topic]
             not set? 'value
@@ -444,7 +444,7 @@ help: procedure [
             leave
         ]
     ][
-        lookback: lookback? :topic
+        enfixed: enfixed? :topic
         value: get :topic
     ]
 
@@ -483,9 +483,9 @@ help: procedure [
     ]
 
     ; Output exemplar calling string, e.g. LEFT + RIGHT or FOO A B C
-    ; !!! Should refinement args be shown for lookback case??
+    ; !!! Should refinement args be shown for enfixed case??
     ;
-    either lookback [
+    either enfixed [
         print [space4 args/1 (uppercase mold topic) next args]
     ][
         print [space4 (uppercase mold topic) args refinements]
