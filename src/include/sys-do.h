@@ -907,12 +907,7 @@ inline static REBOOL Eval_Value_Core_Throws(
 //
 // This was not allowed in R3-Alpha, and given the fact that you could write
 // that as `if true [foo]` the added flexibility may not be necessary.  But
-// there is a feature in Ren-C which allows you to have a branch evaluate to
-// itself literally, e.g.
-//
-//    [print "doesn't print"] = case/only [true [print "doesn't print"]]
-//
-// In order to capture all the "branch-like" decisions into one place, the
+// in order to capture all the "branch-like" decisions into one place, the
 // shared decision of what to allow or not allow is captured in this one
 // inline function, used by conditional and loop constructs instead of a
 // plain DO.
@@ -924,10 +919,7 @@ inline static REBOOL Run_Branch_Throws(
 ) {
     assert(branch != out); // !!! review, CASE can perhaps do better...
 
-    if (only) {
-        Move_Value(out, branch);
-    }
-    else if (IS_BLOCK(branch)) {
+    if (IS_BLOCK(branch)) {
         if (Do_Any_Array_At_Throws(out, branch))
             return TRUE;
     }
@@ -955,8 +947,18 @@ inline static REBOOL Run_Branch_Throws(
         if (Apply_Only_Throws(out, fully, branch, END))
             return TRUE;
     }
-    else
+    else {
+        // `if condition 3` is legal, but `var: 3 | if condition var` is not.
+        // This is to allow casual usages indirected through an evaluation
+        // to be known that they will execute code.  Someone who knows what
+        // they are doing and that they may-or-may-not-execute-code can bypass
+        // this check with `var: 3 | if* condition var`.
+        //
+        if (NOT(only) && NOT_VAL_FLAG(branch, VALUE_FLAG_UNEVALUATED))
+            fail (Error_Non_Block_Branch_Raw(branch));
+
         Move_Value(out, branch); // it's not code -- nothing to run
+    }
 
     return FALSE;
 }

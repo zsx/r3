@@ -53,17 +53,24 @@ default: enfix func [
     <local>
         gotten
 ][
+    ; Protect against `var: 10 | x: default var`, only allow vars if blocks
+    ; (same general behavior as IF)
+    ;
+    unless maybe [function! block!] :value [
+        unless semiquoted? 'value [
+            fail ["Evaluated non-block/function used with DEFAULT" mold value]
+        ]
+    ]
+
     ; A lookback quoting function that quotes a SET-WORD! on its left is
     ; responsible for setting the value if it wants it to change since the
     ; SET-WORD! is not actually active.  But if something *looks* like an
     ; assignment, it's good practice to evaluate the whole expression to
     ; the result the SET-WORD! was set to, so `x: y: op z` makes `x = y`.
     ;
-    if all [any-value? gotten: get/opt target | not blank? :gotten] [
-        :gotten
-    ]
-    else [
-        set/opt target if true :value ;-- executed if block or function
+    any [
+        | get target
+        | set* target if* true :value ;-- executed if block or function
     ]
 ]
 
@@ -250,7 +257,6 @@ make-action: func [
 ;
 function: specialize :make-action [generator: :func]
 procedure: specialize :make-action [generator: :proc]
-
 
 ; Functions can be chained, adapted, and specialized--repeatedly.  The meta
 ; information from which HELP is determined can be inherited through links
@@ -513,9 +519,9 @@ if?: redescribe [
 )
 
 if*: redescribe [
-    {Same as IF/OPT (return void, not blank, if branch evaluates to void)}
+    {Same as IF/ONLY (void, not blank, if branch evaluates to void)}
 ](
-    specialize 'if [opt: true]
+    specialize 'if [only: true]
 )
 
 unless?: redescribe [
@@ -525,15 +531,15 @@ unless?: redescribe [
 )
 
 unless*: redescribe [
-    {Same as UNLESS/OPT (return void, not blank, if branch evaluates to void)}
+    {Same as UNLESS/ONLY (void, not blank, if branch evaluates to void)}
 ](
-    specialize 'unless [opt: true]
+    specialize 'unless [only: true]
 )
 
 either*: redescribe [
-    {Same as EITHER/OPT (return void, not blank, if branch evaluates to void)}
+    {Same as EITHER/ONLY (void, not blank, if branch evaluates to void)}
 ](
-    specialize 'either [opt: true]
+    specialize 'either [only: true]
 )
 
 while?: redescribe [
@@ -549,9 +555,9 @@ case?: redescribe [
 )
 
 case*: redescribe [
-    {Same as CASE/OPT (return void, not blank, if branch evaluates to void)}
+    {Same as CASE/ONLY (void, not blank, if branch evaluates to void)}
 ](
-    specialize 'case [opt: true]
+    specialize 'case [only: true]
 )
 
 switch?: redescribe [
@@ -561,9 +567,9 @@ switch?: redescribe [
 )
 
 switch*: redescribe [
-    {Same as SWITCH/OPT (return void, not blank, if branch evaluates to void)}
+    {Same as SWITCH/ONLY (void, not blank, if branch evaluates to void)}
 ](
-    specialize 'switch [opt: true]
+    specialize 'switch [only: true]
 )
 
 trap?: redescribe [

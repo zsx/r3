@@ -145,7 +145,15 @@ else: enfix redescribe [
         prior [<opt> any-value!]
         branch [<opt> any-value!]
     ][
-        either void? :prior :branch [:prior]
+        unless maybe [block! function!] :branch [
+            unless semiquoted? 'branch [
+                fail/where [
+                    {Evaluated non-block/function used as branch} :branch
+                ] 'branch
+            ]
+        ]
+
+        either void? :prior semiquote :branch [:prior]
     ]
 )
 
@@ -172,7 +180,15 @@ then: enfix redescribe [
         prior [<opt> any-value!]
         branch [<opt> any-value!]
     ][
-        if any-value? :prior :branch
+        unless maybe [block! function!] :branch [
+            unless semiquoted? 'branch [
+                fail/where [
+                    {Evaluated non-block/function used as branch} :branch
+                ]
+            ]
+        ]
+
+        if any-value? :prior semiquote :branch
     ]
 )
 

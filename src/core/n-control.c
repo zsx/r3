@@ -57,16 +57,14 @@
 //
 //  if: native [
 //
-//  {If TRUE? condition, return evaluation of branch value.}
+//  {If TRUTHY? condition, take branch (blocks and functions evaluated)}
 //
 //      return: [<opt> any-value!]
-//          {void on FALSE?, branch result if TRUE? or BLANK! if void}
+//          {void on FALSEY? condition, else branch result (BLANK! if void)}
 //      condition [any-value!]
 //      branch [<opt> any-value!]
-//          {Evaluated if block or function and not /ONLY}
+//          {Evaluated if block or function, else literal value}
 //      /only
-//          "Return block and function branches instead of evaluating them"
-//      /opt
 //          "If branch runs and returns void, do not convert it to BLANK!"
 //  ]
 //
@@ -78,7 +76,7 @@ REBNATIVE(if)
         if (Run_Branch_Throws(D_OUT, ARG(branch), REF(only)))
             return R_OUT_IS_THROWN;
 
-        if (REF(opt))
+        if (REF(only))
             return R_OUT;
         return R_OUT_BLANK_IF_VOID;
     }
@@ -90,16 +88,14 @@ REBNATIVE(if)
 //
 //  unless: native [
 //
-//  {If FALSE? condition, return evaluation of branch value.}
+//  {If FALSEY? condition, take branch (blocks and functions evaluated)}
 //
 //      return: [<opt> any-value!]
-//          {Void on FALSE?, branch result if TRUE? condition (may be void)}
+//          {void on TRUTHY? condition, else branch result (BLANK! if void)}
 //      condition [any-value!]
 //      branch [<opt> any-value!]
-//          {Evaluated if block or function and not /ONLY}
+//          {Evaluated if block or function, else literal value}
 //      /only
-//          "Return block and function branches instead of evaluating them"
-//      /opt
 //          "If branch runs and returns void, do not convert it to BLANK!"
 //  ]
 //
@@ -111,7 +107,7 @@ REBNATIVE(unless)
         if (Run_Branch_Throws(D_OUT, ARG(branch), REF(only)))
             return R_OUT_IS_THROWN;
 
-        if (REF(opt))
+        if (REF(only))
             return R_OUT;
         return R_OUT_BLANK_IF_VOID;
     }
@@ -123,16 +119,14 @@ REBNATIVE(unless)
 //
 //  either: native [
 //
-//  {If TRUE condition?, evaluate first branch, else evaluate second branch.}
+//  {If TRUTHY? condition, take first branch, else take second branch.}
 //
 //      return: [<opt> any-value!]
 //      condition [any-value!]
 //      true-branch [<opt> any-value!]
 //      false-branch [<opt> any-value!]
 //      /only
-//          "Return block and function branches instead of evaluating them"
-//      /opt
-//          "Do not convert void branch results to BLANK!"
+//          "If branch runs and returns void, do not convert it to BLANK!"
 //  ]
 //
 REBNATIVE(either)
@@ -148,7 +142,7 @@ REBNATIVE(either)
             return R_OUT_IS_THROWN;
     }
 
-    if (REF(opt))
+    if (REF(only))
         return R_OUT;
     return R_OUT_BLANK_IF_VOID;
 }
@@ -305,10 +299,8 @@ REBNATIVE(none)
 //      cases [block!]
 //          "Block of cases (conditions followed by branches)"
 //      /all
-//          {Evaluate all cases (do not stop at first TRUE? case)}
+//          {Evaluate all cases (do not stop at first TRUTHY? case)}
 //      /only
-//          "Return block and function branches instead of evaluating them"
-//      /opt
 //          "If branch runs and returns void, do not convert it to BLANK!"
 //  ]
 //
@@ -398,13 +390,13 @@ REBNATIVE(case)
 
 return_maybe_matched: // CASE/ALL can get here even if D_OUT not written
     Drop_Frame(f);
-    if (REF(opt))
+    if (REF(only))
         return R_OUT_VOID_IF_UNWRITTEN; // user wants voids as-is
     return R_OUT_VOID_IF_UNWRITTEN_BLANK_IF_VOID;
 
 return_matched:
     Drop_Frame(f);
-    if (REF(opt))
+    if (REF(only))
         return R_OUT; // user wants voids as-is
     return R_OUT_BLANK_IF_VOID;
 
@@ -427,13 +419,13 @@ return_thrown:
 //          "Block of cases (comparison lists followed by block branches)"
 //      /default
 //          "Default case if no others found"
-//      default-case
+//      default-case [any-value!]
 //          "Block to execute (or value to return)"
 //      /all
 //          "Evaluate all matches (not just first one)"
 //      /strict
 //          {Use STRICT-EQUAL? when comparing cases instead of EQUAL?}
-//      /opt
+//      /only
 //          "If branch runs and returns void, do not convert it to BLANK!"
 //  ]
 //
@@ -542,10 +534,10 @@ return_defaulted:
     Drop_Frame(f);
 
     if (REF(default)) {
-        if (Run_Branch_Throws(D_OUT, ARG(default_case), REF(opt)))
+        if (Run_Branch_Throws(D_OUT, ARG(default_case), REF(only)))
             return R_OUT_IS_THROWN;
 
-        if (REF(opt))
+        if (REF(only))
             return R_OUT;
         return R_OUT_BLANK_IF_VOID;
     }
@@ -556,7 +548,7 @@ return_defaulted:
 return_matched:
     Drop_Frame(f);
 
-    if (REF(opt))
+    if (REF(only))
         return R_OUT;
     return R_OUT_BLANK_IF_VOID;
 

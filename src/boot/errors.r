@@ -238,6 +238,7 @@ Script: [
     tcc-error-warn:      [{TCC reported error/warnings. Fix error/warnings, or use '-w' to disable all of the warnings:} :arg1]
 
     block-conditional:  [{Literal block used as conditional} :arg1]
+    non-block-branch:   [{Evaluated non-block/function used as branch} :arg1]
     block-switch:       [{Literal block used as switch value} :arg1]
 
     non-unloadable-native:    [{Not an unloadable native:} :arg1]
