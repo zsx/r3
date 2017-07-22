@@ -189,7 +189,12 @@
     'a == f
 ]
 ; basic test for recursive closure! invocation
-[i: 0 countdown: closure [n] [if n > 0 [++ i countdown n - 1]] countdown 10 i = 10]
+[
+    i: 0
+    countdown: clos [n] [if n > 0 [i: ++ 1 | countdown n - 1]]
+    countdown 10
+    i = 10
+]
 ; bug#21
 [
     c: closure [a] [return a]

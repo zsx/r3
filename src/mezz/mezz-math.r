@@ -17,24 +17,34 @@ pi: 3.14159265358979323846
 ; ++ and -- were previously used to take a quoted word and increment
 ; it.  They were ordinary prefix operations
 
-++: func [
-    {Increment an integer or series index. Return its prior value.}
-    'word [word!] "Integer or series variable"
+++: enfix func [
+    {Increment a number or series index.}
+
+    return: [any-value!]
+        "The new state of the variable"
+    'var [set-word! set-path!]
+        "Numeric or series variable to update"
+    n
+        "Amount to increment or skip forwards by"
+
     <local> prior
 ][
-    also (prior: get word) (
-        set word either series? prior [next prior] [prior + 1]
-    )
+    set var either (series? prior: get var) [skip prior n] [prior + n]
 ]
 
---: func [
-    {Decrement an integer or series index. Return its prior value.}
-    'word [word!] "Integer or series variable"
+--: enfix func [
+    {Decrement a number or series index.}
+
+    return: [any-value!]
+        "The new state of the variable"
+    'var [set-word! set-path!]
+        "Numeric or series variable to update"
+    n
+        "Amount to decrement or skip backwards by"
+
     <local> prior
 ][
-    also (prior: get word) (
-        set word either series? prior [back prior] [prior - 1]
-    )
+    set var either (series? prior: get var) [skip prior negate n] [prior - n]
 ]
 
 

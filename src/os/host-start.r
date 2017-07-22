@@ -804,8 +804,8 @@ console!: make object! [
     ; Called on every line of input by HOST-CONSOLE in %os/host-console.r
     ;
     cycle: does [
-        if zero? ++ counter [print-greeting] ;-- only load skin on first cycle
-        counter
+        if zero? counter [print-greeting] ;-- only load skin on first cycle
+        counter: ++ 1
     ]
 
     ;; APPEARANCE (can be overridden)

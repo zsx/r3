@@ -732,8 +732,11 @@ find-all: function [
         "Evaluated for each occurrence"
 ][
     verify [any-series? orig: get series]
-    while [any [set series find get series :value (set series orig false)]] [
+    while [any [
+        | set series find get series :value
+        | (set series orig | false) ;-- reset series and break loop
+    ]][
         do body
-        ++ (series)
+        series: ++ 1
     ]
 ]

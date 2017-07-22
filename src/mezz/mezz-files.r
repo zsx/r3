@@ -45,18 +45,18 @@ clean-path: function [
     if all [dir | not dir? file] [append file #"/"]
 
     out: make type-of file length-of file ; same datatype
-    cnt: 0 ; back dir counter
+    count: 0 ; back dir counter
 
     parse reverse file [
         some [
-            "../" (++ cnt)
+            "../" (count: ++ 1)
             | "./"
             | #"/" (
                 if any [not file? file | #"/" <> last out] [append out #"/"]
             )
             | copy f [to #"/" | to end] (
-                either cnt > 0 [
-                    -- cnt
+                either count > 0 [
+                    count: -- 1
                 ][
                     unless find ["" "." ".."] as string! f [append out f]
                 ]

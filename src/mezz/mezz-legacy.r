@@ -498,7 +498,7 @@ r3-alpha-apply: function [
 ; binding in Ren-C)
 ;
 closure: func [
-    return: [<opt> any-value!]
+    return: [function!]
     spec
     body
 ][
@@ -512,6 +512,8 @@ closure: func [
 ;
 clos: func [
     "Defines a closure function."
+
+    return: [function!]
     spec [block!]
         {Help string (opt) followed by arg words (and opt type and string)}
     body [block!]

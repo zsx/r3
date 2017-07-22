@@ -807,7 +807,9 @@ for-each [id val] id-list [
     if block? val [
         parse val [
             any [
-                get-word! (++ n-args)
+                get-word! (
+                    n-args: n-args + 1 ; don't use ++, not R3-Alpha compatible
+                )
                 | skip
             ]
         ]
@@ -835,7 +837,7 @@ for-each [id val] id-list [
             emit-line compose [ {const RELVAL *arg} (i + 1)
                 either i < (n-args - 1) [","] [""]
             ]
-            ++ i
+            i: i + 1 ; don't use ++, not R3-Alpha compatible 
         ]
         emit-line [")"]
         emit-line [ "^{" ]
@@ -844,7 +846,7 @@ for-each [id val] id-list [
         i: 0
         while [i < n-args] [
             append args compose [ {, arg} (i + 1)]
-            ++ i
+            i: i + 1 ; don't use ++, not R3-Alpha comptible
         ]
 
         emit-line/indent [ "return Error(RE_" uppercase c-id args ", END);"]

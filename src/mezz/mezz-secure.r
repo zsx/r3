@@ -97,7 +97,7 @@ secure: function [
         n: 1
         for-each act [read write execute] [
             join blk [pick acts 1 + pol/:n act]
-            ++ n
+            n: ++ 1
         ]
         blk
     ])

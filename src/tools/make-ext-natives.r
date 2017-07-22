@@ -204,7 +204,7 @@ for-each native native-specs [
         unless supported? [continue]
     ]
 
-    ++ num-native
+    num-native: num-native + 1
     dump (to block! first native/spec)
     if find to block! first native/spec 'export [append export-list to word! native/name]
     unless blank? native/errors [append error-list native/errors]
@@ -349,7 +349,7 @@ either empty? word-list [
             space
             {Ext_Canons_} m-name {[} word-seq {]}
         ]
-        ++ word-seq
+        word-seq: word-seq + 1
     ]
     emit-line ["#define INIT_" u-m-name "_WORDS" space "\"]
     emit-line/indent [
