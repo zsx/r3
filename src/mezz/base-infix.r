@@ -138,80 +138,42 @@ xor+: enfix tighten :xor~
 ?: enfix :any-value?
 
 
-; ELSE is an experiment to try and allow `if condition [...] else [...]`
-; Its left hand side is a "normal" parameter, not a "tight" one, so that is
-; interpreted as `(if condition [...]) else [...]`, as opposed to seen as
-; `if condition ([...] else [...])`.  It leverages the default behavior of
-; IF to return void only when the condition is not taken (if the branch
-; happens to evaluate to void, it will become a BLANK!, unless IF/OPT or IF*
-; are used)
+; THEN and ELSE are "non-TIGHTened" enfix functions which either pass through
+; an argument or run a branch, based on void-ness of the argument.  They take
+; advantage of the pattern of conditionals such as `if condition [...]` to
+; only return void if the branch does not run, and never return void if it
+; does run (void branch evaluations are forced to BLANK!)
 ;
-else: enfix redescribe [
-    "Evaluate the branch if the left hand side expression is void"
-](
-    func [
-        return: [any-value!]
-        prior [<opt> any-value!]
-        branch [<opt> any-value!]
-    ][
-        unless maybe [block! function!] :branch [
-            unless semiquoted? 'branch [
-                fail/where [
-                    {Evaluated non-block/function used as branch} :branch
-                ] 'branch
-            ]
-        ]
+; These could be implemented as specializations of the generic EITHER-TEST
+; native.  But due to their common use they are hand-optimized into their own
+; specialized natives: EITHER-TEST-VOID and EITHER-TEST-VALUE.
 
-        either void? :prior semiquote :branch [:prior]
-    ]
-)
-
-else*: enfix redescribe [
-    "Would be the same as ELSE/OPT, if infix functions dispatched from paths"
-](
-    func [
-        return: [<opt> any-value!]
-        prior [<opt> any-value!]
-        branch [<opt> any-value!]
-    ][
-        either* void? :prior :branch [:prior]
-    ]
-)
-
-
-; THEN is a complement to ELSE, running only if its left hand side is not void
-;
 then: enfix redescribe [
     "Evaluate the branch if the left hand side expression is not void"
 ](
-    func [
-        return: [<opt> any-value!]
-        prior [<opt> any-value!]
-        branch [<opt> any-value!]
-    ][
-        unless maybe [block! function!] :branch [
-            unless semiquoted? 'branch [
-                fail/where [
-                    {Evaluated non-block/function used as branch} :branch
-                ]
-            ]
-        ]
-
-        if any-value? :prior semiquote :branch
-    ]
+    comment [specialize 'either-test [test: :void?]]
+    :either-test-void
 )
 
 then*: enfix redescribe [
-    "Would be the same as THEN/OPT, if infix functions dispatched from paths"
+    "Would be the same as THEN/ONLY, if infix functions dispatched from paths"
 ](
-    func [
-        return: [<opt> any-value!]
-        prior [<opt> any-value!]
-        branch [<opt> any-value!]
-    ][
-        if* any-value? :prior :branch
-    ]
+    specialize 'then [only: true]
 )
+
+else: enfix redescribe [
+    "Evaluate the branch if the left hand side expression is void"
+](
+    comment [specialize 'either-test [test: :any-value?]]
+    :either-test-value
+)
+
+else*: enfix redescribe [
+    "Would be the same as ELSE/ONLY, if infix functions dispatched from paths"
+](
+    specialize 'else [only: true]
+)
+
 
 ; Lambdas are experimental quick function generators via a symbol
 ;

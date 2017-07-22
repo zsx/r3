@@ -1509,6 +1509,12 @@ REBOOL Specialize_Function_Throws(
     for (; NOT_END(param); ++param, ++arg) {
         if (IS_VOID(arg))
             DS_PUSH(param);
+
+        // !!! Should the VALUE_FLAG_UNEVALUATED bit be set on elements of
+        // the exemplar?  If it is not, then attempts to specialize things
+        // like branches with raw literals won't work.  Review in light of
+        // whatever rules are designed to help make dealing with wrapping
+        // the evaluated/unevaluated bit easier.
     }
 
     REBARR *paramlist = Pop_Stack_Values_Core(

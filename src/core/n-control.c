@@ -149,6 +149,217 @@ REBNATIVE(either)
 
 
 //
+//  either-test: native [
+//
+//  {If value passes test, return that value, otherwise take the branch.}
+//
+//      return: [<opt> any-value!]
+//          {Input value if it matched, or branch result (BLANK! if void)}
+//      test [function! datatype! typeset! block! logic!]
+//          {Typeset membership, LOGIC! to test TRUTHY?, filter function}
+//      value [<opt> any-value!]
+//      branch [<opt> any-value!]
+//          {If test fails, evaluated if block/function, else literal value}
+//      /only
+//          "If branch runs and returns void, do not convert it to BLANK!"
+//      /error-hack
+//          "If branch returns an ERROR!, FAIL on it and indicate callsite"
+//  ]
+//
+REBNATIVE(either_test)
+{
+    INCLUDE_PARAMS_OF_EITHER_TEST;
+
+    REBVAL *test = ARG(test);
+    REBVAL *value = ARG(value);
+
+    if (IS_LOGIC(test)) {
+        if (IS_VOID(value) || VAL_LOGIC(test) != IS_TRUTHY(value))
+            goto test_failed;
+        return R_FROM_BOOL(VAL_LOGIC(test));
+    }
+
+    // Force single items into array style access so only one version of the
+    // code needs to be written.
+    //
+    RELVAL *item;
+    REBSPC *specifier;
+    if (IS_BLOCK(test)) {
+        item = VAL_ARRAY_AT(test);
+        specifier = VAL_SPECIFIER(test);
+    }
+    else {
+        Move_Value(D_CELL, test);
+        item = D_CELL; // implicitly terminated
+        specifier = SPECIFIED;
+    }
+
+    REB_R r; // goto crosses initialization
+    r = R_UNHANDLED;
+
+    for (; NOT_END(item); ++item) {
+        //
+        // If we're dealing with a single item for the test, provided e.g.
+        // as :even?, then it's already fetched.  But if it was a block like
+        // [:even? integer!] we enumerate it in word form and have to get it.
+        //
+        const RELVAL *var = IS_WORD(item)
+            ? Get_Opt_Var_May_Fail(item, specifier)
+            : item;
+
+        if (IS_DATATYPE(var)) {
+            if (VAL_TYPE_KIND(var) == VAL_TYPE(value))
+                r = R_TRUE; // any type matching counts
+            else if (r == R_UNHANDLED)
+                r = R_FALSE; // at least one type has to speak up now
+        }
+        else if (IS_TYPESET(var)) {
+            if (TYPE_CHECK(var, VAL_TYPE(value)))
+                r = R_TRUE; // any typeset matching counts
+            else if (r == R_UNHANDLED)
+                r = R_FALSE; // at least one type has to speak up now
+        }
+        else if (IS_FUNCTION(var)) {
+            const REBOOL fully = TRUE;
+            if (Apply_Only_Throws(D_OUT, fully, const_KNOWN(var), value, END))
+                return R_OUT_IS_THROWN;
+
+            if (IS_VOID(D_OUT))
+                fail (Error_No_Return_Raw());
+
+            if (IS_FALSEY(D_OUT))
+                goto test_failed; // any function failing breaks it
+
+            // At least one function matching tips the balance, but
+            // can't alone outmatch no types matching, if any types
+            // were matched at all.
+            //
+            if (r == R_UNHANDLED)
+                r = R_TRUE;
+            continue;
+        }
+        else
+            fail (Error_Invalid_Type(VAL_TYPE(var)));
+    }
+
+    if (r == R_UNHANDLED) {
+        //
+        // !!! When the test is just [], what's that?  People aren't likely to
+        // write it literally, but it could happen from a COMPOSE or similar.
+        //
+        fail ("No tests found in EITHER-TEST.");
+    }
+
+    if (r == R_FALSE) {
+        //
+        // This means that some types didn't match and were not later
+        // redeemed by a type that did match.  Consider it failure.
+        //
+        goto test_failed;
+    }
+
+    // Someone spoke up for test success and was not overridden.
+    //
+    assert(r == R_TRUE);
+    Move_Value(D_OUT, ARG(value));
+    return R_OUT;
+
+test_failed:
+    if (Run_Branch_Throws(D_OUT, ARG(branch), REF(only)))
+        return R_OUT_IS_THROWN;
+
+    if (REF(error_hack) && IS_ERROR(D_OUT)) {
+        //
+        // !!! If you try to SPECIALIZE a conditional and specify a branch
+        // for it to run, it currently has no good way to get at the
+        // parameters of the instance of the specialized function when it
+        // is running.  But ENSURE is a commonly used routine that specializes
+        // EITHER-TEST, and it wants to indicate the originating value that
+        // caused the failure.  For now, let it use /ERROR-HACK so that it
+        // generates the error and asks us to trigger it.
+        //
+        REBCTX *error = VAL_CONTEXT(D_OUT);
+        Set_Location_Of_Error(error, frame_);
+        fail (error);
+    }
+
+    if (REF(only))
+        return R_OUT;
+    return R_OUT_BLANK_IF_VOID;
+}
+
+
+//
+//  either-test-void: native [
+//
+//  {If value is void, return void, otherwise take the branch.}
+//
+//      return: [<opt> any-value!]
+//          {Void if input is void, or branch result (BLANK! if void)}
+//      value [<opt> any-value!]
+//      branch [<opt> any-value!]
+//          {If valued input, evaluated if block/function, else literal value}
+//      /only
+//          "If branch runs and returns void, do not convert it to BLANK!"
+//  ]
+//
+REBNATIVE(either_test_void)
+//
+// Native optimization of `specialize 'either-test-value [test: :void?]`
+// Worth it to write because this is the functionality enfixed as THEN.
+{
+    INCLUDE_PARAMS_OF_EITHER_TEST_VOID;
+
+    if (IS_VOID(ARG(value))) {
+        Move_Value(D_OUT, ARG(value));
+        return R_OUT;
+    }
+
+    if (Run_Branch_Throws(D_OUT, ARG(branch), REF(only)))
+        return R_OUT_IS_THROWN;
+
+    if (REF(only))
+        return R_OUT;
+    return R_OUT_BLANK_IF_VOID;
+}
+
+
+//
+//  either-test-value: native [
+//
+//  {If value is not void, return the value, otherwise take the branch.}
+//
+//      return: [<opt> any-value!]
+//          {Input value if not void, or branch result (BLANK! if void)}
+//      value [<opt> any-value!]
+//      branch [<opt> any-value!]
+//          {If void input, evaluated if block/function, else literal value}
+//      /only
+//          "If branch runs and returns void, do not convert it to BLANK!"
+//  ]
+//
+REBNATIVE(either_test_value)
+//
+// Native optimization of `specialize 'either-test-value [test: :any-value?]`
+// Worth it to write because this is the functionality enfixed as ELSE.
+{
+    INCLUDE_PARAMS_OF_EITHER_TEST_VALUE;
+
+    if (!IS_VOID(ARG(value))) {
+        Move_Value(D_OUT, ARG(value));
+        return R_OUT;
+    }
+
+    if (Run_Branch_Throws(D_OUT, ARG(branch), REF(only)))
+        return R_OUT_IS_THROWN;
+
+    if (REF(only))
+        return R_OUT;
+    return R_OUT_BLANK_IF_VOID;
+}
+
+
+//
 //  all: native [
 //
 //  {Short-circuiting variant of AND, using a block of expressions as input.}

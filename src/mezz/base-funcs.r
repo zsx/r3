@@ -597,12 +597,69 @@ all?: redescribe [
     chain [:all | :to-value | :to-logic]
 )
 
+maybe: redescribe [
+   {Check value using tests (match types, TRUE? or FALSE?, filter function)}
+](
+    adapt specialize 'either-test [
+        ;
+        ; return blank on test failure (can't be plain _ due to "evaluative
+        ; bit" rules...should this be changed so exemplars clear the bit?)
+        ;
+        branch: [_]
+    ][
+        if void? :value [ ; !!! TBD: filter this via REDESCRIBE when possible
+            fail "Cannot use MAYBE on void values (try using EITHER-TEST)"
+        ]
+
+        ; !!! Since a BLANK! result means test failure, an input of blank
+        ; can't discern a success or failure.  Yet prohibiting blanks as
+        ; input seems bad.  A previous iteration of MAYBE would get past this
+        ; by returning blank on failure, but void on success...to help cue
+        ; a problem to conditionals.  That is not easy to do with a
+        ; specialization in this style, so just let people deal with it for
+        ; now...e.g. `maybe [function! block!] blank` will be blank, but so
+        ; will be `maybe [blank!] blank`.
+    ]
+)
+
 maybe?: redescribe [
     {Check value using tests (match types, TRUE? or FALSE?, filter function)}
     ; return: [logic!] ;-- blocks for type changes not supported yet
     ;    {TRUE if match, FALSE if no match (use MAYBE to pass through value)}
 ](
-    specialize 'maybe [?: true]
+    adapt chain [
+        specialize 'either-test [
+            branch: [] ; return void on test failure
+            only: true
+        ]
+            |
+        :any-value?
+    ][
+        if void? :value [ ; !!! TBD: filter this via REDESCRIBE when possible
+            fail "Cannot use MAYBE? on void values (try using EITHER-TEST)"
+        ]
+    ]
+)
+
+ensure: redescribe [
+    {Pass through a value only if it matches types (or TRUE?/FALSE? state)}
+](
+    specialize 'either-test [
+        error-hack: true
+        branch: [
+            ;
+            ; !!! There is currently no good way to SPECIALIZE a conditional
+            ; which takes a branch, with a branch that refers to parameters
+            ; of the running specialization.  Theoretically we could use the
+            ; BACKTRACE API and look for the frame, but beyond being a very
+            ; hacky idea, the debugger is unstable, so use an ERROR-HACK
+            ; refinement to EITHER-TEST in order to ask it to execute errors
+            ; if we return one...and then it will make the WHERE of the error
+            ; indicate the callsite where value originated.
+            ;
+            make error! "Value did not match test it must ENSURE to pass"
+        ]
+    ]
 )
 
 find?: redescribe [
@@ -1107,34 +1164,4 @@ fail: function [
     ; Raise error to the nearest TRAP up the stack (if any)
     ;
     do error
-]
-
-
-ensure: function [
-    {Pass through a value only if it matches types (or TRUE?/FALSE? state)}
-    return: [<opt> any-value!]
-    test [function! datatype! typeset! block! logic!]
-    arg [<opt> any-value!]
-][
-    case* [
-        void? temp: maybe test :arg [
-            assert [any [void? :arg | not :arg]]
-
-            ; The test passed but we want to avoid an accidental usage like
-            ; `if ensure [logic!] some-false-thing [...]` where the test
-            ; passed but the passthru gets used conditionally.  So FALSE?
-            ; things are converted to void.
-            ;
-            ()
-        ]
-        blank? :temp [
-            fail/where [
-                "ENSURE expected arg to match" (test)
-            ] 'arg
-        ]
-        true [
-            assert [all [:temp | :arg = :temp]]
-            :temp
-        ]
-    ]
 ]
