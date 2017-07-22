@@ -411,6 +411,44 @@ reevaluate:;
                 goto do_function_in_current_gotten;
             }
         }
+        else if (
+            f->eval_type == REB_PATH
+            && VAL_LEN_AT(current) > 0
+            && IS_WORD(VAL_ARRAY_AT(current))
+        ){
+            // !!! Words aren't the only way that functions can be dispatched,
+            // one can also use paths.  It gets tricky here, because path
+            // mechanics are dodgier than word fetches.  Not only can it have
+            // GROUP!s and have side effects to "examining" what it looks up
+            // to, but there are other implications.
+            //
+            // As a temporary workaround to make HELP/DOC DEFAULT work, where
+            // DEFAULT hard quotes left, we have to recognize that path as a
+            // function call which quotes its first argument...so splice in
+            // some handling here that peeks at the head of the path and sees
+            // if it applies.  Note this is very brittle, and can be broken as
+            // easily as saying `o: make object! [h: help]` and then doing
+            // `o/h/doc default`.
+            //
+            // There are ideas on the table for how to remedy this long term.
+            // For now, see comments in the WORD branch above for the
+            // cloned mechanic.
+
+            assert(current_gotten == END); // no caching for paths
+
+            REBSPC *derived = Derive_Specifier(f->specifier, current);
+
+            RELVAL *path_at = VAL_ARRAY_AT(current);
+            const REBVAL *var_at = Get_Opt_Var_Else_End(path_at, derived);
+
+            if (
+                VAL_TYPE_OR_0(var_at) == REB_FUNCTION // END is REB_0
+                && NOT_VAL_FLAG(var_at, VALUE_FLAG_ENFIXED)
+                && GET_VAL_FLAG(var_at, FUNC_FLAG_QUOTES_FIRST_ARG)
+            ){
+                goto do_path_in_current;
+            }
+        }
 
         f->gotten = Get_Opt_Var_Else_End(f->value, f->specifier);
 
@@ -1620,6 +1658,15 @@ reevaluate:;
 //==//////////////////////////////////////////////////////////////////////==//
 
     case REB_PATH: {
+        //
+        // !!! If a path's head indicates dispatch to a function and quotes
+        // its first argument, it gets jumped down here to avoid allowing
+        // a back-quoting word after it to quote it.  This is a hack to permit
+        // `help/doc default` to work, but is a short term solution to a more
+        // general problem.
+        //
+    do_path_in_current:;
+
         REBSTR *label;
         if (Do_Path_Throws_Core(
             f->out,
