@@ -259,10 +259,12 @@ do-request: func [
     net-log/C to string! req
 ]
 
+; if a no-redirect keyword is found in the write dialect after 'headers then 302 redirects will not be followed
 parse-write-dialect: func [port block <local> spec debug] [
     spec: port/spec
     parse block [
-        opt [ 'headers ( spec/debug: true ) ]
+        opt ['headers (spec/debug: true)]
+        opt ['no-redirect (spec/follow: 'ok)]
         [set block word! (spec/method: block) | (spec/method: 'post)]
         opt [set block [file! | url!] (spec/path: block)]
         [set block block! (spec/headers: block) | (spec/headers: [])]
@@ -281,6 +283,7 @@ check-response: function [port] [
     line: info/response-line
     awake: :state/awake
     spec: port/spec
+    ; dump spec
     if all [
         not headers
         d1: find conn/data crlfbin
@@ -334,7 +337,9 @@ check-response: function [port] [
                 ]
                 |
                 #"3" [
-                    "03" (info/response-parsed: 'see-other)
+                    "02" (info/response-parsed: spec/follow)
+                    |
+                    "03" (info/response-parsed: either spec/follow = 'ok ['ok][see-other])
                     |
                     "04" (info/response-parsed: 'not-modified)
                     |
@@ -600,6 +605,7 @@ sys/make-scheme [
         content: _
         timeout: 15
         debug: _
+        follow: 'redirect
     ]
     
     info: construct system/standard/file-info [
