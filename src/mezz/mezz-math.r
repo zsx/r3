@@ -18,22 +18,20 @@ pi: 3.14159265358979323846
 ; it.  They were ordinary prefix operations
 
 ++: enfix func [
-    {Increment a number or series index.}
+    {Set variable to the result of incrementing itself using the + operator}
 
     return: [any-value!]
         "The new state of the variable"
     'var [set-word! set-path!]
-        "Numeric or series variable to update"
+        "Variable to update"
     n
-        "Amount to increment or skip forwards by"
-
-    <local> prior
+        "Amount to increment by"
 ][
-    set var either (series? prior: get var) [skip prior n] [prior + n]
+    set var (get var) + n
 ]
 
 --: enfix func [
-    {Decrement a number or series index.}
+    {Set variable to the result of decrementing itself using the - operator}
 
     return: [any-value!]
         "The new state of the variable"
@@ -41,10 +39,8 @@ pi: 3.14159265358979323846
         "Numeric or series variable to update"
     n
         "Amount to decrement or skip backwards by"
-
-    <local> prior
 ][
-    set var either (series? prior: get var) [skip prior negate n] [prior - n]
+    set var (get var) - n
 ]
 
 

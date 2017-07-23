@@ -35,7 +35,7 @@
 //   so that THEN and ELSE can distinguish whether a condition ran.
 //
 // * It is possible to ask the return result to not be "blankified", but
-//   return the true value, with the /OPT refinement.  This is specialized
+//   return the true value, with the /ONLY refinement.  This is specialized
 //   as functions ending in *.  (IF*, EITHER*, CASE*, SWITCH*...)
 //
 // * Other specializations exist returning a logic of whether the body ever
@@ -47,8 +47,12 @@
 //   plans may allow for single-arity functions to be passed the condition,
 //   see Run_Branch_Throws() for notes.
 //
-// * The /ONLY option suppresses execution of either FUNCTION! branches or
-//   BLOCK! branches, instead evaluating to the raw function or block value.
+// * If the /ONLY option is not used, then there is added checking on the
+//   condition and branches.  The condition is not allowed to be a literal
+//   block, e.g. `[x = 10]`, but may be an expression evaluating to a block.
+//   The branches are not allowed to be evaluative *unless* they evaluate to
+//   a block...literals such as strings or integers may be used, but not
+//   variables or expressions that evaluate to strings or integers.
 //
 
 #include "sys-core.h"
