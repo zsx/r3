@@ -232,114 +232,125 @@ void TO_Array(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
 //
 //  Find_In_Array: C
 //
-// Flags are set according to: ALL_FIND_REFS
-//
-// Main Parameters:
-// start - index to start search
-// end   - ending position
-// len   - length of target
-// skip  - skip factor
-// dir   - direction
-//
-// Comparison Parameters:
-// case  - case sensitivity
-// wild  - wild cards/keys
-//
-// Final Parmameters:
-// tail  - tail position
-// match - sequence
-// SELECT - (value that follows)
+// !!! Comment said "Final Parameters: tail - tail position, match - sequence,
+// SELECT - (value that follows)".  It's not clear what this meant.
 //
 REBCNT Find_In_Array(
     REBARR *array,
-    REBCNT index,
-    REBCNT end,
+    REBCNT index, // index to start search
+    REBCNT end, // ending position
     const RELVAL *target,
-    REBCNT len,
-    REBFLGS flags,
-    REBINT skip
-) {
-    RELVAL *value;
-    RELVAL *val;
-    REBCNT cnt;
+    REBCNT len, // length of target
+    REBFLGS flags, // see AM_FIND_XXX
+    REBINT skip // skip factor
+){
     REBCNT start = index;
 
     if (flags & (AM_FIND_REVERSE | AM_FIND_LAST)) {
         skip = -1;
         start = 0;
-        if (flags & AM_FIND_LAST) index = end - len;
-        else index--;
+        if (flags & AM_FIND_LAST)
+            index = end - len;
+        else
+            --index;
     }
 
-    // Optimized find word in block:
+    // Optimized find word in block
+    //
     if (ANY_WORD(target)) {
         for (; index >= start && index < end; index += skip) {
-            value = ARR_AT(array, index);
-            if (ANY_WORD(value)) {
-                cnt = (VAL_WORD_SPELLING(value) == VAL_WORD_SPELLING(target));
-                if (flags & AM_FIND_CASE) {
-                    // Must be same type and spelling:
-                    if (cnt && VAL_TYPE(value) == VAL_TYPE(target)) return index;
+            RELVAL *item = ARR_AT(array, index);
+            REBSTR *target_canon = VAL_WORD_CANON(target); // canonize once
+            if (ANY_WORD(item)) {
+                if (flags & AM_FIND_CASE) { // Must be same type and spelling
+                    if (
+                        VAL_WORD_SPELLING(item) == VAL_WORD_SPELLING(target)
+                        && VAL_TYPE(item) == VAL_TYPE(target)
+                    ){
+                        return index;
+                    }
                 }
-                else {
-                    // Can be different type or alias:
-                    if (cnt || VAL_WORD_CANON(value) == VAL_WORD_CANON(target)) return index;
+                else { // Can be different type or differently cased spelling
+                    if (VAL_WORD_CANON(item) == target_canon)
+                        return index;
                 }
             }
-            if (flags & AM_FIND_MATCH) break;
+            if (flags & AM_FIND_MATCH)
+                break;
         }
         return NOT_FOUND;
     }
-    // Match a block against a block:
-    else if (ANY_ARRAY(target) && !(flags & AM_FIND_ONLY)) {
+
+    // Match a block against a block
+    //
+    if (ANY_ARRAY(target) && NOT(flags & AM_FIND_ONLY)) {
         for (; index >= start && index < end; index += skip) {
-            cnt = 0;
-            value = ARR_AT(array, index);
-            for (val = VAL_ARRAY_AT(target); NOT_END(val); val++, value++) {
-                if (0 != Cmp_Value(value, val, LOGICAL(flags & AM_FIND_CASE)))
+            RELVAL *item = ARR_AT(array, index);
+
+            REBCNT count = 0;
+            RELVAL *other = VAL_ARRAY_AT(target);
+            for (; NOT_END(other); ++other, ++item) {
+                if (
+                    IS_END(item) ||
+                    0 != Cmp_Value(item, other, LOGICAL(flags & AM_FIND_CASE))
+                ){
                     break;
-                if (++cnt >= len) {
+                }
+                if (++count >= len)
+                    return index;
+            }
+            if (flags & AM_FIND_MATCH)
+                break;
+        }
+        return NOT_FOUND;
+    }
+
+    // Find a datatype in block
+    //
+    if (IS_DATATYPE(target) || IS_TYPESET(target)) {
+        for (; index >= start && index < end; index += skip) {
+            RELVAL *item = ARR_AT(array, index);
+
+            if (IS_DATATYPE(target)) {
+                if (VAL_TYPE(item) == VAL_TYPE_KIND(target))
+                    return index;
+                if (
+                    IS_DATATYPE(item)
+                    && VAL_TYPE_KIND(item) == VAL_TYPE_KIND(target)
+                ){
                     return index;
                 }
             }
-            if (flags & AM_FIND_MATCH) break;
+            else if (IS_TYPESET(target)) {
+                if (TYPE_CHECK(target, VAL_TYPE(item)))
+                    return index;
+                if (
+                    IS_DATATYPE(item)
+                    && TYPE_CHECK(target, VAL_TYPE_KIND(item))
+                ){
+                    return index;
+                }
+                if (IS_TYPESET(item) && EQUAL_TYPESET(item, target))
+                    return index;
+            }
+            if (flags & AM_FIND_MATCH)
+                break;
         }
         return NOT_FOUND;
     }
-    // Find a datatype in block:
-    else if (IS_DATATYPE(target) || IS_TYPESET(target)) {
-        for (; index >= start && index < end; index += skip) {
-            value = ARR_AT(array, index);
-            // Used if's so we can trace it...
-            if (IS_DATATYPE(target)) {
-                if (VAL_TYPE(value) == VAL_TYPE_KIND(target)) return index;
-                if (IS_DATATYPE(value) && VAL_TYPE_KIND(value) == VAL_TYPE_KIND(target)) return index;
-            }
-            if (IS_TYPESET(target)) {
-                if (TYPE_CHECK(target, VAL_TYPE(value))) return index;
-                if (IS_DATATYPE(value) && TYPE_CHECK(target, VAL_TYPE_KIND(value))) return index;
-                if (IS_TYPESET(value) && EQUAL_TYPESET(value, target)) return index;
-            }
-            if (flags & AM_FIND_MATCH) break;
-        }
-        return NOT_FOUND;
-    }
-    // All other cases:
-    else {
-        for (; index >= start && index < end; index += skip) {
-            value = ARR_AT(array, index);
-            if (
-                0 == Cmp_Value(
-                    value, target, LOGICAL(flags & AM_FIND_CASE)
-                )
-            ) {
-                return index;
-            }
 
-            if (flags & AM_FIND_MATCH) break;
-        }
-        return NOT_FOUND;
+    // All other cases
+
+    for (; index >= start && index < end; index += skip) {
+        RELVAL *item = ARR_AT(array, index);
+        if (0 == Cmp_Value(item, target, LOGICAL(flags & AM_FIND_CASE)))
+            return index;
+
+        if (flags & AM_FIND_MATCH)
+            break;
     }
+
+    return NOT_FOUND;
 }
 
 
