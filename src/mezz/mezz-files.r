@@ -103,21 +103,21 @@ ask: function [
 
 confirm: function [
     "Confirms a user choice."
-    return: [logic!]
+    return: [logic! blank!]
     question [any-series!]
         "Prompt to user"
     /with
     choices [string! block!]
 ][
-    if all [block? choices | 2 < length-of choices] [
-        cause-error 'script 'invalid-arg mold choices
+    if all [block? :choices | 2 < length-of choices] [
+        cause-error 'script 'invalid-arg join-of "maximum 2 arguments allowed for choices [true false] got: " mold choices
     ]
 
     response: ask question
 
     unless with [choices: [["y" "yes"] ["n" "no"]]]
 
-    case [
+    to-value case [
         empty? choices [true]
         string? choices [find?/match response choices]
         2 > length-of choices [find?/match response first choices]
