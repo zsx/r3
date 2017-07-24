@@ -504,27 +504,19 @@ REBNATIVE(none)
 }
 
 
+// Shared code for CASE (which runs BLOCK! clauses as code) and CHOOSE (which
+// returns values as-is, e.g. `choose [true [print "hi"]]` => `[print "hi]`
 //
-//  case: native [
-//
-//  {Evaluates each condition, and when true, evaluates what follows it.}
-//
-//      return: [<opt> any-value!]
-//          {Last matched case evaluation, or void if no cases matched}
-//      cases [block!]
-//          "Block of cases (conditions followed by branches)"
-//      /all
-//          {Evaluate all cases (do not stop at first TRUTHY? case)}
-//      /only
-//          "If branch runs and returns void, do not convert it to BLANK!"
-//  ]
-//
-REBNATIVE(case)
-{
-    INCLUDE_PARAMS_OF_CASE; // ? is renamed as "q"
-
+static REB_R Case_Choose_Core(
+    REBVAL *out,
+    REBVAL *cell, // scratch "D_CELL"
+    REBVAL *block, // "choices" or "cases"
+    REBOOL all,
+    REBOOL only,
+    REBOOL choose // do not evaluate blocks, just "choose" them
+){
     DECLARE_FRAME (f);
-    Push_Frame(f, ARG(cases));
+    Push_Frame(f, block);
 
     // With the block argument pushed in the enumerator, that frame slot is
     // available for scratch space in the rest of the routine.
@@ -537,12 +529,12 @@ REBNATIVE(case)
 
         // Perform a DO/NEXT's worth of evaluation on a "condition" to test
 
-        if (Do_Next_In_Frame_Throws(D_CELL, f)) {
-            Move_Value(D_OUT, D_CELL);
+        if (Do_Next_In_Frame_Throws(cell, f)) {
+            Move_Value(out, cell);
             goto return_thrown;
         }
 
-        if (IS_VOID(D_CELL)) // no void conditions allowed (as with IF)
+        if (IS_VOID(cell)) // no void conditions allowed (as with IF)
             fail (Error_No_Return_Raw());
 
         if (IS_END(f->value)) // require conditions and branches in pairs
@@ -565,37 +557,41 @@ REBNATIVE(case)
         // `foo: [x] | case [foo [y]]`, since it is evaluated, or use a
         // GROUP! as in `case [([x]) [y]]`.
         //
-        if (IS_CONDITIONAL_FALSE(D_CELL, REF(only))) {
-            if (Do_Next_In_Frame_Throws(D_CELL, f)) {
-                Move_Value(D_OUT, D_CELL);
+        if (IS_CONDITIONAL_FALSE(cell, only)) {
+            if (Do_Next_In_Frame_Throws(cell, f)) {
+                Move_Value(out, cell);
                 goto return_thrown;
             }
-
             continue;
         }
 
-        // When the condition is TRUE?, CASE actually does a double evaluation
+        if (Do_Next_In_Frame_Throws(cell, f)) {
+            Move_Value(out, cell);
+            goto return_thrown;
+        }
+
+        // CHOOSE simply sets the out slot to the matched value as-is.  But
+        // when the condition is TRUE?, CASE actually does a double evaluation
         // if a block is yielded as the branch:
         //
         //     stuff: [print "This will be printed"]
         //     case [true stuff]
         //
         // Similar to IF TRUE STUFF, so CASE can act like many IFs at once.
-
-        if (Do_Next_In_Frame_Throws(D_CELL, f)) {
-            Move_Value(D_OUT, D_CELL);
-            goto return_thrown;
-        }
-
+        //
         // !!! Optimization note: if the previous evaluation had gone into
         // D_OUT directly it could just stay there in some cases; and even
         // block evaluation doesn't need the copy.  Review how this shared
         // code might get more efficient if the data were already in D_OUT.
         //
-        if (Run_Branch_Throws(D_OUT, D_CELL, REF(only)))
-            goto return_thrown;
+        if (choose)
+            Move_Value(out, cell);
+        else {
+            if (Run_Branch_Throws(out, cell, only))
+                goto return_thrown;
+        }
 
-        if (NOT(REF(all)))
+        if (NOT(all))
             goto return_matched;
 
         // keep matching if /ALL
@@ -605,19 +601,76 @@ REBNATIVE(case)
 
 return_maybe_matched: // CASE/ALL can get here even if D_OUT not written
     Drop_Frame(f);
-    if (REF(only))
+    if (only)
         return R_OUT_VOID_IF_UNWRITTEN; // user wants voids as-is
     return R_OUT_VOID_IF_UNWRITTEN_BLANK_IF_VOID;
 
 return_matched:
     Drop_Frame(f);
-    if (REF(only))
+    if (only)
         return R_OUT; // user wants voids as-is
     return R_OUT_BLANK_IF_VOID;
 
 return_thrown:
     Drop_Frame(f);
     return R_OUT_IS_THROWN;
+}
+
+
+//
+//  case: native [
+//
+//  {Evaluates each condition, and when true, evaluates what follows it.}
+//
+//      return: [<opt> any-value!]
+//          {Last matched case evaluation, or void if no cases matched}
+//      cases [block!]
+//          "Block of cases (conditions followed by branches)"
+//      /all
+//          {Evaluate all cases (do not stop at first TRUTHY? case)}
+//      /only
+//          "If branch runs and returns void, do not convert it to BLANK!"
+//  ]
+//
+REBNATIVE(case)
+{
+    INCLUDE_PARAMS_OF_CASE;
+
+    const REBOOL choose = FALSE;
+    return Case_Choose_Core(
+        D_OUT, D_CELL, ARG(cases), REF(all), REF(only), choose
+    );
+}
+
+
+//
+//  choose: native [
+//
+//  {Evaluates each condition, and gives back the value that follows it}
+//
+//      return: [<opt> any-value!]
+//          {Last matched choice value, or void if no choices matched}
+//      choices [block!]
+//          {Evaluate all choices (do not stop at first TRUTHY? choice)}
+//      /all
+//          {Return the value for the last matched choice (instead of first)}
+//  ]
+//
+REBNATIVE(choose)
+{
+    INCLUDE_PARAMS_OF_CHOOSE;
+
+    // There's no need to worry about "blankification" here, though the value
+    // might be void.  For now assume that means it's not a valid choice,
+    // and give an error.  Review.
+    //
+    const REBOOL only = FALSE;
+
+    const REBOOL choose = TRUE;
+    const REBOOL all = REF(all);
+    return Case_Choose_Core(
+        D_OUT, D_CELL, ARG(choices), all, only, choose
+    );
 }
 
 
@@ -646,7 +699,7 @@ return_thrown:
 //
 REBNATIVE(switch)
 {
-    INCLUDE_PARAMS_OF_SWITCH; // ? is renamed as "q"
+    INCLUDE_PARAMS_OF_SWITCH;
 
     DECLARE_FRAME (f);
     Push_Frame(f, ARG(cases));
