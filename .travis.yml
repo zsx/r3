@@ -23,7 +23,7 @@ matrix:
         - os: osx
           osx_image: xcode8.2
           language: cpp
-          env: CONFIG=generic-c++.r OS_ID=0.2.40 DEBUG=asserts STANDARD=c++14 RIGOROUS=no STATIC=no FFI="dynamic"
+          env: CONFIG=generic-c++.r OS_ID=0.2.40 DEBUG=asserts STANDARD=c++14 RIGOROUS=no STATIC=no FFI="dynamic" ODBC_REQUIRES_LTDL="no"
 
         # OSX x64, debug, gcc
         #
@@ -34,7 +34,7 @@ matrix:
         - os: osx
           osx_image: xcode8.2
           language: c
-          env: CONFIG=generic.r OS_ID=0.2.40 DEBUG=asserts STANDARD=c99 RIGOROUS=no STATIC=no FFI="dynamic"
+          env: CONFIG=generic.r OS_ID=0.2.40 DEBUG=asserts STANDARD=c99 RIGOROUS=no STATIC=no FFI="dynamic" ODBC_REQUIRES_LTDL="no"
 
         # OSX x64, release, gcc
         #
@@ -42,14 +42,21 @@ matrix:
         #
         - os: osx
           language: c
-          env: CONFIG=generic.r OS_ID=0.2.40 DEBUG=none STANDARD=c RIGOROUS=no STATIC=no FFI="dynamic"
+          env: CONFIG=generic.r OS_ID=0.2.40 DEBUG=none STANDARD=c RIGOROUS=no STATIC=no FFI="dynamic" ODBC_REQUIRES_LTDL="no"
 
         # Linux x86, release, gcc
         #
         - os: linux
           sudo: false #Force new container-based infrastructure.
           language: c
-          env: CONFIG=generic.r OS_ID=0.4.4 DEBUG=none STANDARD=gnu89 RIGOROUS=yes STATIC=yes TCC=i386-tcc ARCH_CFLAGS=-m32 FFI="dynamic"
+          env: CONFIG=generic.r OS_ID=0.4.4 DEBUG=none STANDARD=gnu89 RIGOROUS=yes STATIC=yes TCC=i386-tcc ARCH_CFLAGS=-m32 FFI="dynamic" ODBC_REQUIRES_LTDL="yes"
+          addons:
+              apt:
+                  packages:
+                      - gcc-multilib
+                      - unixodbc-dev:i386
+                        # for makeinfo, required to build FFI
+                      - texinfo
 
         # Linux x64, debug, g++
         #
@@ -60,28 +67,56 @@ matrix:
           dist: trusty #gcc on Ubuntu 12.04 does not support sanitizers
           sudo: false #Force new container-based infrastructure.
           language: cpp
-          env: CONFIG=generic-c++.r OS_ID=0.4.40 DEBUG=asserts STANDARD=c++0x RIGOROUS=yes STATIC=yes TCC=tcc FFI="dynamic"
+          env: CONFIG=generic-c++.r OS_ID=0.4.40 DEBUG=asserts STANDARD=c++0x RIGOROUS=yes STATIC=yes TCC=tcc FFI="dynamic" ODBC_REQUIRES_LTDL="no"
+          addons:
+              apt:
+                  packages:
+                      - g++-multilib
+                      - unixodbc-dev
+                        # for makeinfo, required to build FFI
+                      - texinfo
 
         # Linux x64, release, gcc
         #
         - os: linux
           sudo: false #Force new container-based infrastructure.
           language: c
-          env: CONFIG=generic.r OS_ID=0.4.40 DEBUG=none STANDARD=gnu99 RIGOROUS=yes STATIC=yes TCC=tcc FFI="dynamic"
+          env: CONFIG=generic.r OS_ID=0.4.40 DEBUG=none STANDARD=gnu99 RIGOROUS=yes STATIC=yes TCC=tcc FFI="dynamic" ODBC_REQUIRES_LTDL="no"
+          addons:
+              apt:
+                  packages:
+                      - gcc-multilib
+                      - unixodbc-dev
+                        # for makeinfo, required to build FFI
+                      - texinfo
 
         # Windows x86, release, gcc
         #
         - os: linux
           sudo: false #Force new container-based infrastructure.
           language: c
-          env: CONFIG=mingw-x86.r OS_ID=0.3.1 DEBUG=none TOOLS=i686-w64-mingw32- STANDARD=c RIGOROUS=yes STATIC=yes TCC=i386-win32-tcc TCC_CPP_EXTRA_FLAGS='-I../external/tcc/win32/include -DPVAR=TVAR -DTVAR="extern __attribute__((dllimport))"' HOST=i686-w64-mingw32 ARCH_CFLAGS=-m32 FFI="dynamic"
+          env: CONFIG=mingw-x86.r OS_ID=0.3.1 DEBUG=none TOOLS=i686-w64-mingw32- STANDARD=c RIGOROUS=yes STATIC=yes TCC=i386-win32-tcc TCC_CPP_EXTRA_FLAGS='-I../external/tcc/win32/include -DPVAR=TVAR -DTVAR="extern __attribute__((dllimport))"' HOST=i686-w64-mingw32 ARCH_CFLAGS=-m32 FFI="dynamic" ODBC_REQUIRES_LTDL="no"
+          addons:
+              apt:
+                  packages:
+                      - binutils-mingw-w64-i686
+                      - gcc-mingw-w64-i686
+                      - mingw-w64
+                        # for makeinfo, required to build FFI
+                      - texinfo
         
         # Windows x64, debug, gcc
         #
         - os: linux
           sudo: false #Force new container-based infrastructure.
           language: c
-          env: CONFIG=mingw-x64.r OS_ID=0.3.40 DEBUG=asserts TOOLS=x86_64-w64-mingw32- STANDARD=c RIGOROUS=yes STATIC=yes TCC=x86_64-win32-tcc TCC_CPP_EXTRA_FLAGS='-I../external/tcc/win32/include -DPVAR=TVAR -DTVAR="extern __attribute__((dllimport))"' HOST=x86_64-w64-mingw32 FFI="dynamic"
+          env: CONFIG=mingw-x64.r OS_ID=0.3.40 DEBUG=asserts TOOLS=x86_64-w64-mingw32- STANDARD=c RIGOROUS=yes STATIC=yes TCC=x86_64-win32-tcc TCC_CPP_EXTRA_FLAGS='-I../external/tcc/win32/include -DPVAR=TVAR -DTVAR="extern __attribute__((dllimport))"' HOST=x86_64-w64-mingw32 FFI="dynamic" ODBC_REQUIRES_LTDL="no"
+          addons:
+              apt:
+                  packages:
+                      - binutils-mingw-w64-i686
+                      - gcc-mingw-w64-i686
+                      - mingw-w64
 
         # Windows x64, debug, g++
         #
@@ -90,7 +125,13 @@ matrix:
         - os: linux
           sudo: false #Force new container-based infrastructure.
           language: cpp
-          env: CONFIG=mingw-x64-c++.r OS_ID=0.3.40 DEBUG=asserts TOOLS=x86_64-w64-mingw32- STANDARD=c++ RIGOROUS=yes STATIC=yes TCC=x86_64-win32-tcc TCC_CPP_EXTRA_FLAGS='-I../external/tcc/win32/include -DPVAR=TVAR -DTVAR="extern __attribute__((dllimport))"' HOST=x86_64-w64-mingw32 FFI="dynamic"
+          env: CONFIG=mingw-x64-c++.r OS_ID=0.3.40 DEBUG=asserts TOOLS=x86_64-w64-mingw32- STANDARD=c++ RIGOROUS=yes STATIC=yes TCC=x86_64-win32-tcc TCC_CPP_EXTRA_FLAGS='-I../external/tcc/win32/include -DPVAR=TVAR -DTVAR="extern __attribute__((dllimport))"' HOST=x86_64-w64-mingw32 FFI="dynamic" ODBC_REQUIRES_LTDL="no"
+          addons:
+              apt:
+                  packages:
+                      - binutils-mingw-w64-x86-64
+                      - g++-mingw-w64-x86-64
+                      - mingw-w64
         
         # Android5, debug, gcc
         #
@@ -98,7 +139,7 @@ matrix:
           dist: trusty #gcc on Ubuntu 12.04 does not support sanitizers
           sudo: false #Force new container-based infrastructure.
           language: c
-          env: CONFIG=android5-arm.r OS_ID=0.13.2 DEBUG=asserts STANDARD=c RIGOROUS=yes STATIC=yes HOST=arm-eabi FFI="no"
+          env: CONFIG=android5-arm.r OS_ID=0.13.2 DEBUG=asserts STANDARD=c RIGOROUS=yes STATIC=yes HOST=arm-eabi FFI="no" ODBC_REQUIRES_LTDL="no"
 
         # Android5, release, gcc
         #
@@ -106,7 +147,7 @@ matrix:
           dist: trusty #gcc on Ubuntu 12.04 does not support sanitizers
           sudo: false #Force new container-based infrastructure.
           language: c
-          env: CONFIG=android5-arm.r OS_ID=0.13.2 DEBUG=none STANDARD=c RIGOROUS=yes STATIC=yes HOST=arm-eabi FFI="no"
+          env: CONFIG=android5-arm.r OS_ID=0.13.2 DEBUG=none STANDARD=c RIGOROUS=yes STATIC=yes HOST=arm-eabi FFI="no" ODBC_REQUIRES_LTDL="no"
 
 env:
     global:
@@ -121,31 +162,6 @@ env:
  
          - AWS_S3_BUCKET_NAME: "metaeducation"
 
-
-addons:
-    apt:
-        packages:
-            #
-            # For building 32b binaries on a 64b host (not necessary when we
-            # build for 64b):
-            #
-            - gcc-multilib
-            - g++-multilib
-
-            # For cross-compiling to Windows.
-            #
-            - binutils-mingw-w64-i686
-            - binutils-mingw-w64-x86-64
-            - gcc-mingw-w64-i686
-            - gcc-mingw-w64-x86-64
-            - g++-mingw-w64-i686
-            - g++-mingw-w64-x86-64
-            - mingw-w64
-
-            # for makeinfo, required to build FFI
-            - texinfo
-
-
 install:
     #
     # Fetch a Rebol bootstrap binary, which is needed for building Rebol.
@@ -153,7 +169,7 @@ install:
     # in order to ensure that still works.
     #
     - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then export REBOL_TOOL=./r3-linux-x64-368bd5a ; fi
-    - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then export REBOL_TOOL=./r3-osx-x64-368bd5a-debug ; fi
+    - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then export REBOL_TOOL=./r3-osx-x64-368bd5a-debug && brew install unixodbc ; fi
 
 script:
     # Nice to know what version of gcc this is
@@ -311,7 +327,7 @@ script:
           # we do not apply it to any of the binaries which are uploaded to s3
           # -- not even debug ones.
           #
-          make -f makefile.boot NUM_JOBS=${MAKE_JOBS} REBOL_TOOL=${REBOL_TOOL} CONFIG="configs/${CONFIG}" STANDARD="${STANDARD}" OS_ID="${OS_ID}" RIGOROUS="${RIGOROUS}" DEBUG=sanitize OPTIMIZE=2 STATIC=no
+          make -f makefile.boot NUM_JOBS=${MAKE_JOBS} REBOL_TOOL=${REBOL_TOOL} CONFIG="configs/${CONFIG}" STANDARD="${STANDARD}" OS_ID="${OS_ID}" RIGOROUS="${RIGOROUS}" DEBUG=sanitize OPTIMIZE=2 STATIC=no ODBC_REQUIRES_LTDL=${ODBC_REQUIRES_LTDL}
 
           mv r3 r3-make;
           make clean;
@@ -324,9 +340,9 @@ script:
     #
     - |
       if [[ -z ${TCC} ]]; then
-          make -f makefile.boot NUM_JOBS=${MAKE_JOBS} REBOL_TOOL=${REBOL_TOOL} CONFIG="configs/${CONFIG}" STANDARD="${STANDARD}" OS_ID="${OS_ID}" DEBUG="${DEBUG}" GIT_COMMIT="${GIT_COMMIT}" RIGOROUS="${RIGOROUS}" STATIC="${STATIC}" WITH_FFI=${FFI} WITH_TCC="no"
+          make -f makefile.boot NUM_JOBS=${MAKE_JOBS} REBOL_TOOL=${REBOL_TOOL} CONFIG="configs/${CONFIG}" STANDARD="${STANDARD}" OS_ID="${OS_ID}" DEBUG="${DEBUG}" GIT_COMMIT="${GIT_COMMIT}" RIGOROUS="${RIGOROUS}" STATIC="${STATIC}" WITH_FFI=${FFI} WITH_TCC="no" ODBC_REQUIRES_LTDL=${ODBC_REQUIRES_LTDL}
       else
-          make -f makefile.boot NUM_JOBS=${MAKE_JOBS} REBOL_TOOL=${REBOL_TOOL} CONFIG="configs/${CONFIG}" STANDARD="${STANDARD}" OS_ID="${OS_ID}" DEBUG="${DEBUG}" GIT_COMMIT="${GIT_COMMIT}" RIGOROUS="${RIGOROUS}" STATIC="${STATIC}" WITH_FFI=${FFI} WITH_TCC="%${PWD}/tcc/${TCC}"
+          make -f makefile.boot NUM_JOBS=${MAKE_JOBS} REBOL_TOOL=${REBOL_TOOL} CONFIG="configs/${CONFIG}" STANDARD="${STANDARD}" OS_ID="${OS_ID}" DEBUG="${DEBUG}" GIT_COMMIT="${GIT_COMMIT}" RIGOROUS="${RIGOROUS}" STATIC="${STATIC}" WITH_FFI=${FFI} WITH_TCC="%${PWD}/tcc/${TCC}" ODBC_REQUIRES_LTDL=${ODBC_REQUIRES_LTDL}
       fi
 
     # take a look at the preprocess header file

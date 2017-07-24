@@ -473,6 +473,19 @@ available-modules: reduce [
             ]
         ]
     ]
+
+    mod-odbc: make module-class [
+        name: 'ODBC
+        source: %odbc/mod-odbc.c
+        libraries: to-value switch/default system-config/os-base [
+            Windows [
+                [%odbc32]
+            ]
+        ][
+            ; On some systems (32-bit Ubuntu 12.04), odbc requires ltdl
+            append-of [%odbc] unless find [no false off _ #[false]] user-config/odbc-requires-ltdl [%ltdl]
+        ]
+    ]
 ]
 
 ;dump mod-uuid
@@ -547,6 +560,15 @@ available-extensions: reduce [
         ]
         source: %uuid/ext-uuid.c
         init: %uuid/ext-uuid-init.reb
+    ]
+
+    ext-odbc: make extension-class [
+        name: 'ODBC
+        modules: reduce [
+            mod-odbc
+        ]
+        source: %odbc/ext-odbc.c
+        init: %odbc/ext-odbc-init.reb
     ]
 ]
 

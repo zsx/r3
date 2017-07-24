@@ -38,6 +38,8 @@ static: no
 pkg-config: get-env "PKGCONFIG" ;path to pkg-config, or default
 with-ffi: 'dynamic
 
+odbc-requires-ltdl: no
+
 with-tcc: no
 
 git-commit: _

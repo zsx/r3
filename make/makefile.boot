@@ -79,6 +79,7 @@ WITH_FFI?= no
 WITH_TCC?= no
 STATIC?= no
 CONFIG?=default-config.r
+ODBC_REQUIRES_LTDL?= no
 
 NUM_JOBS?=8
 
@@ -118,7 +119,8 @@ makefile: $(REBOL_TOOL) .FORCE
 		GIT_COMMIT="{$(GIT_COMMIT)}" STANDARD="$(STANDARD)" \
 		RIGOROUS="$(RIGOROUS)" WITH_FFI="$(WITH_FFI)" \
 		WITH_TCC="$(WITH_TCC)" STATIC="$(STATIC)" \
-		OPTIMIZE="$(OPTIMIZE)" TARGET=makefile CONFIG="$(CONFIG)"
+		OPTIMIZE="$(OPTIMIZE)" TARGET=makefile CONFIG="$(CONFIG)" \
+		ODBC_REQUIRES_LTDL="$(ODBC_REQUIRES_LTDL)"
 
 # Synonym for `make -f makefile.boot makefile` which can also be used in the
 # generated makefile (without causing repeated regenerations)
