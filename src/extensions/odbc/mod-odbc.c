@@ -1334,7 +1334,7 @@ REBNATIVE(update_odbc)
         SQL_ATTR_ACCESS_MODE,
         cast(
             SQLPOINTER*,
-            cast(REBUPT, IS_CONDITIONAL_TRUE(ARG(access))
+            cast(REBUPT, IS_TRUTHY(ARG(access))
                 ? SQL_MODE_READ_WRITE
                 : SQL_MODE_READ_ONLY)
         ),
@@ -1349,7 +1349,7 @@ REBNATIVE(update_odbc)
         SQL_ATTR_AUTOCOMMIT,
         cast(
             SQLPOINTER*,
-            cast(REBUPT, IS_CONDITIONAL_TRUE(ARG(commit))
+            cast(REBUPT, IS_TRUTHY(ARG(commit))
                 ? SQL_AUTOCOMMIT_ON
                 : SQL_AUTOCOMMIT_OFF)
         ),
