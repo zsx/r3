@@ -128,12 +128,43 @@ xor+: enfix tighten :xor~
 ; wasteful for the language as a whole, when it's easy enough to type HELP,
 ; or add it to the console-specific abbreviations as H (as with Q for QUIT).
 ;
-; This is an experiment which makes ? an infix operator, that takes
-; a condition on the left and a value on the right--like an IF that won't run
-; blocks or functions.  As a complement, ?? is then taken as a parallel to
-; ELSE, which will also not run blocks or functions.
+; This experiments with making `? var` equivalent to `set? 'var`.  Some are
+; made uncomfortable by ? being prefix and not infix, but this is a very
+; useful feature to have a shorthand for.  (Note: might `! var` being a
+; shorthand for `not set? 'var` make more sense than meaning NOT, because
+; there the tradeoff of literacy for symbology actually makes something a
+; bit clearer instead of less clear?)
 ;
-?: enfix func [
+?: func [
+    {Determine whether a word represents a variable that is SET?}
+
+    'var [any-word! any-path!]
+        {Variable name to test}
+][
+    ; Note: since this just changes the parameter convention, it could use a
+    ; facade (the way TIGHTEN does) and run the native code for SET?.  Revisit
+    ; when REDESCRIBE has this ability.
+    ;
+    set? var
+]
+
+
+; !!! Originally in Rebol2 and R3-Alpha, ?? was used to dump variables.  In
+; the spirit of not wanting to take ? for something like HELP, that function
+; has been defined as DUMP (and extended with significant new features).
+;
+; Instead, ?? is used to make an infix operator, that takes a condition on the
+; left and a value on the right--like an IF that won't run blocks/functions.
+; As a complement, !! is then taken as a parallel to ELSE, which will also not
+; run blocks or functions.  This is a similar to these operators from Perl6:
+;
+; https://docs.perl6.org/language/operators#infix_??_!!
+;
+; However, note that if you say `1 < 2 ?? 3 + 3 !! 4 + 4`, both additions
+; will be run.  To "block" evaluation, there has to be a BLOCK! somewhere,
+; hence these are not meant as a generic substitute for IF and ELSE.
+;
+??: enfix func [
     {If left is true, return value on the right (as-is)}
 
     return: [<opt> any-value!]
@@ -144,7 +175,7 @@ xor+: enfix tighten :xor~
     if/only :condition [:value]
 ]
 
-??: enfix func [
+!!: enfix func [
     {If left isn't void, return it, else return value on the right (as-is)}
 
     return: [<opt> any-value!]
