@@ -1101,8 +1101,8 @@ REBNATIVE(insert_odbc)
 void ODBC_Column_To_Rebol_Value(
     RELVAL *out, // input cell may be relative, but output will be specific
     COLUMN *col
-) {
-    SINK(out);
+){
+    TRASH_CELL_IF_DEBUG(out);
 
     if (col->length == SQL_NULL_DATA) {
         Init_Blank(out);
