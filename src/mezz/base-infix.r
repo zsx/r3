@@ -124,18 +124,36 @@ or+: enfix tighten :or~
 xor+: enfix tighten :xor~
 
 
-; Postfix operator for asking the most existential question of Rebol...is it
-; a Rebol value at all?  (non-void)
+; !!! Originally in Rebol2 and R3-Alpha, ? was a synonym for HELP.  This seems
+; wasteful for the language as a whole, when it's easy enough to type HELP,
+; or add it to the console-specific abbreviations as H (as with Q for QUIT).
 ;
-; !!! Originally in Rebol2 and R3-Alpha, ? was a synonym for HELP, which seems
-; wasteful for the language as a whole when it's easy enough to type HELP.
-; Postfix was not initially considered, because there was no ability of
-; enfixed operators to force the left hand side of expressions to be as
-; maximal as possible.  Hence `while [take blk ?] [...]` would ask if blk was
-; void, not `take blk`.  So it was tried as a prefix operator, which wound
-; up looking somewhat junky...now it's being tried as working postfix.
+; This is an experiment which makes ? an infix operator, that takes
+; a condition on the left and a value on the right--like an IF that won't run
+; blocks or functions.  As a complement, ?? is then taken as a parallel to
+; ELSE, which will also not run blocks or functions.
+;
+?: enfix func [
+    {If left is true, return value on the right (as-is)}
 
-?: enfix :any-value?
+    return: [<opt> any-value!]
+        {Void if the condition is FALSEY?, else value}
+    condition [any-value!]
+    value [<opt> any-value!]
+][
+    if/only :condition [:value]
+]
+
+??: enfix func [
+    {If left isn't void, return it, else return value on the right (as-is)}
+
+    return: [<opt> any-value!]
+        {Left if it isn't void, else right}
+    left [<opt> any-value!]
+    right [<opt> any-value!]
+][
+    either-test-value/only :left [:right]
+]
 
 
 ; THEN and ELSE are "non-TIGHTened" enfix functions which either pass through
