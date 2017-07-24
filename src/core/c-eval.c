@@ -1364,22 +1364,6 @@ reevaluate:;
                 CLEAR_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED);
             break;
 
-        case R_OUT_BLANK_IF_VOID:
-            if (IS_VOID(f->out))
-                Init_Blank(f->out);
-            else
-                CLEAR_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED);
-            break;
-
-        case R_OUT_VOID_IF_UNWRITTEN_BLANK_IF_VOID:
-            if (IS_END(f->out))
-                Init_Void(f->out);
-            else if (IS_VOID(f->out))
-                Init_Blank(f->out);
-            else
-                CLEAR_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED);
-            break;
-
         case R_REDO_CHECKED:
             SET_END(f->out);
             f->special = f->args_head;

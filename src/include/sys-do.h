@@ -898,22 +898,38 @@ inline static REBOOL Eval_Value_Core_Throws(
     Eval_Value_Core_Throws((out), (value), SPECIFIED)
 
 
-// When running a "branch" of code in conditional execution, Ren-C allows the
-// use of single-arity functions.
+// When running a "branch" of code in conditional execution, Rebol has
+// traditionally executed BLOCK!s.  But Ren-C also executes FUNCTION!s that
+// are arity 0 or 1:
 //
-//    >> foo: does [print "Hello"]
-//    >> if true :foo
-//    Hello
+//     >> foo: does [print "Hello"]
+//     >> if true :foo
+//     Hello
 //
-// This was not allowed in R3-Alpha, and given the fact that you could write
-// that as `if true [foo]` the added flexibility may not be necessary.  But
-// in order to capture all the "branch-like" decisions into one place, the
-// shared decision of what to allow or not allow is captured in this one
-// inline function, used by conditional and loop constructs instead of a
-// plain DO.
+//     >> foo: func [x] [print x]
+//     >> if 5 :foo
+//     5
+//
+// When the branch is single-arity, the condition which triggered the branch
+// is passed as the argument.  This permits some interesting possibilities in
+// chaining.
+//
+//     >> case [true "a" false "b"] then func [x] [print x] else [print "*"]
+//     a
+//     >> case [false "a" true "b"] then func [x] [print x] else [print "*"]
+//     b
+//     >> case [false "a" false "b"] then func [x] [print x] else [print "*"]
+//     *
+//
+// Also, Ren-C does something called "blankification", unless the /ONLY
+// refinement is used.  This is the process by which a void-producing branch
+// is forced to be a BLANK! instead, allowing void to be reserved for the
+// result when no branch ran.  This gives a uniform way of determining
+// whether a branch ran or not (utilized by ELSE, THEN, etc.)
 //
 inline static REBOOL Run_Branch_Throws(
     REBVAL *out,
+    const REBVAL *condition,
     const REBVAL *branch,
     REBOOL only
 ) {
@@ -924,41 +940,28 @@ inline static REBOOL Run_Branch_Throws(
             return TRUE;
     }
     else if (IS_FUNCTION(branch)) {
-        //
-        // The function is allowed to be arity-0 only.
-        //
-        // !!! Might it be interesting if arity-1 functions were also allowed,
-        // by passing in the condition evaluation that caused the branch?
-        //
-        //     >> if 1 + 2 func [x] [print x]
-        //     3
-        //
-        // This could look even better with lambdas:
-        //
-        //     >> if 1 + 2 (x -> print x)
-        //     3
-        //
-        // To implement that feature, callers would have to pass in the
-        // condition, then the argument would be included in the apply, with
-        // `fully` not enforced...so the function could either consume the
-        // argument or not.  Review.
-        //
-        const REBOOL fully = TRUE;
-        if (Apply_Only_Throws(out, fully, branch, END))
+        const REBOOL fully = FALSE; // arity-0 functions can ignore condition
+        if (Apply_Only_Throws(out, fully, branch, condition, END))
             return TRUE;
     }
     else {
         // `if condition 3` is legal, but `var: 3 | if condition var` is not.
         // This is to allow casual usages indirected through an evaluation
-        // to be known that they will execute code.  Someone who knows what
-        // they are doing and that they may-or-may-not-execute-code can bypass
-        // this check with `var: 3 | if* condition var`.
+        // to be known that they will "double-evaluate", e.g. code will
+        // always be run that is not visible literally in the source.
+        //
+        // Someone who knows what they are doing can bypass this check with
+        // the only flag.  e.g. `var: 3 | if/only condition var`.  (They could
+        // also just use `condition ? var`)
         //
         if (NOT(only) && NOT_VAL_FLAG(branch, VALUE_FLAG_UNEVALUATED))
             fail (Error_Non_Block_Branch_Raw(branch));
 
         Move_Value(out, branch); // it's not code -- nothing to run
     }
+
+    if (NOT(only) && IS_VOID(out))
+        Init_Blank(out); // "blankification", see comment above
 
     return FALSE;
 }

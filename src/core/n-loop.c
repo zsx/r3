@@ -927,7 +927,7 @@ REBNATIVE(forever)
 
     do {
         const REBOOL only = FALSE;
-        if (Run_Branch_Throws(D_OUT, ARG(body), only)) {
+        if (Run_Branch_Throws(D_OUT, END, ARG(body), only)) {
             REBOOL stop;
             if (Catching_Break_Or_Continue(D_OUT, &stop)) {
                 if (stop)
@@ -1065,7 +1065,7 @@ REBNATIVE(loop)
 
     for (; count > 0; count--) {
         const REBOOL only = FALSE;
-        if (Run_Branch_Throws(D_OUT, ARG(body), only)) {
+        if (Run_Branch_Throws(D_OUT, END, ARG(body), only)) {
             REBOOL stop;
             if (Catching_Break_Or_Continue(D_OUT, &stop)) {
                 if (stop)
@@ -1148,7 +1148,7 @@ inline static REB_R Loop_While_Until_Core(REBFRM *frame_, REBOOL trigger)
     skip_check:;
 
         const REBOOL only = FALSE;
-        if (Run_Branch_Throws(D_OUT, ARG(body), only)) {
+        if (Run_Branch_Throws(D_OUT, END, ARG(body), only)) {
             REBOOL stop;
             if (Catching_Break_Or_Continue(D_OUT, &stop)) {
                 if (stop)
@@ -1242,7 +1242,7 @@ inline static REB_R While_Until_Core(REBFRM *frame_, REBOOL trigger)
     assert(IS_END(D_OUT)); // guaranteed by the evaluator
 
     do {
-        if (Run_Branch_Throws(D_CELL, ARG(condition), only)) {
+        if (Run_Branch_Throws(D_CELL, END, ARG(condition), only)) {
             //
             // A while loop should only look for breaks and continues in its
             // body, not in its condition.  So `while [break] []` is a
@@ -1265,7 +1265,7 @@ inline static REB_R While_Until_Core(REBFRM *frame_, REBOOL trigger)
             return R_OUT_VOID_IF_UNWRITTEN_TRUTHIFY;
         }
 
-        if (Run_Branch_Throws(D_OUT, ARG(body), only)) {
+        if (Run_Branch_Throws(D_OUT, D_CELL, ARG(body), only)) {
             REBOOL stop;
             if (Catching_Break_Or_Continue(D_OUT, &stop)) {
                 if (stop)

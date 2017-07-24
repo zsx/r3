@@ -101,17 +101,6 @@ enum Reb_Result {
     //
     R_OUT_VOID_IF_UNWRITTEN_TRUTHIFY,
 
-    // This converts void into BLANK!, and is used by control constructs
-    // so that they can reserve void for the case they didn't run any branch.
-    //
-    R_OUT_BLANK_IF_VOID,
-
-    // This combines the unwritten and blank path for control constructs.
-    // While it may seem they could do it themselves, having a different
-    // return code is a reminder that some optimization may be possible.
-    //
-    R_OUT_VOID_IF_UNWRITTEN_BLANK_IF_VOID,
-
     // If Do_Core gets back an R_REDO from a dispatcher, it will re-execute
     // the f->phase in the frame.  This function may be changed by the
     // dispatcher from what was originally called.

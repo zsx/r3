@@ -645,19 +645,16 @@ ensure: redescribe [
     {Pass through a value only if it matches types (or TRUE?/FALSE? state)}
 ](
     specialize 'either-test [
-        error-hack: true
-        branch: [
-            ;
+        branch: func [value [<opt> any-value!]] [
+            fail [
+                "ENSURE did not expect argument of type" type-of :value
+            ]
+
             ; !!! There is currently no good way to SPECIALIZE a conditional
             ; which takes a branch, with a branch that refers to parameters
-            ; of the running specialization.  Theoretically we could use the
-            ; BACKTRACE API and look for the frame, but beyond being a very
-            ; hacky idea, the debugger is unstable, so use an ERROR-HACK
-            ; refinement to EITHER-TEST in order to ask it to execute errors
-            ; if we return one...and then it will make the WHERE of the error
-            ; indicate the callsite where value originated.
-            ;
-            make error! "Value did not match test it must ENSURE to pass"
+            ; of the running specialization.  Hence, there's no way to say
+            ; something like /WHERE 'TEST to indicate a parameter from the
+            ; callsite, until a solution is found for that. :-(
         ]
     ]
 )
