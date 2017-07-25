@@ -31,6 +31,7 @@ assert: func [
     ; a default hijacking to set it to be equivalent to VERIFY, late in boot.)
 ]
 
+
 set/enfix quote enfix: proc [
     "Convenience version of SET/ENFIX, e.g `+: enfix :add`"
     :target [set-word! set-path!]
@@ -43,21 +44,24 @@ set/enfix quote enfix: proc [
     ; this is a PROC).  Is this sensible?
 ]
 
+
 default: enfix func [
     "Set word or path to a default value if it is not set yet or blank."
 
     return: [any-value!]
-    :target [set-word! set-path!]
-        "The word"
+    'target [set-word! set-path!]
+        "The word to which might be set"
     value [any-value!] ; not <opt> on purpose
         "Value to set (blocks and 0-arity functions evaluated)"
-    <local>
-        gotten
+    /only
+        "Consider target being BLANK! to be a value not to overwrite"
+
+    <local> gotten
 ][
     ; Protect against `var: 10 | x: default var`, only allow vars if blocks
     ; (same general behavior as IF)
     ;
-    unless maybe [function! block!] :value [
+    unless any [only | maybe [function! block!] :value] [
         unless semiquoted? 'value [
             fail ["Evaluated non-block/function used with DEFAULT" mold value]
         ]
@@ -69,20 +73,45 @@ default: enfix func [
     ; assignment, it's good practice to evaluate the whole expression to
     ; the result the SET-WORD! was set to, so `x: y: op z` makes `x = y`.
     ;
-    any [
-        | get target
-        | set* target if* true :value ;-- executed if block or function
-    ]
+    ; Note: This overwrites the variable with SET* even if it's setting it
+    ; back to its old value.  That's potentially wasteful, but also might
+    ; bother a data breakpoint.  Though you might see it either way, if a
+    ; variable -could- be modified by a line, you may want to know that...
+    ; perhaps the debugger could monitor for *changes*.  Either way, this
+    ; should be a native, so it's not worth worrying about.
+    ;
+    set* target either-test
+        (only ?? :any-value? !! :something?) ;-- test function
+        get* target ;-- value to test, and to return if passes test
+        :value ;-- branch to use if test fails
 ]
 
+update: enfix func [
+    "Set word or path to a default value if that value is set and not blank."
 
-does: func [
-    {A shortcut to define a function that has no arguments or locals.}
-    return: [function!]
-    body [block!]
-        {The body block of the function}
+    return: [any-value!]
+    'target [set-word! set-path!]
+        "The word to which might be set"
+    value [<opt> any-value!]
+        "Value to set (blocks and 0-arity functions evaluated)"
+    /only
+        "Consider value being BLANK! to be a value to use for overwriting"
+
+    <local> gotten
 ][
-    func [] body ;-- no spec documentation permits any return value
+    ; See notes on DEFAULT above, which works the same way.  This should also
+    ; ultimately be a native, once a name is invented for the prefix form.
+
+    unless any [only | maybe [function! block!] :value] [
+        unless semiquoted? 'value [
+            fail ["Evaluated non-block/function used with UPDATE" mold value]
+        ]
+    ]
+
+    set* target either-test
+        (only ?? :any-value? !! :something?) ;-- test function
+        if* true :value ;-- use IF to dispatch branch for value being tested
+        [get* target] ;-- branch if test fails, in block to avoid execution
 ]
 
 
@@ -258,6 +287,8 @@ make-action: func [
 ;
 function: specialize :make-action [generator: :func]
 procedure: specialize :make-action [generator: :proc]
+does: specialize 'func [spec: []]
+
 
 ; Functions can be chained, adapted, and specialized--repeatedly.  The meta
 ; information from which HELP is determined can be inherited through links
@@ -475,9 +506,15 @@ redescribe [
     {Define an action with set-words as locals, that doesn't return a value.}
 ] :procedure
 
+redescribe [
+    {A shortcut to define a function that has no arguments or locals.}
+] :does
+
+
 ; Though this name is questionable, it's nice to be easier to call
 ;
 semiquote: specialize 'identity [quote: true]
+
 
 get*: redescribe [
     {Variation of GET which returns void if the source is not set}
@@ -505,6 +542,7 @@ set*: redescribe [
 ](
     specialize 'set [opt: true]
 )
+
 
 ; LOGIC VERSIONS OF CONTROL STRUCTURES
 ;
@@ -689,13 +727,8 @@ take: redescribe [
     chain [
         :take*
             |
-        func [
-            return: [any-value!]
-            took [<opt> any-value!]
-        ][
-            either set? 'took [
-                :took
-            ][
+        specialize 'either-test-value [
+            branch: [
                 fail "Can't TAKE from series end (see TAKE* to get void)"
             ]
         ]
@@ -708,13 +741,13 @@ parse?: redescribe [
     chain [
         :parse
             |
-        func [x][
-            unless logic? :x [
+        specialize 'either-test [
+            test: :logic?
+            branch: [
                 fail [
                     "Rules passed to PARSE? returned non-LOGIC!:" (mold :x)
                 ]
             ]
-            x
         ]
     ]
 )
@@ -730,6 +763,7 @@ for-back: redescribe [
 ](
     specialize 'for-skip [skip: -1]
 )
+
 
 lock-of: redescribe [
     "If value is already locked, return it...otherwise CLONE it and LOCK it."
@@ -807,6 +841,7 @@ infix?: redescribe [
     specialize :nfix? [n: 2 | name: "INFIX?"]
 )
 
+
 lambda: function [
     {Convenience variadic wrapper for FUNC and FUNCTION constructors}
 
@@ -821,7 +856,7 @@ lambda: function [
     f: either only [:func] [:function]
 
     f (
-        :args then [to block! args] else [[]]
+        :args then [to block! args] !! []
     )(
         if block? first body [
             take body
@@ -830,6 +865,7 @@ lambda: function [
         ]
     )
 ]
+
 
 left-bar: func [
     {Expression barrier that evaluates to left side but executes right.}
@@ -921,6 +957,7 @@ use: func [
     eval func compose [<durable> <local> (vars) <with> return] body
 ]
 
+
 ; Shorthand helper for CONSTRUCT (similar to DOES for FUNCTION).
 ;
 has: func [
@@ -933,12 +970,19 @@ has: func [
     construct/(all [only 'only]) [] body
 ]
 
+
 module: func [
-    "Creates a new module."
-    spec [block! object!] "The header block of the module (modified)"
-    body [block!] "The body block of the module (modified)"
-    /mixin "Mix in words from other modules"
-    mixins [object!] "Words collected into an object"
+    {Creates a new module.}
+    
+    spec [block! object!]
+        "The header block of the module (modified)"
+    body [block!]
+        "The body block of the module (modified)"
+    /mixin
+        "Mix in words from other modules"
+    mixins [object!]
+        "Words collected into an object"
+    
     <local> hidden w mod
 ][
     mixins: to-value :mixins

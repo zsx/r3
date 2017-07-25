@@ -184,7 +184,7 @@ static REB_R DNS_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         if (IS_OPEN(sock)) return R_TRUE;
         return R_FALSE;
 
-    case SYM_UPDATE:
+    case SYM_ON_WAKE_UP:
         return R_BLANK;
 
     default:

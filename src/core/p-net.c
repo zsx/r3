@@ -186,7 +186,7 @@ static REB_R Transport_Actor(
         case SYM_OPEN_Q:
             return R_FALSE;
 
-        case SYM_UPDATE:  // allowed after a close
+        case SYM_ON_WAKE_UP:  // allowed after a close
             break;
 
         default:
@@ -198,7 +198,7 @@ static REB_R Transport_Actor(
 
     switch (action) { // Ordered by frequency
 
-    case SYM_UPDATE: {
+    case SYM_ON_WAKE_UP: {
         //
         // Update the port object after a READ or WRITE operation.
         // This is normally called by the WAKE-UP function.

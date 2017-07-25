@@ -179,7 +179,7 @@ REBTYPE(Port)
         }
         break; }
 
-    case SYM_UPDATE:
+    case SYM_ON_WAKE_UP:
         break;
 
     case SYM_REFLECT:

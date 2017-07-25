@@ -158,7 +158,7 @@ static REB_R Event_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
     switch (action) {
 
-    case SYM_UPDATE:
+    case SYM_ON_WAKE_UP:
         return R_BLANK;
 
     // Normal block actions done on events:

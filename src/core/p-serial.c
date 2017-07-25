@@ -244,7 +244,7 @@ static REB_R Serial_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
             fail (Error_On_Port(RE_WRITE_ERROR, port, req->error));
         break; }
 
-    case SYM_UPDATE:
+    case SYM_ON_WAKE_UP:
         // Update the port object after a READ or WRITE operation.
         // This is normally called by the WAKE-UP function.
         arg = CTX_VAR(port, STD_PORT_DATA);

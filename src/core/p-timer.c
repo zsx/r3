@@ -70,7 +70,7 @@ static REB_R Timer_Actor(REBFRM *frame_, REBCTX *port, REBCNT action)
 
     switch (action) {
 
-    case SYM_UPDATE:
+    case SYM_ON_WAKE_UP:
         return R_BLANK;
 
     // Normal block actions done on events:

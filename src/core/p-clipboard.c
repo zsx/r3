@@ -46,7 +46,7 @@ static REB_R Clipboard_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
     REBREQ *req = Ensure_Port_State(port, RDI_CLIPBOARD);
 
     switch (action) {
-    case SYM_UPDATE:
+    case SYM_ON_WAKE_UP:
         // Update the port object after a READ or WRITE operation.
         // This is normally called by the WAKE-UP function.
         arg = CTX_VAR(port, STD_PORT_DATA);

@@ -445,7 +445,7 @@ REBNATIVE(wake_up)
         // We don't pass `actor` or `event` in, because we just pass the
         // current call info.  The port action can re-read the arguments.
         //
-        Do_Port_Action(frame_, port, SYM_UPDATE);
+        Do_Port_Action(frame_, port, SYM_ON_WAKE_UP);
     }
 
     REBOOL woke_up = TRUE; // start by assuming success

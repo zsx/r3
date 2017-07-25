@@ -410,7 +410,14 @@ modify: action [
     value
 ]
 
-update: action [
+; This action seems to only be dispatched to *native* ports, and only as part
+; of the WAKE-UP function.  It used to have the name UPDATE, but for Ren-C it
+; was felt this term would be better applied as a complement to DEFAULT.
+; There were no apparent user-facing references in the repo, but it turns out
+; to be important it can be called something else.  For now, it's given a
+; name most relevant to what it does internally.
+;
+on-wake-up: action [
     {Updates external and internal states (normally after read/write).}
     port [port!]
 ]
