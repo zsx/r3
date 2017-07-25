@@ -46,7 +46,7 @@ for-each [name value] args [
             ]
         ]
     ][
-        set in user-config (to-word replace to string! name #"_" #"-")
+        set in user-config (to-word replace/all to string! name #"_" #"-")
             load value
     ]
 ]
