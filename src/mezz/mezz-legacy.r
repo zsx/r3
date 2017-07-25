@@ -287,23 +287,43 @@ reform: :spaced
 
 
 
-; REJOIN in R3-Alpha meant "reduce and join"; the idea of cumulative joining
-; in Ren-C already implies reduction of the appended data.  JOIN-ALL is a
-; friendlier name, suggesting joining with the atomic root type of the first
-; reduced element.
+; REJOIN in R3-Alpha meant "reduce and join"; the idea of JOIN in Ren-C
+; already implies reduction of the appended data.  JOIN-ALL is a friendlier
+; name, suggesting the join result is the type of the first reduced element.
 ;
-; JOIN-ALL is not exactly the same as REJOIN; and it is not used as often
-; because UNSPACED can be used for strings, with AS allowing aliasing of the
-; data as other string types (`as tag! unspaced [...]` will not create a copy
-; of the series data the way TO TAG! would).  While REJOIN is tolerant of
-; cases like `rejoin [() () ()]` producing an empty block, this makes a
-; void in JOIN-ALL...but that is a common possibility.
+; But JOIN-ALL doesn't act exactly the same as REJOIN--in fact, most cases
+; of REJOIN should be replaced not with JOIN-ALL, but with UNSPACED.  Note
+; that although UNSPACED always returns a STRING!, the AS operator allows
+; aliasing to other string types (`as tag! unspaced [...]` will not create a
+; copy of the series data the way TO TAG! would).
 ;
 rejoin: chain [
-    :join-all
+    adapt 'join-all [
+        ;
+        ; JOIN-ALL demands the first element of the block be a series, else
+        ; it doesn't know whether JOIN-ALL [1 [a]] should be "1a" or [1 a],
+        ; or a BINARY!, etc.  REJOIN would happily assume a non-series meant
+        ; you wanted a string.  People who want such behavior today are
+        ; encouraged to use UNSPACED, but this adaptation accounts for the
+        ; old behavior for compatibility.
+        ;
+        unless series? :block/1 [
+            block: copy block
+            block/1: to string! :block/1
+        ]
+        ; (JOIN-ALL's normal code runs after this point)
+    ]
         |
-    func [v [<opt> any-series!]] [
-        either set? 'v [:v] [copy []]
+    specialize 'either-test-value [
+        ;
+        ; (result of JOIN-ALL is piped in here)
+        ;
+        ; While REJOIN is tolerant of cases like `rejoin [() () ()]` producing
+        ; an empty block, this makes a void in JOIN-ALL.  Account for that,
+        ; by passing through the result if it's ANY-VALUE?, otherwise it's
+        ; void so return a copy of the empty block.
+        ;
+        branch: [copy []]
     ]
 ]
 
