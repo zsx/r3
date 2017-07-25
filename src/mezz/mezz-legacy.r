@@ -577,38 +577,11 @@ lib-make: :make
 make: function [
     "Constructs or allocates the specified datatype."
     return: [any-value!]
-    :lookahead [any-value! <...>]
     type [<opt> any-value! <...>]
         "The datatype or an example value"
     def [<opt> any-value! <...>]
         "Attributes or size of the new value (modified)"
 ][
-    switch first lookahead [
-        callback! [
-            verify [function! = take type]
-            def: ensure block! take def
-            ffi-spec: ensure block! first def
-            action: ensure function! reduce second def
-            return make-callback :action ffi-spec
-        ]
-        routine! [
-            verify [function! = take type]
-            def: ensure block! take def
-            ffi-spec: ensure block! first def
-            lib: ensure [integer! library!] reduce second def
-            if integer? lib [ ;-- interpreted as raw function pointer
-                return make-routine-raw lib ffi-spec
-            ]
-            name: ensure string! third def
-            return make-routine lib name ffi-spec
-        ]
-        command! [
-            verify [function! = take type]
-            def: ensure block! take def
-            return make-command def
-        ]
-    ]
-
     type: take type
     def: take def
 

@@ -496,7 +496,7 @@ alter: func [
 collect-with: func [
     "Evaluate body, and return block of values collected via keep function."
 
-    return: [block!]
+    return: [any-series!]
     'name [word! lit-word!]
         "Name to which keep function will be assigned (<local> if word!)"
     body [block!]

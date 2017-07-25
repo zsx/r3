@@ -80,7 +80,7 @@ default: enfix func [
     ; perhaps the debugger could monitor for *changes*.  Either way, this
     ; should be a native, so it's not worth worrying about.
     ;
-    set* target either-test
+    set* target either-test/only
         (only ?? :any-value? !! :something?) ;-- test function
         get* target ;-- value to test, and to return if passes test
         :value ;-- branch to use if test fails
@@ -108,7 +108,7 @@ update: enfix func [
         ]
     ]
 
-    set* target either-test
+    set* target either-test/only
         (only ?? :any-value? !! :something?) ;-- test function
         if* true :value ;-- use IF to dispatch branch for value being tested
         [get* target] ;-- branch if test fails, in block to avoid execution
@@ -208,7 +208,7 @@ make-action: func [
         )
         any [
             set other: [word! | path!] (
-                other: ensure any-context! get other
+                other: really any-context! get other
                 bind new-body other
                 for-each [key val] other [
                     append exclusions key
@@ -511,6 +511,19 @@ redescribe [
 ] :does
 
 
+default*: enfix redescribe [
+    {Would be the same as DEFAULT/ONLY if paths could dispatch infix}
+](
+    specialize 'default [only: true]
+)
+
+update*: enfix redescribe [
+    {Would be the same as UPDATE/ONLY if paths could dispatch infix}
+](
+    specialize 'update [only: true]
+)
+
+
 ; Though this name is questionable, it's nice to be easier to call
 ;
 semiquote: specialize 'identity [quote: true]
@@ -643,7 +656,8 @@ maybe: redescribe [
         ; return blank on test failure (can't be plain _ due to "evaluative
         ; bit" rules...should this be changed so exemplars clear the bit?)
         ;
-        branch: [_]
+        branch: []
+        only: false ;-- no /ONLY, hence void branch returns BLANK!
     ][
         if void? :value [ ; !!! TBD: filter this via REDESCRIBE when possible
             fail "Cannot use MAYBE on void values (try using EITHER-TEST)"
@@ -679,13 +693,13 @@ maybe?: redescribe [
     ]
 )
 
-ensure: redescribe [
-    {Pass through a value only if it matches types (or TRUE?/FALSE? state)}
+really: redescribe [
+    {Pass through value if it matches test, otherwise trigger a FAIL}
 ](
     specialize 'either-test [
         branch: func [value [<opt> any-value!]] [
             fail [
-                "ENSURE did not expect argument of type" type-of :value
+                "REALLY did not expect argument of type" type-of :value
             ]
 
             ; !!! There is currently no good way to SPECIALIZE a conditional
@@ -694,8 +708,28 @@ ensure: redescribe [
             ; something like /WHERE 'TEST to indicate a parameter from the
             ; callsite, until a solution is found for that. :-(
         ]
+        only: false ;-- Doesn't matter (it fails) just hide the refinement
     ]
 )
+
+ensure: func [
+    {FAIL if value is void (or blank if not /ONLY), otherwise pass it through}
+
+    value [any-value!] ;-- always checked for void, since no <opt>
+    /only
+        {Just make sure the value isn't void, pass through BLANK!}
+][
+    only ?? :value else [
+        either-test :something? :value [
+            fail/where
+                ["ENSURE received a BLANK! (use ENSURE* if this is ok)"]
+                'value
+        ] 
+    ]
+]
+
+ensure*: specialize 'ensure [only: true]
+
 
 find?: redescribe [
     {Variant of FIND that returns TRUE if present and FALSE if not.}
@@ -1031,7 +1065,7 @@ module: func [
         spec/version [tuple! blank!]
         spec/options [block! blank!]
     ][
-        do compose/only [ensure (types) (var)] ;-- names to show if fails
+        do compose/only [really (types) (var)] ;-- names to show if fails
     ]
 
     ; In Ren-C, MAKE MODULE! acts just like MAKE OBJECT! due to the generic

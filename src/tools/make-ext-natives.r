@@ -33,11 +33,11 @@ args: parse-args system/options/args
 
 config: config-system to-value :args/OS_ID
 
-m-name: ensure string! args/MODULE
+m-name: really string! args/MODULE
 l-m-name: lowercase copy m-name
 u-m-name: uppercase copy m-name
 
-c-src: fix-win32-path to file! ensure string! args/SRC
+c-src: fix-win32-path to file! really string! args/SRC
 
 print ["building" m-name "from" c-src]
 

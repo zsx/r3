@@ -118,7 +118,7 @@ elf-format: context [
             if endian = 'little [reverse bin]
             set name (to-integer/unsigned bin)
         ][
-            val: ensure integer! get name
+            val: really integer! get name
             bin: skip (tail to-binary val) (negate num-bytes) ;-- big endian
             if endian = 'little [reverse bin]
             change begin bin
@@ -245,7 +245,7 @@ elf-format: context [
                 (mode: 'read) section-header-rule
                 (
                     name-start: skip string-section sh_name
-                    name-end: ensure binary! find name-start #{00}
+                    name-end: really binary! find name-start #{00}
                     section-name: to-string copy/part name-start name-end
                     if name = section-name [
                         return index ;-- sh_offset, sh_size, etc. are set

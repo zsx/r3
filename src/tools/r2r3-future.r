@@ -46,6 +46,14 @@ if true = attempt [void? :some-undefined-thing] [
         fail "Do not use THEN in scripts which want compatibility w/R3-Alpha"
     ]
 
+    ; The once-arity-2 primitive known as ENSURE was renamed to REALLY, to
+    ; better parallel MAYBE and free up ENSURE to simply mean "make sure it's
+    ; a value".  But older Ren-Cs have the arity-2 definition.  Adjust it.
+    ;
+    if find spec-of :ensure 'test [
+        really: :ensure
+    ]
+
     QUIT ;-- !!! stops running if Ren-C here.
 ]
 
@@ -646,7 +654,7 @@ make-action: func [
         )
         any [
             set other: [word! | path!] (
-                other: ensure any-context! get other
+                other: really any-context! get other
                 bind new-body other
                 for-each [key val] other [
                     append exclusions key
@@ -736,13 +744,13 @@ procedure: func [spec body] [
 ]
 
 
-; This isn't a full implementation of ENSURE with function-oriented testing,
+; This isn't a full implementation of REALLY with function-oriented testing,
 ; but it works well enough for types.
 ;
-ensure: function [type [datatype!] value [<opt> any-value!]] [
+really: function [type [datatype!] value [<opt> any-value!]] [
     if type != type-of :value [
         probe :value
-        fail ["ENSURE expected:" (mold type) "but got" (mold type-of :value)]
+        fail ["REALLY expected:" (mold type) "but got" (mold type-of :value)]
     ]
     return :value
 ]
