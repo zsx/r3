@@ -186,22 +186,24 @@ const REBYTE *Scan_Time(REBVAL *out, const REBYTE *cp, REBCNT len)
 //
 //  Emit_Time: C
 //
-void Emit_Time(REB_MOLD *mold, const REBVAL *value)
+void Emit_Time(REB_MOLD *mo, const RELVAL *v)
 {
     REB_TIMEF tf;
+    Split_Time(VAL_NANO(v), &tf); // loses sign
+
     const char *fmt;
+    if (tf.s == 0 && tf.n == 0)
+        fmt = "I:2";
+    else
+        fmt = "I:2:2";
 
-    Split_Time(VAL_NANO(value), &tf); // loses sign
+    if (VAL_NANO(v) < cast(REBI64, 0))
+        Append_Codepoint_Raw(mo->series, '-');
 
-    if (tf.s == 0 && tf.n == 0) fmt = "I:2";
-    else fmt = "I:2:2";
+    Emit(mo, fmt, tf.h, tf.m, tf.s, 0);
 
-    if (VAL_NANO(value) < cast(REBI64, 0))
-        Append_Codepoint_Raw(mold->series, '-');
-
-    Emit(mold, fmt, tf.h, tf.m, tf.s, 0);
-
-    if (tf.n > 0) Emit(mold, ".i", tf.n);
+    if (tf.n > 0)
+        Emit(mo, ".i", tf.n);
 }
 
 

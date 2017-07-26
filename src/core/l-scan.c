@@ -1661,6 +1661,9 @@ static REBARR *Scan_Array(
     REBOOL line; // goto would cross init, moving up gets clobber warning
     line = FALSE;
 
+    // We'd like to use DECLARE_MOLD here, but the macro has a problem with
+    // goto crossing the initialization of `REB_MOLD *mo = &mold_struct`. :-(
+    //
     REB_MOLD mo;
     CLEARS(&mo);
 
@@ -2388,15 +2391,14 @@ const REBYTE *Scan_Any_Word(
     const REBUPT start_line = 1;
     Init_Scan_State(&ss, utf8, len, filename, start_line);
 
-    REB_MOLD mo;
-    CLEARS(&mo);
+    DECLARE_MOLD (mo);
 
-    Locate_Token_May_Push_Mold(&mo, &ss);
+    Locate_Token_May_Push_Mold(mo, &ss);
     if (ss.token != TOKEN_WORD)
         return NULL;
 
     Init_Any_Word(out, kind, Intern_UTF8_Managed(utf8, len));
-    Drop_Mold_If_Pushed(&mo);
+    Drop_Mold_If_Pushed(mo);
     return ss.begin; // !!! is this right?
 }
 

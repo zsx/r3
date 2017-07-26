@@ -157,7 +157,7 @@ REBNATIVE(spelling_of)
         // because the binding bits need to stay consistent
         //
         VAL_SET_TYPE_BITS(value, REB_WORD);
-        series = Copy_Mold_Value(value, 0 /* opts... MOPT_0? */);
+        series = Copy_Mold_Value(value, MOLD_FLAG_0);
     }
 
     Init_String(D_OUT, series);
@@ -484,17 +484,18 @@ REBNATIVE(enbase)
     Init_Any_Series_At(arg, REB_BINARY, temp, index);
 
     REBSER *ser;
+    const REBOOL brk = FALSE;
     switch (base) {
     case 64:
-        ser = Encode_Base64(arg, 0, FALSE);
+        ser = Encode_Base64(NULL, arg, brk);
         break;
 
     case 16:
-        ser = Encode_Base16(arg, 0, FALSE);
+        ser = Encode_Base16(NULL, arg, brk);
         break;
 
     case 2:
-        ser = Encode_Base2(arg, 0, FALSE);
+        ser = Encode_Base2(NULL, arg, brk);
         break;
 
     default:
@@ -541,18 +542,18 @@ REBNATIVE(dehex)
     }
     else {
         REBUNI *up = VAL_UNI_AT(ARG(value));
-        REBUNI *dp;
-        REB_MOLD mo;
-        CLEARS(&mo);
 
-        Push_Mold(&mo);
+        DECLARE_MOLD (mo);
+
+        Push_Mold(mo);
 
         // Do a conservative expansion, assuming there are no %NNs in the
-        // series and the output string will be the same length as input
+        // series and the output string will be the same length as input.
+        // Note expand series may change the pointer, so UNI_AT must be after.
         //
-        Expand_Series(mo.series, mo.start, len);
+        Expand_Series(mo->series, mo->start, len);
 
-        dp = UNI_AT(mo.series, mo.start); // Expand_Series may change pointer
+        REBUNI *dp = UNI_AT(mo->series, mo->start);
 
         for (; len > 0; len--) {
             if (
@@ -573,7 +574,7 @@ REBNATIVE(dehex)
         // actual size after the %NNs have been accounted for.
         //
         ser = Pop_Molded_String_Len(
-            &mo, cast(REBCNT, dp - UNI_AT(mo.series, mo.start))
+            mo, cast(REBCNT, dp - UNI_AT(mo->series, mo->start))
         );
     }
 

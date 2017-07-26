@@ -553,22 +553,22 @@ REBINT CT_Varargs(const RELVAL *a, const RELVAL *b, REBINT mode)
 // VARARGS! have stabilized somewhat just how much information can (or should)
 // be given when printing these out (they should not "lookahead")
 //
-void Mold_Varargs(const REBVAL *v, REB_MOLD *mold) {
+void Mold_Varargs(REB_MOLD *mo, const RELVAL *v) {
     assert(IS_VARARGS(v));
 
-    Pre_Mold(v, mold);  // #[varargs! or make varargs!
+    Pre_Mold(mo, v);  // #[varargs! or make varargs!
 
-    Append_Codepoint_Raw(mold->series, '[');
+    Append_Codepoint_Raw(mo->series, '[');
 
     if (v->extra.binding == NULL) {
-        Append_Unencoded(mold->series, "???");
+        Append_Unencoded(mo->series, "???");
     }
     else {
         REBCTX *context = CTX(v->extra.binding);
         REBFRM *param_frame = CTX_FRAME_IF_ON_STACK(context);
 
         if (param_frame == NULL) {
-            Append_Unencoded(mold->series, "???");
+            Append_Unencoded(mo->series, "???");
         }
         else {
             const RELVAL *param
@@ -604,11 +604,11 @@ void Mold_Varargs(const REBVAL *v, REB_MOLD *mold) {
                 param_word, kind, VAL_PARAM_SPELLING(param)
             );
 
-            Mold_Value(mold, param_word, TRUE);
+            Mold_Value(mo, param_word);
         }
     }
 
-    Append_Unencoded(mold->series, " <= ");
+    Append_Unencoded(mo->series, " <= ");
 
     REBARR *feed = v->payload.varargs.feed;
 
@@ -616,14 +616,14 @@ void Mold_Varargs(const REBVAL *v, REB_MOLD *mold) {
         REBARR *array1 = feed;
 
         { // Just [...] for now
-            Append_Unencoded(mold->series, "[...]");
+            Append_Unencoded(mo->series, "[...]");
             goto skip_complex_mold_for_now;
         }
 
         if (IS_END(ARR_HEAD(array1)))
-            Append_Unencoded(mold->series, "*exhausted*");
+            Append_Unencoded(mo->series, "*exhausted*");
         else
-            Mold_Value(mold, ARR_HEAD(array1), TRUE);
+            Mold_Value(mo, ARR_HEAD(array1));
     }
     else if (NOT(IS_ARRAY_MANAGED(feed))) {
         //
@@ -631,38 +631,38 @@ void Mold_Varargs(const REBVAL *v, REB_MOLD *mold) {
         // item that is residing in the argument slots for a function,
         // while that function is still fulfilling its arguments.
         //
-        Append_Unencoded(mold->series, "** varargs frame not fulfilled");
+        Append_Unencoded(mo->series, "** varargs frame not fulfilled");
     }
     else {
         REBCTX *context = CTX(feed);
         REBFRM *f = CTX_FRAME_IF_ON_STACK(context);
 
         if (f == NULL) {
-            Append_Unencoded(mold->series, "**unavailable: call ended **");
+            Append_Unencoded(mo->series, "**unavailable: call ended **");
         }
         else {
             {// Just [...] for now
-                Append_Unencoded(mold->series, "[...]");
+                Append_Unencoded(mo->series, "[...]");
                 goto skip_complex_mold_for_now;
             }
 
             if (IS_END(f->value))
-                Append_Unencoded(mold->series, "*exhausted*");
+                Append_Unencoded(mo->series, "*exhausted*");
             else {
-                Mold_Value(mold, f->value, TRUE);
+                Mold_Value(mo, f->value);
 
                 if (f->flags.bits & DO_FLAG_VA_LIST)
-                    Append_Unencoded(mold->series, "*C varargs, pending*");
+                    Append_Unencoded(mo->series, "*C varargs, pending*");
                 else
                     Mold_Array_At(
-                        mold, f->source.array, cast(REBCNT, f->index), NULL
+                        mo, f->source.array, cast(REBCNT, f->index), NULL
                     );
             }
         }
     }
 
 skip_complex_mold_for_now:
-    Append_Codepoint_Raw(mold->series, ']');
+    Append_Codepoint_Raw(mo->series, ']');
 
-    End_Mold(mold);
+    End_Mold(mo);
 }

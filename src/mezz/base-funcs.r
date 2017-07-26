@@ -870,7 +870,7 @@ postfix?: redescribe [
 )
 
 infix?: redescribe [
-    {TRUE if an arity 2 function is SET/LOOKBACK to act as infix.}
+    {TRUE if an arity 2 function is SET/ENFIX to act as infix.}
 ](
     specialize :nfix? [n: 2 | name: "INFIX?"]
 )

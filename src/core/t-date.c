@@ -72,18 +72,13 @@ REBINT CT_Date(const RELVAL *a, const RELVAL *b, REBINT mode)
 //
 //  Emit_Date: C
 //
-void Emit_Date(REB_MOLD *mold, const REBVAL *value_orig)
+void Emit_Date(REB_MOLD *mo, const RELVAL *value_orig)
 {
-    REBYTE buf[64];
-    REBYTE *bp = &buf[0];
-    REBINT tz;
-    REBYTE dash = GET_MOPT(mold, MOPT_SLASH_DATE) ? '/' : '-';
-
     // We don't want to modify the incoming date value we are molding,
     // so we make a copy that we can tweak during the emit process
 
     DECLARE_LOCAL (value);
-    Move_Value(value, value_orig);
+    Move_Value(value, const_KNOWN(value_orig));
 
     if (
         VAL_MONTH(value) == 0
@@ -91,34 +86,36 @@ void Emit_Date(REB_MOLD *mold, const REBVAL *value_orig)
         || VAL_DAY(value) == 0
         || VAL_DAY(value) > 31
     ) {
-        Append_Unencoded(mold->series, "?date?");
+        Append_Unencoded(mo->series, "?date?");
         return;
     }
 
     if (VAL_NANO(value) != NO_TIME)
         Adjust_Date_Zone(value, FALSE);
 
-//  Punctuation[GET_MOPT(mold, MOPT_COMMA_PT) ? PUNCT_COMMA : PUNCT_DOT]
+    REBYTE dash = GET_MOLD_FLAG(mo, MOLD_FLAG_SLASH_DATE) ? '/' : '-';
 
-    bp = Form_Int(bp, (REBINT)VAL_DAY(value));
+    REBYTE buf[64];
+    REBYTE *bp = &buf[0];
+
+    bp = Form_Int(bp, cast(REBINT, VAL_DAY(value)));
     *bp++ = dash;
-    memcpy(bp, Month_Names[VAL_MONTH(value)-1], 3);
+    memcpy(bp, Month_Names[VAL_MONTH(value) - 1], 3);
     bp += 3;
     *bp++ = dash;
-    bp = Form_Int_Pad(bp, (REBINT)VAL_YEAR(value), 6, -4, '0');
-    *bp = 0;
+    bp = Form_Int_Pad(bp, cast(REBINT, VAL_YEAR(value)), 6, -4, '0');
+    *bp = '\0';
 
-    Append_Unencoded(mold->series, s_cast(buf));
+    Append_Unencoded(mo->series, s_cast(buf));
 
     if (VAL_NANO(value) != NO_TIME) {
-
-        Append_Codepoint_Raw(mold->series, '/');
-        Emit_Time(mold, value);
+        Append_Codepoint_Raw(mo->series, '/');
+        Emit_Time(mo, value);
 
         if (VAL_ZONE(value) != 0) {
-
             bp = &buf[0];
-            tz = VAL_ZONE(value);
+
+            REBINT tz = VAL_ZONE(value);
             if (tz < 0) {
                 *bp++ = '-';
                 tz = -tz;
@@ -126,12 +123,12 @@ void Emit_Date(REB_MOLD *mold, const REBVAL *value_orig)
             else
                 *bp++ = '+';
 
-            bp = Form_Int(bp, tz/4);
+            bp = Form_Int(bp, tz / 4);
             *bp++ = ':';
-            bp = Form_Int_Pad(bp, (tz&3) * 15, 2, 2, '0');
+            bp = Form_Int_Pad(bp, (tz & 3) * 15, 2, 2, '0');
             *bp = 0;
 
-            Append_Unencoded(mold->series, s_cast(buf));
+            Append_Unencoded(mo->series, s_cast(buf));
         }
     }
 }

@@ -384,47 +384,47 @@ const REBYTE *Decode_Binary(
 //
 // Base2 encode a given series. Must be BYTES, not UNICODE.
 //
-REBSER *Encode_Base2(const REBVAL *value, REBSER *series, REBOOL brk)
+REBSER *Encode_Base2(REBSER *opt_series, const RELVAL *v, REBOOL brk)
 {
-    REBYTE *p;  // ?? should it be REBYTE? Same with below functions?
-    REBYTE *src;
-    REBINT len;
+    assert(IS_BINARY(v) || IS_BITSET(v));
+
+    REBYTE *dest;
+    REBINT len = VAL_LEN_AT(v);
+    REBSER *result = Prep_String(
+        opt_series,
+        &dest,
+        8 * len + 2 * (len / 8) + 4 // Add slop-factor
+    );
+
+    if (len == 0) { // return empty series if input was zero length
+        TERM_SEQUENCE_LEN(result, 0);
+        return result;
+    }
+
+    if (len > 8 && brk)
+        *dest++ = LF;
+
+    REBYTE *src = VAL_BIN_AT(v);
+
     REBINT i;
-    REBINT n;
-    REBYTE b;
-
-    len = VAL_LEN_AT(value);
-    src = VAL_BIN_AT(value);
-
-    // Add slop-factor
-    series = Prep_String(series, &p, 8 * len + 2 * (len / 8) + 4);
-
-    // If the input series was zero length, return empty series
-    if (len == 0) {
-        TERM_SEQUENCE_LEN(series, 0);
-        return series;
-    }
-
-    if (len > 8 && brk) *p++ = LF;
-
     for (i = 0; i < len; i++) {
+        REBYTE b = src[i];
 
-        b = src[i];
+        REBINT n;
+        for (n = 0x80; n > 0; n = n >> 1)
+            *dest++ = (b & n) ? '1' : '0';
 
-        for (n = 0x80; n > 0; n = n>>1) {
-            *p++ = (b & n) ? '1' : '0';
-        }
-
-        if ((i+1) % 8 == 0 && brk)
-            *p++ = LF;
+        if ((i + 1) % 8 == 0 && brk)
+            *dest++ = LF;
     }
-    *p = 0;
+    *dest = '\0';
 
-    if (*(p-1) != LF && len > 9 && brk) *p++ = LF;
+    if (*(dest - 1) != LF && len > 9 && brk)
+        *dest++ = LF;
 
-    SET_SERIES_LEN(series, cast(REBCNT, p - BIN_HEAD(series)));
-    ASSERT_SERIES_TERM(series);
-    return series;
+    SET_SERIES_LEN(result, cast(REBCNT, dest - BIN_HEAD(result)));
+    ASSERT_SERIES_TERM(result);
+    return result;
 }
 
 
@@ -433,38 +433,43 @@ REBSER *Encode_Base2(const REBVAL *value, REBSER *series, REBOOL brk)
 //
 // Base16 encode a given series. Must be BYTES, not UNICODE.
 //
-REBSER *Encode_Base16(const REBVAL *value, REBSER *series, REBOOL brk)
+REBSER *Encode_Base16(REBSER *opt_series, const RELVAL *v, REBOOL brk)
 {
+    assert(IS_BINARY(v) || IS_BITSET(v));
+
+    REBYTE *dest;
+    REBCNT len = VAL_LEN_AT(v);
+    REBSER *result = Prep_String(
+        opt_series, // if NULL, return result will be new allocation
+        &dest,
+        len * 2 + len / 32 + 32 // Account for hex, lines, and extra syntax
+    );
+
+    if (len == 0) { // return empty series if input was zero length
+        TERM_SEQUENCE_LEN(result, 0);
+        return result;
+    }
+
+    if (len >= 32 && brk)
+        *dest++ = LF;
+
+    REBYTE *src = VAL_BIN_AT(v);
+
     REBCNT count;
-    REBCNT len;
-    REBYTE *bp;
-    REBYTE *src;
-
-    len = VAL_LEN_AT(value);
-    src = VAL_BIN_AT(value);
-
-    // Account for hex, lines, and extra syntax:
-    series = Prep_String(series, &bp, len*2 + len/32 + 32);
-    // (Note: tail not properly set yet)
-
-    // If the input series was zero length, return empty series
-    if (len == 0) {
-        TERM_SEQUENCE_LEN(series, 0);
-        return series;
-    }
-
-    if (len >= 32 && brk) *bp++ = LF;
     for (count = 1; count <= len; count++) {
-        bp = Form_Hex2(bp, *src++);
-        if (brk && ((count % 32) == 0)) *bp++ = LF;
+        dest = Form_Hex2(dest, *src++);
+        if (brk && ((count % 32) == 0))
+            *dest++ = LF;
     }
 
-    if (*(bp-1) != LF && (len >= 32) && brk) *bp++ = LF;
-    *bp = 0;
+    if (*(dest - 1) != LF && (len >= 32) && brk)
+        *dest++ = LF;
 
-    SET_SERIES_LEN(series, cast(REBCNT, bp - BIN_HEAD(series)));
-    ASSERT_SERIES_TERM(series);
-    return series;
+    *dest = '\0';
+
+    SET_SERIES_LEN(result, cast(REBCNT, dest - BIN_HEAD(result)));
+    ASSERT_SERIES_TERM(result);
+    return result;
 }
 
 
@@ -473,59 +478,68 @@ REBSER *Encode_Base16(const REBVAL *value, REBSER *series, REBOOL brk)
 //
 // Base64 encode a given series. Must be BYTES, not UNICODE.
 //
-REBSER *Encode_Base64(const REBVAL *value, REBSER *series, REBOOL brk)
+REBSER *Encode_Base64(REBSER *opt_series, const RELVAL *v, REBOOL brk)
 {
-    REBYTE *p;
-    REBYTE *src;
-    REBCNT len;
-    REBINT x, loop;
+    assert(IS_BINARY(v) || IS_BITSET(v));
 
-    len = VAL_LEN_AT(value);
-    src = VAL_BIN(value);
+    REBYTE *dest;
+    REBCNT len = VAL_LEN_AT(v);
+    REBSER *result = Prep_String(
+        opt_series, // if NULL, return result will be new allcation
+        &dest,
+        4 * len / 3 + 2 * (len / 32) + 5 // "slop-factor"
+    );
 
-    // slop-factor
-    series = Prep_String (series, &p, 4 * len / 3 + 2 * (len / 32) + 5);
-
-    // If the input series was zero length, return empty series
-    if (len == 0) {
-        TERM_SEQUENCE_LEN(series, 0);
-        return series;
+    if (len == 0) { // return empty series if input was zero length
+        TERM_SEQUENCE_LEN(result, 0);
+        return result;
     }
 
-    loop = (int) (len / 3) - 1;
-    if (4 * loop > 64 && brk) *p++ = LF;
+    REBINT loop = cast(int, len / 3) - 1;
+    if (4 * loop > 64 && brk)
+        *dest++ = LF;
 
+    REBYTE *src = VAL_BIN(v);
+
+    REBINT x;
     for (x = 0; x <= 3 * loop; x += 3) {
-        *p++ = Enbase64[src[x] >> 2];
-        *p++ = Enbase64[((src[x] & 0x3) << 4) + (src[x + 1] >> 4)];
-        *p++ = Enbase64[((src[x + 1] & 0xF) << 2) + (src[x + 2] >> 6)];
-        *p++ = Enbase64[(src[x + 2] % 0x40)];
-        if ((x+3) % 48 == 0 && brk)
-            *p++ = LF;
+        *dest++ = Enbase64[src[x] >> 2];
+        *dest++ = Enbase64[((src[x] & 0x3) << 4) + (src[x + 1] >> 4)];
+        *dest++ = Enbase64[((src[x + 1] & 0xF) << 2) + (src[x + 2] >> 6)];
+        *dest++ = Enbase64[(src[x + 2] % 0x40)];
+        if ((x + 3) % 48 == 0 && brk)
+            *dest++ = LF;
     }
 
     if ((len % 3) != 0) {
-        p[2] = p[3] = '=';
-        *p++ = Enbase64[src[x] >> 2];
+        dest[2] = dest[3] = '=';
+
+        *dest++ = Enbase64[src[x] >> 2];
+
         if ((len - x) >= 1)
-            *p++ = Enbase64[
+            *dest++ = Enbase64[
                 ((src[x] & 0x3) << 4)
                 + ((len - x) == 1 ? 0 : src[x + 1] >> 4)
             ];
-        else p++;
+        else
+            dest++;
+
         if ((len - x) == 2)
-            *p++ = Enbase64[(src[x + 1] & 0xF) << 2];
-        else p++;
-        p++;
+            *dest++ = Enbase64[(src[x + 1] & 0xF) << 2];
+        else
+            dest++;
+
+        dest++;
     }
 
-    if (*(p-1) != LF && x > 49 && brk) *p++ = LF;
-    *p = 0;
+    if (*(dest - 1) != LF && x > 49 && brk)
+        *dest++ = LF;
 
-    //
+    *dest = '\0';
+
     // !!! "4 * (int) (len % 3 ? (len / 3) + 1 : len / 3);" ...?
     //
-    SET_SERIES_LEN(series, cast(REBCNT, p - BIN_HEAD(series)));
-    ASSERT_SERIES_TERM(series);
-    return series;
+    SET_SERIES_LEN(result, cast(REBCNT, dest - BIN_HEAD(result)));
+    ASSERT_SERIES_TERM(result);
+    return result;
 }

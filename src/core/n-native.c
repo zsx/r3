@@ -453,18 +453,17 @@ REBNATIVE(compile)
     //
     // !!! Investigate how much UTF-8 support there is in TCC for strings/etc
     //
-    REB_MOLD mo;
-    CLEARS(&mo);
-    Push_Mold(&mo);
+    DECLARE_MOLD (mo);
+    Push_Mold(mo);
 
     // The core_header_source is %sys-core.h with all include files expanded
     //
-    Append_Unencoded(mo.series, cs_cast(core_header_source));
+    Append_Unencoded(mo->series, cs_cast(core_header_source));
 
     // This prolog resets the line number count to 0 where the user source
     // starts, in order to give more meaningful line numbers in errors
     //
-    Append_Unencoded(mo.series, "\n# 0 \"user-source\" 1\n");
+    Append_Unencoded(mo->series, "\n# 0 \"user-source\" 1\n");
 
     REBDSP dsp_orig = DSP;
 
@@ -492,14 +491,14 @@ REBNATIVE(compile)
             RELVAL *source = VAL_ARRAY_AT_HEAD(info, 0);
             RELVAL *name = VAL_ARRAY_AT_HEAD(info, 1);
 
-            Append_Unencoded(mo.series, "REB_R ");
+            Append_Unencoded(mo->series, "REB_R ");
             Append_String(
-                mo.series,
+                mo->series,
                 VAL_SERIES(name),
                 VAL_INDEX(name),
                 VAL_LEN_AT(name)
             );
-            Append_Unencoded(mo.series, "(REBFRM *frame_)\n{\n");
+            Append_Unencoded(mo->series, "(REBFRM *frame_)\n{\n");
 
             REBVAL *param = VAL_FUNC_PARAMS_HEAD(var);
             REBCNT num = 1;
@@ -518,16 +517,16 @@ REBNATIVE(compile)
                 case PARAM_CLASS_NORMAL:
                 case PARAM_CLASS_SOFT_QUOTE:
                 case PARAM_CLASS_HARD_QUOTE:
-                    Append_Unencoded(mo.series, "    ");
+                    Append_Unencoded(mo->series, "    ");
                     if (pclass == PARAM_CLASS_REFINEMENT)
-                        Append_Unencoded(mo.series, "REFINE(");
+                        Append_Unencoded(mo->series, "REFINE(");
                     else
-                        Append_Unencoded(mo.series, "PARAM(");
-                    Append_Int(mo.series, num);
+                        Append_Unencoded(mo->series, "PARAM(");
+                    Append_Int(mo->series, num);
                     ++num;
-                    Append_Unencoded(mo.series, ", ");
-                    Append_Unencoded(mo.series, cs_cast(STR_HEAD(spelling)));
-                    Append_Unencoded(mo.series, ");\n");
+                    Append_Unencoded(mo->series, ", ");
+                    Append_Unencoded(mo->series, cs_cast(STR_HEAD(spelling)));
+                    Append_Unencoded(mo->series, ");\n");
                     break;
 
                 default:
@@ -535,15 +534,15 @@ REBNATIVE(compile)
                 }
             }
             if (num != 1)
-                Append_Unencoded(mo.series, "\n");
+                Append_Unencoded(mo->series, "\n");
 
             Append_String(
-                mo.series,
+                mo->series,
                 VAL_SERIES(source),
                 VAL_INDEX(source),
                 VAL_LEN_AT(source)
             );
-            Append_Unencoded(mo.series, "\n}\n\n");
+            Append_Unencoded(mo->series, "\n}\n\n");
         }
         else if (IS_STRING(var)) {
             //
@@ -552,19 +551,19 @@ REBNATIVE(compile)
             // between multiple user natives.
             //
             Append_String(
-                mo.series,
+                mo->series,
                 VAL_SERIES(var),
                 VAL_INDEX(var),
                 VAL_LEN_AT(var)
             );
-            Append_Unencoded(mo.series, "\n");
+            Append_Unencoded(mo->series, "\n");
         }
         else {
             assert(FALSE);
         }
     }
 
-    REBSER *combined_src = Pop_Molded_UTF8(&mo);
+    REBSER *combined_src = Pop_Molded_UTF8(mo);
 
     TCCState *state = tcc_new();
     if (!state)

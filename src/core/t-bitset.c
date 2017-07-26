@@ -80,13 +80,17 @@ REBSER *Make_Bitset(REBCNT len)
 //
 //  Mold_Bitset: C
 //
-void Mold_Bitset(const REBVAL *value, REB_MOLD *mold)
+void Mold_Bitset(REB_MOLD *mo, const RELVAL *v)
 {
-    REBSER *ser = VAL_SERIES(value);
+    REBSER *s = VAL_SERIES(v);
 
-    if (BITS_NOT(ser)) Append_Unencoded(mold->series, "[not bits ");
-    Mold_Binary(value, mold);
-    if (BITS_NOT(ser)) Append_Codepoint_Raw(mold->series, ']');
+    if (BITS_NOT(s))
+        Append_Unencoded(mo->series, "[not bits ");
+
+    Mold_Binary(mo, v);
+
+    if (BITS_NOT(s))
+        Append_Codepoint_Raw(mo->series, ']');
 }
 
 

@@ -236,7 +236,7 @@ static REBSER *MAKE_TO_String_Common(const REBVAL *arg)
     }
     // MAKE/TO <type> <any-word>
     else if (ANY_WORD(arg)) {
-        ser = Copy_Mold_Value(arg, 0 /* opts... MOPT_0? */);
+        ser = Copy_Mold_Value(arg, MOLD_FLAG_0);
     }
     // MAKE/TO <type> #"A"
     else if (IS_CHAR(arg)) {
@@ -244,7 +244,7 @@ static REBSER *MAKE_TO_String_Common(const REBVAL *arg)
         Append_Codepoint_Raw(ser, VAL_CHAR(arg));
     }
     else
-        ser = Copy_Form_Value(arg, 1 << MOPT_TIGHT);
+        ser = Copy_Form_Value(arg, MOLD_FLAG_TIGHT);
 
     return ser;
 }
@@ -671,11 +671,10 @@ REBINT PD_String(REBPVS *pvs)
                 Append_Codepoint_Raw(ser, '/');
         }
 
-        REB_MOLD mo;
-        CLEARS(&mo);
-        Push_Mold(&mo);
+        DECLARE_MOLD (mo);
+        Push_Mold(mo);
 
-        Mold_Value(&mo, pvs->picker, FALSE);
+        Form_Value(mo, pvs->picker);
 
         // The `skip` logic here regarding slashes and backslashes apparently
         // is for an exception to the rule of appending the molded content.
@@ -687,7 +686,7 @@ REBINT PD_String(REBPVS *pvs)
         // !!! Review if this makes sense under a larger philosophy of string
         // path composition.
         //
-        REBUNI ch_start = GET_ANY_CHAR(mo.series, mo.start);
+        REBUNI ch_start = GET_ANY_CHAR(mo->series, mo->start);
         REBCNT skip = (ch_start == '/' || ch_start == '\\') ? 1 : 0;
 
         // !!! Would be nice if there was a better way of doing this that didn't
@@ -695,12 +694,12 @@ REBINT PD_String(REBPVS *pvs)
         //
         Append_String(
             ser, // dst
-            mo.series, // src
-            mo.start + skip, // i
-            SER_LEN(mo.series) - mo.start - skip // len
+            mo->series, // src
+            mo->start + skip, // i
+            SER_LEN(mo->series) - mo->start - skip // len
         );
 
-        Drop_Mold(&mo);
+        Drop_Mold(mo);
 
         // Note: pvs->value may point to pvs->store
         //

@@ -362,33 +362,33 @@ void Debug_Values(const RELVAL *value, REBCNT count, REBCNT limit)
         Debug_Space(1);
         if (n > 0 && VAL_TYPE(value) <= REB_BLANK) Debug_Chars('.', 1);
         else {
-            REB_MOLD mo;
-            CLEARS(&mo);
+            DECLARE_MOLD (mo);
             if (limit != 0) {
-                SET_FLAG(mo.opts, MOPT_LIMIT);
-                mo.limit = limit;
+                SET_MOLD_FLAG(mo, MOLD_FLAG_LIMIT);
+                mo->limit = limit;
             }
-            Push_Mold(&mo);
+            Push_Mold(mo);
 
-            Mold_Value(&mo, value, TRUE);
-            Throttle_Mold(&mo); // not using Pop_Mold(), must do explicitly
+            Mold_Value(mo, value);
+            Throttle_Mold(mo); // not using Pop_Mold(), must do explicitly
 
-            for (i1 = i2 = mo.start; i1 < SER_LEN(mo.series); i1++) {
-                uc = GET_ANY_CHAR(mo.series, i1);
+            for (i1 = i2 = mo->start; i1 < SER_LEN(mo->series); i1++) {
+                uc = GET_ANY_CHAR(mo->series, i1);
                 if (uc < ' ') uc = ' ';
-                if (uc > ' ' || pc > ' ') SET_ANY_CHAR(mo.series, i2++, uc);
+                if (uc > ' ' || pc > ' ')
+                    SET_ANY_CHAR(mo->series, i2++, uc);
                 pc = uc;
             }
-            SET_ANY_CHAR(mo.series, i2, '\0');
-            assert(SER_WIDE(mo.series) == sizeof(REBUNI));
+            SET_ANY_CHAR(mo->series, i2, '\0');
+            assert(SER_WIDE(mo->series) == sizeof(REBUNI));
             Debug_String(
-                UNI_AT(mo.series, mo.start),
-                i2 - mo.start,
+                UNI_AT(mo->series, mo->start),
+                i2 - mo->start,
                 TRUE,
                 0
             );
 
-            Drop_Mold(&mo);
+            Drop_Mold(mo);
         }
     }
     Debug_Line();
@@ -419,13 +419,12 @@ void Debug_Buf(const char *fmt, va_list *vaptr)
     REBOOL disabled = GC_Disabled;
     GC_Disabled = TRUE;
 
-    REB_MOLD mo;
-    CLEARS(&mo);
-    Push_Mold(&mo);
+    DECLARE_MOLD (mo);
+    Push_Mold(mo);
 
-    Form_Args_Core(&mo, fmt, vaptr);
+    Form_Args_Core(mo, fmt, vaptr);
 
-    REBSER *bytes = Pop_Molded_UTF8(&mo);
+    REBSER *bytes = Pop_Molded_UTF8(mo);
 
     // Don't send the Debug_String routine more than 1024 bytes at a time,
     // but chunk it to 1024 byte sections.
@@ -500,13 +499,13 @@ void Debug_Fmt(const char *fmt, ...)
 //
 REBYTE *Form_Hex_Pad(REBYTE *buf, REBI64 val, REBINT len)
 {
-    REBYTE buffer[MAX_HEX_LEN+4];
+    REBYTE buffer[MAX_HEX_LEN + 4];
     REBYTE *bp = buffer + MAX_HEX_LEN + 1;
-    REBI64 sgn;
 
-    // !!! val parameter was REBI64 at one point; changed to REBI64
+    // !!! val parameter was REBU64 at one point; changed to REBI64
     // as this does signed comparisons (val < 0 was never true...)
-    sgn = (val < 0) ? -1 : 0;
+
+    REBI64 sgn = (val < 0) ? -1 : 0;
 
     len = MIN(len, MAX_HEX_LEN);
     *bp-- = 0;
@@ -515,10 +514,14 @@ REBYTE *Form_Hex_Pad(REBYTE *buf, REBI64 val, REBINT len)
         val >>= 4;
         len--;
     }
-    for (; len > 0; len--) *bp-- = (sgn != 0) ? 'F' : '0';
+
+    for (; len > 0; len--)
+        *bp-- = (sgn != 0) ? 'F' : '0';
+    
     bp++;
-    while ((*buf++ = *bp++));
-    return buf-1;
+    while ((*buf++ = *bp++) != '\0')
+        NOOP;
+    return buf - 1;
 }
 
 
@@ -710,14 +713,14 @@ pick:
 
         case 'r':   // use Mold
         case 'v':   // use Form
-            Mold_Value(
+            Mold_Or_Form_Value(
                 mo,
                 va_arg(*vaptr, const REBVAL*),
-                LOGICAL(desc != 'v')
+                LOGICAL(desc == 'v')
             );
 
             // !!! This used to "filter out ctrl chars", which isn't a bad
-            // idea as a mold option (MOPT_FILTER_CTRL) but it would involve
+            // idea as a mold option (MOLD_FLAG_FILTER_CTRL) but it involves
             // some doing, as molding doesn't have a real "moment" that
             // it can always filter...since sometimes the buffer is examined
             // directly by clients vs. getting handed back.
@@ -741,7 +744,7 @@ pick:
                 INIT_VAL_SERIES(value, temp);
             }
             VAL_INDEX(value) = 0;
-            Mold_Value(mo, value, TRUE);
+            Mold_Value(mo, value);
             break;
         }
 

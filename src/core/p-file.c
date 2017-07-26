@@ -209,13 +209,12 @@ static void Write_File_Port(struct devreq_file *file, REBVAL *data, REBCNT len, 
         // Form the values of the block
         // !! Could be made more efficient if we broke the FORM
         // into 32K chunks for writing.
-        REB_MOLD mo;
-        CLEARS(&mo);
-        Push_Mold(&mo);
+        DECLARE_MOLD (mo);
+        Push_Mold(mo);
         if (lines)
-            mo.opts = 1 << MOPT_LINES;
-        Mold_Value(&mo, data, FALSE);
-        Init_String(data, Pop_Molded_String(&mo)); // fall to next section
+            SET_MOLD_FLAG(mo, MOLD_FLAG_LINES);
+        Form_Value(mo, data);
+        Init_String(data, Pop_Molded_String(mo)); // fall to next section
         len = VAL_LEN_HEAD(data);
     }
 

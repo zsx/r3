@@ -74,18 +74,20 @@ REBNATIVE(mold)
 {
     INCLUDE_PARAMS_OF_MOLD;
 
-    REB_MOLD mo;
-    CLEARS(&mo);
-    if (REF(all)) SET_FLAG(mo.opts, MOPT_MOLD_ALL);
-    if (REF(flat)) SET_FLAG(mo.opts, MOPT_INDENT);
+    DECLARE_MOLD (mo);
+    if (REF(all))
+        SET_MOLD_FLAG(mo, MOLD_FLAG_ALL);
+    if (REF(flat))
+        SET_MOLD_FLAG(mo, MOLD_FLAG_INDENT);
 
-    Push_Mold(&mo);
+    Push_Mold(mo);
 
-    if (REF(only) && IS_BLOCK(ARG(value))) SET_FLAG(mo.opts, MOPT_ONLY);
+    if (REF(only) && IS_BLOCK(ARG(value)))
+        SET_MOLD_FLAG(mo, MOLD_FLAG_ONLY);
 
-    Mold_Value(&mo, ARG(value), TRUE);
+    Mold_Value(mo, ARG(value));
 
-    Init_String(D_OUT, Pop_Molded_String(&mo));
+    Init_String(D_OUT, Pop_Molded_String(mo));
 
     return R_OUT;
 }
@@ -655,20 +657,18 @@ static REBARR *String_List_To_Array(REBCHR *str)
 //
 REBSER *Block_To_String_List(REBVAL *blk)
 {
-    RELVAL *value;
+    DECLARE_MOLD (mo);
 
-    REB_MOLD mo;
-    CLEARS(&mo);
+    Push_Mold(mo);
 
-    Push_Mold(&mo);
-
-    for (value = VAL_ARRAY_AT(blk); NOT_END(value); value++) {
-        Mold_Value(&mo, value, FALSE);
-        Append_Codepoint_Raw(mo.series, '\0');
+    RELVAL *item;
+    for (item = VAL_ARRAY_AT(blk); NOT_END(item); ++item) {
+        Form_Value(mo, item);
+        Append_Codepoint_Raw(mo->series, '\0');
     }
-    Append_Codepoint_Raw(mo.series, '\0');
+    Append_Codepoint_Raw(mo->series, '\0');
 
-    return Pop_Molded_String(&mo);
+    return Pop_Molded_String(mo);
 }
 
 

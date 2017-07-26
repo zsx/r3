@@ -556,21 +556,17 @@ REBSER *Entab_Bytes(REBYTE *bp, REBCNT index, REBCNT len, REBINT tabsize)
 //
 REBSER *Entab_Unicode(REBUNI *bp, REBCNT index, REBCNT len, REBINT tabsize)
 {
+    DECLARE_MOLD (mo);
+    SET_MOLD_FLAG(mo, MOLD_FLAG_RESERVE);
+    mo->reserve = len;
+
+    Push_Mold(mo);
+
+    REBUNI *dp = UNI_AT(mo->series, mo->start);
+
     REBINT n = 0;
-    REBUNI *dp;
-    REBUNI c;
-
-    REB_MOLD mo;
-    CLEARS(&mo);
-    mo.opts = MOPT_RESERVE;
-    mo.reserve = len;
-
-    Push_Mold(&mo);
-    dp = UNI_AT(mo.series, mo.start);
-
     for (; index < len; index++) {
-
-        c = bp[index];
+        REBUNI c = bp[index];
 
         // Count leading spaces, insert TAB for each tabsize:
         if (c == ' ') {
@@ -583,26 +579,28 @@ REBSER *Entab_Unicode(REBUNI *bp, REBCNT index, REBCNT len, REBINT tabsize)
 
         // Hitting a leading TAB resets space counter:
         if (c == '\t') {
-            *dp++ = (REBYTE)c;
+            *dp++ = cast(REBYTE, c);
             n = 0;
         }
         else {
             // Incomplete tab space, pad with spaces:
-            for (; n > 0; n--) *dp++ = ' ';
+            for (; n > 0; n--)
+                *dp++ = ' ';
 
             // Copy chars thru end-of-line (or end of buffer):
             while (index < len) {
-                if ((*dp++ = bp[index++]) == '\n') break;
+                if ((*dp++ = bp[index++]) == '\n')
+                    break;
             }
         }
     }
 
     TERM_UNI_LEN(
-        mo.series,
-        mo.start + cast(REBCNT, dp - UNI_AT(mo.series, mo.start))
+        mo->series,
+        mo->start + cast(REBCNT, dp - UNI_AT(mo->series, mo->start))
     );
 
-    return Pop_Molded_String(&mo);
+    return Pop_Molded_String(mo);
 }
 
 
@@ -654,48 +652,47 @@ REBSER *Detab_Bytes(REBYTE *bp, REBCNT index, REBCNT len, REBINT tabsize)
 //
 REBSER *Detab_Unicode(REBUNI *bp, REBCNT index, REBCNT len, REBINT tabsize)
 {
-    REBCNT cnt = 0;
-    REBCNT n;
-    REBUNI *dp;
-    REBUNI c;
-
-    REB_MOLD mo;
-    CLEARS(&mo);
+    DECLARE_MOLD (mo);
 
     // Estimate new length based on tab expansion:
+    REBCNT count = 0;
+    REBCNT n = 0;
     for (n = index; n < len; n++)
         if (bp[n] == '\t') // tab character
-            ++cnt;
+            ++count;
 
-    mo.opts = MOPT_RESERVE;
-    mo.reserve = len + (cnt * (tabsize - 1));
+    SET_MOLD_FLAG(mo, MOLD_FLAG_RESERVE);
+    mo->reserve = len + (count * (tabsize - 1));
 
-    Push_Mold(&mo);
-    dp = UNI_AT(mo.series, mo.start);
-    n = 0;
+    Push_Mold(mo);
+
+    REBUNI *dp = UNI_AT(mo->series, mo->start);
+
     while (index < len) {
-
-        c = bp[index++];
+        REBUNI c = bp[index++];
 
         if (c == '\t') {
             *dp++ = ' ';
             n++;
-            for (; n % tabsize != 0; n++) *dp++ = ' ';
+            for (; n % tabsize != 0; n++)
+                *dp++ = ' ';
             continue;
         }
 
-        if (c == '\n') n = 0;
-        else n++;
+        if (c == '\n')
+            n = 0;
+        else
+            ++n;
 
         *dp++ = c;
     }
 
     TERM_UNI_LEN(
-        mo.series,
-        mo.start + cast(REBCNT, dp - UNI_AT(mo.series, mo.start))
+        mo->series,
+        mo->start + cast(REBCNT, dp - UNI_AT(mo->series, mo->start))
     );
 
-    return Pop_Molded_String(&mo);
+    return Pop_Molded_String(mo);
 }
 
 

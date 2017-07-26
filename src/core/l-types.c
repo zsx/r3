@@ -921,16 +921,15 @@ const REBYTE *Scan_File(
         invalid = cb_cast(":;()[]\"");
     }
 
-    REB_MOLD mo;
-    CLEARS(&mo);
+    DECLARE_MOLD (mo);
 
-    cp = Scan_Item_Push_Mold(&mo, cp, cp + len, term, invalid);
+    cp = Scan_Item_Push_Mold(mo, cp, cp + len, term, invalid);
     if (cp == NULL) {
-        Drop_Mold(&mo);
+        Drop_Mold(mo);
         return_NULL;
     }
 
-    Init_File(out, Pop_Molded_String(&mo));
+    Init_File(out, Pop_Molded_String(mo));
     return cp;
 }
 

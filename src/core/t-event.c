@@ -222,77 +222,76 @@ void Set_Event_Vars(REBVAL *evt, RELVAL *blk, REBSPC *specifier)
 //
 //  Get_Event_Var: C
 //
-static REBOOL Get_Event_Var(const REBVAL *value, REBSTR *name, REBVAL *val)
+static REBOOL Get_Event_Var(REBVAL *out, const RELVAL *v, REBSTR *name)
 {
-    REBVAL *arg;
-    REBREQ *req;
-    REBINT n;
-
     switch (STR_SYMBOL(name)) {
-    case SYM_TYPE:
-        if (VAL_EVENT_TYPE(value) == 0) goto is_blank;
-        arg = Get_System(SYS_VIEW, VIEW_EVENT_TYPES);
+    case SYM_TYPE: {
+        if (VAL_EVENT_TYPE(v) == 0)
+            goto is_blank;
+
+        REBVAL *arg = Get_System(SYS_VIEW, VIEW_EVENT_TYPES);
         if (IS_BLOCK(arg) && VAL_LEN_HEAD(arg) >= EVT_MAX) {
             Derelativize(
-                val,
-                VAL_ARRAY_AT_HEAD(arg, VAL_EVENT_TYPE(value)),
+                out,
+                VAL_ARRAY_AT_HEAD(arg, VAL_EVENT_TYPE(v)),
                 VAL_SPECIFIER(arg)
             );
             break;
         }
-        return FALSE;
+        return FALSE; }
 
-    case SYM_PORT:
+    case SYM_PORT: {
         // Most events are for the GUI:
-        if (IS_EVENT_MODEL(value, EVM_GUI)) {
-            Move_Value(val, Get_System(SYS_VIEW, VIEW_EVENT_PORT));
+        if (IS_EVENT_MODEL(v, EVM_GUI)) {
+            Move_Value(out, Get_System(SYS_VIEW, VIEW_EVENT_PORT));
         }
         // Event holds a port:
-        else if (IS_EVENT_MODEL(value, EVM_PORT)) {
-            Init_Port(val, CTX(VAL_EVENT_SER(value)));
+        else if (IS_EVENT_MODEL(v, EVM_PORT)) {
+            Init_Port(out, CTX(VAL_EVENT_SER(v)));
         }
         // Event holds an object:
-        else if (IS_EVENT_MODEL(value, EVM_OBJECT)) {
-            Init_Object(val, CTX(VAL_EVENT_SER(value)));
+        else if (IS_EVENT_MODEL(v, EVM_OBJECT)) {
+            Init_Object(out, CTX(VAL_EVENT_SER(v)));
         }
-        else if (IS_EVENT_MODEL(value, EVM_CALLBACK)) {
-            Move_Value(val, Get_System(SYS_PORTS, PORTS_CALLBACK));
+        else if (IS_EVENT_MODEL(v, EVM_CALLBACK)) {
+            Move_Value(out, Get_System(SYS_PORTS, PORTS_CALLBACK));
         }
-        else {
-            // assumes EVM_DEVICE
-            // Event holds the IO-Request, which has the PORT:
-            req = VAL_EVENT_REQ(value);
-            if (!req || !req->port) goto is_blank;
-            Init_Port(val, CTX(req->port));
+        else { // Event holds the IO-Request, which has the PORT:
+            assert(IS_EVENT_MODEL(v, EVM_DEVICE));
+            REBREQ *req = VAL_EVENT_REQ(v);
+            if (req == NULL || req->port == NULL)
+                goto is_blank;
+            Init_Port(out, CTX(req->port));
         }
-        break;
+        break; }
 
     case SYM_WINDOW:
-    case SYM_GOB:
-        if (IS_EVENT_MODEL(value, EVM_GUI)) {
-            if (VAL_EVENT_SER(value)) {
-                SET_GOB(val, cast(REBGOB*, VAL_EVENT_SER(value)));
+    case SYM_GOB: {
+        if (IS_EVENT_MODEL(v, EVM_GUI)) {
+            if (VAL_EVENT_SER(v)) {
+                SET_GOB(out, cast(REBGOB*, VAL_EVENT_SER(v)));
                 break;
             }
         }
-        return FALSE;
+        return FALSE; }
 
-    case SYM_OFFSET:
-        if (VAL_EVENT_TYPE(value) == EVT_KEY || VAL_EVENT_TYPE(value) == EVT_KEY_UP)
+    case SYM_OFFSET: {
+        if (VAL_EVENT_TYPE(v) == EVT_KEY || VAL_EVENT_TYPE(v) == EVT_KEY_UP)
             goto is_blank;
-        SET_PAIR(val, VAL_EVENT_X(value), VAL_EVENT_Y(value));
-        break;
+        SET_PAIR(out, VAL_EVENT_X(v), VAL_EVENT_Y(v));
+        break; }
 
-    case SYM_KEY:
-        if (VAL_EVENT_TYPE(value) != EVT_KEY && VAL_EVENT_TYPE(value) != EVT_KEY_UP)
+    case SYM_KEY: {
+        if (VAL_EVENT_TYPE(v) != EVT_KEY && VAL_EVENT_TYPE(v) != EVT_KEY_UP)
             goto is_blank;
-        n = VAL_EVENT_DATA(value); // key-words in top 16, chars in lower 16
+
+        REBINT n = VAL_EVENT_DATA(v); // key-words in top 16, char in lower 16
         if (n & 0xffff0000) {
-            arg = Get_System(SYS_VIEW, VIEW_EVENT_KEYS);
+            REBVAL *arg = Get_System(SYS_VIEW, VIEW_EVENT_KEYS);
             n = (n >> 16) - 1;
             if (IS_BLOCK(arg) && n < cast(REBINT, VAL_LEN_HEAD(arg))) {
                 Derelativize(
-                    val,
+                    out,
                     VAL_ARRAY_AT_HEAD(arg, n),
                     VAL_SPECIFIER(arg)
                 );
@@ -300,43 +299,45 @@ static REBOOL Get_Event_Var(const REBVAL *value, REBSTR *name, REBVAL *val)
             }
             return FALSE;
         }
-        Init_Char(val, n);
-        break;
+        Init_Char(out, n);
+        break; }
 
     case SYM_FLAGS:
         if (
-            VAL_EVENT_FLAGS(value)
-            & (1<<EVF_DOUBLE | 1<<EVF_CONTROL | 1<<EVF_SHIFT)
-        ) {
+            VAL_EVENT_FLAGS(v)
+            & (1 << EVF_DOUBLE | 1 << EVF_CONTROL | 1 << EVF_SHIFT)
+        ){
             REBARR *array = Make_Array(3);
 
-            if (GET_FLAG(VAL_EVENT_FLAGS(value), EVF_DOUBLE))
+            if (GET_FLAG(VAL_EVENT_FLAGS(v), EVF_DOUBLE))
                 Init_Word(Alloc_Tail_Array(array), Canon(SYM_DOUBLE));
 
-            if (GET_FLAG(VAL_EVENT_FLAGS(value), EVF_CONTROL))
+            if (GET_FLAG(VAL_EVENT_FLAGS(v), EVF_CONTROL))
                 Init_Word(Alloc_Tail_Array(array), Canon(SYM_CONTROL));
 
-            if (GET_FLAG(VAL_EVENT_FLAGS(value), EVF_SHIFT))
+            if (GET_FLAG(VAL_EVENT_FLAGS(v), EVF_SHIFT))
                 Init_Word(Alloc_Tail_Array(array), Canon(SYM_SHIFT));
 
-            Init_Block(val, array);
+            Init_Block(out, array);
         }
         else
-            Init_Blank(val);
+            Init_Blank(out);
         break;
 
-    case SYM_CODE:
-        if (VAL_EVENT_TYPE(value) != EVT_KEY && VAL_EVENT_TYPE(value) != EVT_KEY_UP)
+    case SYM_CODE: {
+        if (VAL_EVENT_TYPE(v) != EVT_KEY && VAL_EVENT_TYPE(v) != EVT_KEY_UP)
             goto is_blank;
-        n = VAL_EVENT_DATA(value); // key-words in top 16, chars in lower 16
-        Init_Integer(val, n);
-        break;
+        REBINT n = VAL_EVENT_DATA(v); // key-words in top 16, char in lower 16
+        Init_Integer(out, n);
+        break; }
 
-    case SYM_DATA:
+    case SYM_DATA: {
         // Event holds a file string:
-        if (VAL_EVENT_TYPE(value) != EVT_DROP_FILE) goto is_blank;
-        if (!GET_FLAG(VAL_EVENT_FLAGS(value), EVF_COPIED)) {
-            void *str = VAL_EVENT_SER(value);
+        if (VAL_EVENT_TYPE(v) != EVT_DROP_FILE)
+            goto is_blank;
+
+        if (!GET_FLAG(VAL_EVENT_FLAGS(v), EVF_COPIED)) {
+            void *str = VAL_EVENT_SER(v);
 
             // !!! This modifies a const-marked values's bits, which
             // is generally a bad thing.  The reason it appears to be doing
@@ -345,15 +346,15 @@ static REBOOL Get_Event_Var(const REBVAL *value, REBSTR *name, REBVAL *val)
             // string series when seen here.  This flips a bit to say the
             // conversion has been done.  Review this implementation.
             //
-            REBVAL *writable = m_cast(REBVAL*, value);
+            REBVAL *writable = m_cast(REBVAL*, const_KNOWN(v));
 
             VAL_EVENT_SER(writable) = Copy_Bytes(cast(REBYTE*, str), -1);
             SET_FLAG(VAL_EVENT_FLAGS(writable), EVF_COPIED);
 
             OS_FREE(str);
         }
-        Init_File(val, VAL_EVENT_SER(value));
-        break;
+        Init_File(out, VAL_EVENT_SER(v));
+        break; }
 
     default:
         return FALSE;
@@ -362,7 +363,7 @@ static REBOOL Get_Event_Var(const REBVAL *value, REBSTR *name, REBVAL *val)
     return TRUE;
 
 is_blank:
-    Init_Blank(val);
+    Init_Blank(out);
     return TRUE;
 }
 
@@ -410,7 +411,7 @@ REBINT PD_Event(REBPVS *pvs)
     if (IS_WORD(pvs->picker)) {
         if (!pvs->opt_setval || NOT_END(pvs->item + 1)) {
             if (!Get_Event_Var(
-                KNOWN(pvs->value), VAL_WORD_CANON(pvs->picker), pvs->store
+                pvs->store, pvs->value, VAL_WORD_CANON(pvs->picker)
             )) {
                 fail (Error_Bad_Path_Set(pvs));
             }
@@ -446,7 +447,7 @@ REBTYPE(Event)
 //
 //  Mold_Event: C
 //
-void Mold_Event(const REBVAL *value, REB_MOLD *mold)
+void Mold_Event(REB_MOLD *mo, const RELVAL *v)
 {
     REBCNT field;
     REBSYM fields[] = {
@@ -454,32 +455,33 @@ void Mold_Event(const REBVAL *value, REB_MOLD *mold)
         SYM_FLAGS, SYM_CODE, SYM_DATA, SYM_0
     };
 
-    Pre_Mold(value, mold);
-    Append_Codepoint_Raw(mold->series, '[');
-    mold->indent++;
+    Pre_Mold(mo, v);
+    Append_Codepoint_Raw(mo->series, '[');
+    mo->indent++;
 
-    DECLARE_LOCAL (val);
+    DECLARE_LOCAL (var); // declare outside loop (has init code)
 
     for (field = 0; fields[field] != SYM_0; field++) {
-        Get_Event_Var(value, Canon(fields[field]), val);
-        if (!IS_BLANK(val)) {
-            New_Indented_Line(mold);
+        Get_Event_Var(var, v, Canon(fields[field]));
+        if (IS_BLANK(var))
+            continue;
 
-            REBSTR *canon = Canon(fields[field]);
-            Append_UTF8_May_Fail(
-                mold->series, STR_HEAD(canon), STR_NUM_BYTES(canon)
-            );
-            Append_Unencoded(mold->series, ": ");
-            if (IS_WORD(val))
-                Append_Codepoint_Raw(mold->series, '\'');
-            Mold_Value(mold, val, TRUE);
-        }
+        New_Indented_Line(mo);
+
+        REBSTR *canon = Canon(fields[field]);
+        Append_UTF8_May_Fail(
+            mo->series, STR_HEAD(canon), STR_NUM_BYTES(canon)
+        );
+        Append_Unencoded(mo->series, ": ");
+        if (IS_WORD(var))
+            Append_Codepoint_Raw(mo->series, '\'');
+        Mold_Value(mo, var);
     }
 
-    mold->indent--;
-    New_Indented_Line(mold);
-    Append_Codepoint_Raw(mold->series, ']');
+    mo->indent--;
+    New_Indented_Line(mo);
+    Append_Codepoint_Raw(mo->series, ']');
 
-    End_Mold(mold);
+    End_Mold(mo);
 }
 

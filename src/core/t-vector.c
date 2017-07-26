@@ -677,80 +677,81 @@ REBTYPE(Vector)
 
 
 //
-//  Mold_Vector: C
+//  Mold_Or_Form_Vector: C
 //
-void Mold_Vector(const REBVAL *value, REB_MOLD *mold, REBOOL molded)
+void Mold_Or_Form_Vector(REB_MOLD *mo, const RELVAL *v, REBOOL form)
 {
-    REBSER *vect = VAL_SERIES(value);
+    REBSER *vect = VAL_SERIES(v);
     REBYTE *data = SER_DATA_RAW(vect);
-    REBCNT bits  = VECT_TYPE(vect);
-//  REBCNT dims  = vect->size >> 8;
+    REBCNT bits = VECT_TYPE(vect);
+
     REBCNT len;
     REBCNT n;
-    REBCNT c;
-    union {REBU64 i; REBDEC d;} v;
-    REBYTE buf[32];
-    REBYTE l;
-
-    if (GET_MOPT(mold, MOPT_MOLD_ALL)) {
-        len = VAL_LEN_HEAD(value);
+    if (GET_MOLD_FLAG(mo, MOLD_FLAG_ALL)) {
+        len = VAL_LEN_HEAD(v);
         n = 0;
     } else {
-        len = VAL_LEN_AT(value);
-        n = VAL_INDEX(value);
+        len = VAL_LEN_AT(v);
+        n = VAL_INDEX(v);
     }
 
-    if (molded) {
+    if (NOT(form)) {
         enum Reb_Kind kind = (bits >= VTSF08) ? REB_DECIMAL : REB_INTEGER;
-        Pre_Mold(value, mold);
-        if (!GET_MOPT(mold, MOPT_MOLD_ALL))
-            Append_Codepoint_Raw(mold->series, '[');
+        Pre_Mold(mo, v);
+        if (NOT_MOLD_FLAG(mo, MOLD_FLAG_ALL))
+            Append_Codepoint_Raw(mo->series, '[');
         if (bits >= VTUI08 && bits <= VTUI64)
-            Append_Unencoded(mold->series, "unsigned ");
+            Append_Unencoded(mo->series, "unsigned ");
         Emit(
-            mold,
+            mo,
             "N I I [",
             Canon(SYM_FROM_KIND(kind)),
             bit_sizes[bits & 3],
             len
         );
         if (len)
-            New_Indented_Line(mold);
+            New_Indented_Line(mo);
     }
 
-    c = 0;
+    REBCNT c = 0;
     for (; n < SER_LEN(vect); n++) {
-        v.i = get_vect(bits, data, n);
+        union {REBU64 i; REBDEC d;} u;
+
+        u.i = get_vect(bits, data, n);
+
+        REBYTE buf[32];
+        REBYTE l;
         if (bits < VTSF08) {
-            l = Emit_Integer(buf, v.i);
+            l = Emit_Integer(buf, u.i);
         } else {
-            l = Emit_Decimal(buf, v.d, 0, '.', mold->digits);
+            l = Emit_Decimal(buf, u.d, 0, '.', mo->digits);
         }
-        Append_Unencoded_Len(mold->series, s_cast(buf), l);
+        Append_Unencoded_Len(mo->series, s_cast(buf), l);
 
         if ((++c > 7) && (n + 1 < SER_LEN(vect))) {
-            New_Indented_Line(mold);
+            New_Indented_Line(mo);
             c = 0;
         }
         else
-            Append_Codepoint_Raw(mold->series, ' ');
+            Append_Codepoint_Raw(mo->series, ' ');
     }
 
     if (len) {
         //
         // remove final space (overwritten with terminator)
         //
-        TERM_UNI_LEN(mold->series, UNI_LEN(mold->series) - 1);
+        TERM_UNI_LEN(mo->series, UNI_LEN(mo->series) - 1);
     }
 
-    if (molded) {
-        if (len) New_Indented_Line(mold);
-        Append_Codepoint_Raw(mold->series, ']');
-        if (!GET_MOPT(mold, MOPT_MOLD_ALL)) {
-            Append_Codepoint_Raw(mold->series, ']');
+    if (NOT(form)) {
+        if (len)
+            New_Indented_Line(mo);
+        Append_Codepoint_Raw(mo->series, ']');
+        if (NOT_MOLD_FLAG(mo, MOLD_FLAG_ALL)) {
+            Append_Codepoint_Raw(mo->series, ']');
         }
         else {
-            Post_Mold(value, mold);
+            Post_Mold(mo, v);
         }
     }
 }

@@ -186,8 +186,7 @@ static REBSER *Make_Set_Operation_Series(
         Free_Array(ARR(buffer));
     }
     else {
-        REB_MOLD mo;
-        CLEARS(&mo);
+        DECLARE_MOLD (mo);
 
         if (IS_BINARY(val1)) {
             //
@@ -197,11 +196,11 @@ static REBSER *Make_Set_Operation_Series(
             cased = TRUE;
         }
 
-        // ask mo.series to have at least `i` capacity beyond mo.start
+        // ask mo->series to have at least `i` capacity beyond mo->start
         //
-        mo.opts = MOPT_RESERVE;
-        mo.reserve = i;
-        Push_Mold(&mo);
+        SET_MOLD_FLAG(mo, MOLD_FLAG_RESERVE);
+        mo->reserve = i;
+        Push_Mold(mo);
 
         do {
             REBSER *ser = VAL_SERIES(val1); // val1 and val2 swapped 2nd pass!
@@ -231,15 +230,15 @@ static REBSER *Make_Set_Operation_Series(
                 if (
                     NOT_FOUND == Find_Str_Char(
                         uc, // c2 (the character to find)
-                        mo.series, // ser
-                        mo.start, // head
-                        mo.start, // index
-                        SER_LEN(mo.series), // tail
+                        mo->series, // ser
+                        mo->start, // head
+                        mo->start, // index
+                        SER_LEN(mo->series), // tail
                         skip, // skip
                         cased ? AM_FIND_CASE : 0 // flags
         )
                 ) {
-                    Append_String(mo.series, ser, i, skip);
+                    Append_String(mo->series, ser, i, skip);
                 }
             }
 
@@ -255,7 +254,7 @@ static REBSER *Make_Set_Operation_Series(
             }
         } while (i);
 
-        out_ser = Pop_Molded_String(&mo);
+        out_ser = Pop_Molded_String(mo);
     }
 
     return out_ser;

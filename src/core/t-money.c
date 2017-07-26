@@ -113,9 +113,9 @@ void TO_Money(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 //
 //  Emit_Money: C
 //
-REBINT Emit_Money(const REBVAL *value, REBYTE *buf, REBFLGS opts)
+REBINT Emit_Money(REBYTE *buf, const RELVAL *value, REBFLGS opts)
 {
-    if (opts & MOPT_LIMIT) {
+    if (opts & MOLD_FLAG_LIMIT) {
         // !!! In theory, emits should pay attention to the mold options,
         // at least the limit.
     }
