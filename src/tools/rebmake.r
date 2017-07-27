@@ -1890,6 +1890,7 @@ visual-studio: make generator-class [
       <RuntimeLibrary>MultiThreaded} if build-type = "debug" ["Debug"] {DLL</RuntimeLibrary>
       <RuntimeTypeInfo>true</RuntimeTypeInfo>
       <WarningLevel>Level3</WarningLevel>
+      <TreatWarningAsError></TreatWarningAsError>
       <PreprocessorDefinitions>} def {</PreprocessorDefinitions>
       <ObjectFileName>$(IntDir)</ObjectFileName>
       <AdditionalOptions>}

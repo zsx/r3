@@ -720,6 +720,37 @@ append app-config/cflags opt switch/default user-config/rigorous [
             ;<gnu:-Wstrict-overflow=5>
             <gnu:-Wno-conversion>
             <gnu:-Wno-strict-overflow>
+
+            ; Padding added to struct, not interesting
+            ; https://docs.microsoft.com/en-us/cpp/error-messages/compiler-warnings/compiler-warning-level-4-c4820
+            ;
+            <msc:/wd4820>
+
+            ; Without disabling this, you likely get:
+            ;
+            ;     '_WIN32_WINNT_WIN10_TH2' is not defined as a preprocessor
+            ;     macro, replacing with '0' for '#if/#elif'
+            ;
+            ; Which seems to be some mistake on Microsoft's part, that some
+            ; report can be remedied by using WIN32_LEAN_AND_MEAN:
+            ;
+            ; https://stackoverflow.com/q/11040133/
+            ;
+            ; But then if you include <winioctl.h> (where the problem occurs)
+            ; you'd still have it.
+            ;
+            <msc:/wd4668>
+
+            ; Relative include paths are currently in use in the crypt
+            ; extension, e.g.:
+            ;
+            ;     #include "../bigint/bigint.h"
+            ;
+            ; This may not be the best idea, and it may be better to put the
+            ; include directory on the path while building crypt as part of
+            ; the project specification.  For now, disable the warning.
+            ;
+            <msc:/wd4464>
         ]
     ]
     _ #[false] no off false [
