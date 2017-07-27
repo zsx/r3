@@ -307,9 +307,24 @@ rejoin: chain [
         ; encouraged to use UNSPACED, but this adaptation accounts for the
         ; old behavior for compatibility.
         ;
-        unless series? :block/1 [
-            block: copy block
-            block/1: to string! :block/1
+        unless tail? block [
+            use [first-value pos] [
+                ;
+                ; REDUCE just the first expression in the block, and if it's
+                ; not a series then convert it to a string.
+                ;
+                first-value: do/next block 'pos
+                unless series? :first-value [
+                    first-value: to string! :first-value
+                ]
+
+                ; Build a new input with the possibly-stringified first
+                ; expression, and then the remainder of the unreduced block.
+                ; Since the first item is now either a series or a string,
+                ; reducing it again should be a no-op.
+                ;
+                block: compose [(first-value) (pos)]
+            ]
         ]
         ; (JOIN-ALL's normal code runs after this point)
     ]
