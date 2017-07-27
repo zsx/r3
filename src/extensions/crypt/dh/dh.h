@@ -4,7 +4,7 @@ The code uses Bigint implementation Copyright (c) 2007, Cameron Rich
 */
 
 #include <stdint.h>
-#include "../bigint/bigint.h"
+#include "bigint/bigint.h"
 
 typedef struct
 {

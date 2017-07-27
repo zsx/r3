@@ -176,7 +176,11 @@ add-project-flags: proc [
     if I [
         assert-no-blank-inside includes
         either block? project/includes [
-            append project/includes includes
+            either locked? project/includes [
+                project/includes: join-of project/includes includes
+            ][
+                append project/includes includes
+            ]
         ][
             project/includes: includes
         ]
@@ -409,6 +413,7 @@ available-modules: reduce [
     mod-crypt: make module-class [
         name: 'Crypt
         source: %crypt/mod-crypt.c
+        includes: [%../src/extensions/crypt]
         depends: [
             %crypt/aes/aes.c
             %crypt/bigint/bigint.c
@@ -471,7 +476,7 @@ available-modules: reduce [
     mod-uuid: make module-class [
         name: 'UUID
         source: %uuid/mod-uuid.c
-        includes: copy [%../src/extensions/uuid/libuuid]
+        includes: [%../src/extensions/uuid/libuuid]
         depends: to-value switch system-config/os-base [
             linux [
                 libuuid-objs
@@ -756,17 +761,6 @@ append app-config/cflags opt switch/default user-config/rigorous [
             ; you'd still have it.
             ;
             <msc:/wd4668>
-
-            ; Relative include paths are currently in use in the crypt
-            ; extension, e.g.:
-            ;
-            ;     #include "../bigint/bigint.h"
-            ;
-            ; This may not be the best idea, and it may be better to put the
-            ; include directory on the path while building crypt as part of
-            ; the project specification.  For now, disable the warning.
-            ;
-            <msc:/wd4464>
         ]
     ]
     _ #[false] no off false [
