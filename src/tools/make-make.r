@@ -107,18 +107,34 @@ gen-obj: func [
     if block? s [
         append flags []
         for-each flag next s [
-            append flags opt select [
+            append flags opt switch/default flag [
                 <no-uninitialized> [
-                    <gnu:-Wno-uninitialized>
-                    ;-Wno-unknown-warning seems to only modify the immidiately following option
-                    ;<gnu:-Wno-unknown-warning> <gnu:-Wno-maybe-uninitialized>
+                    [
+                        <gnu:-Wno-uninitialized>
+                        ;-Wno-unknown-warning seems to only modify the immidiately following option
+                        ;<gnu:-Wno-unknown-warning> <gnu:-Wno-maybe-uninitialized>
+                    ]
                 ]
                 <implicit-fallthru> [
-                    <gnu:-Wno-unknown-warning> <gnu:-Wno-implicit-fallthrough>
+                    [
+                        <gnu:-Wno-unknown-warning>
+                        <gnu:-Wno-implicit-fallthrough>
+                    ]
                 ]
-                <no-unused-parameter> [<gnu:-Wno-unused-parameter>]
-                <no-shift-negative-value> [<gnu:-Wno-shift-negative-value>]
-            ] flag
+                <no-unused-parameter> [
+                    <gnu:-Wno-unused-parameter>
+                ]
+                <no-shift-negative-value> [
+                    <gnu:-Wno-shift-negative-value>
+                ]
+                <no-make-header> [
+                    ;for make-header. ignoring
+                    _
+                ]
+            ][
+                ensure [string! tag!] flag
+                flag
+            ]
         ]
         s: s/1
     ]
@@ -1119,7 +1135,14 @@ prep: make rebmake/entry-class [
             for-each ext all-extensions [
                 for-each mod ext/modules [
                     append cmds unspaced [
-                        {$(REBOL) $T/make-ext-natives.r MODULE=} mod/name { SRC=../extensions/} mod/source { OS_ID=} system-config/id
+                        {$(REBOL) $T/make-ext-natives.r MODULE=} mod/name { SRC=../extensions/}
+                            either file? mod/source [
+                                mod/source
+                            ][
+                                ensure [block!] mod/source
+                                first find mod/source file!
+                            ]
+                        { OS_ID=} system-config/id
                     ]
                 ]
                 if ext/init [
