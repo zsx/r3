@@ -757,3 +757,31 @@ chat: proc [
     say-browser
     browse http://chat.stackoverflow.com/rooms/291/rebol
 ]
+
+; temporary solution to ensuring scripts run on a minimum build
+require-commit: procedure [
+    "checks current commit against required commit"
+    commit [string!]
+][
+    if find system/script/header 'commit [
+        c: :system/script/header/commit
+        if all [
+            find? c 'date
+            date: :c/date
+            rebol/build < date
+        ][
+            fail ["This script needs a build newer or equal to" date "so run `upgrade`"]            
+        ]
+        if all [
+            find? c 'id
+            id: :c/id
+            id <> commit
+        ][
+            print ["This script has only been tested again commit" id |
+                "If it doesn't run as expected you can try seeing if this commit is still available" |
+                unspaced ["by using the `do <dl-renc>` tool and look for r3-" copy/part id 7 "*"
+                if find/last form rebol/version "0.3.4" [%.exe]]
+            ]
+        ]
+    ]
+]
