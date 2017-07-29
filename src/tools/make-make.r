@@ -111,8 +111,14 @@ gen-obj: func [
                 <no-uninitialized> [
                     [
                         <gnu:-Wno-uninitialized>
-                        ;-Wno-unknown-warning seems to only modify the immidiately following option
-                        ;<gnu:-Wno-unknown-warning> <gnu:-Wno-maybe-uninitialized>
+
+                        ;-Wno-unknown-warning seems to only modify the
+                        ; immediately following option
+                        ;
+                        ;<gnu:-Wno-unknown-warning>
+                        ;<gnu:-Wno-maybe-uninitialized>
+
+                        <msc:/wd4701> <msc:/wd4703>
                     ]
                 ]
                 <implicit-fallthru> [
@@ -130,6 +136,15 @@ gen-obj: func [
                 <no-make-header> [
                     ;for make-header. ignoring
                     _
+                ]
+                <no-unreachable> [
+                    <msc:/wd4702>
+                ]
+                <no-hidden-local> [
+                    <msc:/wd4456>
+                ]
+                <no-constant-conditional> [
+                    <msc:/wd4127>
                 ]
             ][
                 ensure [string! tag!] flag
@@ -413,7 +428,13 @@ available-modules: reduce [
     mod-crypt: make module-class [
         name: 'Crypt
         source: %crypt/mod-crypt.c
-        includes: [%../src/extensions/crypt]
+        includes: copy [
+            ;
+            ; Added so `#include "bigint/bigint.h` can be found by %rsa.h
+            ; and `#include "rsa/rsa.h" can be found by %dh.c
+            ;
+            %../src/extensions/crypt
+        ]
         depends: [
             %crypt/aes/aes.c
             %crypt/bigint/bigint.c
@@ -433,13 +454,39 @@ available-modules: reduce [
         name: 'LodePNG
         source: %png/mod-lodepng.c
         depends: [
-            %png/lodepng.c
+            [
+                %png/lodepng.c
+
+                ; The LodePNG module has local scopes with declarations that
+                ; alias declarations in outer scopes.  This can be confusing,
+                ; so it's avoided in the core, but LodePNG is maintained by
+                ; someone else with different standards.
+                ;
+                ;    declaration of 'identifier' hides previous
+                ;    local declaration
+                ;
+                <msc:/wd4456>
+            ]
         ]
     ]
 
     mod-upng: make module-class [
         name: 'uPNG
-        source: %png/u-png.c
+        source: [
+            %png/u-png.c
+
+            ; This PNG source has a number of static variables that are used
+            ; in the encoding process (making it not thread-safe), as well
+            ; as local variables with the same name as these global static
+            ; variables.
+            ;
+            ;    declaration of 'identifier' hides global declaration
+            ;
+            ; !!! This lack of thread safety is a good argument for not using
+            ; this vs. LodePNG.
+            ;
+            <msc:/wd4459>
+        ]
     ]
 
     mod-gif: make module-class [
@@ -454,7 +501,21 @@ available-modules: reduce [
 
     mod-locale: make module-class [
         name: 'Locale
-        source: %locale/mod-locale.c
+        source: [
+            %locale/mod-locale.c
+
+            ; The locale module uses non-constant aggregate initialization,
+            ; e.g. LOCALE_WORD_ALL is defined as Ext_Canons_Locale[4], but
+            ; is assigned as `= {{LOCALE_WORD_ALL, LC_ALL}...}` to a struct.
+            ; For the moment, since it's just the locale module, disable the
+            ; warning, though we don't want to use nonstandard C as a general
+            ; rule in the core.
+            ;
+            ;    nonstandard extension used : non-constant aggregate
+            ;    initializer
+            ;
+            <msc:/wd4204>
+        ]
     ]
 
     mod-jpg: make module-class [
@@ -467,8 +528,14 @@ available-modules: reduce [
             ;
             [
                 %jpg/u-jpg.c
-                <no-unused-parameter>
-                <no-shift-negative-value>
+
+                <gnu:-Wno-unused-parameter> <msc:/wd4100>
+
+                <gnu:-Wno-shift-negative-value>
+
+                ; "conditional expression is constant"
+                ;
+                <msc:/wd4127>
             ]
         ]
     ]
@@ -497,7 +564,26 @@ available-modules: reduce [
 
     mod-odbc: make module-class [
         name: 'ODBC
-        source: %odbc/mod-odbc.c
+        source: [
+            %odbc/mod-odbc.c
+
+            ; ODBCGetTryWaitValue() is prototyped as a C++-style void argument
+            ; function, as opposed to ODBCGetTryWaitValue(void), which is the
+            ; right way to do it in C.  But we can't change <sqlext.h>, so
+            ; disable the warning.
+            ;
+            ;     'function' : no function prototype given:
+            ;     converting '()' to '(void)'
+            ;
+            <msc:/wd4255>
+
+            ; The ODBC include also uses nameless structs/unions, which are a
+            ; non-standard extension.
+            ;
+            ;     nonstandard extension used: nameless struct/union
+            ;
+            <msc:/wd4201>
+        ]
         libraries: to-value switch/default system-config/os-base [
             Windows [
                 [%odbc32]
@@ -714,7 +800,6 @@ append app-config/cflags opt switch/default user-config/rigorous [
             <gnu:-Wpointer-arith>
             <gnu:-Wparentheses>
             <gnu:-Wmain>
-            <gnu:-Wsign-compare>
             <gnu:-Wtype-limits>
             <gnu:-Wclobbered>
 
@@ -731,19 +816,10 @@ append app-config/cflags opt switch/default user-config/rigorous [
             ;
             (either cfg-cplusplus [<gnu:-Wcast-qual>] [<gnu:-Wno-cast-qual>])
 
-            ; The majority of Rebol's C code was written with little
-            ; attention to overflow in arithmetic.  Frequently REBUPT
-            ; is assigned to REBCNT, size_t to REBYTE, etc.  The issue
-            ; needs systemic review, but will be most easy to do so when
-            ; the core is broken out fully from less critical code
-            ; in optional extensions.
+            ;     'bytes' bytes padding added after construct 'member_name'
             ;
-            ;<gnu:-Wstrict-overflow=5>
-            <gnu:-Wno-conversion>
-            <gnu:-Wno-strict-overflow>
-
-            ; Padding added to struct, not interesting
-            ; https://docs.microsoft.com/en-us/cpp/error-messages/compiler-warnings/compiler-warning-level-4-c4820
+            ; Disable warning C4820; just tells you struct is not an exactly
+            ; round size for the platform.
             ;
             <msc:/wd4820>
 
@@ -761,6 +837,118 @@ append app-config/cflags opt switch/default user-config/rigorous [
             ; you'd still have it.
             ;
             <msc:/wd4668>
+
+            ; There are a currently a lot of places in the code where `int` is
+            ; passed to REBCNT, where the signs mismatch.  Disable C4365:
+            ;
+            ;    'action' : conversion from 'type_1' to 'type_2',
+            ;    signed/unsigned mismatch
+            ;
+            ; and C4245:
+            ;
+            ;    'conversion' : conversion from 'type1' to 'type2',
+            ;    signed/unsigned mismatch
+            ;
+            <msc:/wd4365> <msc:/wd4245>
+            <gnu:-Wsign-compare>
+
+            ; The majority of Rebol's C code was written with little
+            ; attention to overflow in arithmetic.  There are a lot of places
+            ; in the code where a bigger type is converted into a smaller type
+            ; without an explicit cast.  (e.g. REBI64 => SQLUSMALLINT,
+            ; REBINT => REBYTE).  Disable C4242:
+            ;
+            ;     'identifier' : conversion from 'type1' to 'type2', possible
+            ;     loss of data
+            ;
+            ; The issue needs systemic review.
+            ;
+            <msc:/wd4242>
+            <gnu:-Wno-conversion> <gnu:-Wno-strict-overflow>
+            ;<gnu:-Wstrict-overflow=5>
+
+            ; When an inline function is not referenced, there can be a
+            ; warning about this; but it makes little sense to do so since
+            ; there are a lot of standard library functions in includes that
+            ; are inline which one does not use (C4514):
+            ;
+            ;     'function' : unreferenced inline function has been removed
+            ;
+            ; Inlining is at the compiler's discretion, it may choose to
+            ; ignore the `inline` keyword.  Usually it won't tell you it did
+            ; this, but disable the warning that tells you (C4710):
+            ;
+            ;     function' : function not inlined
+            ;
+            ; There's also an "informational" warning telling you that a
+            ; function was chosen for inlining when it wasn't requested, so
+            ; disable that also (C4711):
+            ;
+            ;     function 'function' selected for inline expansion
+            ;
+            <msc:/wd4514>
+            <msc:/wd4710>
+            <msc:/wd4711>
+
+            ; It's useful to be told when a function pointer is assigned to
+            ; an incompatible type of function pointer.  However, Rebol relies
+            ; on the ability to have a kind of "void*-for-functions", e.g.
+            ; CFUNC, which holds arbitrary function pointers.  There seems to
+            ; be no way to enable function pointer type checking that allows
+            ; downcasts and upcasts from just that pointer type, so it pretty
+            ; much has to be completely disabled (or managed with #pragma,
+            ; which we seek to avoid using in the codebase)
+            ;
+            ;    'operator/operation' : unsafe conversion from
+            ;    'type of expression' to 'type required'
+            ;
+            <msc:/wd4191>
+
+            ; Though we make sure all enum values are handled at least with a
+            ; default:, this warning basically doesn't let you use default:
+            ; at all...forcing every case to be handled explicitly.
+            ;
+            ;     enumerator 'identifier' in switch of enum 'enumeration'
+            ;     is not explicitly handled by a case label
+            ;
+            <msc:/wd4061>
+
+            ; setjmp() and longjmp() cannot be combined with C++ objects due
+            ; to bypassing destructors.  Yet the Microsoft compiler seems to
+            ; think even "POD" (plain-old-data) structs qualify as
+            ; "C++ objects", so they run destructors (?)
+            ;
+            ;     interaction between 'function' and C++ object destruction
+            ;     is non-portable
+            ;
+            ; This is lousy, because it would be a VERY useful warning, if it
+            ; weren't as uninformative as "your C++ program is using setjmp".
+            ;
+            ; https://stackoverflow.com/q/45384718/
+            ;
+            <msc:/wd4611>
+
+            ; Assignment within conditional expressions is tolerated in the
+            ; core so long as parentheses are used.  if ((x = 10) != y) {...}
+            ;
+            ;     assignment within conditional expression
+            ;
+            <msc:/wd4706>
+
+            ; gethostbyname() is deprecated by Microsoft, but dealing with
+            ; that is not a present priority.  It is supposed to be replaced
+            ; with getaddrinfo() or GetAddrInfoW().  This bypasses the
+            ; deprecation warning for now via a #define
+            ;
+            <msc:/D_WINSOCK_DEPRECATED_NO_WARNINGS>
+
+            ; This warning happens a lot in a 32-bit build if you use float
+            ; instead of double in Microsoft Visual C++:
+            ;
+            ;    storing 32-bit float result in memory, possible loss
+            ;    of performance
+            ;
+            <msc:/wd4738>
         ]
     ]
     _ #[false] no off false [

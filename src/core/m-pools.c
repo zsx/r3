@@ -354,9 +354,9 @@ void Shutdown_Pools(void)
     GC_Kill_Series(GC_Manuals);
 
 #if !defined(NDEBUG)
-    REBSEG *seg = Mem_Pools[SER_POOL].segs;
-    for(; seg != NULL; seg = seg->next) {
-        REBSER *series = cast(REBSER*, seg + 1);
+    REBSEG *debug_seg = Mem_Pools[SER_POOL].segs;
+    for(; debug_seg != NULL; debug_seg = debug_seg->next) {
+        REBSER *series = cast(REBSER*, debug_seg + 1);
         REBCNT n;
         for (n = Mem_Pools[SER_POOL].units; n > 0; n--, series++) {
             if (IS_FREE_NODE(series))

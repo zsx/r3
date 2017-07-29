@@ -178,10 +178,14 @@ static void Append_To_Context(REBCTX *context, REBVAL *arg)
     REBCNT len = CTX_LEN(context) + 1;
     Expand_Context(context, ARR_LEN(BUF_COLLECT) - len);
 
-    RELVAL *key;
-    for (key = ARR_AT(BUF_COLLECT, len); NOT_END(key); key++) {
-        assert(IS_TYPESET(key));
-        Append_Context(context, NULL, VAL_KEY_SPELLING(key));
+    RELVAL *collect_key;
+    for (
+        collect_key = ARR_AT(BUF_COLLECT, len);
+        NOT_END(collect_key);
+        ++collect_key
+    ){
+        assert(IS_TYPESET(collect_key));
+        Append_Context(context, NULL, VAL_KEY_SPELLING(collect_key));
     }
 
     // Set new values to obj words

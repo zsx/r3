@@ -37,20 +37,21 @@
 //
 static REB_R DNS_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 {
-    REBVAL *spec;
+    FAIL_IF_BAD_PORT(port);
+
     REBINT result;
-    REBVAL *arg;
-    REBCNT len;
+    REBVAL *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
+
     REBOOL sync = FALSE; // act synchronously
 
-    arg = D_ARGC > 1 ? D_ARG(2) : NULL;
-    Move_Value(D_OUT, D_ARG(1));
-
     REBREQ *sock = Ensure_Port_State(port, RDI_DNS);
-    spec = CTX_VAR(port, STD_PORT_SPEC);
-    if (!IS_OBJECT(spec)) fail (Error_Invalid_Port_Raw());
+    REBVAL *spec = CTX_VAR(port, STD_PORT_SPEC);
 
     sock->timeout = 4000; // where does this go? !!!
+
+    Move_Value(D_OUT, D_ARG(1));
+
+    REBCNT len;
 
     switch (action) {
 
@@ -89,11 +90,11 @@ static REB_R DNS_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         }
         else if (IS_STRING(arg)) {
             REBCNT index = VAL_INDEX(arg);
-            REBCNT len = VAL_LEN_AT(arg);
-            REBSER *utf8 = Temp_Bin_Str_Managed(arg, &index, &len);
+            REBCNT string_len = VAL_LEN_AT(arg);
+            REBSER *utf8 = Temp_Bin_Str_Managed(arg, &index, &string_len);
 
             DECLARE_LOCAL (tmp);
-            if (Scan_Tuple(tmp, BIN_AT(utf8, index), len) != NULL) {
+            if (Scan_Tuple(tmp, BIN_AT(utf8, index), string_len) != NULL) {
                 SET_FLAG(sock->modes, RST_REVERSE);
                 memcpy(&(DEVREQ_NET(sock)->remote_ip), VAL_TUPLE(tmp), 4);
             }

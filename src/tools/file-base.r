@@ -134,7 +134,15 @@ core: [
     t-object.c
     t-pair.c
     t-port.c
-    t-routine.c
+    [
+        t-routine.c
+
+        ; FFI is being converted to an extension, but until that happens, the
+        ; stubs for the FFI functions trigger unreachability warnings, since
+        ; all they do is fail.  Bypass the warning for now.
+        ;
+        <no-unreachable>
+    ]
     t-string.c
     t-struct.c
     t-time.c
@@ -148,8 +156,16 @@ core: [
     u-compress.c
     [u-md5.c <implicit-fallthru>]
     u-parse.c
-    [u-sha1.c <implicit-fallthru>]
-    [u-zlib.c <no-make-header> <implicit-fallthru>]
+    [
+        u-sha1.c
+        <implicit-fallthru>
+        <no-hidden-local>
+    ][
+        u-zlib.c
+        <no-make-header>
+        <implicit-fallthru>
+        <no-constant-conditional>
+    ]
 ]
 
 ; Files created by the make-boot process

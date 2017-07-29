@@ -76,7 +76,7 @@ REBOOL Next_Path_Throws(REBPVS *pvs)
 
     if (IS_GET_WORD(pvs->item)) { // e.g. object/:field
         Copy_Opt_Var_May_Fail(
-            &pvs->picker_cell, pvs->item, pvs->item_specifier
+            KNOWN(&pvs->picker_cell), pvs->item, pvs->item_specifier
         );
 
         if (IS_VOID(pvs->picker))
@@ -85,12 +85,12 @@ REBOOL Next_Path_Throws(REBPVS *pvs)
     else if (IS_GROUP(pvs->item)) { // object/(expr) case:
         REBSPC *derived = Derive_Specifier(pvs->item_specifier, pvs->item);
         if (Do_At_Throws(
-            &pvs->picker_cell,
+            KNOWN(&pvs->picker_cell),
             VAL_ARRAY(pvs->item),
             VAL_INDEX(pvs->item),
             derived
         )) {
-            Move_Value(pvs->store, &pvs->picker_cell);
+            Move_Value(pvs->store, KNOWN(&pvs->picker_cell));
             return TRUE;
         }
     }
@@ -188,7 +188,7 @@ REBOOL Do_Path_Throws_Core(
     Prep_Global_Cell(&pvs.picker_cell);
     SET_END(&pvs.picker_cell);
     PUSH_GUARD_VALUE(&pvs.picker_cell);
-    pvs.picker = &pvs.picker_cell;
+    pvs.picker = KNOWN(&pvs.picker_cell);
 
     REBDSP dsp_orig = DSP;
 

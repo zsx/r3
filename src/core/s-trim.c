@@ -37,6 +37,8 @@ static REBOOL find_in_uni(REBUNI *up, REBINT len, REBUNI c)
 }
 
 
+#define MAX_WITH 32
+
 //
 //  Whitespace_Replace_With: C
 //
@@ -50,16 +52,14 @@ void Whitespace_Replace_With(
     REBCNT tail,
     const REBVAL *with
 ) {
-    #define MAX_WITH 32
     REBCNT wlen;
     REBUNI with_chars[MAX_WITH];    // chars to be trimmed
     REBUNI *up = with_chars;
-    const REBYTE *bp;
-    REBCNT n;
-    REBUNI uc;
 
     // Setup WITH array from arg or the default:
-    n = 0;
+
+    const REBYTE *bp = NULL;
+    REBCNT n = 0;
     if (IS_VOID(with)) {
         bp = cb_cast("\n \r\t");
         wlen = n = 4;
@@ -75,7 +75,8 @@ void Whitespace_Replace_With(
     else {
         assert(ANY_BINSTR(with));
         n = VAL_LEN_AT(with);
-        if (n >= MAX_WITH) n = MAX_WITH-1;
+        if (n >= MAX_WITH)
+            n = MAX_WITH - 1;
         wlen = n;
         if (VAL_BYTE_SIZE(with)) {
             bp = VAL_BIN_AT(with);
@@ -85,11 +86,16 @@ void Whitespace_Replace_With(
         }
     }
 
-    for (; n > 0; n--) *up++ = (REBUNI)*bp++;
+    if (bp == NULL)
+        assert(n == 0);
+    else {
+        for (; n > 0; n--)
+            *up++ = cast(REBUNI, *bp++);
+    }
 
     // Remove all occurances of chars found in WITH string:
     for (n = index; index < tail; index++) {
-        uc = GET_ANY_CHAR(ser, index);
+        REBUNI uc = GET_ANY_CHAR(ser, index);
         if (!find_in_uni(with_chars, wlen, uc)) {
             SET_ANY_CHAR(ser, n, uc);
             n++;

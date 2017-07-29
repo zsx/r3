@@ -441,11 +441,12 @@ static REBOOL assign_scalar_core(
         *cast(double*, data) = d;
         break;
 
-    case SYM_POINTER:
-        if (sizeof(void*) == 4 && i > MAX_U32)
+    case SYM_POINTER: {
+        size_t sizeof_void_ptr = sizeof(void*); // avoid constant conditional
+        if (sizeof_void_ptr == 4 && i > MAX_U32)
             fail (Error_Overflow_Raw());
         *cast(void**, data) = cast(void*, cast(REBUPT, i));
-        break;
+        break; }
 
     case SYM_REBVAL:
         //
@@ -957,13 +958,11 @@ static void Parse_Field_Type_May_Fail(
 //
 void Init_Struct_Fields(REBVAL *ret, REBVAL *spec)
 {
-    REBVAL *blk = NULL;
+    REBVAL *spec_item = KNOWN(VAL_ARRAY_AT(spec));
 
-    for (blk = KNOWN(VAL_ARRAY_AT(spec)); NOT_END(blk); blk += 2) {
-        REBVAL *word = blk;
-        REBVAL *fld_val = blk + 1;
-
-        if (IS_BLOCK(word)) { // options: raw-memory, etc
+    while (NOT_END(spec_item)) {
+        REBVAL *word;
+        if (IS_BLOCK(spec_item)) { // options: raw-memory, etc
             REBINT raw_size = -1;
             REBUPT raw_addr = 0;
 
@@ -971,15 +970,19 @@ void Init_Struct_Fields(REBVAL *ret, REBVAL *spec)
             if (VAL_LEN_HEAD(spec) != 1)
                 fail (spec);
 
-            parse_attr(word, &raw_size, &raw_addr);
+            parse_attr(spec_item, &raw_size, &raw_addr);
             ret->payload.structure.data
                  = make_ext_storage(VAL_STRUCT_SIZE(ret), raw_size, raw_addr);
 
             break;
         }
-        else if (NOT(IS_SET_WORD(word)))
-            fail (word);
+        else {
+            word = spec_item;
+            if (NOT(IS_SET_WORD(word)))
+                fail (word);
+        }
 
+        REBVAL *fld_val = spec_item + 1;
         if (IS_END(fld_val))
             fail (Error_Need_Value_Raw(fld_val));
 
@@ -1030,10 +1033,13 @@ void Init_Struct_Fields(REBVAL *ret, REBVAL *spec)
                 if (NOT(assign_scalar(VAL_STRUCT(ret), field, 0, fld_val)))
                     fail (fld_val);
             }
-            return;
+            goto next_spec_pair;
         }
 
         fail ("FFI: field not in the parent struct");
+
+    next_spec_pair:
+        spec_item += 2;
     }
 }
 
@@ -1413,8 +1419,6 @@ REBINT PD_Struct(REBPVS *pvs)
 
         return PE_OK;
     }
-
-    fail (Error_Bad_Path_Select(pvs));
 }
 
 
@@ -1459,7 +1463,7 @@ REBINT CT_Struct(const RELVAL *a, const RELVAL *b, REBINT mode)
         );
 
     default:
-        return -1;
+        ; // let fall through to -1 case
     }
     return -1;
 }

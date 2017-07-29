@@ -308,7 +308,7 @@ struct Reb_Frame {
     // * While a function is running, it is free to use it as a GC-safe spot,
     //   which is also implicitly terminated.  See D_CELL.
     //
-    REBVAL cell;
+    RELVAL cell; // can't be REBVAL in C++ build
 
     // `flags`
     //

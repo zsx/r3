@@ -134,26 +134,28 @@ ATTRIBUTE_NO_RETURN void Panic_Core(
         break; }
 
     case DETECTED_AS_FREED_SERIES:
-    #if !defined(NDEBUG)
+    #if defined(NDEBUG)
+        strncat(buf, "freed series", PANIC_BUF_SIZE - strlen(buf));
+    #else
         Panic_Series_Debug(m_cast(REBSER*, cast(const REBSER*, p)));
     #endif
-        strncat(buf, "freed series", PANIC_BUF_SIZE - strlen(buf));
         break;
 
     case DETECTED_AS_VALUE:
     case DETECTED_AS_END:
-    #if !defined(NDEBUG)
-        Panic_Value_Debug(cast(const REBVAL*, p));
-    #else
+    #if defined(NDEBUG)
         strncat(buf, "value", PANIC_BUF_SIZE - strlen(buf));
+    #else
+        Panic_Value_Debug(cast(const REBVAL*, p));
     #endif
         break;
 
     case DETECTED_AS_TRASH_CELL:
-    #if !defined(NDEBUG)
+    #if defined(NDEBUG)
+        strncat(buf, "trash cell", PANIC_BUF_SIZE - strlen(buf));
+    #else
         Panic_Value_Debug(cast(const RELVAL*, p));
     #endif
-        strncat(buf, "trash cell", PANIC_BUF_SIZE - strlen(buf));
         break;
     }
 

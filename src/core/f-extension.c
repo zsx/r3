@@ -101,7 +101,7 @@ REBNATIVE(load_extension_helper)
 // Each extension is defined as DLL with:
 //
 // RX_Init() - init anything needed
-// optinoal RX_Quit() - cleanup anything needed
+// optional RX_Quit() - cleanup anything needed
 {
     INCLUDE_PARAMS_OF_LOAD_EXTENSION_HELPER;
 

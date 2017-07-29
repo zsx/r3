@@ -1546,11 +1546,13 @@ REBNATIVE(call)
     // full data, which is then appended after the operation is finished.
     // With CALL now an extension where all parts have access to the internal
     // API, it could be added directly to the binary or string as it goes.
+
+    // These are initialized to avoid a "possibly uninitialized" warning.
     //
-    char *os_output;
-    REBCNT output_len;
-    char *os_err;
-    REBCNT err_len;
+    char *os_output = NULL;
+    REBCNT output_len = 0;
+    char *os_err = NULL;
+    REBCNT err_len = 0;
 
     REBINT r = OS_Create_Process(
         frame_,
@@ -1818,29 +1820,31 @@ static REBNATIVE(terminate)
     INCLUDE_PARAMS_OF_TERMINATE;
 
 #ifdef TO_WINDOWS
-    if (GetCurrentProcessId() == cast(DWORD, VAL_INT32(ARG(pid)))) {
+    if (GetCurrentProcessId() == cast(DWORD, VAL_INT32(ARG(pid))))
         fail ("Use QUIT or EXIT-REBOL to terminate current process, instead");
-    }
+
     REBINT err = 0;
     HANDLE ph = OpenProcess(PROCESS_TERMINATE, FALSE, VAL_INT32(ARG(pid)));
     if (ph == NULL) {
         err = GetLastError();
         switch (err) {
-            case ERROR_ACCESS_DENIED:
-                fail (Error(RE_EXT_PROCESS_PERMISSION_DENIED, END));
-            case ERROR_INVALID_PARAMETER:
-                fail (Error(RE_EXT_PROCESS_NO_PROCESS, ARG(pid), END));
-            default: {
-                DECLARE_LOCAL(val);
-                Init_Integer(val, err);
-                fail (Error(RE_EXT_PROCESS_TERMINATE_FAILED, val, END));
-             }
+        case ERROR_ACCESS_DENIED:
+            fail (Error(RE_EXT_PROCESS_PERMISSION_DENIED, END));
+        case ERROR_INVALID_PARAMETER:
+            fail (Error(RE_EXT_PROCESS_NO_PROCESS, ARG(pid), END));
+        default: {
+            DECLARE_LOCAL(val);
+            Init_Integer(val, err);
+            fail (Error(RE_EXT_PROCESS_TERMINATE_FAILED, val, END));
+            }
         }
     }
+
     if (TerminateProcess(ph, 0)) {
         CloseHandle(ph);
         return R_VOID;
     }
+
     err = GetLastError();
     CloseHandle(ph);
     switch (err) {
@@ -1859,12 +1863,11 @@ static REBNATIVE(terminate)
         fail ("Use QUIT or EXIT-REBOL to terminate current process, instead");
     }
     kill_process(VAL_INT32(ARG(pid)), SIGTERM);
+    return R_VOID;
 #else
     UNUSED(frame_);
     fail ("terminate is not implemented for this platform");
 #endif
-
-    return R_VOID;
 }
 
 

@@ -86,6 +86,19 @@
 
 struct Reb_Path_Value_State {
     //
+    // picker = &picker_cell (GC guarded value).  Note REBVAL cannot appear
+    // in a struct in the C++ build, so RELVAL is used.
+    //
+    RELVAL picker_cell;
+
+    // `picker` is the result of evaluating the current path item if
+    // necessary.  So if the path is `a/(1 + 2)` and processing the second
+    // `item`, then the picker would be the computed value `3`.
+    //
+    // (This is what the individual path dispatchers should use.)
+    //
+    const REBVAL *picker;
+
     // `item` is the current element within the path that is being processed.
     // It is advanced as the path is consumed.
     //
@@ -98,15 +111,6 @@ struct Reb_Path_Value_State {
     // would match.
     //
     REBSPC *item_specifier;
-
-    // `picker` is the result of evaluating the current path item if
-    // necessary.  So if the path is `a/(1 + 2)` and processing the second
-    // `item`, then the picker would be the computed value `3`.
-    //
-    // (This is what the individual path dispatchers should use.)
-    //
-    const REBVAL *picker;
-    REBVAL picker_cell; // picker = &picker_cell (GC guarded value)
 
     // `value` holds the path value that should be chained from.  (It is the
     // type of `value` that dictates which dispatcher is given the `selector`

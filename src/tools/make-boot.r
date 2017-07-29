@@ -721,13 +721,17 @@ emit {
 emit-line "{"
 
 ; Generate ERROR object and append it to bootdefs.h:
-emit-line/indent "REBVAL self;"
+emit-line/indent "RELVAL self;" ;-- C++ build cannot be REBVAL
 for-each word words-of ob/standard/error [
     either word = 'near [
-        emit-line/indent ["REBVAL nearest;"]
+        emit-line/indent [
+            "RELVAL nearest;" ;-- C++ build cannot be REBVAL
+        ]
         emit-annotation "near/far are non-standard C keywords"
     ][
-        emit-line/indent ["REBVAL" space (to-c-name word) ";"]
+        emit-line/indent [
+            "RELVAL" space (to-c-name word) ";" ;-- C++ build cannot be REBVAL
+         ]
     ]
     
 ]
@@ -1062,7 +1066,9 @@ emit-line "typedef struct REBOL_Boot_Block {"
 for-each word sections [
     word: form word
     remove/part word 5 ; boot_
-    emit-line/indent ["REBVAL" space (to-c-name word) ";"]
+    emit-line/indent [
+        "RELVAL" space (to-c-name word) ";" ;-- can't be REBVAL in C++ build
+    ]
 ]
 emit "} BOOT_BLK;"
 
@@ -1076,7 +1082,9 @@ emit newline
 emit-line "typedef struct REBOL_Root_Vars {"
 
 for-each word boot-root [
-    emit-line/indent ["REBVAL" space (to-c-name word) ";"]
+    emit-line/indent [
+        "RELVAL" space (to-c-name word) ";" ;-- Can't be REBVAL in C++ build
+    ]
 ]
 emit-line ["} ROOT_VARS;"]
 emit newline
@@ -1085,7 +1093,7 @@ n: 0
 for-each word boot-root [
     emit-line [
         "#define" space (uppercase to-c-name ["ROOT_" word]) space
-        "(&Root_Vars->" (lowercase to-c-name word) ")"
+        "KNOWN(&Root_Vars->" (lowercase to-c-name word) ")"
     ]
     n: n + 1
 ]
@@ -1101,7 +1109,9 @@ emit newline
 emit-line "typedef struct REBOL_Task_Vars {"
 
 for-each word boot-task [
-    emit-line/indent ["REBVAL" space (to-c-name word) ";"]
+    emit-line/indent [
+        "RELVAL" space (to-c-name word) ";" ;-- Can't be REBVAL in C++ build
+    ]
 ]
 emit-line ["} TASK_VARS;"]
 emit newline
@@ -1110,7 +1120,7 @@ n: 0
 for-each word boot-task [
     emit-line [
         "#define" space (uppercase to-c-name ["TASK_" word]) space
-        "(&Task_Vars->" (lowercase to-c-name word) ")"
+        "KNOWN(&Task_Vars->" (lowercase to-c-name word) ")"
     ]
     n: n + 1
 ]

@@ -517,7 +517,7 @@ REBYTE *Form_Hex_Pad(REBYTE *buf, REBI64 val, REBINT len)
 
     for (; len > 0; len--)
         *bp-- = (sgn != 0) ? 'F' : '0';
-    
+
     bp++;
     while ((*buf++ = *bp++) != '\0')
         NOOP;

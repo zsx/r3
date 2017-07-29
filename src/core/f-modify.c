@@ -148,26 +148,27 @@ REBCNT Modify_String(
     REBINT dst_len,         // length to remove
     REBINT dups             // dup count
 ) {
-    REBSER *src_ser = 0;
-    REBCNT src_idx = 0;
-    REBCNT src_len;
-    REBCNT tail  = SER_LEN(dst_ser);
-    REBINT size;        // total to insert
-    REBOOL needs_free;
-    REBINT limit;
-
     // For INSERT/PART and APPEND/PART
+    //
+    REBINT limit;
     if (action != SYM_CHANGE && (flags & AM_PART))
         limit = dst_len; // should be non-negative
     else
         limit = -1;
 
     if (IS_VOID(src_val) || limit == 0 || dups < 0)
-        return (action == SYM_APPEND) ? 0 : dst_idx;
+        return action == SYM_APPEND ? 0 : dst_idx;
 
-    if (action == SYM_APPEND || dst_idx > tail) dst_idx = tail;
+    REBCNT tail = SER_LEN(dst_ser);
+    if (action == SYM_APPEND || dst_idx > tail)
+        dst_idx = tail;
 
     // If the src_val is not a string, then we need to create a string:
+
+    REBCNT src_idx = 0;
+    REBCNT src_len;
+    REBSER *src_ser;
+    REBOOL needs_free;
     if (flags & AM_BINARY_SERIES) {
         if (IS_INTEGER(src_val)) {
             src_ser = Make_Series_Codepoint(Int8u(src_val));
@@ -175,7 +176,7 @@ REBCNT Modify_String(
             limit = -1;
         }
         else if (IS_BLOCK(src_val)) {
-            src_ser = Join_Binary(src_val, limit); // NOTE: it's the shared FORM buffer!
+            src_ser = Join_Binary(src_val, limit); // NOTE: shared FORM buffer
             needs_free = FALSE;
             limit = -1;
         }
@@ -202,7 +203,11 @@ REBCNT Modify_String(
             needs_free = TRUE;
             limit = -1;
         }
-        else if (!IS_BINARY(src_val))
+        else if (IS_BINARY(src_val)) {
+            src_ser = NULL;
+            needs_free = FALSE;
+        }
+        else
             fail (src_val);
     }
     else if (IS_CHAR(src_val)) {
@@ -217,19 +222,24 @@ REBCNT Modify_String(
         src_ser = Copy_Form_Value(src_val, 0);
         needs_free = TRUE;
     }
+    else {
+        src_ser = NULL;
+        needs_free = FALSE;
+    }
 
     // Use either new src or the one that was passed:
-    if (src_ser) {
+    if (src_ser != NULL) {
         src_len = SER_LEN(src_ser);
     }
     else {
         src_ser = VAL_SERIES(src_val);
         src_idx = VAL_INDEX(src_val);
         src_len = VAL_LEN_AT(src_val);
-        needs_free = FALSE;
+        assert(needs_free == FALSE);
     }
 
-    if (limit >= 0) src_len = limit;
+    if (limit >= 0)
+        src_len = limit;
 
     // If Source == Destination we need to prevent possible conflicts.
     // Clone the argument just to be safe.
@@ -242,7 +252,8 @@ REBCNT Modify_String(
     }
 
     // Total to insert:
-    size = dups * src_len;
+    //
+    REBINT size = dups * src_len;
 
     if (action != SYM_CHANGE) {
         // Always expand dst_ser for INSERT and APPEND actions:

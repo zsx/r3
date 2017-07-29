@@ -90,8 +90,8 @@ static inline REBOOL Start_New_Expression_Throws(REBFRM *f) {
         // breakpoint before it returns.  It may also FAIL and longjmp out.
         //
         SET_END(&f->cell);
-        if (Do_Signals_Throws(&f->cell)) {
-            Move_Value(f->out, &f->cell);
+        if (Do_Signals_Throws(KNOWN(&f->cell))) {
+            Move_Value(f->out, KNOWN(&f->cell));
             return TRUE;
         }
 
@@ -1681,7 +1681,7 @@ reevaluate:;
             assert(DSP >= f->dsp_orig);
 
             Move_Value(&f->cell, f->out);
-            current_gotten = &f->cell;
+            current_gotten = KNOWN(&f->cell);
             SET_END(f->out);
             f->refine = ORDINARY_ARG; // paths are never enfixed (for now)
             goto do_function_in_current_gotten;

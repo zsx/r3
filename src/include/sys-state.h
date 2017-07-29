@@ -33,6 +33,15 @@
 //
 
 struct Reb_State {
+    //
+    // We put the jmp_buf first, since it has alignment specifiers on Windows
+    //
+#ifdef HAS_POSIX_SIGNAL
+    sigjmp_buf cpu_state;
+#else
+    jmp_buf cpu_state;
+#endif
+
     struct Reb_State *last_state;
 
     REBUPT stack_limit; // See Set_Stack_Limit() for why this is captured
@@ -47,10 +56,4 @@ struct Reb_State {
     REBCNT manuals_len; // Where GC_Manuals was when state started
     REBCNT uni_buf_len;
     REBCNT mold_loop_tail;
-
-#ifdef HAS_POSIX_SIGNAL
-    sigjmp_buf cpu_state;
-#else
-    jmp_buf cpu_state;
-#endif
 };

@@ -911,8 +911,10 @@ void Copy_Rect_Data(REBVAL *dst, REBINT dx, REBINT dy, REBINT w, REBINT h, REBVA
     if (w <= 0 || h <= 0) return;
 
     // Clip at edges:
-    if ((REBCNT)(dx + w) > VAL_IMAGE_WIDE(dst)) w = VAL_IMAGE_WIDE(dst) - dx;
-    if ((REBCNT)(dy + h) > VAL_IMAGE_HIGH(dst)) h = VAL_IMAGE_HIGH(dst) - dy;
+    if (dx + w > VAL_IMAGE_WIDE(dst))
+        w = VAL_IMAGE_WIDE(dst) - dx;
+    if (dy + h > VAL_IMAGE_HIGH(dst))
+        h = VAL_IMAGE_HIGH(dst) - dy;
 
     sbits = VAL_IMAGE_BITS(src) + sy * VAL_IMAGE_WIDE(src) + sx;
     dbits = VAL_IMAGE_BITS(dst) + dy * VAL_IMAGE_WIDE(dst) + dx;

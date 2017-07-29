@@ -38,22 +38,19 @@
 //
 static REB_R Serial_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 {
-    REBVAL *spec;   // port spec
+    FAIL_IF_BAD_PORT(port);
+
     REBVAL *arg;    // action argument value
     REBINT result;  // IO result
     REBCNT len;     // generic length
     REBSER *ser;    // simplifier
-    REBVAL *path;
+
+    REBVAL *spec = CTX_VAR(port, STD_PORT_SPEC);
+    REBVAL *path = Obj_Value(spec, STD_PORT_SPEC_HEAD_REF);
+    if (path == NULL)
+        fail (Error_Invalid_Spec_Raw(spec));
 
     Move_Value(D_OUT, D_ARG(1));
-
-    // Validate PORT fields:
-    spec = CTX_VAR(port, STD_PORT_SPEC);
-    if (!IS_OBJECT(spec)) fail (Error_Invalid_Port_Raw());
-    path = Obj_Value(spec, STD_PORT_SPEC_HEAD_REF);
-    if (!path) fail (Error_Invalid_Spec_Raw(spec));
-
-    //if (!IS_FILE(path)) fail (Error_Invalid_Spec_Raw(path));
 
     REBREQ *req = Ensure_Port_State(port, RDI_SERIAL);
     struct devreq_serial *serial = DEVREQ_SERIAL(req);

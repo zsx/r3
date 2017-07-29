@@ -160,7 +160,7 @@ inline static REBVAL *FRM_CELL(REBFRM *f) {
     // optimization made it complex for the generalized code that does
     // stack level discovery from a value pointer, and was removed.
     //
-    return &f->cell; // otherwise, it's available...
+    return KNOWN(&f->cell);
 }
 
 #define FRM_PRIOR(f) \
@@ -336,30 +336,31 @@ inline static void SET_FRAME_VALUE(REBFRM *f, const RELVAL *value) {
         IS_TRUTHY(ARG(name))
 #else
     struct Native_Param {
-        enum Reb_Kind kind_cache;
-        REBVAL *arg;
-        const int num;
+        int num;
+        enum Reb_Kind kind_cache; // for inspecting in watchlist
+        REBVAL *arg; // for inspecting in watchlist
     };
 
     struct Native_Refine {
-        REBOOL used_cache;
-        REBVAL *arg;
-        const int num;
+        int num;
+        REBOOL used_cache; // for inspecting in watchlist
+        REBVAL *arg; // for inspecting in watchlist
     };
 
+    // Note: Assigning non-const initializers to structs, e.g. `= {var, f()};`
+    // is a non-standard extension to C.  So we break out the assignments.
+
     #define PARAM(n,name) \
-        const struct Native_Param p_##name = { \
-            VAL_TYPE(FRM_ARG(frame_, (n))), /* watchlist cache */ \
-            FRM_ARG(frame_, (n)), /* watchlist cache */ \
-            (n) \
-        }
+        struct Native_Param p_##name; \
+        p_##name.num = (n); \
+        p_##name.kind_cache = VAL_TYPE(FRM_ARG(frame_, (n))); \
+        p_##name.arg = FRM_ARG(frame_, (n)); \
 
     #define REFINE(n,name) \
-        const struct Native_Refine p_##name = { \
-            IS_TRUTHY(FRM_ARG(frame_, (n))), /* watchlist cache */ \
-            FRM_ARG(frame_, (n)), /* watchlist cache */ \
-            (n) \
-        }
+        struct Native_Refine p_##name; \
+        p_##name.num = (n); \
+        p_##name.used_cache = IS_TRUTHY(FRM_ARG(frame_, (n))); \
+        p_##name.arg = FRM_ARG(frame_, (n)); \
 
     #define ARG(name) \
         FRM_ARG(frame_, (p_##name).num)

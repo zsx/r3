@@ -46,14 +46,15 @@
 // systems that don't implement at least that.
 //
 
+#ifdef TO_WINDOWS
+    #include <windows.h>
+    #undef IS_ERROR
+#endif
 
 #include "sys-core.h"
 #include "sys-ext.h"
 #include "tmp-mod-odbc-first.h"
 
-#ifdef TO_WINDOWS
-    #include <windows.h>
-#endif
 
 #include <sql.h>
 #include <sqlext.h>

@@ -1446,9 +1446,9 @@ REBCTX *Error_Cannot_Reflect(enum Reb_Kind type, const REBVAL *arg)
 //
 REBCTX *Error_On_Port(REBCNT errnum, REBCTX *port, REBINT err_code)
 {
+    FAIL_IF_BAD_PORT(port);
+
     REBVAL *spec = CTX_VAR(port, STD_PORT_SPEC);
-    if (!IS_OBJECT(spec))
-        fail (Error_Invalid_Port_Raw());
 
     REBVAL *val = VAL_CONTEXT_VAR(spec, STD_PORT_SPEC_HEAD_REF); // informative
     if (IS_BLANK(val))

@@ -411,8 +411,10 @@ static REBUPT arg_to_ffi(
     REBFRM *frame_ = FS_TOP; // So you can use the D_xxx macros
 
     REBUPT offset;
-    if (!dest)
+    if (dest == NULL)
         offset = 0;
+    else
+        offset = 10200304; // shouldn't be used, but avoid warning
 
     if (IS_BLOCK(schema)) {
         REBFLD *top = VAL_ARRAY(schema);
@@ -425,7 +427,7 @@ static REBUPT arg_to_ffi(
         // is sizeof(void*) here...this may waste some space in the padding
         // between arguments, but that shouldn't have any semantic effect.
         //
-        if (!dest)
+        if (dest == NULL)
             dest = Expand_And_Align_Core(
                 &offset,
                 sizeof(void*),
@@ -590,7 +592,8 @@ static REBUPT arg_to_ffi(
                 fail (Error_Only_Callback_Ptr_Raw()); // actually routines too
 
             CFUNC* cfunc = RIN_CFUNC(VAL_FUNC_ROUTINE(arg));
-            if (sizeof(cfunc) != sizeof(void*)) // not necessarily true
+            size_t sizeof_cfunc = sizeof(cfunc); // avoid conditional const
+            if (sizeof_cfunc != sizeof(void*)) // not necessarily true
                 fail ("Void pointer size not equal to function pointer size");
             memcpy(dest, &cfunc, sizeof(void*));
             break;}
@@ -864,23 +867,27 @@ REB_R Routine_Dispatcher(REBFRM *f)
     else
         arg_offsets = Make_Series(num_args, sizeof(void*));
 
-    REBCNT i = 0;
-
     // First gather the fixed parameters from the frame.  They are known to
     // be of correct general types (they were checked by Do_Core for the call)
     // but a STRUCT! might not be compatible with the type of STRUCT! in
     // the parameter specification.  They might also be out of range, e.g.
     // a too-large or negative INTEGER! passed to a uint8.  Could fail() here.
     //
-    for (; i < num_fixed; ++i) {
-        REBUPT offset = arg_to_ffi(
-            store, // ffi-converted arg appended here
-            NULL, // dest pointer must be NULL if store is non-NULL
-            FRM_ARG(f, i + 1), // 1-based
-            RIN_ARG_SCHEMA(rin, i), // 0-based
-            FUNC_PARAM(f->phase, i + 1) // 1-based
-        );
-        *SER_AT(void*, arg_offsets, i) = cast(void*, offset); // convert later
+    {
+        REBCNT i = 0;
+        for (; i < num_fixed; ++i) {
+            REBUPT offset = arg_to_ffi(
+                store, // ffi-converted arg appended here
+                NULL, // dest pointer must be NULL if store is non-NULL
+                FRM_ARG(f, i + 1), // 1-based
+                RIN_ARG_SCHEMA(rin, i), // 0-based
+                FUNC_PARAM(f->phase, i + 1) // 1-based
+            );
+
+            // We will convert the offset to a pointer later
+            //
+            *SER_AT(void*, arg_offsets, i) = cast(void*, offset);
+        }
     }
 
     // If an FFI routine takes a fixed number of arguments, then its Call
@@ -907,6 +914,7 @@ REB_R Routine_Dispatcher(REBFRM *f)
         //
         args_fftypes = OS_ALLOC_N(ffi_type*, num_fixed + num_variable);
 
+        REBCNT i;
         for (i = 0; i < num_fixed; ++i)
             args_fftypes[i] = SCHEMA_FFTYPE(RIN_ARG_SCHEMA(rin, i));
 
@@ -1520,7 +1528,8 @@ REBNATIVE(make_callback)
     if (status != FFI_OK)
         fail ("FFI: Couldn't prep closure");
 
-    if (sizeof(void*) != sizeof(CFUNC*))
+    size_t sizeof_CFUNC_ptr = sizeof(CFUNC*);
+    if (sizeof_CFUNC_ptr != sizeof(void*))
         fail ("FFI does not work when void* size differs from CFUNC* size");
 
     // It's the FFI's fault for using the wrong type for the thunk.  Use a

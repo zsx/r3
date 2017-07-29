@@ -92,7 +92,7 @@
 
 #define P_OUT (f->out)
 
-#define P_CELL (&f->cell)
+#define P_CELL KNOWN(&f->cell)
 
 #define FETCH_NEXT_RULE_MAYBE_END(f) \
     Fetch_Next_In_Frame(f)

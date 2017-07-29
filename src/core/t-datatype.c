@@ -101,18 +101,18 @@ REBTYPE(Datatype)
             assert(VAL_KEY_SYM(key) == SYM_SELF);
             ++key; ++var;
 
-            RELVAL *value = ARR_HEAD(
+            RELVAL *item = ARR_HEAD(
                 VAL_TYPE_SPEC(CTX_VAR(Lib_Context, SYM_FROM_KIND(kind)))
             );
 
             for (; NOT_END(var); ++var, ++key) {
-                if (IS_END(value))
+                if (IS_END(item))
                     Init_Blank(var);
                 else {
                     // typespec array does not contain relative values
                     //
-                    Derelativize(var, value, SPECIFIED);
-                    ++value;
+                    Derelativize(var, item, SPECIFIED);
+                    ++item;
                 }
             }
 

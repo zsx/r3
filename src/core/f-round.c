@@ -44,26 +44,33 @@
 REBDEC Round_Dec(REBDEC dec, REBCNT flags, REBDEC scale)
 {
     REBDEC r;
-    int e;
-    REBOOL v;
     union {REBDEC d; REBI64 i;} m;
     REBI64 j;
 
     if (flags & RF_TO) {
-        if (scale == 0.0) fail (Error_Zero_Divide_Raw());
+        if (scale == 0.0)
+            fail (Error_Zero_Divide_Raw());
         scale = fabs(scale);
-    } else scale = 1.0;
+    } else
+        scale = 1.0;
 
-    /* is scale negligible? */
-    if (scale < ldexp(fabs(dec), -53)) return dec;
+    if (scale < ldexp(fabs(dec), -53))
+        return dec; // scale is "negligible"
 
-    if ((v = LOGICAL(scale >= 1.0))) dec = dec / scale;
+    REBOOL v = LOGICAL(scale >= 1.0);
+
+    int e;
+    if (v) {
+        dec = dec / scale;
+        e = 646699; // avoid uninitialized warning, but it shouldn't be used
+    }
     else {
         r = frexp(scale, &e);
         if (e <= -1022) {
             scale = r;
             dec = ldexp(dec, e);
-        } else e = 0;
+        } else
+            e = 0;
         scale = 1.0 / scale;
         dec = dec * scale;
     }

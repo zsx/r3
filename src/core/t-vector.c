@@ -229,24 +229,27 @@ REBARR *Vector_To_Array(const REBVAL *vect)
 //
 REBINT Compare_Vector(const RELVAL *v1, const RELVAL *v2)
 {
-    REBCNT l1 = VAL_LEN_AT(v1);
-    REBCNT l2 = VAL_LEN_AT(v2);
-    REBCNT len = MIN(l1, l2);
-    REBCNT n;
-    REBU64 i1;
-    REBU64 i2;
-    REBYTE *d1 = SER_DATA_RAW(VAL_SERIES(v1));
-    REBYTE *d2 = SER_DATA_RAW(VAL_SERIES(v2));
     REBCNT b1 = VECT_TYPE(VAL_SERIES(v1));
     REBCNT b2 = VECT_TYPE(VAL_SERIES(v2));
 
     if ((b1 >= VTSF08 && b2 < VTSF08) || (b2 >= VTSF08 && b1 < VTSF08))
         fail (Error_Not_Same_Type_Raw());
 
+    REBCNT l1 = VAL_LEN_AT(v1);
+    REBCNT l2 = VAL_LEN_AT(v2);
+    REBCNT len = MIN(l1, l2);
+
+    REBYTE *d1 = SER_DATA_RAW(VAL_SERIES(v1));
+    REBYTE *d2 = SER_DATA_RAW(VAL_SERIES(v2));
+
+    REBU64 i1 = 0; // avoid uninitialized warning
+    REBU64 i2 = 0; // ...
+    REBCNT n;
     for (n = 0; n < len; n++) {
         i1 = get_vect(b1, d1, n + VAL_INDEX(v1));
         i2 = get_vect(b2, d2, n + VAL_INDEX(v2));
-        if (i1 != i2) break;
+        if (i1 != i2)
+            break;
     }
 
     if (n != len) {

@@ -56,11 +56,11 @@ REBOOL In_Legacy_Function_Debug(void)
     // the evaluator, and not just dispatching.
     //
     REBFRM *f = FS_TOP;
-    for (; f != NULL; f = f->prior) {
+    if (f != NULL) {
         if (f->flags.bits & DO_FLAG_VA_LIST)
             return FALSE; // no source array to look at
 
-        break; // whatever's dispatching here, there is a source array
+        // whatever's dispatching here, there is a source array
     }
 
     if (f == NULL)

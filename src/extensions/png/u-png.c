@@ -742,7 +742,11 @@ REBNATIVE(encode_png)
 
     REBINT w = VAL_IMAGE_WIDE(ARG(image));
     REBINT h = VAL_IMAGE_HIGH(ARG(image));
-    int hasalpha = Image_Has_Alpha(ARG(image)) ? 1 : 0;
+
+    // !!! hasalpha is a nasty global static.  Review killing off %u-png in 
+    // favor of LodePNG.
+    //
+    hasalpha = Image_Has_Alpha(ARG(image)) ? 1 : 0;
 
     struct ihdrchunk ihdr;
     struct idatnode *firstidat,*currentidat;

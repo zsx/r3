@@ -1203,7 +1203,7 @@ static void Mold_Or_Form_Error(REB_MOLD *mo, const RELVAL *v, REBOOL form)
         Append_Unencoded(mo->series, RM_BAD_ERROR_FORMAT);
 
     // Form: ** Where: function
-    REBVAL *where = &vars->where;
+    REBVAL *where = KNOWN(&vars->where);
     if (NOT(IS_BLANK(where))) {
         Append_Codepoint_Raw(mo->series, '\n');
         Append_Unencoded(mo->series, RM_ERROR_WHERE);
@@ -1211,7 +1211,7 @@ static void Mold_Or_Form_Error(REB_MOLD *mo, const RELVAL *v, REBOOL form)
     }
 
     // Form: ** Near: location
-    REBVAL *nearest = &vars->nearest;
+    REBVAL *nearest = KNOWN(&vars->nearest);
     if (NOT(IS_BLANK(nearest))) {
         Append_Codepoint_Raw(mo->series, '\n');
         Append_Unencoded(mo->series, RM_ERROR_NEAR);
@@ -1241,7 +1241,7 @@ static void Mold_Or_Form_Error(REB_MOLD *mo, const RELVAL *v, REBOOL form)
     // only be used in ANY-WORD! values at the moment, so the filename is
     // not a FILE!.
     //
-    REBVAL *file = &vars->file;
+    REBVAL *file = KNOWN(&vars->file);
     if (NOT(IS_BLANK(file))) {
         Append_Codepoint_Raw(mo->series, '\n');
         Append_Unencoded(mo->series, RM_ERROR_FILE);
@@ -1252,7 +1252,7 @@ static void Mold_Or_Form_Error(REB_MOLD *mo, const RELVAL *v, REBOOL form)
     }
 
     // Form: ** Line: line-number
-    REBVAL *line = &vars->line;
+    REBVAL *line = KNOWN(&vars->line);
     if (NOT(IS_BLANK(line))) {
         Append_Codepoint_Raw(mo->series, '\n');
         Append_Unencoded(mo->series, RM_ERROR_LINE);

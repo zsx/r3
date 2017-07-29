@@ -165,7 +165,7 @@ inline static void DS_PUSH(const REBVAL *v) {
     #define DS_DROP_TO(dsp) \
         (DS_Index = dsp)
 #else
-    inline static void DS_DROP_Core() {
+    inline static void DS_DROP_Core(void) {
         // Note: DS_TOP checks to make sure it's not an END.
         Init_Unreadable_Blank(DS_TOP); // TRASH would mean ASSERT_ARRAY failing
         --DS_Index;

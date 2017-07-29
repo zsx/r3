@@ -1009,9 +1009,6 @@ int main(int argc, char **argv_ansi)
         SET_END(value);
         PUSH_GUARD_VALUE(value); // !!! Out_Value expects value to be GC safe
 
-        struct Reb_State state;
-        REBCTX *error;
-
         PUSH_UNHALTABLE_TRAP(&error, &state);
 
     // The first time through the following code 'error' will be NULL, but...

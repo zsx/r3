@@ -16,7 +16,7 @@
 #endif
 
 typedef int (*INIT_FUNC)(REBVAL *, REBVAL *);
-typedef int (*QUIT_FUNC)();
+typedef int (*QUIT_FUNC)(void);
 
 // Extension macros
 #define DECLARE_EXT_INIT(e) \
@@ -40,10 +40,10 @@ EXT_API int EXT_INIT(e) (REBVAL *script, REBVAL *out) \
 }
 
 #define DECLARE_EXT_QUIT(e) \
-EXT_API int EXT_QUIT(e) ()
+EXT_API int EXT_QUIT(e) (void)
 
 #define DEFINE_EXT_QUIT(e, code) \
-EXT_API int EXT_QUIT(e) () code
+EXT_API int EXT_QUIT(e) (void) code
 
 #define LOAD_EXTENSION(exts, e) do {           \
     Add_Boot_Extension(exts, EXT_INIT(e), EXT_QUIT(e));     \

@@ -328,17 +328,19 @@ struct Reb_Money {
     int e:8;        /* exponent */
 };
 
+// !!! Review: why does this structure vary the layout based on endianness?
+//
 typedef struct reb_ymdz {
 #ifdef ENDIAN_LITTLE
-    REBINT zone:7; // +/-15:00 res: 0:15
-    REBCNT day:5;
-    REBCNT month:4;
-    REBCNT year:16;
+    int zone:7; // +/-15:00 res: 0:15
+    unsigned day:5;
+    unsigned month:4;
+    unsigned year:16;
 #else
-    REBCNT year:16;
-    REBCNT month:4;
-    REBCNT day:5;
-    REBINT zone:7; // +/-15:00 res: 0:15
+    unsigned year:16;
+    unsigned month:4;
+    unsigned day:5;
+    int zone:7; // +/-15:00 res: 0:15
 #endif
 } REBYMD;
 

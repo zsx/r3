@@ -613,17 +613,17 @@ void Mold_Varargs(REB_MOLD *mo, const RELVAL *v) {
     REBARR *feed = v->payload.varargs.feed;
 
     if (NOT_SER_FLAG(feed, ARRAY_FLAG_VARLIST)) {
-        REBARR *array1 = feed;
-
         { // Just [...] for now
             Append_Unencoded(mo->series, "[...]");
             goto skip_complex_mold_for_now;
         }
-
+        /*
+        REBARR *array1 = feed;
         if (IS_END(ARR_HEAD(array1)))
             Append_Unencoded(mo->series, "*exhausted*");
         else
             Mold_Value(mo, ARR_HEAD(array1));
+        */
     }
     else if (NOT(IS_ARRAY_MANAGED(feed))) {
         //
@@ -646,6 +646,7 @@ void Mold_Varargs(REB_MOLD *mo, const RELVAL *v) {
                 goto skip_complex_mold_for_now;
             }
 
+            /*
             if (IS_END(f->value))
                 Append_Unencoded(mo->series, "*exhausted*");
             else {
@@ -658,6 +659,7 @@ void Mold_Varargs(REB_MOLD *mo, const RELVAL *v) {
                         mo, f->source.array, cast(REBCNT, f->index), NULL
                     );
             }
+            */
         }
     }
 

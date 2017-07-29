@@ -653,7 +653,7 @@ REBINT PD_String(REBPVS *pvs)
         // Because Ren-C unified picking and pathing, this somewhat odd
         // feature is now part of PICKing a string from another string.
 
-        REBSER *ser = Copy_Sequence_At_Position(KNOWN(pvs->value));
+        REBSER *copy = Copy_Sequence_At_Position(KNOWN(pvs->value));
 
         // This makes sure there's always a "/" at the end of the file before
         // appending new material via a picker:
@@ -662,13 +662,13 @@ REBINT PD_String(REBPVS *pvs)
         //     >> (x)/("bar")
         //     == %foo/bar
         //
-        REBCNT len = SER_LEN(ser);
+        REBCNT len = SER_LEN(copy);
         if (len == 0)
-            Append_Codepoint_Raw(ser, '/');
+            Append_Codepoint_Raw(copy, '/');
         else {
-            REBUNI ch_last = GET_ANY_CHAR(ser, len - 1);
+            REBUNI ch_last = GET_ANY_CHAR(copy, len - 1);
             if (ch_last != '/')
-                Append_Codepoint_Raw(ser, '/');
+                Append_Codepoint_Raw(copy, '/');
         }
 
         DECLARE_MOLD (mo);
@@ -693,7 +693,7 @@ REBINT PD_String(REBPVS *pvs)
         // involve reaching into mo.start and mo.series.
         //
         Append_String(
-            ser, // dst
+            copy, // dst
             mo->series, // src
             mo->start + skip, // i
             SER_LEN(mo->series) - mo->start - skip // len
@@ -703,7 +703,7 @@ REBINT PD_String(REBPVS *pvs)
 
         // Note: pvs->value may point to pvs->store
         //
-        Init_Any_Series(pvs->store, VAL_TYPE(pvs->value), ser);
+        Init_Any_Series(pvs->store, VAL_TYPE(pvs->value), copy);
         return PE_USE_STORE;
     }
 
@@ -853,25 +853,27 @@ REBTYPE(String)
                     fail (Error_Out_Of_Range(arg));
                 len = 1;
             }
+            else
+                len = VAL_LEN_AT(arg);
         }
         else {
             if (IS_CHAR(arg) || IS_BITSET(arg))
                 len = 1;
-            else if (!IS_STRING(arg)) {
-                //
-                // !! This FORM creates a temporary value that is then handed
-                // over to the GC.  Not only could the temporary value be
-                // unmanaged (and freed), a more efficient matching could
-                // be done e.g. of `FIND "<abc...z>" <abc...z>` without having
-                // to create an entire series just to include the delimiters.
-                //
-                REBSER *copy = Copy_Form_Value(arg, 0);
-                Init_String(arg, copy);
+            else {
+                if (!IS_STRING(arg)) {
+                    //
+                    // !! This FORM creates a temporary value that is handed
+                    // over to the GC.  Not only could the temporary value be
+                    // unmanaged (and freed), a more efficient matching could
+                    // be done of `FIND "<abc...z>" <abc...z>` without having
+                    // to create an entire series just for the delimiters.
+                    //
+                    REBSER *copy = Copy_Form_Value(arg, 0);
+                    Init_String(arg, copy);
+                }
+                len = VAL_LEN_AT(arg);
             }
         }
-
-        if (ANY_BINSTR(arg))
-            len = VAL_LEN_AT(arg);
 
         if (REF(part))
             tail = Partial(value, 0, ARG(limit));

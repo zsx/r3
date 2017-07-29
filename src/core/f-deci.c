@@ -1429,14 +1429,14 @@ REBYTE *deci_to_binary(REBYTE s[12], const deci d) {
     s[0] = d.s << 7 | (REBYTE)d.e >> 1;
     s[1] = (REBYTE)d.e << 7 | d.m2 >> 16;
     s[2] = d.m2 >> 8;
-    s[3] = d.m2;
+    s[3] = d.m2 & 0xFF;
     s[4] = d.m1 >> 24;
     s[5] = d.m1 >> 16;
     s[6] = d.m1 >> 8;
-    s[7] = d.m1;
+    s[7] = d.m1 & 0xFF;
     s[8] = d.m0 >> 24;
     s[9] = d.m0 >> 16;
     s[10] = d.m0 >> 8;
-    s[11] = d.m0;
+    s[11] = d.m0 & 0xFF;
     return s;
 }

@@ -420,101 +420,100 @@ REBTYPE(Decimal)
         }
         fail (Error_Math_Args(VAL_TYPE(val), action));
     }
-    else {
-        type = VAL_TYPE(val);
 
-        // unary actions
-        switch (action) {
+    type = VAL_TYPE(val);
 
-        case SYM_COPY:
-            Move_Value(D_OUT, val);
-            return R_OUT;
+    // unary actions
+    switch (action) {
 
-        case SYM_NEGATE:
-            d1 = -d1;
-            goto setDec;
+    case SYM_COPY:
+        Move_Value(D_OUT, val);
+        return R_OUT;
 
-        case SYM_ABSOLUTE:
-            if (d1 < 0) d1 = -d1;
-            goto setDec;
+    case SYM_NEGATE:
+        d1 = -d1;
+        goto setDec;
 
-        case SYM_EVEN_Q:
-            d1 = fabs(fmod(d1, 2.0));
-            if (d1 < 0.5 || d1 >= 1.5)
-                return R_TRUE;
-            return R_FALSE;
+    case SYM_ABSOLUTE:
+        if (d1 < 0) d1 = -d1;
+        goto setDec;
 
-        case SYM_ODD_Q:
-            d1 = fabs(fmod(d1, 2.0));
-            if (d1 < 0.5 || d1 >= 1.5)
-                return R_FALSE;
+    case SYM_EVEN_Q:
+        d1 = fabs(fmod(d1, 2.0));
+        if (d1 < 0.5 || d1 >= 1.5)
             return R_TRUE;
+        return R_FALSE;
 
-        case SYM_ROUND: {
-            INCLUDE_PARAMS_OF_ROUND;
+    case SYM_ODD_Q:
+        d1 = fabs(fmod(d1, 2.0));
+        if (d1 < 0.5 || d1 >= 1.5)
+            return R_FALSE;
+        return R_TRUE;
 
-            UNUSED(PAR(value));
+    case SYM_ROUND: {
+        INCLUDE_PARAMS_OF_ROUND;
 
-            REBFLGS flags = (
-                (REF(to) ? RF_TO : 0)
-                | (REF(even) ? RF_EVEN : 0)
-                | (REF(down) ? RF_DOWN : 0)
-                | (REF(half_down) ? RF_HALF_DOWN : 0)
-                | (REF(floor) ? RF_FLOOR : 0)
-                | (REF(ceiling) ? RF_CEILING : 0)
-                | (REF(half_ceiling) ? RF_HALF_CEILING : 0)
-            );
+        UNUSED(PAR(value));
 
-            arg = ARG(scale);
-            if (REF(to)) {
-                if (IS_MONEY(arg)) {
-                    Init_Money(D_OUT, Round_Deci(
-                        decimal_to_deci(d1), flags, VAL_MONEY_AMOUNT(arg)
-                    ));
-                    return R_OUT;
-                }
-                if (IS_TIME(arg))
-                    fail (arg);
+        REBFLGS flags = (
+            (REF(to) ? RF_TO : 0)
+            | (REF(even) ? RF_EVEN : 0)
+            | (REF(down) ? RF_DOWN : 0)
+            | (REF(half_down) ? RF_HALF_DOWN : 0)
+            | (REF(floor) ? RF_FLOOR : 0)
+            | (REF(ceiling) ? RF_CEILING : 0)
+            | (REF(half_ceiling) ? RF_HALF_CEILING : 0)
+        );
 
-                d1 = Round_Dec(d1, flags, Dec64(arg));
-                if (IS_INTEGER(arg)) {
-                    VAL_RESET_HEADER(D_OUT, REB_INTEGER);
-                    VAL_INT64(D_OUT) = cast(REBI64, d1);
-                    return R_OUT;
-                }
-                if (IS_PERCENT(arg)) type = REB_PERCENT;
+        arg = ARG(scale);
+        if (REF(to)) {
+            if (IS_MONEY(arg)) {
+                Init_Money(D_OUT, Round_Deci(
+                    decimal_to_deci(d1), flags, VAL_MONEY_AMOUNT(arg)
+                ));
+                return R_OUT;
             }
-            else
-                d1 = Round_Dec(
-                    d1, flags | RF_TO, type == REB_PERCENT ? 0.01L : 1.0L
-                );
-            goto setDec; }
+            if (IS_TIME(arg))
+                fail (arg);
 
-        case SYM_RANDOM: {
-            INCLUDE_PARAMS_OF_RANDOM;
-
-            UNUSED(PAR(value));
-            if (REF(only))
-                fail (Error_Bad_Refines_Raw());
-
-            if (REF(seed)) {
-                REBDEC d = VAL_DECIMAL(val);
-                REBI64 i;
-                assert(sizeof(d) == sizeof(i));
-                memcpy(&i, &d, sizeof(d));
-                Set_Random(i); // use IEEE bits
-                return R_VOID;
+            d1 = Round_Dec(d1, flags, Dec64(arg));
+            if (IS_INTEGER(arg)) {
+                VAL_RESET_HEADER(D_OUT, REB_INTEGER);
+                VAL_INT64(D_OUT) = cast(REBI64, d1);
+                return R_OUT;
             }
-            d1 = Random_Dec(d1, REF(secure));
-            goto setDec; }
-
-        case SYM_COMPLEMENT:
-            Init_Integer(D_OUT, ~(REBINT)d1);
-            return R_OUT;
-
-        default:
-            fail (Error_Illegal_Action(VAL_TYPE(val), action));
+            if (IS_PERCENT(arg)) type = REB_PERCENT;
         }
+        else
+            d1 = Round_Dec(
+                d1, flags | RF_TO, type == REB_PERCENT ? 0.01L : 1.0L
+            );
+        goto setDec; }
+
+    case SYM_RANDOM: {
+        INCLUDE_PARAMS_OF_RANDOM;
+
+        UNUSED(PAR(value));
+        if (REF(only))
+            fail (Error_Bad_Refines_Raw());
+
+        if (REF(seed)) {
+            REBDEC d = VAL_DECIMAL(val);
+            REBI64 i;
+            assert(sizeof(d) == sizeof(i));
+            memcpy(&i, &d, sizeof(d));
+            Set_Random(i); // use IEEE bits
+            return R_VOID;
+        }
+        d1 = Random_Dec(d1, REF(secure));
+        goto setDec; }
+
+    case SYM_COMPLEMENT:
+        Init_Integer(D_OUT, ~(REBINT)d1);
+        return R_OUT;
+
+    default:
+        ; // put fail outside switch() to catch any leaks
     }
 
     fail (Error_Illegal_Action(VAL_TYPE(val), action));

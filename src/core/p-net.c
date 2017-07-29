@@ -118,6 +118,8 @@ static REB_R Transport_Actor(
     REBSYM action,
     enum Transport_Types proto
 ) {
+    FAIL_IF_BAD_PORT(port);
+
     // Initialize the IO request
     //
     REBREQ *sock = Ensure_Port_State(port, RDI_NET);
@@ -125,8 +127,6 @@ static REB_R Transport_Actor(
         SET_FLAG(sock->modes, RST_UDP);
 
     REBVAL *spec = CTX_VAR(port, STD_PORT_SPEC);
-    if (!IS_OBJECT(spec))
-        fail (Error_Invalid_Port_Raw());
 
     // sock->timeout = 4000; // where does this go? !!!
 

@@ -695,9 +695,12 @@ struct Reb_Series {
         // linked list.  For now, the binding API just demonstrates having
         // up to 2 different indices in effect at once.
         //
+        // Note that binding indices can be negative, so the sign can be used
+        // to encode a property of that particular binding.
+        //
         struct {
-            REBINT high:16;
-            REBINT low:16;
+            int high:16;
+            int low:16;
         } bind_index;
 
         // some HANDLE!s use this for GC finalization
@@ -731,8 +734,8 @@ struct Reb_Series {
         // is possible to make images a user-defined type.
         //
         struct {
-            REBCNT wide:16;
-            REBCNT high:16;
+            int wide:16; // Note: bitfields can only be int
+            int high:16;
         } area;
     } misc;
 

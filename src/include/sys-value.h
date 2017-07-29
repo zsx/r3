@@ -293,7 +293,7 @@
     // borderline assert doesn't wind up taking up 20% of the debug's runtime.
     //
     #define CHECK_VALUE_FLAGS_EVIL_MACRO_DEBUG(flags) \
-        REBUPT category = RIGHT_8_BITS(flags); \
+        enum Reb_Kind category = (enum Reb_Kind)(RIGHT_8_BITS(flags)); \
         assert(kind <= REB_MAX); /* REB_0 is okay here */ \
         if (category != REB_0) { \
             if (kind != category) { \

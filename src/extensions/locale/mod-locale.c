@@ -121,8 +121,6 @@ REBNATIVE(setlocale)
 {
     INCLUDE_PARAMS_OF_SETLOCALE;
 
-    REBSTR *w_cat = VAL_WORD_CANON(ARG(category));
-    int cat;
     struct cat_pair {
         REBSTR *word;
         int cat;
@@ -156,16 +154,18 @@ REBNATIVE(setlocale)
         {LOCALE_WORD_TIME, LC_TIME}
     };
 
+    REBSTR *w_cat = VAL_WORD_CANON(ARG(category));
+
+    int cat = -1; // avoid possibly uninitialized warning
     REBCNT i = 0;
-    for (i = 0; i < sizeof (ctypes) / sizeof (ctypes[0]); i ++) {
+    for (; i < sizeof (ctypes) / sizeof (ctypes[0]); ++i) {
         if (ctypes[i].word == w_cat) {
             cat = ctypes[i].cat;
             break;
         }
     }
-    if (i == sizeof (ctypes) / sizeof (ctypes[0])) {
+    if (i == sizeof (ctypes) / sizeof (ctypes[0]))
         fail (Error(RE_EXT_LOCALE_INVALID_CATEGORY, ARG(category), END));
-    }
 
     const char *ret = setlocale(cat, cs_cast(VAL_BIN_AT(ARG(value))));
     if (ret == NULL) {

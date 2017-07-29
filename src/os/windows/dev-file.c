@@ -127,16 +127,23 @@ static BOOL Seek_File_64(struct devreq_file *file)
 //
 static int Read_Directory(struct devreq_file *dir, struct devreq_file *file)
 {
-    WIN32_FIND_DATA info;
     REBREQ *dir_req = AS_REBREQ(dir);
     REBREQ *file_req = AS_REBREQ(file);
-    HANDLE h= dir_req->requestee.handle;
+    HANDLE h = dir_req->requestee.handle;
     wchar_t *cp = 0;
 
-    if (!h) {
+    // !!! This old code from R3-Alpha triggered a warning on info not
+    // necessarily being initialized.  Rather than try and fix it, this just
+    // fails if an uninitialized case ever happens.
+    //
+    WIN32_FIND_DATA info;
+    CLEARS(&info); // got_info protects usage if never initialized
+    REBOOL got_info = FALSE;
 
+    if (!h) {
         // Read first file entry:
         h = FindFirstFile(dir->path, &info);
+        got_info = TRUE;
         if (h == INVALID_HANDLE_VALUE) {
             dir_req->error = -RFE_OPEN_FAIL;
             return DR_ERROR;
@@ -144,12 +151,13 @@ static int Read_Directory(struct devreq_file *dir, struct devreq_file *file)
         dir_req->requestee.handle = h;
         CLR_FLAG(dir_req->flags, RRF_DONE);
         cp = info.cFileName;
-
     }
 
     // Skip over the . and .. dir cases:
-    while (cp == 0 || (cp[0] == '.' && (cp[1] == 0 || (cp[1] == '.' && cp[2] == 0)))) {
-
+    while (
+        cp == 0
+        || (cp[0] == '.' && (cp[1] == 0 || (cp[1] == '.' && cp[2] == 0)))
+    ){
         // Read next file_req entry, or error:
         if (!FindNextFile(h, &info)) {
             dir_req->error = GetLastError();
@@ -160,12 +168,18 @@ static int Read_Directory(struct devreq_file *dir, struct devreq_file *file)
             SET_FLAG(dir_req->flags, RRF_DONE); // no more file_reqs
             return DR_DONE;
         }
+        got_info = TRUE;
         cp = info.cFileName;
+    }
 
+    if (NOT(got_info)) {
+        assert(FALSE); // see above for why this R3-Alpha code had a "hole"
+        return DR_ERROR;
     }
 
     file_req->modes = 0;
-    if (info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) SET_FLAG(file_req->modes, RFM_DIR);
+    if (info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+        SET_FLAG(file_req->modes, RFM_DIR);
     wcsncpy(file->path, info.cFileName, MAX_FILE_NAME);
     file->size =
         (cast(i64, info.nFileSizeHigh) << 32) + info.nFileSizeLow;

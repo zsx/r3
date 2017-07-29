@@ -479,9 +479,7 @@ REBTYPE(Tuple)
             v = 255;
         vp[a-1] = v;
         goto ret_value;
-
 */
-        fail (Error_Bad_Make(REB_TUPLE, arg));
 
     default:
         break;

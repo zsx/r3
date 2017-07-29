@@ -1453,10 +1453,10 @@ static void Locate_Token_May_Push_Mold(
         fail (Error_Syntax(ss));
 
     default:
-        panic ("Invalid LEX class");
+        ; // put panic after switch, so no cases fall through
     }
 
-    DEAD_END;
+    panic ("Invalid LEX class");
 
 scanword:
 #if !defined(NDEBUG)

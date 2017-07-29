@@ -34,6 +34,21 @@ REBOL [
     }
 ]
 
+; Neither R3-Alpha nor early bootstrapping Ren-C have "choose", but it's a
+; very useful form of CASE
+;
+if :choose = () [
+    choose: function [choices [block!]] [
+        while [not tail? choices] [
+            set 'result do/next choices 'choices
+            if :result [
+                return do/next choices 'choices
+            ]
+        ]
+        return ()
+    ]
+]
+
 if true = attempt [void? :some-undefined-thing] [
     ;
     ; THEN and ELSE use a mechanic (non-tight infix evaluation) that is simply

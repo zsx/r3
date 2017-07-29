@@ -123,17 +123,20 @@ static void Assert_Basics(void)
     // not work out as designed, it *should* be possible to comment this out
     // and keep running.
     //
-    if (sizeof(REBVAL) != sizeof(void*) * 4)
+    size_t sizeof_REBVAL = sizeof(REBVAL); // avoid constant conditional expr
+    if (sizeof_REBVAL != sizeof(void*) * 4)
         panic ("size of REBVAL is not sizeof(void*) * 4");
 
     assert(sizeof(REBEVT) == sizeof(REBVAL));
 
     // The REBSER is designed to place the `info` bits exactly after a REBVAL
     // so they can do double-duty as also a terminator for that REBVAL when
-    // enumerated as an ARRAY.
+    // enumerated as an ARRAY.  Put the offest into a variable to avoid the
+    // constant-conditional-expression warning.
     //
+    size_t offsetof_REBSER_info = offsetof(REBSER, info);
     if (
-        offsetof(REBSER, info) - offsetof(REBSER, content) != sizeof(REBVAL)
+        offsetof_REBSER_info - offsetof(REBSER, content) != sizeof(REBVAL)
     ){
         panic ("bad structure alignment for internal array termination");
     }
@@ -443,7 +446,7 @@ static void Add_Lib_Keys_R3Alpha_Cant_Make(void)
 // quick, but a better solution should be reviewed in terms of an overall
 // string and UTF8 rethinking.
 //
-static void Init_Function_Tag(const char *name, REBVAL *slot)
+static void Init_Function_Tag(RELVAL *slot, const char *name)
 {
     Init_Tag(slot, Make_UTF8_May_Fail(name));
     Freeze_Sequence(VAL_SERIES(slot));
@@ -461,12 +464,12 @@ static void Init_Function_Tag(const char *name, REBVAL *slot)
 //
 static void Init_Function_Tags(void)
 {
-    Init_Function_Tag("with", ROOT_WITH_TAG);
-    Init_Function_Tag("...", ROOT_ELLIPSIS_TAG);
-    Init_Function_Tag("opt", ROOT_OPT_TAG);
-    Init_Function_Tag("end", ROOT_END_TAG);
-    Init_Function_Tag("local", ROOT_LOCAL_TAG);
-    Init_Function_Tag("durable", ROOT_DURABLE_TAG);
+    Init_Function_Tag(ROOT_WITH_TAG, "with");
+    Init_Function_Tag(ROOT_ELLIPSIS_TAG, "...");
+    Init_Function_Tag(ROOT_OPT_TAG, "opt");
+    Init_Function_Tag(ROOT_END_TAG, "end");
+    Init_Function_Tag(ROOT_LOCAL_TAG, "local");
+    Init_Function_Tag(ROOT_DURABLE_TAG, "durable");
 }
 
 
@@ -1398,9 +1401,9 @@ void Startup_Core(void)
 // Returns error from finalizing or NULL.
 //
 REBCTX *Startup_Mezzanine(
-    REBVAL *base_block,
-    REBVAL *sys_block,
-    REBVAL *mezz_block
+    RELVAL *base_block,
+    RELVAL *sys_block,
+    RELVAL *mezz_block
 ) {
     REBCTX *error;
     struct Reb_State state;
@@ -1423,12 +1426,13 @@ REBCTX *Startup_Mezzanine(
     // copy with some omissions), and where the mezzanine definitions are
     // bound to the lib context and DO'd.
     //
+    const REBOOL fully = TRUE; // error if all arguments aren't consumed
     DECLARE_LOCAL (result);
     if (Apply_Only_Throws(
         result,
-        TRUE, // generate error if all arguments aren't consumed
+        fully,
         Sys_Func(SYS_CTX_FINISH_INIT_CORE), // %sys-start.r function to call
-        mezz_block, // boot-mezz argument
+        KNOWN(mezz_block), // boot-mezz argument
         END
     )) {
         return Error_No_Catch_For_Throw(result);

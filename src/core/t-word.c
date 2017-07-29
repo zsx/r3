@@ -145,6 +145,7 @@ void TO_Word(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 REBTYPE(Word)
 {
     REBVAL *val = D_ARG(1);
+    assert(ANY_WORD(val));
 
     switch (action) {
     case SYM_LENGTH_OF: {
@@ -152,7 +153,7 @@ REBTYPE(Word)
         REBCNT len = 0;
         while (TRUE) {
             REBUNI ch;
-            if (!(bp = Back_Scan_UTF8_Char(&ch, bp, &len)))
+            if ((bp = Back_Scan_UTF8_Char(&ch, bp, &len)) == NULL)
                 fail (Error_Bad_Utf8_Raw());
             if (ch == 0)
                 break;
@@ -161,9 +162,8 @@ REBTYPE(Word)
         return R_OUT; }
 
     default:
-        assert(ANY_WORD(val));
-        fail (Error_Illegal_Action(VAL_TYPE(val), action));
+        break;
     }
 
-    return R_OUT;
+    fail (Error_Illegal_Action(VAL_TYPE(val), action));
 }
