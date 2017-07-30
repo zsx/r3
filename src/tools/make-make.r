@@ -714,6 +714,7 @@ switch/default user-config/debug [
     ;
     pathology [
         cfg-symbols: true
+        append app-config/definitions ["NDEBUG"]
         app-config/debug: off
     ]
 ][
