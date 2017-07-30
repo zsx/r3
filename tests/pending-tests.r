@@ -54,18 +54,6 @@
 ;
 [typeset? complement make typeset! [unset!]]
 
-; There is an issue with doing a MAKE FRAME! for a definitional return and
-; then DOing that frame.  The problem is that while the behavior of each
-; RETURN looks like a unique function, it isn't.  So if you try to execute
-; the frame to call the "Unique" function, there is no way to target that
-; instance.  So the `exit_from` frame inside the definitional return has
-; to get tunneled in somehow as the "function" of the definitional return
-; to know where to make the call.
-;
-; Technically possible.  Just not on the priority list ATM.
-;
-[1 == eval does [r3-alpha-apply :return [1] 2]]
-
 ; For bridging purposes, MAKE is currently a "sniffing" variadic.  These are
 ; evil, but helpful because it wants to examine its arguments before deciding
 ; whether to evaluate or quote them at the callsite.  So long as it is evil

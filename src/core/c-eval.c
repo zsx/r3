@@ -561,7 +561,9 @@ reevaluate:;
         //
         // Push_Or_Alloc_Args sets the frame's function, sets args_head...
         //
-        Push_Or_Alloc_Args_For_Underlying_Func(f, current_gotten);
+        Push_Or_Alloc_Args_For_Underlying_Func(
+            f, VAL_FUNC(current_gotten), VAL_BINDING(current_gotten)
+        );
 
     do_function_arglist_in_progress:
 
@@ -842,9 +844,12 @@ reevaluate:;
 
     //=//// SPECIALIZED ARG (already filled, so does not consume) /////////=//
 
-                if (IS_VOID(f->special)) {
-                    //
-                    // A void specialized value means this particular argument
+                if (
+                    IS_VOID(f->special)
+                    && NOT(f->flags.bits & DO_FLAG_APPLYING)
+                ){
+                    // When not doing an APPLY (or DO of a FRAME!), then
+                    // a void specialized value means this particular argument
                     // is not specialized.  Still must increment the pointer
                     // before falling through to ordinary fulfillment.
                     //

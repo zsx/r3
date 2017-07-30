@@ -250,38 +250,27 @@ REBNATIVE(do)
     case REB_FRAME: {
         REBCTX *c = VAL_CONTEXT(source);
 
-        // To allow efficient applications, this does not make a copy of the
-        // FRAME!.  This means the frame must not be currently running
-        // on the stack.
+        // It doesn't matter if a FRAME! is currently running or not, because
+        // the variables are copied and a new frame is made.  However, the
+        // variables must be available, so the function can't have finished
+        // and thrown them away.  (This doesn't happen with a frame that
+        // was made with `MAKE FRAME!`)
         //
         // !!! It may come to pass that a trick lets you reuse a stack context
-        // and unwind it as a kind of tail recursion to reuse it.  But one would
-        // not want that strange voodoo to be what DO does on a FRAME!,
+        // and unwind it as a kind of tail recursion to reuse it.  But one
+        // would not want that strange voodoo to be what DO does on a FRAME!,
         // it would have to be another operation (REDO ?)
-        //
-        if (CTX_FRAME_IF_ON_STACK(c) != NULL)
-            fail (Error_Do_Running_Frame_Raw());
-
-        // Right now all stack based contexts are either running (stopped by
-        // the above) or expired (in which case their values are unavailable).
         //
         if (CTX_VARS_UNAVAILABLE(c))
             fail (Error_Do_Expired_Frame_Raw());
 
-        DECLARE_FRAME (f);
-
-        // Apply_Frame_Core sets up most of the Reb_Frame, but expects these
-        // arguments to be filled in.
-        //
-        f->out = D_OUT;
-        f->gotten = CTX_FRAME_FUNC_VALUE(VAL_CONTEXT(source));
-        f->original = f->phase = VAL_FUNC(f->gotten);
-        f->binding = VAL_BINDING(source);
-
-        f->varlist = CTX_VARLIST(VAL_CONTEXT(source)); // need w/NULL def
-        SER(f->varlist)->misc.f = f;
-
-        return Apply_Frame_Core(f, Canon(SYM___ANONYMOUS__), NULL); }
+        return Apply_Core(
+            D_OUT,
+            source->payload.any_context.phase,
+            VAL_BINDING(source),
+            Canon(SYM___ANONYMOUS__),
+            NOD(VAL_CONTEXT(source))
+        ); }
 
     case REB_VARARGS: {
         REBVAL *position;
@@ -509,10 +498,13 @@ REBNATIVE(apply)
     if (!IS_FUNCTION(D_OUT))
         fail (Error_Apply_Non_Function_Raw(ARG(value))); // for SPECIALIZE too
 
-    f->gotten = D_OUT;
-    f->out = D_OUT;
-
-    return Apply_Frame_Core(f, name, def);
+    return Apply_Core(
+        D_OUT,
+        VAL_FUNC(D_OUT),
+        VAL_BINDING(D_OUT),
+        name,
+        NOD(def)
+    );
 }
 
 

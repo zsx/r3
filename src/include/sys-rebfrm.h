@@ -544,7 +544,7 @@ struct Reb_Frame {
     // incremented on a common code path) if arguments are just being checked
     // vs. fulfilled.
     //
-    REBVAL *special;
+    const REBVAL *special;
 
     // `refine`
     //

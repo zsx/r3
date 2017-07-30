@@ -129,3 +129,11 @@
         ] [x]
     ]
 ]
+
+; The system should be able to preserve the binding of a definitional return
+; when a `MAKE FRAME! :RETURN` is used.  The FRAME! value itself holds the
+; binding, even though the keylist only identifies the underlying native.
+; FUNCTION-OF can also extract the binding from the FRAME! and put it together
+; with the .phase field.
+;
+[1 == eval does [r3-alpha-apply :return [1] 2]]

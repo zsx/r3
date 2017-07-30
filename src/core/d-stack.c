@@ -306,19 +306,26 @@ REBNATIVE(function_of)
 
     if (IS_FRAME(level)) {
         //
-        // If a FRAME!, then the keylist *should* be the function params,
-        // which should be coercible to a function even when the call is
-        // no longer on the stack.
+        // If a FRAME!, then the phase contains the paramlist of the actual
+        // function (the context is the keylist of the *underlying* function).
+        // But to get the function REBVAL, the phase has to be combined
+        // with the binding of the FRAME! value.  Otherwise you'd know (for
+        // instance) that you had a RETURN, but you wouldn't know where to
+        // return *from*.
         //
-        REBCTX *context = VAL_CONTEXT(level);
-        Move_Value(D_OUT, CTX_FRAME_FUNC_VALUE(context));
+        Move_Value(D_OUT, FUNC_VALUE(level->payload.any_context.phase));
+        D_OUT->extra.binding = level->extra.binding;
     }
     else {
         REBFRM *frame = Frame_For_Stack_Level(NULL, level, TRUE);
-        if (!frame)
+        if (frame == NULL)
             fail (level);
 
+        // See notes above why the frame's phase is not quite enough, the
+        // binding is needed too.
+        //
         Move_Value(D_OUT, FUNC_VALUE(frame->phase));
+        D_OUT->extra.binding = level->extra.binding;
     }
 
     return R_OUT;

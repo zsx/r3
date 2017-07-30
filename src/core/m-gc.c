@@ -798,7 +798,11 @@ static void Propagate_All_GC_Marks(void)
                 Queue_Mark_Context_Deep(meta);
 
             assert(ANY_CONTEXT(v));
-            assert(v->extra.binding == NULL); // archetypes have no binding
+
+            // Currently only FRAME! uses binding
+            //
+            assert(v->extra.binding == NULL || VAL_TYPE(v) == REB_FRAME);
+
             ++v; // context archtype completely marked by this process
         }
         else if (GET_SER_FLAG(a, ARRAY_FLAG_PAIRLIST)) {

@@ -419,28 +419,22 @@ inline static void Enter_Native(REBFRM *f) {
 //
 inline static void Push_Or_Alloc_Args_For_Underlying_Func(
     REBFRM *f,
-    const REBVAL *gotten
+    REBFUN *original,
+    REBARR *binding
 ){
-    assert(IS_FUNCTION(gotten));
-
-    // We need the actual REBVAL of the function here, and not just the REBFUN.
-    // This is true even though you can get an archetype REBVAL from a function
-    // pointer with FUNC_VALUE().  That archetype--as with RETURN and LEAVE--
-    // will not carry the specific `binding` information of a value.
-    //
-    f->original = f->phase = VAL_FUNC(gotten);
-    f->binding = VAL_BINDING(gotten);
+    f->original = f->phase = original;
+    f->binding = binding; // e.g. how a RETURN knows where to return to
 
     // The underlying function is whose parameter list must be enumerated.
     // Even though this underlying function can have more arguments than the
-    // "interface" function being called from gotten, any parameters more
+    // original "interface" function being called, any parameters more
     // than in that interface won't be gathered at the callsite because they
     // will not contain END markers.
     //
     // The "facade" is the interface this function uses, which must have the
     // same number of arguments and be compatible with the underlying
-    // function.  At this point in time a facade might be a paramlist, but
-    // it could also just be an array with an unreadable blank in slot 0.
+    // function.  A facade might be a coherent paramlist, but it might just
+    // *look* like a paramlist, with the underlying function in slot 0.
     //
     REBCNT num_args = FUNC_FACADE_NUM_PARAMS(f->phase);
 
@@ -452,7 +446,7 @@ inline static void Push_Or_Alloc_Args_For_Underlying_Func(
     // the push and drop side, and made that cell unavailable for 1-argument
     // functions to use as a temporary.  So the optimization was removed.
 
-    if (IS_FUNC_DURABLE(VAL_FUNC(gotten))) { // !!! Who decides durability?
+    if (IS_FUNC_DURABLE(original)) { // !!! Who decides durability?
         //
         // !!! It's hoped that stack frames can be "hybrids" with some pooled
         // allocated vars that survive a call, and some that go away when the

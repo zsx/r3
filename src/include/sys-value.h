@@ -409,9 +409,9 @@ inline static void VAL_RESET_HEADER_common( // don't call directly
         //
         if (cast(REBUPT, v) % sizeof(REBUPT) != 0) {
             printf(
-                "Cell address %p not aligned to %ld bytes\n",
+                "Cell address %p not aligned to %d bytes\n",
                 cast(const void*, v),
-                sizeof(REBUPT)
+                cast(int, sizeof(REBUPT))
             );
             panic_at (v, file, line);
         }

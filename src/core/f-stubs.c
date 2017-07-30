@@ -452,11 +452,10 @@ void Init_Any_Context_Core(
 
     Move_Value(out, CTX_VALUE(c));
 
-    // Currently only FRAME! uses the ->binding field.  Following the pattern
-    // of function, we assume the archetype form of a frame has no binding,
-    // and it's only REBVAL instances besides the canon that become bound.
+    // Currently only FRAME! uses the ->binding field, in order to capture the
+    // ->binding of the function value it is linked to (that function is in ->phase)
     //
-    assert(VAL_BINDING(out) == NULL);
+    assert(VAL_BINDING(out) == NULL || CTX_TYPE(c) == REB_FRAME);
 
     // Only FRAME!s are allowed to have phases.
     //

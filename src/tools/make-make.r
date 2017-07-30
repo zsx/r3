@@ -708,6 +708,14 @@ switch/default user-config/debug [
         append app-config/cflags <gnu:-fsanitize=address>
         append app-config/ldflags <gnu:-fsanitize=address>
     ]
+
+    ; This is the case we really don't like; bugs that only show up in the
+    ; non-debug build.  It's the case you need symbols in a release build
+    ;
+    pathology [
+        cfg-symbols: true
+        app-config/debug: off
+    ]
 ][
     fail ["unrecognized debug setting:" user-config/debug]
 ]

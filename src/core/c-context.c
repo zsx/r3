@@ -1430,22 +1430,30 @@ void Assert_Context_Core(REBCTX *c)
         if (!IS_FRAME(rootvar))
             panic (rootvar);
 
-        // !!! Temporary disablement of an important check!
+        // In a FRAME!, the keylist is for the underlying function.  So to
+        // know what function the frame is actually for, one must look to
+        // the "phase" field...held in the rootvar.
         //
-        // Currently MAKE FRAME! of a FUNCTION! makes the keylist for the
-        // function itself, and not the underlying one.  This is buggy, and
-        // needs to be fixed.  It will require some major changes, though.
-        //
-        /*REBFRM *f = CTX_FRAME_IF_ON_STACK(c);
-        if (f != NULL) {
-            REBFUN *rootkey_fun = VAL_FUNC(rootkey);
-            REBFUN *frame_fun = FRM_UNDERLYING(f);
+        if (
+            FUNC_UNDERLYING(rootvar->payload.any_context.phase)
+            != VAL_FUNC(rootkey)
+        ){
+            panic (rootvar);
+        }
 
-            if (rootkey_fun != frame_fun) {
-                printf("FRAME! context function doesn't match its REBFRM");
-                panic (frame_fun);
+        REBFRM *f = CTX_FRAME_IF_ON_STACK(c);
+        if (f != NULL) {
+            //
+            // If the frame is on the stack, the phase should be something
+            // with the same underlying function as the rootkey.
+            //
+            if (
+                FUNC_UNDERLYING(rootvar->payload.any_context.phase)
+                != VAL_FUNC(rootkey)
+            ){
+                panic (rootvar);
             }
-        }*/
+        }
     }
     else
         panic (rootkey);
