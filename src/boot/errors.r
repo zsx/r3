@@ -97,7 +97,6 @@ Script: [
     multiple-do-errors: [{DO-ALL encountered multiple failures} :arg1 :arg2]
 
     apply-too-many:     {Too many values in processed argument block of APPLY.}
-    apply-has-changed:  {APPLY takes frame def block (or see r3-alpha-apply)}
     apply-non-function: [:arg1 {needs to be a function for APPLY/SPECIALIZE}]
 
     invalid-tighten:    {TIGHTEN does not support SPECIALIZE/ADAPT/CHAIN}

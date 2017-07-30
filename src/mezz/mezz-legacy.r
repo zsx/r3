@@ -435,6 +435,17 @@ r3-alpha-apply: function [
     do frame ;-- voids are optionals
 ]
 
+; !!! Because APPLY has changed, help warn legacy usages by alerting if the
+; first element of the block is not a SET-WORD!.  A BAR! can subvert the
+; warning: `apply :foo [| comment {This is a new APPLY} ...]`
+;
+apply: adapt 'apply [
+    if not maybe [set-word! bar! blank!] first def [
+        fail {APPLY takes frame def block (or see r3-alpha-apply)}
+    ]
+]
+
+
 ; In Ren-C, FUNCTION's variables have indefinite extent (aka <durable>), and
 ; the body is specifically bound to those variables.  (There is no dynamic
 ; binding in Ren-C)

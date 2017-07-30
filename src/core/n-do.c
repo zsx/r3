@@ -497,22 +497,6 @@ REBNATIVE(apply)
 
     REBVAL *def = ARG(def);
 
-    DECLARE_FRAME (f);
-
-#if !defined(NDEBUG)
-    RELVAL *first_def = VAL_ARRAY_AT(def);
-
-    // !!! Because APPLY has changed, help warn legacy usages by alerting
-    // if the first element of the block is not a SET-WORD!.  A BAR! can
-    // subvert the warning: `apply :foo [| comment {This is a new APPLY} ...]`
-    //
-    if (NOT_END(first_def)) {
-        if (!IS_SET_WORD(first_def) && !IS_BAR(first_def)) {
-            fail (Error_Apply_Has_Changed_Raw());
-        }
-    }
-#endif
-
     // We don't limit to taking a FUNCTION! value directly, because that loses
     // the symbol (for debugging, errors, etc.)  If caller passes a WORD!
     // then we lookup the variable to get the function, but save the symbol.
