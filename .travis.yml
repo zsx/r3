@@ -92,10 +92,22 @@ matrix:
 
         # Windows x86, release, gcc
         #
+        # !!! There is currently an issue where TCC is causing a panic on
+        # startup for this configuration.  The bug seems very sensitive to
+        # build settings, so no debug-friendly version has been found at time
+        # of writing:
+        #
+        # https://github.com/metaeducation/ren-c/issues/603
+        #
+        # For the moment the following is taken out of the `env` line in order
+        # to get a working x86 windows build.
+        #
+        #     TCC=i386-win32-tcc TCC_CPP_EXTRA_FLAGS='-I../external/tcc/win32/include -DPVAR=TVAR -DTVAR="extern __attribute__((dllimport))"'
+        #
         - os: linux
           sudo: false #Force new container-based infrastructure.
           language: c
-          env: CONFIG=mingw-x86.r OS_ID=0.3.1 DEBUG=none TOOLS=i686-w64-mingw32- STANDARD=c RIGOROUS=yes STATIC=yes TCC=i386-win32-tcc TCC_CPP_EXTRA_FLAGS='-I../external/tcc/win32/include -DPVAR=TVAR -DTVAR="extern __attribute__((dllimport))"' HOST=i686-w64-mingw32 ARCH_CFLAGS=-m32 FFI="dynamic" ODBC_REQUIRES_LTDL="no"
+          env: CONFIG=mingw-x86.r OS_ID=0.3.1 DEBUG=none TOOLS=i686-w64-mingw32- STANDARD=c RIGOROUS=yes STATIC=yes HOST=i686-w64-mingw32 ARCH_CFLAGS=-m32 FFI="dynamic" ODBC_REQUIRES_LTDL="no"
           addons:
               apt:
                   packages:
