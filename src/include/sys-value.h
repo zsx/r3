@@ -405,7 +405,16 @@ inline static void VAL_RESET_HEADER_common( // don't call directly
         // alignment of the processor.  Checks modulo the size of an unsigned
         // integer the same size as a platform pointer (REBUPT => uintptr_t)
         //
-        assert(cast(REBUPT, v) % sizeof(REBUPT) == 0);
+        // This is pretty important, but usually only triggers on 0xDECAFBAD
+        //
+        if (cast(REBUPT, v) % sizeof(REBUPT) != 0) {
+            printf(
+                "Cell address %p not aligned to %ld bytes\n",
+                cast(const void*, v),
+                sizeof(REBUPT)
+            );
+            panic_at (v, file, line);
+        }
 
         if (NOT(v->header.bits & NODE_FLAG_CELL)) {
             printf("Non-cell passed to writing routine\n");
