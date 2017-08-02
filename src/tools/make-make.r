@@ -453,6 +453,10 @@ available-modules: reduce [
     mod-lodepng: make module-class [
         name: 'LodePNG
         source: %png/mod-lodepng.c
+        definitions: copy [
+            "LODEPNG_NO_COMPILE_ZLIB"
+            "LODEPNG_NO_COMPILE_ALLOCATORS"
+        ]
         depends: [
             [
                 %png/lodepng.c
@@ -466,26 +470,12 @@ available-modules: reduce [
                 ;    local declaration
                 ;
                 <msc:/wd4456>
+
+                ; There is a casting away of const qualifiers, which is bad,
+                ; but the PR to fix it has not been merged to LodePNG master.
+                ;
+                <gnu:-Wno-cast-qual>
             ]
-        ]
-    ]
-
-    mod-upng: make module-class [
-        name: 'uPNG
-        source: [
-            %png/u-png.c
-
-            ; This PNG source has a number of static variables that are used
-            ; in the encoding process (making it not thread-safe), as well
-            ; as local variables with the same name as these global static
-            ; variables.
-            ;
-            ;    declaration of 'identifier' hides global declaration
-            ;
-            ; !!! This lack of thread safety is a good argument for not using
-            ; this vs. LodePNG.
-            ;
-            <msc:/wd4459>
         ]
     ]
 
@@ -619,10 +609,8 @@ available-extensions: reduce [
 
     ext-png: make extension-class [
         name: 'PNG
-        loadable: no ; Depends on symbols, like z_inflate(End), that are not exported
         modules: reduce [
             mod-lodepng
-            mod-upng
         ]
         source: %png/ext-png.c
     ]

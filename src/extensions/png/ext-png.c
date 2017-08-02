@@ -39,23 +39,24 @@ static const REBYTE script_bytes[] =
     "license: {Apache 2.0}\n"
 "]\n"
 "sys/register-codec* 'png %.png\n"
-    "get in import 'upng 'identify-png?\n"
-    "get in import 'upng 'decode-png\n"
-    "get in import 'lodepng 'encode-png-lodepng\n"
+    "get in import 'lodepng 'identify-png?\n"
+    "get in import 'lodepng 'decode-png\n"
+    "get in import 'lodepng 'encode-png\n"
 ;
 
 #define MODULE_INCLUDE_DECLARATION_ONLY
 #include "tmp-mod-lodepng-last.h"
-#include "tmp-mod-upng-last.h"
 
 DEFINE_EXT_INIT(PNG, //name of the extension
     script_bytes, // REBOL script for the extension in the source form
     {
         // init all modules in this extension
         int init = CALL_MODULE_INIT(LodePNG);
-        if (init < 0) return init;
-        init = CALL_MODULE_INIT(uPNG);
-        if (init < 0) return init;
+        if (init < 0)
+            return init; // ?
+
+        // As written must fall through to work!
+
     }
 )
 
@@ -63,10 +64,7 @@ DEFINE_EXT_QUIT(PNG,
 {
     int ret = 0;
 
-    int r = CALL_MODULE_QUIT(uPNG);
-    if (r != 0) ret = r;
-
-    r = CALL_MODULE_QUIT(LodePNG);
+    int r = CALL_MODULE_QUIT(LodePNG);
     if (r != 0) ret = r;
 
     return ret;

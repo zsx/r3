@@ -51,6 +51,9 @@
 #include "sys-zlib.h"
 
 
+#include "mem-series.h" // !!! needed for BIAS adjustment, should we export?
+
+
 //
 //  REBCNT_To_Bytes: C
 //
@@ -132,22 +135,31 @@ static REBCTX *Error_Compression(const z_stream *strm, int ret)
 
 
 //
-//  Compress: C
+//  Deflate_To_Prefixed_Series: C
+//
+// Exposure of the deflate() of the built-in zlib, so that extensions (such as
+// a PNG encoder) can reuse it.  Currently this does not take any options for
+// tuning the compression, and just uses the recommended defaults by zlib.
+//
+// A BINARY! series is used to return the result, but with a trick: the
+// pointer to the REBSER itself is prepended to the head of the data stream.
+// Because Rebol has what is called the "bias" area at the head of a series,
+// this can be easily trimmed out without needing to perform a reallocation.
+// Hence COMPRESS can use the same code for producing binaries to return
+// to the user, just by bumping the bias past that pointer.
 //
 // !!! Adds 32-bit size info to zlib non-raw compressions for compatibility
 // with Rebol2 and R3-Alpha, at the cost of inventing yet-another-format.
 // Consider removing.
 //
-REBSER *Compress(
-    REBSER *input,
-    REBINT index,
-    REBCNT len,
+REBSER *Deflate_To_Prefixed_Series(
+    const unsigned char* input,
+    size_t input_len,
     REBOOL gzip,
-    REBOOL raw
-) {
+    REBOOL raw,
+    REBOOL only
+){
     int ret;
-
-    assert(BYTE_SIZE(input)); // must be BINARY!
 
     // compression level can be a value from 1 to 9, or Z_DEFAULT_COMPRESSION
     // if you want it to pick what the library author considers the "worth it"
@@ -178,14 +190,15 @@ REBSER *Compress(
 
     // http://stackoverflow.com/a/4938401/211160
     //
-    REBCNT buf_size = deflateBound(&strm, len);
+    REBCNT buf_size = deflateBound(&strm, input_len);
 
-    strm.avail_in = len;
-    strm.next_in = BIN_HEAD(input) + index;
+    strm.avail_in = input_len;
+    strm.next_in = input;
 
-    REBSER *output = Make_Binary(buf_size);
+    REBSER *output = Make_Binary(sizeof(REBSER*) + buf_size);
+    *cast(REBSER**, BIN_HEAD(output)) = output; // self-referencing prefix
     strm.avail_out = buf_size;
-    strm.next_out = BIN_HEAD(output);
+    strm.next_out = BIN_HEAD(output) + sizeof(REBSER*);
 
     ret = deflate(&strm, Z_FINISH);
     deflateEnd(&strm);
@@ -193,7 +206,7 @@ REBSER *Compress(
     if (ret != Z_STREAM_END)
         fail (Error_Compression(&strm, ret));
 
-    TERM_BIN_LEN(output, buf_size - strm.avail_out);
+    TERM_BIN_LEN(output, sizeof(REBSER*) + buf_size - strm.avail_out);
 
     if (gzip) {
     #if !defined(NDEBUG)
@@ -203,15 +216,16 @@ REBSER *Compress(
         // same format that R3-Alpha and Rebol2 used.
 
         REBCNT gzip_len = Bytes_To_REBCNT(
-            SER_DATA_RAW(output)
+            BIN_HEAD(output)
+            + sizeof(REBSER*)
             + buf_size
             - strm.avail_out
             - sizeof(REBCNT)
         );
-        assert(len == gzip_len);
+        assert(input_len == gzip_len);
     #endif
     }
-    else if (!raw) {
+    else if (NOT(only)) {
         //
         // Add 32-bit length to the end.
         //
@@ -223,7 +237,7 @@ REBSER *Compress(
         // have to save the size somewhere.
         //
         REBYTE out_size[sizeof(REBCNT)];
-        REBCNT_To_Bytes(out_size, cast(REBCNT, len));
+        REBCNT_To_Bytes(out_size, cast(REBCNT, input_len));
         Append_Series(output, cast(REBYTE*, out_size), sizeof(REBCNT));
     }
 
@@ -233,6 +247,8 @@ REBSER *Compress(
         REBSER *smaller = Copy_Sequence(output);
         Free_Series(output);
         output = smaller;
+
+        *cast(REBSER**, BIN_HEAD(output)) = output; // update prefix
     }
 
     return output;
@@ -240,15 +256,50 @@ REBSER *Compress(
 
 
 //
-//  Decompress: C
+//  Deflate_To_Series: C
 //
-REBSER *Decompress(
+// This is implemented "non-invasively", in order to test the functionality
+// of putting the series pointer in, and then biasing it out.  It could also
+// be done as a parameterization of the core routine which had a flag to
+// not put the bias in.
+//
+REBSER *Deflate_To_Series(
+    const unsigned char* input,
+    size_t len,
+    REBOOL gzip,
+    REBOOL raw,
+    REBOOL only
+){
+    REBSER *s = Deflate_To_Prefixed_Series(input, len, gzip, raw, only);
+
+    // The REBSER* of the series is prefixed at the beginning of the series
+    // data itself.  Trim it out without risking reallocation (adjust bias).
+    //
+    return Rebserize(BIN_HEAD(s) + sizeof(REBSER*));
+}
+
+
+//
+//  Inflate_To_Prefixed_Series: C
+//
+// Exposure of the inflate() of the built-in zlib, so that extensions (such as
+// a PNG decoder) can reuse it.  Currently this does not take any options for
+// tuning the compression, and just uses the recommended defaults by zlib.
+//
+// As with the exposure of deflate(), a trick used to share code between
+// LodePNG and DECOMPRESS is to prefix the returned series with the pointer
+// to the REBSER itself.  This can be edited out without risking allocation
+// by adjusting the bias, and lets a custom free() find the series to free
+// through looking backwards.
+//
+REBSER *Inflate_To_Prefixed_Series(
     const REBYTE *input,
     REBCNT len,
     REBINT max,
     REBOOL gzip,
-    REBOOL raw
-) {
+    REBOOL raw,
+    REBOOL only // don't add 4-byte size to end
+){
     int ret;
 
     z_stream strm;
@@ -260,7 +311,7 @@ REBSER *Decompress(
     // We only subtract out the double-checking size if this came from a
     // zlib compression without /ONLY.
     //
-    strm.avail_in = (!raw && !gzip) ? len - sizeof(REBCNT) : len;
+    strm.avail_in = only || gzip ? len : len - sizeof(REBCNT);
     strm.next_in = input;
 
     // !!! Zlib can detect decompression...use window_bits_detect_zlib_gzip?
@@ -306,7 +357,7 @@ REBSER *Decompress(
     }
 
     REBCNT buf_size;
-    if (gzip || !raw) {
+    if (gzip || !only) {
         //
         // Both gzip and Rebol's envelope have the size living in the last
         // 4 bytes of the payload.
@@ -355,9 +406,10 @@ REBSER *Decompress(
 
     // Since the initialization succeeded, go ahead and make the output buffer
     //
-    REBSER *output = Make_Binary(buf_size);
+    REBSER *output = Make_Binary(sizeof(REBSER*) + buf_size);
+    *cast(REBSER**, BIN_HEAD(output)) = output; // self-referential prefix
     strm.avail_out = buf_size;
-    strm.next_out = BIN_HEAD(output);
+    strm.next_out = BIN_HEAD(output) + sizeof(REBSER*);
 
     // Loop through and allocate a larger buffer each time we find the
     // decompression did not run to completion.  Stop if we exceed max.
@@ -399,20 +451,26 @@ REBSER *Decompress(
 
         assert(strm.avail_out == 0); // !!! is this guaranteed?
         assert(
-            strm.next_out == BIN_HEAD(output) + old_size - strm.avail_out
+            strm.next_out
+            == BIN_HEAD(output) + sizeof(REBSER*) + old_size - strm.avail_out
         );
 
+        // Extend_Series operates on the current series length, must update
+        // before calling it.
+        //
+        TERM_BIN_LEN(output, sizeof(REBSER*) + old_size - strm.avail_out);
         Extend_Series(output, buf_size - old_size);
 
         // Extending keeps the content but may realloc the pointer, so
         // put it at the same spot to keep writing to
         //
-        strm.next_out = BIN_HEAD(output) + old_size - strm.avail_out;
+        strm.next_out =
+            BIN_HEAD(output) + sizeof(REBSER*) + old_size - strm.avail_out;
 
         strm.avail_out += buf_size - old_size;
     }
 
-    TERM_BIN_LEN(output, strm.total_out);
+    TERM_BIN_LEN(output, sizeof(REBSER*) + strm.total_out);
 
     // !!! Trim if more than 1K extra capacity, review logic
     //
@@ -420,6 +478,8 @@ REBSER *Decompress(
         REBSER *smaller = Copy_Sequence(output);
         Free_Series(output);
         output = smaller;
+
+        *cast(REBSER**, BIN_HEAD(output)) = output; // update prefix
     }
 
     DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
@@ -429,4 +489,29 @@ REBSER *Decompress(
     inflateEnd(&strm);
 
     return output;
+}
+
+
+//
+//  Inflate_To_Series: C
+//
+// This is implemented "non-invasively", in order to test the functionality
+// of putting the series pointer in, and then biasing it out.  It could also
+// be done as a parameterization of the core routine which had a flag to
+// not put the bias in.
+//
+REBSER *Inflate_To_Series(
+    const REBYTE *input,
+    REBCNT len,
+    REBINT max,
+    REBOOL gzip,
+    REBOOL raw,
+    REBOOL only
+){
+    REBSER *s = Inflate_To_Prefixed_Series(input, len, max, gzip, raw, only);
+
+    // The REBSER* of the series is prefixed at the beginning of the series
+    // data itself.  Trim it out without risking reallocation (adjust bias).
+    //
+    return Rebserize(BIN_HEAD(s) + sizeof(REBSER*));
 }

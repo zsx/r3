@@ -1200,8 +1200,16 @@ void Startup_Core(void)
     // includes the type list, word list, error message templates, system
     // object, mezzanines, etc.
 
-    REBSER *utf8 = Decompress(
-        Native_Specs, NAT_COMPRESSED_SIZE, NAT_UNCOMPRESSED_SIZE, FALSE, FALSE
+    const REBOOL gzip = FALSE;
+    const REBOOL raw = FALSE;
+    const REBOOL only = FALSE;
+    REBSER *utf8 = Inflate_To_Series(
+        Native_Specs,
+        NAT_COMPRESSED_SIZE,
+        NAT_UNCOMPRESSED_SIZE,
+        gzip,
+        raw,
+        only
     );
     if (utf8 == NULL || SER_LEN(utf8) != NAT_UNCOMPRESSED_SIZE)
         panic ("decompressed native specs size mismatch (try `make clean`)");

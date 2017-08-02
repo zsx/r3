@@ -868,12 +868,16 @@ int main(int argc, char **argv_ansi)
         finished = TRUE;
     }
     else {
-        REBSER *startup = Decompress(
+        const REBOOL gzip = FALSE;
+        const REBOOL raw = FALSE;
+        const REBOOL only = FALSE;
+        REBSER *startup = Inflate_To_Series(
             &Reb_Init_Code[0],
             REB_INIT_SIZE,
             -1,
-            FALSE,
-            FALSE
+            gzip,
+            raw,
+            only
         );
         if (startup == NULL)
             panic ("Can't decompress %host-start.r linked into executable");

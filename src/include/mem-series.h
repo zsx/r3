@@ -62,11 +62,15 @@ inline static void SER_SET_BIAS(REBSER *s, REBCNT bias) {
         (s->content.dynamic.bias & 0xffff) | (bias << 16);
 }
 
-#define SER_ADD_BIAS(s,b) \
-    ((s)->content.dynamic.bias += (b << 16))
+inline static void SER_ADD_BIAS(REBSER *s, REBCNT b) {
+    assert(GET_SER_INFO(s, SERIES_INFO_HAS_DYNAMIC));
+    s->content.dynamic.bias += b << 16;
+}
 
-#define SER_SUB_BIAS(s,b) \
-    ((s)->content.dynamic.bias -= (b << 16))
+inline static void SER_SUB_BIAS(REBSER *s, REBCNT b) {
+    assert(GET_SER_INFO(s, SERIES_INFO_HAS_DYNAMIC));
+    s->content.dynamic.bias -= b << 16;
+}
 
 inline static size_t SER_TOTAL(REBSER *s) {
     return (SER_REST(s) + SER_BIAS(s)) * SER_WIDE(s);

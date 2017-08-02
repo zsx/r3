@@ -351,7 +351,17 @@ REBNATIVE(compress)
     REBCNT index;
     REBSER *ser = Temp_Bin_Str_Managed(ARG(data), &index, &len);
 
-    Init_Binary(D_OUT, Compress(ser, index, len, REF(gzip), REF(only)));
+    assert(BYTE_SIZE(ser)); // must be BINARY!
+
+    const REBOOL raw = REF(only); // use /ONLY to signal raw too?
+    REBSER *compressed = Deflate_To_Series(
+        BIN_AT(ser, index),
+        len,
+        REF(gzip),
+        raw,
+        REF(only)
+    );
+    Init_Binary(D_OUT, compressed);
 
     return R_OUT;
 }
@@ -402,14 +412,16 @@ REBNATIVE(decompress)
     if (len > BIN_LEN(VAL_SERIES(data)))
         len = BIN_LEN(VAL_SERIES(data));
 
-
-    Init_Binary(D_OUT, Decompress(
+    const REBOOL raw = REF(only); // use /ONLY to signal raw also?
+    REBSER *decompressed = Inflate_To_Series(
         BIN_HEAD(VAL_SERIES(data)) + VAL_INDEX(data),
         len,
         max,
         REF(gzip),
+        raw,
         REF(only)
-    ));
+    );
+    Init_Binary(D_OUT, decompressed);
 
     return R_OUT;
 }
