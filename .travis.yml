@@ -47,7 +47,8 @@ matrix:
         # Linux x86, release, gcc
         #
         - os: linux
-          sudo: false #Force new container-based infrastructure.
+          dist: precise #libltdl-dev:i386 can't be installed on trusty, and we want to have more variations.
+          sudo: required #The container based will be retired soon.
           language: c
           env: CONFIG=generic.r OS_ID=0.4.4 DEBUG=none STANDARD=gnu89 RIGOROUS=yes STATIC=yes TCC=i386-tcc ARCH_CFLAGS=-m32 FFI="dynamic" ODBC_REQUIRES_LTDL="yes"
           addons:
