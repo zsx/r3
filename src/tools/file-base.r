@@ -177,68 +177,6 @@ generated: [
     tmp-comptypes.c
 ]
 
-libuuid: [
-    ../extensions/uuid/libuuid/gen_uuid.c
-    ../extensions/uuid/libuuid/unpack.c
-    ../extensions/uuid/libuuid/pack.c
-    ../extensions/uuid/libuuid/randutils.c
-]
-
-modules: [
-    ;name module-file other-files
-    Crypt ../extensions/crypt/mod-crypt.c [
-        ../extensions/crypt/aes/aes.c
-        ../extensions/crypt/bigint/bigint.c
-        ../extensions/crypt/dh/dh.c
-        ../extensions/crypt/rc4/rc4.c
-        ../extensions/crypt/rsa/rsa.c
-        ../extensions/crypt/sha256/sha256.c
-    ]
-
-    Process ../extensions/process/mod-process.c []
-
-    LodePNG ../extensions/png/mod-lodepng.c [../extensions/png/lodepng.c]
-
-    uPNG ../extensions/png/u-png.c []
-
-    GIF ../extensions/gif/mod-gif.c []
-
-    JPG ../extensions/jpg/mod-jpg.c [
-        ;
-        ; The JPG sources come from elsewhere; invasive maintenance for
-        ; compiler rigor is not worthwhile to be out of sync with original.
-        ;
-        [
-            ../extensions/jpg/u-jpg.c
-            <no-unused-parameter>
-            <no-shift-negative-value>
-        ]
-    ]
-
-    BMP ../extensions/bmp/mod-bmp.c []
-
-    Locale ../extensions/locale/mod-locale.c []
-
-    UUID ../extensions/uuid/mod-uuid.c [
-        ;if Linux
-    ]
-
-    ODBC ../extensions/odbc/mod-odbc.c []
-]
-
-extensions: [
-    ; [+ (builtin) | - (not builtin)] ext-name ext-file modules (defined in modules) init-script (blank if embedded)
-    + Crypt ../extensions/crypt/ext-crypt.c [Crypt] ../extensions/crypt/ext-crypt-init.reb
-    + Process ../extensions/process/ext-process.c [Process] ../extensions/process/ext-process-init.reb
-    + PNG ../extensions/png/ext-png.c [LodePNG uPNG] _
-    + GIF ../extensions/gif/ext-gif.c [GIF] _
-    + JPG ../extensions/jpg/ext-jpg.c [JPG] _
-    + BMP ../extensions/bmp/ext-bmp.c [BMP] _
-    + Locale ../extensions/locale/ext-locale.c [Locale] ../extensions/locale/ext-locale-init.reb
-    + UUID ../extensions/uuid/ext-uuid.c [UUID] ../extensions/uuid/ext-uuid-init.reb
-    + ODBC ../extensions/odbc/ext-odbc.c [ODBC] ../extensions/odbc/ext-odbc-init.reb
-]
-
 made: [
     make-boot.r         core/tmp-boot-block.c
     make-headers.r      include/tmp-funcs.h

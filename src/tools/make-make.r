@@ -1,4 +1,5 @@
 REBOL []
+do %r2r3-future.r
 do %common.r
 do %systems.r
 file-base: make object! load %file-base.r
