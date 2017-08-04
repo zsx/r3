@@ -93,8 +93,11 @@ set-exec-path: proc [
 
 to-obj-path: func [
     file [any-string!]
+    ext:
 ][
-    join-of %objs/ replace (last split-path file) ".c" rebmake/target-platform/obj-suffix
+    ext: find/last file #"."
+    remove/part ext (length ext)
+    join-of %objs/ head append ext rebmake/target-platform/obj-suffix
 ]
 
 gen-obj: func [
@@ -106,7 +109,6 @@ gen-obj: func [
 ][
     flags: make block! 8
     if block? s [
-        append flags []
         for-each flag next s [
             append flags opt switch/default flag [
                 <no-uninitialized> [
@@ -156,7 +158,7 @@ gen-obj: func [
 
     make rebmake/object-file-class compose/only [
         source: to-file join-of either dir [directory][%../src/] s
-        output: join-of %objs/ replace to string! s ".c" rebmake/target-platform/obj-suffix
+        output: to-obj-path to string! s
         cflags: either empty? flags [_] [flags]
         definitions: (to-value :definitions)
     ]
