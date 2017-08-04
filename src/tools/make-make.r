@@ -147,8 +147,7 @@ gen-obj: func [
                     <msc:/wd4127>
                 ]
             ][
-                ensure [string! tag!] flag
-                flag
+                really [string! tag!] flag
             ]
         ]
         s: s/1
@@ -1315,11 +1314,16 @@ prep: make rebmake/entry-class [
                 for-each mod ext/modules [
                     append cmds unspaced [
                         {$(REBOL) $T/make-ext-natives.r MODULE=} mod/name { SRC=../extensions/}
-                            either file? mod/source [
-                                mod/source
-                            ][
-                                ensure [block!] mod/source
-                                first find mod/source file!
+                            case [
+                                file? mod/source [
+                                    mod/source
+                                ]
+                                block? mod/source [
+                                    first find mod/source file!
+                                ]
+                                true [
+                                    fail "mod/source must be BLOCK! or FILE!"
+                                ]
                             ]
                         { OS_ID=} system-config/id
                     ]

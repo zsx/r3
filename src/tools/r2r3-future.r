@@ -748,10 +748,22 @@ procedure: func [spec body] [
 ; This isn't a full implementation of REALLY with function-oriented testing,
 ; but it works well enough for types.
 ;
-really: function [type [datatype!] value [<opt> any-value!]] [
-    if type != type-of :value [
-        probe :value
-        fail ["REALLY expected:" (mold type) "but got" (mold type-of :value)]
+really: function [type [datatype! block!] value [<opt> any-value!]] [
+    either block? type [
+        type: make typeset! type
+        if not find type type-of :value [
+            probe :value
+            fail [
+                "REALLY expected:" (mold type) "but got" (mold type-of :value)
+            ]
+        ]
+    ][        
+        if type != type-of :value [
+            probe :value
+            fail [
+                "REALLY expected:" (mold type) "but got" (mold type-of :value)
+            ]
+        ]
     ]
     return :value
 ]
