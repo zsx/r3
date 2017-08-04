@@ -295,6 +295,74 @@ REBARR *Typeset_To_Array(const REBVAL *tset)
 
 
 //
+//  MF_Typeset: C
+//
+void MF_Typeset(REB_MOLD *mo, const RELVAL *v, REBOOL form)
+{
+    REBINT n;
+
+    if (NOT(form)) {
+        Pre_Mold(mo, v);  // #[typeset! or make typeset!
+        Append_Codepoint_Raw(mo->series, '[');
+    }
+
+#if !defined(NDEBUG)
+    REBSTR *spelling = VAL_KEY_SPELLING(v);
+    if (spelling == NULL) {
+        //
+        // Note that although REB_MAX_VOID is used as an implementation detail
+        // for special typesets in function paramlists or context keys to
+        // indicate <opt>-style optionality, the "absence of a type" is not
+        // generally legal in user typesets.  Only legal "key" typesets
+        // (that have symbols).
+        //
+        assert(NOT(TYPE_CHECK(v, REB_MAX_VOID)));
+    }
+    else {
+        //
+        // In debug builds we're probably more interested in the symbol than
+        // the typesets, if we are looking at a PARAMLIST or KEYLIST.
+        //
+        Append_Unencoded(mo->series, "(");
+
+        Append_UTF8_May_Fail(
+            mo->series, STR_HEAD(spelling), STR_NUM_BYTES(spelling)
+        );
+        Append_Unencoded(mo->series, ") ");
+
+        // REVIEW: should detect when a lot of types are active and condense
+        // only if the number of types is unreasonable (often for keys/params)
+        //
+        if (TRUE) {
+            Append_Unencoded(mo->series, "...");
+            goto skip_types;
+        }
+    }
+#endif
+
+    assert(NOT(TYPE_CHECK(v, REB_0))); // REB_0 is used for internal purposes
+
+    // Convert bits to types.
+    //
+    for (n = REB_0 + 1; n < REB_MAX; n++) {
+        if (TYPE_CHECK(v, cast(enum Reb_Kind, n))) {
+            Emit(mo, "+DN ", SYM_DATATYPE_X, Canon(cast(REBSYM, n)));
+        }
+    }
+    Trim_Tail(mo->series, ' ');
+
+#if !defined(NDEBUG)
+skip_types:
+#endif
+
+    if (NOT(form)) {
+        Append_Codepoint_Raw(mo->series, ']');
+        End_Mold(mo);
+    }
+}
+
+
+//
 //  REBTYPE: C
 //
 REBTYPE(Typeset)

@@ -111,16 +111,20 @@ void TO_Money(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 
 
 //
-//  Emit_Money: C
+//  MF_Money: C
 //
-REBINT Emit_Money(REBYTE *buf, const RELVAL *value, REBFLGS opts)
+void MF_Money(REB_MOLD *mo, const RELVAL *v, REBOOL form)
 {
-    if (opts & MOLD_FLAG_LIMIT) {
+    UNUSED(form);
+
+    if (mo->opts & MOLD_FLAG_LIMIT) {
         // !!! In theory, emits should pay attention to the mold options,
         // at least the limit.
     }
 
-    return deci_to_string(buf, VAL_MONEY_AMOUNT(value), '$', '.');
+    REBYTE buf[60];
+    REBINT len = deci_to_string(buf, VAL_MONEY_AMOUNT(v), '$', '.');
+    Append_Unencoded_Len(mo->series, s_cast(buf), len);
 }
 
 

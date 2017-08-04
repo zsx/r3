@@ -545,7 +545,7 @@ REBINT CT_Varargs(const RELVAL *a, const RELVAL *b, REBINT mode)
 
 
 //
-//  Mold_Varargs: C
+//  MF_Varargs: C
 //
 // !!! The molding behavior was implemented to help with debugging the type,
 // but is not ready for prime-time.  Rather than risk crashing or presenting
@@ -553,7 +553,9 @@ REBINT CT_Varargs(const RELVAL *a, const RELVAL *b, REBINT mode)
 // VARARGS! have stabilized somewhat just how much information can (or should)
 // be given when printing these out (they should not "lookahead")
 //
-void Mold_Varargs(REB_MOLD *mo, const RELVAL *v) {
+void MF_Varargs(REB_MOLD *mo, const RELVAL *v, REBOOL form) {
+    UNUSED(form);
+
     assert(IS_VARARGS(v));
 
     Pre_Mold(mo, v);  // #[varargs! or make varargs!

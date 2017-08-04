@@ -294,6 +294,20 @@ REBARR *Struct_To_Array(REBSTU *stu)
 }
 
 
+void MF_Struct(REB_MOLD *mo, const RELVAL *v, REBOOL form)
+{
+    UNUSED(form);
+
+    Pre_Mold(mo, v);
+
+    REBARR *array = Struct_To_Array(VAL_STRUCT(v));
+    Mold_Array_At(mo, array, 0, 0);
+    Free_Array(array);
+
+    End_Mold(mo);
+}
+
+
 static REBOOL same_fields(REBARR *tgt_fieldlist, REBARR *src_fieldlist)
 {
     if (ARR_LEN(tgt_fieldlist) != ARR_LEN(src_fieldlist))

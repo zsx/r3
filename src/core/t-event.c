@@ -445,10 +445,12 @@ REBTYPE(Event)
 
 
 //
-//  Mold_Event: C
+//  MF_Event: C
 //
-void Mold_Event(REB_MOLD *mo, const RELVAL *v)
+void MF_Event(REB_MOLD *mo, const RELVAL *v, REBOOL form)
 {
+    UNUSED(form);
+
     REBCNT field;
     REBSYM fields[] = {
         SYM_TYPE, SYM_PORT, SYM_GOB, SYM_OFFSET, SYM_KEY,
