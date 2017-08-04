@@ -125,7 +125,7 @@ unless parse native-list [
             ]
         ](
             unless blank? n-name [
-                dump n-name
+                ;dump n-name
                 append native-specs make native-spec compose/only [
                     name: (to lit-word! n-name)
                     spec: (copy n-spec)
@@ -163,7 +163,7 @@ unless parse native-list [
 ]
 
 unless blank? n-name [
-    dump n-name
+    ;dump n-name
     append native-specs make native-spec compose/only [
         name: (to lit-word! n-name)
         spec: (copy n-spec)
@@ -179,7 +179,7 @@ export-list: copy []
 error-list: copy []
 num-native: 0
 for-each native native-specs [
-    dump native
+    ;dump native
     unless blank? native/platforms [
         supported?: false
         for-each plat native/platforms [
@@ -205,7 +205,7 @@ for-each native native-specs [
     ]
 
     num-native: num-native + 1
-    dump (to block! first native/spec)
+    ;dump (to block! first native/spec)
     if find to block! first native/spec 'export [append export-list to word! native/name]
     unless blank? native/errors [append error-list native/errors]
     unless blank? native/words [append word-list native/words]
