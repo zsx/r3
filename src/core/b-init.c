@@ -1018,6 +1018,7 @@ void Startup_Task(void)
     Startup_Raw_Print();
     Startup_Scanner();
     Startup_Mold(MIN_COMMON/4);
+    Startup_String();
     Startup_Collector();
 
     // Symbols system not initialized, can't init the errors just yet
@@ -1513,6 +1514,7 @@ void Shutdown_Core(void)
 
     Shutdown_Event_Scheme();
     Shutdown_CRC();
+    Shutdown_String();
     Shutdown_Mold();
     Shutdown_Scanner();
     Shutdown_Char_Cases();

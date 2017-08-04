@@ -680,9 +680,9 @@ REBTYPE(Vector)
 
 
 //
-//  Mold_Or_Form_Vector: C
+//  MF_Vector: C
 //
-void Mold_Or_Form_Vector(REB_MOLD *mo, const RELVAL *v, REBOOL form)
+void MF_Vector(REB_MOLD *mo, const RELVAL *v, REBOOL form)
 {
     REBSER *vect = VAL_SERIES(v);
     REBYTE *data = SER_DATA_RAW(vect);

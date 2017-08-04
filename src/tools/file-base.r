@@ -162,9 +162,7 @@ core: [
 ;
 generated: [
     tmp-boot-block.c
-    tmp-evaltypes.c
-    tmp-maketypes.c
-    tmp-comptypes.c
+    tmp-dispatchers.c
 ]
 
 made: [

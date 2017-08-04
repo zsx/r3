@@ -184,10 +184,12 @@ const REBYTE *Scan_Time(REBVAL *out, const REBYTE *cp, REBCNT len)
 
 
 //
-//  Emit_Time: C
+//  MF_Time: C
 //
-void Emit_Time(REB_MOLD *mo, const RELVAL *v)
+void MF_Time(REB_MOLD *mo, const RELVAL *v, REBOOL form)
 {
+    UNUSED(form); // no difference between MOLD and FORM at this time
+
     REB_TIMEF tf;
     Split_Time(VAL_NANO(v), &tf); // loses sign
 

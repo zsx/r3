@@ -465,13 +465,22 @@ void Init_Extension_Words(const REBYTE* strings[], REBSTR *canons[], REBCNT n)
 //
 //  Hook_Datatype: C
 //
+// Poor-man's user-defined type hack: this really just gives the ability to
+// have the only thing the core knows about a "user-defined-type" be its
+// value cell structure and datatype enum number...but have the behaviors
+// come from functions that are optionally registered in an extension.
+//
+// (Actual facets of user-defined types will ultimately be dispatched through
+// Rebol-frame-interfaced functions, not raw C structures like this.)
+//
 void Hook_Datatype(
     enum Reb_Kind kind,
     REBACT act,
     REBPEF pef,
     REBCTF ctf,
     MAKE_FUNC make_func,
-    TO_FUNC to_func
+    TO_FUNC to_func,
+    MOLD_FUNC mold_func
 ) {
     if (Value_Dispatch[kind] != &T_Unhooked)
         fail ("Value_Dispatch already hooked.");
@@ -483,12 +492,15 @@ void Hook_Datatype(
         fail ("Make_Dispatch already hooked.");
     if (To_Dispatch[kind] != &TO_Unhooked)
         fail ("To_Dispatch already hooked.");
+    if (Mold_Or_Form_Dispatch[kind] != &MF_Unhooked)
+        fail ("Mold_Or_Form_Dispatch already hooked.");
 
     Value_Dispatch[kind] = act;
     Path_Dispatch[kind] = pef;
     Compare_Types[kind] = ctf;
     Make_Dispatch[kind] = make_func;
     To_Dispatch[kind] = to_func;
+    Mold_Or_Form_Dispatch[kind] = mold_func;
 }
 
 
@@ -507,10 +519,13 @@ void Unhook_Datatype(enum Reb_Kind kind)
         fail ("Make_Dispatch is not hooked.");
     if (To_Dispatch[kind] == &TO_Unhooked)
         fail ("To_Dispatch is not hooked.");
+    if (Mold_Or_Form_Dispatch[kind] == &MF_Unhooked)
+        fail ("Mold_Or_Form_Dispatch is not hooked.");
 
     Value_Dispatch[kind] = &T_Unhooked;
     Path_Dispatch[kind] = &PD_Unhooked;
     Compare_Types[kind] = &CT_Unhooked;
     Make_Dispatch[kind] = &MAKE_Unhooked;
     To_Dispatch[kind] = &TO_Unhooked;
+    Mold_Or_Form_Dispatch[kind] = &MF_Unhooked;
 }

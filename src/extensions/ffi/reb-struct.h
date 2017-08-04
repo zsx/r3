@@ -449,6 +449,8 @@ inline static ffi_closure* RIN_CLOSURE(REBRIN *r) {
 
 inline static REBLIB *RIN_LIB(REBRIN *r) {
     assert(NOT(RIN_IS_CALLBACK(r)));
+    if (IS_BLANK(RIN_AT(r, IDX_ROUTINE_ORIGIN)))
+        return NULL;
     return VAL_LIBRARY(RIN_AT(r, IDX_ROUTINE_ORIGIN));
 }
 
@@ -501,6 +503,7 @@ extern REBINT PD_Struct(REBPVS *pvs);
 extern REBINT CT_Struct(const RELVAL *a, const RELVAL *b, REBINT mode);
 extern void MAKE_Struct(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg);
 extern void TO_Struct(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg);
+extern void MF_Struct(REB_MOLD *mo, const RELVAL *v, REBOOL form);
 
 extern REB_R Routine_Dispatcher(REBFRM *f);
 

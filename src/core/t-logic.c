@@ -215,6 +215,17 @@ static inline REBOOL Math_Arg_For_Logic(REBVAL *arg)
 
 
 //
+//  MF_Logic: C
+//
+void MF_Logic(REB_MOLD *mo, const RELVAL *v, REBOOL form)
+{
+    UNUSED(form); // currently no distinction between MOLD and FORM
+
+    Emit(mo, "+N", VAL_LOGIC(v) ? Canon(SYM_TRUE) : Canon(SYM_FALSE));
+}
+
+
+//
 //  REBTYPE: C
 //
 REBTYPE(Logic)

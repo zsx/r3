@@ -135,6 +135,51 @@ void TO_Word(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 
 
 //
+//  MF_Word: C
+//
+void MF_Word(REB_MOLD *mo, const RELVAL *v, REBOOL form) {
+    UNUSED(form); // no difference between MOLD and FORM at this time
+
+    REBSTR *spelling = VAL_WORD_SPELLING(v);
+    REBSER *s = mo->series;
+
+    switch (VAL_TYPE(v)) {
+    case REB_WORD: {
+        Append_UTF8_May_Fail(s, STR_HEAD(spelling), STR_NUM_BYTES(spelling));
+        break; }
+
+    case REB_SET_WORD:
+        Append_UTF8_May_Fail(s, STR_HEAD(spelling), STR_NUM_BYTES(spelling));
+        Append_Codepoint_Raw(s, ':');
+        break;
+
+    case REB_GET_WORD:
+        Append_Codepoint_Raw(s, ':');
+        Append_UTF8_May_Fail(s, STR_HEAD(spelling), STR_NUM_BYTES(spelling));
+        break;
+
+    case REB_LIT_WORD:
+        Append_Codepoint_Raw(s, '\'');
+        Append_UTF8_May_Fail(s, STR_HEAD(spelling), STR_NUM_BYTES(spelling));
+        break;
+
+    case REB_REFINEMENT:
+        Append_Codepoint_Raw(s, '/');
+        Append_UTF8_May_Fail(s, STR_HEAD(spelling), STR_NUM_BYTES(spelling));
+        break;
+
+    case REB_ISSUE:
+        Append_Codepoint_Raw(s, '#');
+        Append_UTF8_May_Fail(s, STR_HEAD(spelling), STR_NUM_BYTES(spelling));
+        break;
+
+    default:
+        panic (v);
+    }
+}
+
+
+//
 //  REBTYPE: C
 //
 // The future plan for WORD! types is that they will be unified somewhat with
