@@ -85,6 +85,25 @@ void TO_Library(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 
 
 //
+//  MF_Library: C
+//
+void MF_Library(REB_MOLD *mo, const RELVAL *v, REBOOL form)
+{
+    UNUSED(form);
+
+    Pre_Mold(mo, v);
+
+    REBCTX *meta = VAL_LIBRARY_META(v);
+    if (meta) {
+        const REBOOL form = FALSE;
+        MF_Context(mo, CTX_VALUE(meta), form);
+    }
+
+    End_Mold(mo);
+}
+
+
+//
 //  REBTYPE: C
 //
 REBTYPE(Library)

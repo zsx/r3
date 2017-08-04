@@ -980,6 +980,23 @@ REBINT PD_Gob(REBPVS *pvs)
 
 
 //
+//  MF_Gob: C
+//
+void MF_Gob(REB_MOLD *mo, const RELVAL *v, REBOOL form)
+{
+    UNUSED(form);
+
+    Pre_Mold(mo, v);
+
+    REBARR *array = Gob_To_Array(VAL_GOB(v));
+    Mold_Array_At(mo, array, 0, 0);
+    Free_Array(array);
+
+    End_Mold(mo);
+}
+
+
+//
 //  REBTYPE: C
 //
 REBTYPE(Gob)

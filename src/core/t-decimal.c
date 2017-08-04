@@ -318,6 +318,35 @@ REBINT CT_Decimal(const RELVAL *a, const RELVAL *b, REBINT mode)
 
 
 //
+//  ML_Decimal: C
+//
+// Notice this covers both DECIMAL! and PERCENT!
+//
+void MF_Decimal(REB_MOLD *mo, const RELVAL *v, REBOOL form)
+{
+    UNUSED(form);
+
+    switch (VAL_TYPE(v)) {
+    case REB_DECIMAL:
+    case REB_PERCENT: {
+        REBYTE buf[60];
+        REBINT len = Emit_Decimal(
+            buf,
+            VAL_DECIMAL(v),
+            IS_PERCENT(v) ? DEC_MOLD_PERCENT : 0,
+            GET_MOLD_FLAG(mo, MOLD_FLAG_COMMA_PT) ? ',' : '.',
+            mo->digits
+        );
+        Append_Unencoded_Len(mo->series, s_cast(buf), len);
+        break; }
+
+    default:
+        panic (v);
+    }
+}
+
+
+//
 //  REBTYPE: C
 //
 REBTYPE(Decimal)

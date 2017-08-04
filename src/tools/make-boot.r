@@ -132,180 +132,156 @@ build: context [features: [help-strings]]
 ;build: platform-data/builds/:product
 
 
-;----------------------------------------------------------------------------
-;
-; Evaltypes.h - Evaluation Dispatch Maps
-;
-;----------------------------------------------------------------------------
-
 boot-types: load %types.r
 
 
-emit-header "Evaluation Maps" %evaltypes.h
+emit-header "Dispatchers" %tmp-dispatchers.c
+emit newline
 
+emit-line {#include "sys-core.h"}
+emit newline
 
 emit {
-
-#include "sys-core.h"
-
-/***********************************************************************
-**
-*/  REBACT Value_Dispatch[REB_MAX] =
-/*
-**      The ACTION dispatch function for each datatype.
-**
-***********************************************************************/
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  VALUE DISPATCHERS (auto-generated, edit in %make-boot.r)
+//
+///////////////////////////////////////////////////////////////////////////=//
 }
-emit-line "{"
-
+emit newline
+emit-line "REBACT Value_Dispatch[REB_MAX] = {"
 for-each-record type boot-types [
     switch/default type/class [
         0 [ ; REB_0 should not ever be dispatched, bad news
             emit-item "NULL"
         ]
-        + [ ; Extension types just fail until registered
+        * [ ; Extension types just fail until registered
             emit-item "T_Unhooked"
         ]
-    ][
-        ; All other types should have handlers
-        ;
-        emit-item ["T_" propercase-of type/class]
+    ][ ; All other types should have handlers
+        emit-item ["T_" propercase-of really word! type/class]
     ]
-    emit-annotation type/name
+    emit-annotation really [word! integer!] type/name
 ]
 emit-end
 
 
-
 emit {
-
-/***********************************************************************
-**
-*/  REBPEF Path_Dispatch[REB_MAX] =
-/*
-**      The path evaluator function for each datatype.
-**
-***********************************************************************/
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  PATH DISPATCHERS (auto-generated, edit in %make-boot.r)
+//
+///////////////////////////////////////////////////////////////////////////=//
 }
-emit-line "{"
-
+emit newline
+emit-line "REBPEF Path_Dispatch[REB_MAX] = {"
 for-each-record type boot-types [
     switch/default type/path [
         - [emit-item "PD_Fail"]
-        * [emit-item ["PD_" propercase-of type/class]]
-        + [emit-item "PD_Unhooked"]
+        + [emit-item ["PD_" propercase-of really word! type/class]]
+        * [emit-item "PD_Unhooked"]
     ][
         ; !!! Today's PORT! path dispatches through context even though that
         ; isn't its technical "class" for responding to actions.
         ;
-        emit-item ["PD_" propercase-of type/path]
+        emit-item ["PD_" propercase-of really word! type/path]
     ]
-    emit-annotation type/name
+    emit-annotation really [word! integer!] type/name
 ]
 emit-end
 
-write-emitted src/tmp-evaltypes.c
-
-
-;----------------------------------------------------------------------------
-;
-; Maketypes.h - Dispatchers for Make (used by construct)
-;
-;----------------------------------------------------------------------------
-
-emit-header "Datatype Makers" %maketypes.h
-emit newline
 
 emit {
-
-#include "sys-core.h"
-
-/***********************************************************************
-**
-*/  MAKE_FUNC Make_Dispatch[REB_MAX] =
-/*
-**      Specifies the make method used for each datatype.
-**
-***********************************************************************/
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  MAKE DISPATCHERS (auto-generated, edit in %make-boot.r)
+//
+///////////////////////////////////////////////////////////////////////////=//
 }
-emit-line "{"
+emit newline
+emit-line "MAKE_FUNC Make_Dispatch[REB_MAX] = {"
 for-each-record type boot-types [
     switch/default type/make [
         - [emit-item "MAKE_Fail"]
-        * [emit-item ["MAKE_" propercase-of type/class]]
-        + [emit-item "MAKE_Unhooked"]
+        + [emit-item ["MAKE_" propercase-of really word! type/class]]
+        * [emit-item "MAKE_Unhooked"]
     ][
-        fail "MAKE in %types.r should be, -, *, or +"
+        fail "MAKE in %types.r should be, -, +, or *"
     ]
-    emit-annotation type/name
+    emit-annotation really [word! integer!] type/name
 ]
 emit-end
 
 
 emit {
-/***********************************************************************
-**
-*/  TO_FUNC To_Dispatch[REB_MAX] =
-/*
-**      Specifies the TO method used for each datatype.
-**
-***********************************************************************/
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  TO DISPATCHERS (auto-generated, edit in %make-boot.r)
+//
+///////////////////////////////////////////////////////////////////////////=//
 }
-emit-line "{"
+emit newline
+emit-line "TO_FUNC To_Dispatch[REB_MAX] = {"
 for-each-record type boot-types [
     switch/default type/make [
         - [emit-item "TO_Fail"]
-        * [emit-item ["TO_" propercase-of type/class]]
-        + [emit-item "TO_Unhooked"]
+        + [emit-item ["TO_" propercase-of really word! type/class]]
+        * [emit-item "TO_Unhooked"]
     ][
-        fail "TO in %types.r should be -, *, or +"
+        fail "TO in %types.r should be -, +, or *"
     ]
-    emit-annotation type/name
+    emit-annotation really [word! integer!] type/name
 ]
 emit-end
-
-write-emitted src/tmp-maketypes.c
-
-
-;----------------------------------------------------------------------------
-;
-; Comptypes.h - compare functions
-;
-;----------------------------------------------------------------------------
-
-emit-header "Datatype Comparison Functions" %comptypes.h
-emit newline
 
 
 emit {
-
-#include "sys-core.h"
-
-/***********************************************************************
-**
-*/  REBCTF Compare_Types[REB_MAX] =
-/*
-**      Type comparision functions.
-**
-***********************************************************************/
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  MOLD DISPATCHERS (auto-generated, edit in %make-boot.r)
+//
+///////////////////////////////////////////////////////////////////////////=//
 }
-emit-line "{"
+emit newline
+emit-line "MOLD_FUNC Mold_Or_Form_Dispatch[REB_MAX] = {"
 for-each-record type boot-types [
-    switch/default type/class [
-        0 [emit-item "NULL"]
-        + [emit-item "CT_Unhooked"]
+    switch/default type/mold [
+        - [emit-item "MF_Fail"]
+        + [emit-item ["MF_" propercase-of really word! type/class]]
+        * [emit-item "MF_Unhooked"]
     ][
-        unless word? type/class [
-            fail ["Type class must be 0, +, or a WORD!"]
-        ]
-
-        emit-item ["CT_" propercase-of type/class]
+        ; ERROR! may be a context, but it has its own special forming
+        ; beyond the class (falls through to ANY-CONTEXT! for mold), and
+        ; BINARY! has a different handler than strings
+        ;
+        emit-item ["MF_" propercase-of really word! type/mold]
     ]
-    emit-annotation type/name
+    emit-annotation really [word! integer!] type/name
 ]
 emit-end
 
-write-emitted src/tmp-comptypes.c
+
+emit {
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  COMPARISON DISPATCHERS (auto-generated, edit in %make-boot.r)
+//
+///////////////////////////////////////////////////////////////////////////=//
+}
+emit newline
+emit-line "REBCTF Compare_Types[REB_MAX] = {"
+for-each-record type boot-types [
+    switch/default type/class [
+        0 [emit-item "NULL"]
+        * [emit-item "CT_Unhooked"]
+    ][
+        emit-item ["CT_" propercase-of really word! type/class]
+    ]
+    emit-annotation really [word! integer!] type/name
+]
+emit-end
+
+write-emitted src/tmp-dispatchers.c
 
 
 ;----------------------------------------------------------------------------
@@ -336,7 +312,7 @@ for-each-record type boot-types [
     either type/name = 0 [
         emit-item/assign "REB_0" 0
     ][
-        emit-item/assign/upper ["REB_" type/name] n
+        emit-item/assign/upper ["REB_" really word! type/name] n
     ]
     emit-annotation n
 
@@ -379,56 +355,13 @@ for-each-record type boot-types [
     n: n + 1
 ]
 
-; These macros are not automatically generated, though perhaps some of them
-; should be.  They are here because all the type concerns tie together...
-; if they are renumbered then tests using > or < might start failing.
+; Emit the macros that embed specific knowledge of the type ordering.  These
+; are best kept in the header of %types.r, so anyone changing the order is
+; reminded of the importance of adjusting them.
 ;
-; !!! Consider ways of making this more robust.
-;
-emit {
-#define IS_ANY_VALUE(v) \
-    LOGICAL(VAL_TYPE(v) != REB_MAX_VOID)
+types-header: first load/header %types.r
+emit trim/auto copy really string! types-header/macros
 
-#define ANY_SCALAR(v) \
-    LOGICAL(VAL_TYPE(v) >= REB_LOGIC && VAL_TYPE(v) <= REB_DATE)
-
-#define ANY_SERIES(v) \
-    LOGICAL(VAL_TYPE(v) >= REB_PATH && VAL_TYPE(v) <= REB_VECTOR)
-
-#define ANY_STRING(v) \
-    LOGICAL(VAL_TYPE(v) >= REB_STRING && VAL_TYPE(v) <= REB_TAG)
-
-#define ANY_BINSTR(v) \
-    LOGICAL(VAL_TYPE(v) >= REB_BINARY && VAL_TYPE(v) <= REB_TAG)
-
-inline static REBOOL ANY_ARRAY_KIND(enum Reb_Kind k) {
-    return LOGICAL(k >= REB_PATH && k <= REB_BLOCK);
-}
-
-#define ANY_ARRAY(v) \
-    ANY_ARRAY_KIND(VAL_TYPE(v))
-
-inline static REBOOL ANY_WORD_KIND(enum Reb_Kind k) {
-    return LOGICAL(k >= REB_WORD && k <= REB_ISSUE);
-}
-
-#define ANY_WORD(v) \
-    ANY_WORD_KIND(VAL_TYPE(v))
-
-#define ANY_PATH(v) \
-    LOGICAL(VAL_TYPE(v) >= REB_PATH && VAL_TYPE(v) <= REB_LIT_PATH)
-
-#define ANY_EVAL_BLOCK(v) \
-    LOGICAL(VAL_TYPE(v) == REB_BLOCK || VAL_TYPE(v) == REB_GROUP)
-
-inline static REBOOL ANY_CONTEXT_KIND(enum Reb_Kind k) {
-    return LOGICAL(k >= REB_OBJECT && k <= REB_PORT);
-}
-
-#define ANY_CONTEXT(v) \
-    ANY_CONTEXT_KIND(VAL_TYPE(v))
-
-}
 
 emit {
 /***********************************************************************
@@ -883,7 +816,7 @@ sctx: has collect [
 ; !!! The SYS_CTX has no SELF...it is not produced by the ordinary gathering
 ; constructor, but uses Alloc_Context() directly.  Rather than try and force
 ; it to have a SELF, having some objects that don't helps pave the way
-; to the userspace choice of self-vs-no-self (as with func's <no-return>)
+; to the userspace choice of self-vs-no-self (as with func's `<with> return`)
 ;
 make-obj-defs/selfless sctx "SYS_CTX_" 1
 

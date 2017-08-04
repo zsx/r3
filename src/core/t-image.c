@@ -946,6 +946,30 @@ static REBSER *Complement_Image(REBVAL *value)
 
 
 //
+//  ML_Image: C
+//
+void MF_Image(REB_MOLD *mo, const RELVAL *v, REBOOL form)
+{
+    UNUSED(form); // no difference between MOLD and FORM at this time
+
+    Pre_Mold(mo, v);
+    if (GET_MOLD_FLAG(mo, MOLD_FLAG_ALL)) {
+        DECLARE_LOCAL (head);
+        Move_Value(head, const_KNOWN(v));
+        VAL_INDEX(head) = 0; // mold all of it
+        Mold_Image_Data(head, mo);
+        Post_Mold(mo, v);
+    }
+    else {
+        Append_Codepoint_Raw(mo->series, '[');
+        Mold_Image_Data(const_KNOWN(v), mo);
+        Append_Codepoint_Raw(mo->series, ']');
+        End_Mold(mo);
+    }
+}
+
+
+//
 //  REBTYPE: C
 //
 REBTYPE(Image)

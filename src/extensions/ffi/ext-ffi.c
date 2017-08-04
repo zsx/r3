@@ -52,7 +52,8 @@ DEFINE_EXT_INIT_COMPRESSED(FFI, //name of the extension
             &PD_Struct,
             &CT_Struct,
             &MAKE_Struct,
-            &TO_Struct
+            &TO_Struct,
+            &MF_Struct
         );
     }
 )

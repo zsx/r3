@@ -353,6 +353,19 @@ REBNATIVE(to_integer)
 
 
 //
+//  MF_Integer: C
+//
+void MF_Integer(REB_MOLD *mo, const RELVAL *v, REBOOL form)
+{
+    UNUSED(form);
+
+    REBYTE buf[60];
+    REBINT len = Emit_Integer(buf, VAL_INT64(v));
+    Append_Unencoded_Len(mo->series, s_cast(buf), len);
+}
+
+
+//
 //  REBTYPE: C
 //
 REBTYPE(Integer)

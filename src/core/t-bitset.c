@@ -78,19 +78,25 @@ REBSER *Make_Bitset(REBCNT len)
 
 
 //
-//  Mold_Bitset: C
+//  MF_Bitset: C
 //
-void Mold_Bitset(REB_MOLD *mo, const RELVAL *v)
+void MF_Bitset(REB_MOLD *mo, const RELVAL *v, REBOOL form)
 {
+    UNUSED(form); // all bitsets are "molded" at this time
+
+    Pre_Mold(mo, v); // #[bitset! or make bitset!
+
     REBSER *s = VAL_SERIES(v);
 
     if (BITS_NOT(s))
         Append_Unencoded(mo->series, "[not bits ");
 
-    Mold_Binary(mo, v);
+    MF_Binary(mo, v, FALSE); // FALSE = mold, don't form
 
     if (BITS_NOT(s))
         Append_Codepoint_Raw(mo->series, ']');
+
+    End_Mold(mo);
 }
 
 

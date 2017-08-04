@@ -253,7 +253,34 @@ static void Get_Math_Arg_For_Pair(
     default:
         fail (Error_Math_Args(REB_PAIR, action));
     }
+}
 
+
+//
+//  MF_Pair: C
+//
+void MF_Pair(REB_MOLD *mo, const RELVAL *v, REBOOL form)
+{
+    UNUSED(form); // currently no distinction between MOLD and FORM
+
+    REBYTE buf[60];
+    REBINT len = Emit_Decimal(
+        buf,
+        VAL_PAIR_X(v),
+        DEC_MOLD_MINIMAL,
+        '.', // use dot as opposed to comma in pair rendering of decimals
+        mo->digits / 2
+    );
+    Append_Unencoded_Len(mo->series, s_cast(buf), len);
+    Append_Codepoint_Raw(mo->series, 'x');
+    len = Emit_Decimal(
+        buf,
+        VAL_PAIR_Y(v),
+        DEC_MOLD_MINIMAL,
+        '.', // use dot as opposed to comma in pair rendering of decimals
+        mo->digits / 2
+    );
+    Append_Unencoded_Len(mo->series, s_cast(buf), len);
 }
 
 

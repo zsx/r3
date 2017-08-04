@@ -419,10 +419,7 @@ enum REB_Mold_Opts {
 #define CLEAR_MOLD_FLAG(mo,f) \
     ((mo)->opts &= ~(f))
 
-// !!! MOLD_FUNC was defined in R3-Alpha but not used; apparently a methodized
-// version was planned or had once existed.
-//
-typedef void (*MOLD_FUNC)(REB_MOLD *mo, const REBVAL *v, REBOOL form);
+typedef void (*MOLD_FUNC)(REB_MOLD *mo, const RELVAL *v, REBOOL form);
 
 // Special flags for decimal formatting:
 enum {
@@ -759,9 +756,9 @@ inline static void SET_SIGNAL(REBFLGS f) {
 //
 // Dispatch Table Prototypes
 //
-// These dispatch tables are generated and have data declarations in .inc
-// files.  Those data declarations can only be included once, yet the tables
-// may be used in multiple modules.
+// These dispatch tables are generated and have data declarations in the
+// %tmp-dispatch.c file.  Those data declarations can only be included once,
+// yet the tables may be used in multiple modules.
 //
 // The tables never contain NULL values.  Instead there is a dispatcher in
 // the slot which will fail if it is ever called.
@@ -772,11 +769,12 @@ inline static void SET_SIGNAL(REBFLGS f) {
 // as these will be "user defined types" that are more like a context than
 // a built-in "kind".
 
-extern REBACT Value_Dispatch[REB_MAX]; // in %tmp-evaltypes.inc
-extern REBPEF Path_Dispatch[REB_MAX]; // in %tmp-evaltypes.inc
-extern REBCTF Compare_Types[REB_MAX]; // in %tmp-comptypes.inc
-extern MAKE_FUNC Make_Dispatch[REB_MAX]; // in %tmp-maketypes.inc
-extern TO_FUNC To_Dispatch[REB_MAX]; // in %tmp-maketypes.inc
+extern REBACT Value_Dispatch[REB_MAX];
+extern REBPEF Path_Dispatch[REB_MAX];
+extern REBCTF Compare_Types[REB_MAX];
+extern MAKE_FUNC Make_Dispatch[REB_MAX];
+extern TO_FUNC To_Dispatch[REB_MAX];
+extern MOLD_FUNC Mold_Or_Form_Dispatch[REB_MAX];
 
 
 #include "sys-do.h"
