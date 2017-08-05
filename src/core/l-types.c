@@ -703,7 +703,7 @@ const REBYTE *Scan_Date(
     REBINT day;
     REBINT month;
     REBINT year;
-    REBINT tz = 0;
+    REBINT tz;
 
     REBCNT size = cast(REBCNT, ep - cp);
     if (size >= 4) {
@@ -818,17 +818,18 @@ const REBYTE *Scan_Date(
 
     cp = ep;
 
-    VAL_RESET_HEADER(out, REB_DATE);
-    VAL_NANO(out) = NO_TIME;
-
-    if (cp >= end)
-        goto end_date;
+    if (cp >= end) {
+        VAL_RESET_HEADER(out, REB_DATE);
+        goto end_date; // needs header set
+    }
 
     if (*cp == '/' || *cp == ' ') {
         sep = *cp++;
 
-        if (cp >= end)
-            goto end_date;
+        if (cp >= end) {
+            VAL_RESET_HEADER(out, REB_DATE);
+            goto end_date; // needs header set
+        }
 
         cp = Scan_Time(out, cp, 0);
         if (
@@ -839,9 +840,16 @@ const REBYTE *Scan_Date(
         ){
             return_NULL;
         }
-    }
 
-    if (*cp == sep) cp++;
+        VAL_RESET_HEADER_EXTRA(out, REB_DATE, DATE_FLAG_HAS_TIME);
+    }
+    else
+        VAL_RESET_HEADER(out, REB_DATE); // no DATE_FLAG_HAS_TIME
+
+    // past this point, header is set, so `goto end_date` is legal.
+
+    if (*cp == sep)
+        ++cp;
 
     // Time zone can be 12:30 or 1230 (optional hour indicator)
     if (*cp == '-' || *cp == '+') {
@@ -883,10 +891,25 @@ const REBYTE *Scan_Date(
             tz = -tz;
 
         cp = ep;
+
+        SET_VAL_FLAG(out, DATE_FLAG_HAS_ZONE);
+        INIT_VAL_ZONE(out, tz);
     }
 
 end_date:
-    Set_Date_UTC(out, year, month, day, VAL_NANO(out), tz);
+    assert(IS_DATE(out)); // don't reset header here; overwrites flags
+    VAL_YEAR(out)  = year;
+    VAL_MONTH(out) = month;
+    VAL_DAY(out) = day;
+
+    // if VAL_NANO() was set, then DATE_FLAG_HAS_TIME should be true
+    // if VAL_ZONE() was set, then DATE_FLAG_HAS_ZONE should be true
+
+    // This step used to be skipped if tz was 0, but now that is a
+    // state distinguished from "not having a time zone"
+    //
+    Adjust_Date_Zone(out, TRUE);
+
     return cp;
 }
 

@@ -399,8 +399,13 @@
 ; date! doesn't ignore time portion
 [not equal? 2-Jul-2009 2-Jul-2009/22:20]
 [equal? equal? 2-Jul-2009 2-Jul-2009/22:20 equal? 2-Jul-2009/22:20 2-Jul-2009]
-; date! missing time and zone = 00:00:00+00:00
-[equal? 2-Jul-2009 2-Jul-2009/00:00:00+00:00]
+
+; R3-Alpha considered date! missing time and zone = 00:00:00+00:00.  But
+; in Ren-C, dates without a time are semantically distinct from a date with
+; a time at midnight.
+;
+[not equal? 2-Jul-2009 2-Jul-2009/00:00:00+00:00]
+
 [equal? equal? 2-Jul-2009 2-Jul-2009/00:00 equal? 2-Jul-2009/00:00 2-Jul-2009]
 ; Timezone math in date!
 [equal? 2-Jul-2009/22:20 2-Jul-2009/20:20-2:00]

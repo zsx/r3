@@ -645,6 +645,7 @@ enum Reb_Vararg_Op {
 #include "sys-node.h"
 
 #include "sys-value.h" // basic definitions that don't need series accessrors
+#include "sys-time.h"
 
 #include "sys-series.h"
 #include "sys-binary.h"

@@ -222,7 +222,9 @@ REBNATIVE(new_line_q)
 //      /precise
 //          "High precision time"
 //      /utc
-//          "Universal time (no zone)"
+//          "Universal time (zone +0:00)"
+//      /local
+//          "Give time in current zone without including the time zone"
 //  ]
 //
 REBNATIVE(now)
@@ -231,6 +233,13 @@ REBNATIVE(now)
 
     REBVAL *ret = D_OUT;
     OS_GET_TIME(D_OUT);
+
+    // However OS-level date and time is plugged into the system, it needs to
+    // have enough granularity to give back date, time, and time zone.
+    //
+    assert(IS_DATE(D_OUT));
+    assert(GET_VAL_FLAG(D_OUT, DATE_FLAG_HAS_TIME));
+    assert(GET_VAL_FLAG(D_OUT, DATE_FLAG_HAS_ZONE));
 
     if (NOT(REF(precise))) {
         //
@@ -243,7 +252,16 @@ REBNATIVE(now)
     }
 
     if (REF(utc)) {
-        VAL_ZONE(ret) = 0;
+        //
+        // Say it has a time zone component, but it's 0:00 (as opposed
+        // to saying it has no time zone component at all?)
+        //
+        INIT_VAL_ZONE(ret, 0);
+    }
+    else if (REF(local)) {
+        // Clear out the time zone flag
+        //
+        CLEAR_VAL_FLAG(ret, DATE_FLAG_HAS_ZONE);
     }
     else {
         if (
@@ -262,15 +280,14 @@ REBNATIVE(now)
     REBINT n = -1;
 
     if (REF(date)) {
-        VAL_NANO(ret) = NO_TIME;
-        VAL_ZONE(ret) = 0;
+        CLEAR_VAL_FLAGS(ret, DATE_FLAG_HAS_TIME | DATE_FLAG_HAS_ZONE);
     }
     else if (REF(time)) {
-        VAL_RESET_HEADER(ret, REB_TIME);
+        VAL_RESET_HEADER(ret, REB_TIME); // reset clears date flags
     }
     else if (REF(zone)) {
-        VAL_RESET_HEADER(ret, REB_TIME);
         VAL_NANO(ret) = VAL_ZONE(ret) * ZONE_MINS * MIN_SEC;
+        VAL_RESET_HEADER(ret, REB_TIME); // reset clears date flags
     }
     else if (REF(weekday))
         n = Week_Day(VAL_DATE(ret));

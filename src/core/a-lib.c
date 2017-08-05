@@ -531,12 +531,6 @@ RL_API REBI64 RL_Val_Time(const REBVAL *v) {
     return VAL_NANO(v);
 }
 
-//
-//  RL_Val_Date: C
-//
-RL_API REBINT RL_Val_Date(const REBVAL *v) {
-    return VAL_DATE(v).bits; // !!! Is this right?
-}
 
 //
 //  RL_Val_Tuple_Data: C
@@ -633,6 +627,14 @@ RL_API float RL_Val_Pair_Y_Float(const REBVAL *v) {
 // temporary measure while it is considered whether things like os_get_time()
 // will have access to the full internal API or not.
 //
+// !!! Note this doesn't allow you to say whether the date has a time
+// or zone component at all.  Those could be extra flags, or if Rebol values
+// were used they could be blanks vs. integers.  Further still, this kind
+// of API is probably best kept as calls into Rebol code, e.g.
+// RL_Do("make time!", ...); which might not offer the best performance, but
+// the internal API is available for clients who need that performance,
+// who can call date initialization themselves.
+//
 RL_API void RL_Init_Date(
     REBVAL *out,
     int year,
@@ -646,7 +648,11 @@ RL_API void RL_Init_Date(
     VAL_YEAR(out)  = year;
     VAL_MONTH(out) = month;
     VAL_DAY(out) = day;
-    VAL_ZONE(out) = zone / ZONE_MINS;
+
+    SET_VAL_FLAG(out, DATE_FLAG_HAS_ZONE);
+    INIT_VAL_ZONE(out, zone / ZONE_MINS);
+
+    SET_VAL_FLAG(out, DATE_FLAG_HAS_TIME);
     VAL_NANO(out) = SECS_TO_NANO(seconds) + nano;
 }
 

@@ -467,7 +467,7 @@ SQLRETURN ODBC_BindParameter(
         break; }
 
     case REB_DATE: {
-        if (VAL_NANO(v) == NO_TIME) {
+        if (NOT_VAL_FLAG(v, DATE_FLAG_HAS_TIME)) {
             p->buffer_size = sizeof(DATE_STRUCT);
             p->buffer = ALLOC_N(char, p->buffer_size);
 
@@ -1153,12 +1153,10 @@ void ODBC_Column_To_Rebol_Value(
     case SQL_TYPE_DATE: {
         DATE_STRUCT *date = cast(DATE_STRUCT*, col->buffer);
 
-        VAL_RESET_HEADER(out, REB_DATE);
+        VAL_RESET_HEADER(out, REB_DATE); // no time or time zone flags
         VAL_YEAR(out)  = date->year;
         VAL_MONTH(out) = date->month;
         VAL_DAY(out) = date->day;
-        VAL_NANO(out) = NO_TIME;
-        VAL_ZONE(out) = 0;
         break; }
 
     case SQL_TYPE_TIME: {
@@ -1175,7 +1173,6 @@ void ODBC_Column_To_Rebol_Value(
             + time->minute * 60
             + time->second
         );
-        VAL_ZONE(out) = 0;
         break; }
 
     // Note: It's not entirely clear how to work with timezones in ODBC, there
@@ -1187,6 +1184,7 @@ void ODBC_Column_To_Rebol_Value(
         TIMESTAMP_STRUCT *stamp = cast(TIMESTAMP_STRUCT*, col->buffer);
 
         VAL_RESET_HEADER(out, REB_DATE);
+        SET_VAL_FLAG(out, DATE_FLAG_HAS_TIME);
         VAL_YEAR(out) = stamp->year;
         VAL_MONTH(out) = stamp->month;
         VAL_DAY(out) = stamp->day;
@@ -1198,7 +1196,11 @@ void ODBC_Column_To_Rebol_Value(
             + stamp->minute * 60
             + stamp->second
         );
-        VAL_ZONE(out) = 0;
+        
+        // if we had a timezone, we'd need to set DATE_FLAG_HAS_ZONE and
+        // then INIT_VAL_ZONE().  But since DATE_FLAG_HAS_ZONE is not set,
+        // the timezone bitfield in the date is ignored.
+        //
         break; }
 
     case SQL_BIT:

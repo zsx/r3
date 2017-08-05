@@ -328,7 +328,11 @@ struct Reb_Money {
     int e:8;        /* exponent */
 };
 
-// !!! Review: why does this structure vary the layout based on endianness?
+// !!! This structure varies the layout based on endianness, so that when it
+// is seen throuh the .bits field of the REBDAT union, a later date will
+// have a value that will be greater (>) than an earlier date.  This should
+// be reviewed for standards compliance; masking and shifting is generally
+// safer than bit field union tricks.
 //
 typedef struct reb_ymdz {
 #ifdef ENDIAN_LITTLE
@@ -346,9 +350,13 @@ typedef struct reb_ymdz {
 
 typedef union reb_date {
     REBYMD date;
-    REBCNT bits;
+    REBCNT bits; // !!! alias used for hashing date, is this standards-legal? 
 } REBDAT;
 
+// The same payload is used for TIME! and DATE!.  The extra bits needed by
+// DATE! (as REBYMD) fit into 32 bits, so can live in the ->extra field,
+// which is the size of a platform pointer.
+//
 struct Reb_Time {
     REBI64 nanoseconds;
 };
@@ -463,11 +471,11 @@ struct Reb_Any_Context {
     // element specially.  It stores a copy of the ANY-CONTEXT! value that
     // refers to itself.
     //
-    // The `keylist` is held in the varlist's Reb_Series.misc field, and it
+    // The `keylist` is held in the varlist's Reb_Series.link field, and it
     // may be shared with an arbitrary number of other contexts.  Changing
     // the keylist involves making a copy if it is shared.
     //
-    // REB_MODULE depends on a property stored in the "meta" miscellaneous
+    // REB_MODULE depends on a property stored in the "meta" Reb_Series.link
     // field of the keylist, which is another object's-worth of data *about*
     // the module's contents (e.g. the processed header)
     //
@@ -484,7 +492,7 @@ struct Reb_Any_Context {
     // function whose "view" it represents.  This field is only applicable
     // to frames, and so it could be used for something else on other types
     //
-    // !!! Note that the binding on a FRAME! can't be used for this purpose,
+    // Note that the binding on a FRAME! can't be used for this purpose,
     // because it's already used to hold the binding of the function it
     // represents.  e.g. if you have a definitional return value with a
     // binding, and try to MAKE FRAME! on it, the paramlist alone is not
@@ -503,7 +511,7 @@ struct Reb_Any_Context {
 //
 struct Reb_Varargs {
     //
-    // If the extra->binding of the varargs is not NULL, it represents the
+    // If the extra->binding of the varargs is not UNBOUND, it represents the
     // frame in which this VARARGS! was tied to a parameter.  This 0-based
     // offset can be used to find the param the varargs is tied to, in order
     // to know whether it is quoted or not (and its name for error delivery).
