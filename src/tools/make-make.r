@@ -356,7 +356,7 @@ if blank? rebmake/default-linker [
     fail ["Default linker is not set"]
 ]
 
-switch rebmake/default-compiler/name [
+switch/default rebmake/default-compiler/name [
     gcc [
         if rebmake/default-linker/name != 'ld [
             fail ["Incompatible compiler (GCC) and linker: " rebmake/default-linker/name]
@@ -372,6 +372,8 @@ switch rebmake/default-compiler/name [
             fail ["Incompatible compiler (CL) and linker: " rebmake/default-linker/name]
         ]
     ]
+][
+    fail ["Unrecognized compiler (gcc, clang or cl):" cc]
 ]
 if all [set? 'cc-exec cc-exec][
     set-exec-path rebmake/default-compiler cc-exec
