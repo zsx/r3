@@ -322,11 +322,17 @@ parse user-config/toolset [
         'gcc opt set cc-exec [file! | blank!] (
             rebmake/default-compiler: rebmake/gcc
         )
+        | 'clang opt set cc-exec [file! | blank!] (
+            rebmake/default-compiler: rebmake/clang
+        )
         | 'cl opt set cc-exec [file! | blank!] (
             rebmake/default-compiler: rebmake/cl
         )
         | 'ld opt set linker-exec [file! | blank!] (
             rebmake/default-linker: rebmake/ld
+        )
+        | 'llvm-link opt set linker-exec [file! | blank!] (
+            rebmake/default-linker: rebmake/llvm-link
         )
         | 'link opt set linker-exec [file! | blank!] (
             rebmake/default-linker: rebmake/link
@@ -354,6 +360,11 @@ switch rebmake/default-compiler/name [
     gcc [
         if rebmake/default-linker/name != 'ld [
             fail ["Incompatible compiler (GCC) and linker: " rebmake/default-linker/name]
+        ]
+    ]
+    clang [
+        unless find [ld llvm-link] rebmake/default-linker/name [
+            fail ["Incompatible compiler (CLANG) and linker: " rebmake/default-linker/name]
         ]
     ]
     cl [

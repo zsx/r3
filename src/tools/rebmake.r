@@ -429,7 +429,7 @@ gcc: make compiler-class [
             case [
                 file? exec-file [to-local-file exec-file]
                 exec-file [exec-file]
-                true [{gcc}]
+                true [to string! name]
             ]
             either E ["-E"]["-c"]
 
@@ -547,6 +547,9 @@ tcc: make compiler-class [
     ]
 ]
 
+clang: make gcc [
+    name: 'clang
+]
 
 ; Microsoft CL compiler
 cl: make compiler-class [
@@ -754,6 +757,98 @@ ld: make linker-class [
             call/output reduce [path "--version"] version
             exec-file: path
         ;]
+    ]
+]
+
+llvm-link: make linker-class [
+    name: 'llvm-link
+    version: _
+    exec-file: _
+    id: "llvm"
+    command: func [
+        output [file!]
+        depends [block! blank!]
+        searches [block! blank!]
+        ldflags [block! any-string! blank!]
+        /dynamic
+        <local>
+        dep
+        suffix
+    ][
+        suffix: either dynamic [
+            target-platform/dll-suffix
+        ][
+            target-platform/exe-suffix
+        ]
+        spaced [
+            case [
+                file? exec-file [to-local-file exec-file]
+                exec-file [exec-file]
+                true [{llvm-link}]
+            ]
+            "-o" to-local-file either ends-with? output suffix [
+                output
+            ][
+                unspaced [output suffix]
+            ]
+
+            ; llvm-link doesn't seem to deal with libraries
+            ;unless any [blank? searches empty? searches] [
+            ;    unspaced ["-L" delimit map-to-local-file searches " -L"]
+            ;]
+
+            if block? ldflags [
+                spaced map-each flg ldflags [
+                    filter-flag flg id
+                ]
+            ]
+
+            if block? depends [
+                spaced map-each dep depends [accept dep]
+            ]
+        ]
+    ]
+
+    accept: func [
+        dep [object!]
+        <local>
+        ddep
+        lib
+    ][
+        switch/default dep/class-name [
+            object-file-class [
+                ;if find? words-of dep 'depends [
+                    ;for-each ddep dep/depends [
+                    ;    dump ddep
+                    ;]
+                ;]
+                to-local-file dep/output
+            ]
+            ext-dynamic-class [
+                ;ignored
+            ]
+            ext-static-class [
+                ;ignored
+            ]
+            object-library-class [
+                spaced map-each ddep dep/depends [
+                    to-local-file ddep/output
+                ]
+                ;pass
+            ]
+            application-class [
+                ;pass
+            ]
+            var-class [
+                ;pass
+            ]
+            entry-class [
+                ;pass
+            ]
+        ][
+            dump dep
+            fail "unrecognized dependency"
+        ]
     ]
 ]
 
