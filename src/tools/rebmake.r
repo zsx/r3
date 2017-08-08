@@ -646,6 +646,7 @@ linker-class: make object! [
 ]
 
 ld: make linker-class [
+    name: 'ld
     version: _
     exec-file: _
     id: "gnu"

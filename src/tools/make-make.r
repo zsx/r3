@@ -316,49 +316,57 @@ add-new-obj-folders: procedure [
     ]
 ]
 
-set [cc cc-exe] any [
-    find user-config/toolset 'gcc
-    find user-config/toolset 'cl
+
+parse user-config/toolset [
+    any [
+        'gcc opt set cc-exec [file! | blank!] (
+            rebmake/default-compiler: rebmake/gcc
+        )
+        | 'cl opt set cc-exec [file! | blank!] (
+            rebmake/default-compiler: rebmake/cl
+        )
+        | 'ld opt set linker-exec [file! | blank!] (
+            rebmake/default-linker: rebmake/ld
+        )
+        | 'link opt set linker-exec [file! | blank!] (
+            rebmake/default-linker: rebmake/link
+        )
+        | 'strip opt set strip-exec [file! | blank!] (
+            rebmake/default-strip: rebmake/strip
+            rebmake/default-strip/options: [<gnu:-S> <gnu:-x> <gnu:-X>]
+            if all [set? 'strip-exec strip-exec][
+                set-exec-path rebmake/default-strip strip-exec
+            ]
+        )
+        | pos: (unless tail? pos [fail ["failed to parset toolset at:" mold pos]])
+    ]
 ]
 
-set [linker linker-exe] any [
-    find user-config/toolset 'ld
-    find user-config/toolset 'link
+; sanity checking the compiler and linker
+if blank? rebmake/default-compiler [
+    fail ["Compiler is not set"]
+]
+if blank? rebmake/default-linker [
+    fail ["Default linker is not set"]
 ]
 
-set [strip strip-exe] any [
-    find user-config/toolset 'strip
-]
-
-switch cc [
+switch rebmake/default-compiler/name [
     gcc [
-        rebmake/default-compiler: rebmake/gcc
-        set-exec-path rebmake/gcc cc-exe
-
-        if linker != 'ld [
-            fail ["GCC can only work with ld, not" linker]
+        if rebmake/default-linker/name != 'ld [
+            fail ["Incompatible compiler (GCC) and linker: " rebmake/default-linker/name]
         ]
-        rebmake/default-linker: rebmake/ld
-        set-exec-path rebmake/ld linker-exe
     ]
     cl [
-        rebmake/default-compiler: rebmake/cl
-        set-exec-path rebmake/cl cc-exe
-
-        if linker != 'link [
-            fail ["CL can only work with link, not" linker]
+        if rebmake/default-linker/name != 'link [
+            fail ["Incompatible compiler (CL) and linker: " rebmake/default-linker/name]
         ]
-        rebmake/default-linker: rebmake/link
-        set-exec-path rebmake/link linker-exe
     ]
-][
-    fail ["Unrecognized compiler (gcc or cl):" cc]
 ]
-
-if strip [
-    rebmake/default-strip: rebmake/strip
-    rebmake/default-strip/options: [<gnu:-S> <gnu:-x> <gnu:-X>]
-    set-exec-path rebmake/default-strip strip-exe
+if all [set? 'cc-exec cc-exec][
+    set-exec-path rebmake/default-compiler cc-exec
+]
+if all [set? 'linker-exec linker-exec][
+    set-exec-path rebmake/default-linker linker-exec
 ]
 
 system-config: config-system user-config/os-id
