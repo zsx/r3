@@ -179,19 +179,8 @@ void Probe_Core_Debug(
         //
         ASSERT_SERIES(s);
 
-        if (GET_SER_FLAG(s, ARRAY_FLAG_VARLIST)) {
-            REBCTX *c = CTX(s);
-
-            // Don't use Init_Any_Context, because that can implicitly manage
-            // the context...which we don't want a debug dump routine to do.
-            //
-            DECLARE_LOCAL (temp);
-            VAL_RESET_HEADER(temp, CTX_TYPE(c));
-            temp->extra.binding = NULL;
-            temp->payload.any_context.varlist = CTX_VARLIST(c);
-            temp->payload.any_context.phase = NULL;
-            Debug_Fmt("%r\n", temp);
-        }
+        if (GET_SER_FLAG(s, ARRAY_FLAG_VARLIST))
+            Debug_Fmt("%r\n", CTX_VALUE(CTX(s)));
         else {
             REBOOL disabled = GC_Disabled;
             GC_Disabled = TRUE;

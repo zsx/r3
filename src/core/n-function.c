@@ -298,14 +298,15 @@ REBNATIVE(typechecker)
     // for now, no help...use REDESCRIBE
 
     SER(paramlist)->link.meta = NULL;
+    SER(paramlist)->misc.facade = paramlist;
 
     REBFUN *fun = Make_Function(
         paramlist,
         IS_DATATYPE(type)
             ? &Datatype_Checker_Dispatcher
             : &Typeset_Checker_Dispatcher,
-        NULL, // this is fundamental (no distinct underlying function)
-        NULL // not providing a specialization
+        NULL, // no facade (use paramlist)
+        NULL // no specialization exemplar (or inherited exemplar)
     );
 
     *FUNC_BODY(fun) = *type;
@@ -427,8 +428,8 @@ REBNATIVE(chain)
     REBFUN *fun = Make_Function(
         paramlist,
         &Chainer_Dispatcher,
-        VAL_FUNC(first), // cache in paramlist
-        NULL // not changing the specialization
+        FUNC_FACADE(VAL_FUNC(first)), // same interface as first function
+        FUNC_EXEMPLAR(VAL_FUNC(first)) // same exemplar as first function
     );
 
     // "body" is the chainees array, available to the dispatcher when called
@@ -520,8 +521,8 @@ REBNATIVE(adapt)
     REBFUN *fun = Make_Function(
         paramlist,
         &Adapter_Dispatcher,
-        VAL_FUNC(adaptee), // inherit interface/facade from adaptee
-        NULL // not changing the specialization
+        FUNC_FACADE(VAL_FUNC(adaptee)), // same interface as adaptee
+        FUNC_EXEMPLAR(VAL_FUNC(adaptee)) // same exemplar as adaptee
     );
 
     // We need to store the 2 values describing the adaptation so that the
@@ -732,18 +733,6 @@ REBNATIVE(tighten)
 
     MANAGE_ARRAY(paramlist);
 
-    REBFUN *fun = Make_Function(
-        paramlist,
-        FUNC_DISPATCHER(original),
-        original, // used to set the initial facade (overridden below)
-        NULL // don't add any specialization beyond the original
-    );
-
-    // We're reusing the original dispatcher, so we also reuse the original
-    // function body.
-    //
-    *FUNC_BODY(fun) = *FUNC_BODY(original);
-
     // Our function has a new identity, but we don't want to be using that
     // identity for the pushed frame.  If we did that, then if the underlying
     // function were interpreted, we would have to make a copy of its body
@@ -755,7 +744,13 @@ REBNATIVE(tighten)
     // which is an array compatible with the original underlying function,
     // but with stricter parameter types and different parameter classes.
     // So just as the paramlist got transformed, transform the facade.
-
+    //
+    // Note: Do NOT set the ARRAY_FLAG_PARAMLIST on this facade.  It holds
+    // whatever function value in the [0] slot the original had, and that is
+    // used for the identity of the "underlying function".  (In order to make
+    // this a real FUNCTION!'s paramlist, the paramlist in the [0] slot would
+    // have to be equal to the facade's pointer.)
+    //
     REBARR *facade = Copy_Array_Shallow(
         FUNC_FACADE(original),
         SPECIFIED // no relative values in facades, either
@@ -776,13 +771,17 @@ REBNATIVE(tighten)
 
     MANAGE_ARRAY(facade);
 
-    // Note: Do NOT set the ARRAY_FLAG_PARAMLIST on this facade.  It holds
-    // whatever function value in the [0] slot the original had, and that is
-    // used for the identity of the "underlying function".  (In order to make
-    // this a real FUNCTION!'s paramlist, the paramlist in the [0] slot would
-    // have to be equal to the facade's pointer.)
+    REBFUN *fun = Make_Function(
+        paramlist,
+        FUNC_DISPATCHER(original),
+        facade, // use the new, tightened facade
+        FUNC_EXEMPLAR(original) // don't add to the original's specialization
+    );
+
+    // We're reusing the original dispatcher, so we also reuse the original
+    // function body.
     //
-    SER(paramlist)->misc.facade = facade;
+    *FUNC_BODY(fun) = *FUNC_BODY(original);
 
     Move_Value(D_OUT, FUNC_VALUE(fun));
 

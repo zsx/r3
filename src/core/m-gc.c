@@ -790,7 +790,7 @@ static void Propagate_All_GC_Marks(void)
             // to Queue_Mark_Context_Deep.
 
             REBARR *keylist = SER(a)->link.keylist;
-            assert(keylist == CTX_KEYLIST(CTX(a)));
+            assert(keylist == CTX_KEYLIST_RAW(CTX(a)));
             Queue_Mark_Array_Subclass_Deep(keylist); // might be paramlist
 
             REBCTX *meta = SER(keylist)->link.meta;

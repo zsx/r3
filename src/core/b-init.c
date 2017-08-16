@@ -348,8 +348,8 @@ REBNATIVE(action)
     REBFUN *fun = Make_Function(
         Make_Paramlist_Managed_May_Fail(spec, flags),
         &Action_Dispatcher,
-        NULL, // no underlying function--this is fundamental
-        NULL // not providing a specialization
+        NULL, // no facade (use paramlist)
+        NULL // no specialization exemplar (or inherited exemplar)
     );
 
     Move_Value(FUNC_BODY(fun), ARG(verb));
@@ -618,8 +618,8 @@ static REBARR *Startup_Natives(REBARR *boot_natives)
         REBFUN *fun = Make_Function(
             Make_Paramlist_Managed_May_Fail(KNOWN(spec), flags),
             Native_C_Funcs[n], // "dispatcher" is unique to this "native"
-            NULL, // no underlying function, this is fundamental
-            NULL // not providing a specialization
+            NULL, // no facade (use paramlist)
+            NULL // no specialization exemplar (or inherited exemplar)
         );
 
         // If a user-equivalent body was provided, we save it in the native's

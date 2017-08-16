@@ -663,6 +663,14 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         ARRAY_FLAG_PARAMLIST | SERIES_FLAG_FIXED_SIZE
     );
 
+    // In order to use this paramlist as a ->phase in a frame below, it must
+    // have a valid facade so CTX_KEYLIST() will work.  The Make_Function()
+    // calls that provide facades all currently build the full function before
+    // trying to add any meta information that includes frames, so they do
+    // not have to do this.
+    //
+    SER(paramlist)->misc.facade = paramlist;
+
     if (TRUE) {
         RELVAL *dest = ARR_HEAD(paramlist); // canon function value
         VAL_RESET_HEADER(dest, REB_FUNCTION);
@@ -960,8 +968,8 @@ REBCNT Find_Param_Index(REBARR *paramlist, REBSTR *spelling)
 REBFUN *Make_Function(
     REBARR *paramlist,
     REBNAT dispatcher, // native C function called by Do_Core
-    REBFUN *opt_interface, // function whose facade is to be inherited
-    REBCTX *opt_exemplar // specialization (or inherit from interface)
+    REBARR *opt_facade, // if provided, 0 element must be underlying function
+    REBCTX *opt_exemplar // if provided, should be consistent w/next level
 ){
     ASSERT_ARRAY_MANAGED(paramlist);
 
@@ -1049,18 +1057,37 @@ done_caching:;
     // may have new parameter classes through a "facade".  This facade is
     // initially just the underlying function's paramlist, but may change.
     //
-    if (opt_interface) {
-        SER(paramlist)->misc.facade =
-            SER(FUNC_PARAMLIST(opt_interface))->misc.facade;
+    if (opt_facade == NULL) {
+        //
+        // To avoid NULL checking when a function is called and looking for
+        // the facade, just use the functions own paramlist if needed.  See
+        // notes in Make_Paramlist_Managed_May_Fail() on why this has to be
+        // pre-filled to avoid crashing on CTX_KEYLIST when making frames.
+        //
+        assert(SER(paramlist)->misc.facade == paramlist);
+    }
+    else
+        SER(paramlist)->misc.facade = opt_facade;
+
+    if (opt_exemplar == NULL) {
+        //
+        // !!! There may be some efficiency hack where this could be END, so
+        // that when a REBFRM's ->special field is set there's no need to
+        // check for NULL.
+        //
+        SER(body_holder)->link.exemplar = NULL;
     }
     else {
-        // To avoid NULL checking when a function is called and looking for
-        // the facade, just use the functions own paramlist if needed
+        // Because a dispatcher can update the phase and swap in the next
+        // function with R_REEVALUATE, consistency checking isn't easily
+        // done on whether the exemplar is "compatible" (and there may be
+        // dispatcher forms which intentionally muck with the exemplar to
+        // be incompatible, but these don't exist yet.)  So just check it's
+        // compatible with the underlying frame.
         //
-        SER(paramlist)->misc.facade = paramlist;
-    }
-
-    if (opt_exemplar) {
+        // Base it off the facade since FUNC_NUM_PARAMS(FUNC_UNDERLYING())
+        // would assert, since the function we're making is incomplete..
+        //
         assert(
             CTX_LEN(opt_exemplar)
             == ARR_LEN(SER(paramlist)->misc.facade) - 1
@@ -1068,13 +1095,6 @@ done_caching:;
 
         SER(body_holder)->link.exemplar = opt_exemplar;
     }
-    else if (opt_interface)
-        SER(body_holder)->link.exemplar =
-            SER(
-                FUNC_VALUE(opt_interface)->payload.function.body_holder
-            )->link.exemplar;
-    else
-        SER(body_holder)->link.exemplar = NULL;
 
     // The meta information may already be initialized, since the native
     // version of paramlist construction sets up the FUNCTION-META information
@@ -1260,8 +1280,8 @@ REBFUN *Make_Interpreted_Function_May_Fail(
     REBFUN *fun = Make_Function(
         Make_Paramlist_Managed_May_Fail(spec, mkf_flags),
         &Noop_Dispatcher, // will be overwritten if non-NULL body
-        NULL, // no underlying function, this is fundamental
-        NULL // not providing a specialization
+        NULL, // no facade (use paramlist)
+        NULL // no specialization exemplar (or inherited exemplar)
     );
 
     // We look at the *actual* function flags; e.g. the person may have used
@@ -1375,7 +1395,7 @@ REBCTX *Make_Frame_For_Function(const REBVAL *value) {
     // "exemplar" when executed, so it must be the length of the *underlying*
     // frame of the function call (same length as the "facade")
     //
-    // A FRAME! defaults all args and locals to not being set.  If the frame
+    // A FRAME! defaults *new* args and locals to not being set.  If the frame
     // is then used as the storage for a function specialization, unset
     // vars indicate *unspecialized* arguments...not <opt> ones.  (This is
     // a good argument for not making <opt> have meaning that is interesting
@@ -1389,6 +1409,9 @@ REBCTX *Make_Frame_For_Function(const REBVAL *value) {
     REBCTX *exemplar = FUNC_EXEMPLAR(func);
     REBARR *varlist;
     if (exemplar != NULL) {
+        //
+        // Existing exemplars should already have void in the unspecialized slots.
+        //
         varlist = Copy_Array_Shallow(CTX_VARLIST(exemplar), SPECIFIED);
         SET_SER_FLAGS(varlist, ARRAY_FLAG_VARLIST | SERIES_FLAG_FIXED_SIZE);
     }
@@ -1458,40 +1481,10 @@ REBOOL Specialize_Function_Throws(
     REBVAL *specializee,
     REBSTR *opt_specializee_name,
     REBVAL *block // !!! REVIEW: gets binding modified directly (not copied)
-) {
+){
     assert(out != specializee);
 
-    REBCTX *exemplar = FUNC_EXEMPLAR(VAL_FUNC(specializee));
-    if (exemplar == NULL) {
-        //
-        // An initial specialization is responsible for making a frame out
-        // of the function's paramlist.  Frame vars default void.
-        //
-        exemplar = Make_Frame_For_Function(specializee);
-        MANAGE_ARRAY(CTX_VARLIST(exemplar));
-    }
-    else {
-        // Specializing a specialization is ultimately just a specialization
-        // of the innermost function being specialized.  (Imagine specializing
-        // a specialization of APPEND, to the point where it no longer takes
-        // any parameters.  Nevertheless, the frame being stored and invoked
-        // needs to have as many parameters as APPEND has.  The frame must be
-        // be built for the code ultimately being called--and specializations
-        // have no code of their own.)
-
-        REBARR *varlist = Copy_Array_Deep_Managed(
-            CTX_VARLIST(exemplar), SPECIFIED
-        );
-        SET_SER_FLAG(varlist, ARRAY_FLAG_VARLIST);
-        INIT_CTX_KEYLIST_SHARED(CTX(varlist), CTX_KEYLIST(exemplar));
-
-        exemplar = CTX(varlist); // okay, now make exemplar our copy
-        CTX_VALUE(exemplar)->payload.any_context.varlist = varlist;
-        CTX_VALUE(exemplar)->payload.any_context.phase
-            = VAL_FUNC(specializee);
-        CTX_VALUE(exemplar)->extra.binding
-            = VAL_BINDING(specializee);
-    }
+    REBCTX *exemplar = Make_Frame_For_Function(specializee);
 
     // Bind all the SET-WORD! in the body that match params in the frame
     // into the frame.  This means `value: value` can very likely have
@@ -1550,6 +1543,31 @@ REBOOL Specialize_Function_Throws(
     RELVAL *rootparam = ARR_HEAD(paramlist);
     rootparam->payload.function.paramlist = paramlist;
 
+    // Frames for specialized functions contain the number of parameters of
+    // the underlying function, while they should for practical purposes seem
+    // to have the number of parameters of the specialization.  It would
+    // be technically possible to complicate enumeration to look for symbol
+    // matches in the shortened paramlist and line them up with the full
+    // underlying function's paramlist, but it's easier to use the "facade"
+    // mechanic to create a compatible paramlist with items that are hidden
+    // from binding...and use that for enumerations like FOR-EACH etc.
+    //
+    // Note that facades are like paramlists, but distinct because the [0]
+    // element is not the function the paramlist is for, but the underlying
+    // function REBVAL.
+    //
+    DS_PUSH(FUNC_VALUE(FUNC_UNDERLYING(VAL_FUNC(specializee))));
+    param = CTX_KEYS_HEAD(exemplar);
+    arg = CTX_VARS_HEAD(exemplar);
+    for (; NOT_END(param); ++param, ++arg) {
+        DS_PUSH(param);
+        if (NOT(IS_VOID(arg)))
+            SET_VAL_FLAG(DS_TOP, TYPESET_FLAG_HIDDEN);
+    }
+
+    REBARR *facade = Pop_Stack_Values_Core(dsp_orig, SERIES_FLAG_FIXED_SIZE);
+    MANAGE_ARRAY(facade);
+
     // See %sysobj.r for `specialized-meta:` object template
 
     REBVAL *example = Get_System(SYS_STANDARD, STD_SPECIALIZED_META);
@@ -1575,7 +1593,7 @@ REBOOL Specialize_Function_Throws(
     REBFUN *fun = Make_Function(
         paramlist,
         &Specializer_Dispatcher,
-        VAL_FUNC(specializee), // cache underlying function's facade
+        facade, // use facade with specialized parameters flagged hidden
         exemplar // also provide a context of specialization values
     );
 
@@ -1649,12 +1667,13 @@ void Clonify_Function(REBVAL *value)
     // !!! Meta: copy, inherit?
     //
     SER(paramlist)->link.meta = FUNC_META(original_fun);
+    SER(paramlist)->misc.facade = paramlist;
 
     REBFUN *new_fun = Make_Function(
         paramlist,
         FUNC_DISPATCHER(original_fun),
-        NULL, // no underlying function, this is fundamental
-        NULL // not providing a specialization
+        NULL, // no facade (use paramlist)
+        NULL // no specialization exemplar (or inherited exemplar)
     );
 
     RELVAL *body = FUNC_BODY(new_fun);

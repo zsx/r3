@@ -453,19 +453,20 @@ void Init_Any_Context_Core(
     Move_Value(out, CTX_VALUE(c));
 
     // Currently only FRAME! uses the ->binding field, in order to capture the
-    // ->binding of the function value it is linked to (that function is in ->phase)
+    // ->binding of the function value it links to (which is in ->phase)
     //
     assert(VAL_BINDING(out) == NULL || CTX_TYPE(c) == REB_FRAME);
 
-    // Only FRAME!s are allowed to have phases.
+    // FRAME!s must always fill in the phase slot, but that piece of the
+    // REBVAL is reserved for future use in other context types...so make
+    // sure it's null at this point in time.
     //
-    assert(
-        out->payload.any_context.phase == NULL
-        || (
-            CTX_TYPE(c) == REB_FRAME
-            && NOT(IS_POINTER_TRASH_DEBUG(out->payload.any_context.phase))
-        )
-    );
+#if !defined(NDEBUG)
+    if (CTX_TYPE(c) == REB_FRAME)
+        assert(out->payload.any_context.phase != NULL);
+    else
+        assert(out->payload.any_context.phase == NULL);
+#endif
 }
 
 

@@ -388,8 +388,8 @@ REBNATIVE(load_native)
             MKF_KEYWORDS | MKF_FAKE_RETURN
         ),
         dispatcher, // unique
-        NULL, // no underlying function, this is fundamental
-        NULL // not providing a specialization
+        NULL, // no facade (use paramlist)
+        NULL // no specialization exemplar (or inherited exemplar)
     );
 
     if (REF(unloadable))

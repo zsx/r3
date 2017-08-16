@@ -305,7 +305,6 @@ void Reify_Frame_Context_Maybe_Fulfilling(REBFRM *f) {
     // created and kept alive by Mark_Call_Frames
     //
     INIT_CTX_KEYLIST_SHARED(c, FUNC_PARAMLIST(FRM_UNDERLYING(f)));
-    ASSERT_ARRAY_MANAGED(CTX_KEYLIST(c));
 
     // When in ET_FUNCTION or ET_LOOKBACK, the arglist will be marked safe from
     // GC. It is managed because the pointer makes its way into bindings that
@@ -334,6 +333,7 @@ void Reify_Frame_Context_Maybe_Fulfilling(REBFRM *f) {
     if (f->flags.bits & DO_FLAG_NATIVE_HOLD)
         SET_SER_INFO(f->varlist, SERIES_INFO_RUNNING);
 
+    ASSERT_ARRAY_MANAGED(CTX_KEYLIST(c));
     MANAGE_ARRAY(f->varlist);
 
 #if !defined(NDEBUG)
