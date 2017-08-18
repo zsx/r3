@@ -85,7 +85,8 @@ static void cleanup_extension_quit_handler(const REBVAL *val)
 //
 //  "Low level extension module loader (for DLLs)."
 //
-//      path-or-handle [file! handle!] "Path to the extension file or handle to a builtin extension"
+//      path-or-handle [file! handle!]
+//          "Path to the extension file or handle to a builtin extension"
 //  ]
 //
 REBNATIVE(load_extension_helper)
@@ -121,7 +122,10 @@ REBNATIVE(load_extension_helper)
         if (IS_BLOCK(loaded_exts)) {
             RELVAL *item = VAL_ARRAY_HEAD(loaded_exts);
             for (; NOT_END(item); ++item) {
-                // do some sanity checking, just to avoid crashing if system/extensions was messed up
+                //
+                // do some sanity checking, just to avoid crashing if
+                // system/extensions was messed up
+
                 if (!IS_OBJECT(item))
                     fail(Error_Bad_Extension_Raw(item));
 
@@ -133,17 +137,20 @@ REBNATIVE(load_extension_helper)
                     fail(Error_Bad_Extension_Raw(item));
                 }
                 else {
-                    if (IS_BLANK(CTX_VAR(item_ctx, STD_EXTENSION_LIB_BASE))) {//builtin extension
-                        continue;
-                    }
+                    if (IS_BLANK(CTX_VAR(item_ctx, STD_EXTENSION_LIB_BASE)))
+                        continue; //builtin extension
                 }
 
                 assert(IS_LIBRARY(CTX_VAR(item_ctx, STD_EXTENSION_LIB_BASE)));
 
-                if (VAL_LIBRARY_FD(lib)
-                    == VAL_LIBRARY_FD(CTX_VAR(item_ctx, STD_EXTENSION_LIB_BASE))) {
-                    // found the existing extension
-                    OS_CLOSE_LIBRARY(VAL_LIBRARY_FD(lib)); //decrease the reference added by MAKE_library
+                if (
+                    VAL_LIBRARY_FD(CTX_VAR(item_ctx, STD_EXTENSION_LIB_BASE))
+                    == VAL_LIBRARY_FD(lib)
+                ){
+                    // found the existing extension, decrease the reference
+                    // added by MAKE_library
+
+                    OS_CLOSE_LIBRARY(VAL_LIBRARY_FD(lib));
                     Move_Value(D_OUT, KNOWN(item));
                     return R_OUT;
                 }
@@ -329,6 +336,7 @@ void Prepare_Boot_Extensions(REBVAL *exts, CFUNC **funcs, REBCNT n)
     Init_Block(exts, arr);
 }
 
+
 //
 //  Shutdown_Boot_Extensions: C
 //
@@ -451,4 +459,73 @@ void Init_Extension_Words(const REBYTE* strings[], REBSTR *canons[], REBCNT n)
     for (i = 0; i < n; ++i) {
         canons[i] = STR_CANON(Intern_UTF8_Managed(strings[i], LEN_BYTES(strings[i])));
     }
+}
+
+
+//
+//  Hook_Datatype: C
+//
+// Poor-man's user-defined type hack: this really just gives the ability to
+// have the only thing the core knows about a "user-defined-type" be its
+// value cell structure and datatype enum number...but have the behaviors
+// come from functions that are optionally registered in an extension.
+//
+// (Actual facets of user-defined types will ultimately be dispatched through
+// Rebol-frame-interfaced functions, not raw C structures like this.)
+//
+void Hook_Datatype(
+    enum Reb_Kind kind,
+    REBACT act,
+    REBPEF pef,
+    REBCTF ctf,
+    MAKE_FUNC make_func,
+    TO_FUNC to_func,
+    MOLD_FUNC mold_func
+) {
+    if (Value_Dispatch[kind] != &T_Unhooked)
+        fail ("Value_Dispatch already hooked.");
+    if (Path_Dispatch[kind] != &PD_Unhooked)
+        fail ("Path_Dispatch already hooked.");
+    if (Compare_Types[kind] != &CT_Unhooked)
+        fail ("Compare_Types already hooked.");
+    if (Make_Dispatch[kind] != &MAKE_Unhooked)
+        fail ("Make_Dispatch already hooked.");
+    if (To_Dispatch[kind] != &TO_Unhooked)
+        fail ("To_Dispatch already hooked.");
+    if (Mold_Or_Form_Dispatch[kind] != &MF_Unhooked)
+        fail ("Mold_Or_Form_Dispatch already hooked.");
+
+    Value_Dispatch[kind] = act;
+    Path_Dispatch[kind] = pef;
+    Compare_Types[kind] = ctf;
+    Make_Dispatch[kind] = make_func;
+    To_Dispatch[kind] = to_func;
+    Mold_Or_Form_Dispatch[kind] = mold_func;
+}
+
+
+//
+//  Unhook_Datatype: C
+//
+void Unhook_Datatype(enum Reb_Kind kind)
+{
+    if (Value_Dispatch[kind] == &T_Unhooked)
+        fail ("Value_Dispatch is not hooked.");
+    if (Path_Dispatch[kind] == &PD_Unhooked)
+        fail ("Path_Dispatch is not hooked.");
+    if (Compare_Types[kind] == &CT_Unhooked)
+        fail ("Compare_Types is not hooked.");
+    if (Make_Dispatch[kind] == &MAKE_Unhooked)
+        fail ("Make_Dispatch is not hooked.");
+    if (To_Dispatch[kind] == &TO_Unhooked)
+        fail ("To_Dispatch is not hooked.");
+    if (Mold_Or_Form_Dispatch[kind] == &MF_Unhooked)
+        fail ("Mold_Or_Form_Dispatch is not hooked.");
+
+    Value_Dispatch[kind] = &T_Unhooked;
+    Path_Dispatch[kind] = &PD_Unhooked;
+    Compare_Types[kind] = &CT_Unhooked;
+    Make_Dispatch[kind] = &MAKE_Unhooked;
+    To_Dispatch[kind] = &TO_Unhooked;
+    Mold_Or_Form_Dispatch[kind] = &MF_Unhooked;
 }

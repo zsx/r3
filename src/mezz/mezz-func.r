@@ -93,16 +93,19 @@ body-of: function [
             ]
         ]
 
-        5 [
-            ; FFI Routine...likely to become user function.
+        5 6 [
+            ; These were formerly used for FFI.  The entire mechanism by which
+            ; BODY-OF works is now under review...since performance is not
+            ; critical (relative to dispatch speed, or even creation speed)
+            ; it could be done with a reverse lookup
+
+            assert [false] 
 
             compose [
                 comment {FFI Bridge to C Function (via make-routine)}
                 do-routine (body) <...>
             ]
-        ]
 
-        6 [
             ; FFI Callback...likely to be folded in as an internal mechanism
             ; in the FFI for calling ordinary user functions.
 

@@ -592,6 +592,56 @@ REBCTX *Alloc_Context_From_Map(REBMAP *map)
 
 
 //
+//  MF_Map: C
+//
+void MF_Map(REB_MOLD *mo, const RELVAL *v, REBOOL form)
+{
+    REBMAP *m = VAL_MAP(v);
+
+    // Prevent endless mold loop:
+    if (Find_Pointer_In_Series(TG_Mold_Stack, m) != NOT_FOUND) {
+        Append_Unencoded(mo->series, "...]");
+        return;
+    }
+
+    Push_Pointer_To_Series(TG_Mold_Stack, m);
+
+    if (NOT(form)) {
+        Pre_Mold(mo, v);
+        Append_Codepoint_Raw(mo->series, '[');
+    }
+
+    // Mold all entries that are set.  As with contexts, void values are not
+    // valid entries but indicate the absence of a value.
+    //
+    mo->indent++;
+
+    RELVAL *key = ARR_HEAD(MAP_PAIRLIST(m));
+    for (; NOT_END(key); key += 2) {
+        assert(NOT_END(key + 1)); // value slot must not be END
+        if (IS_VOID(key + 1))
+            continue; // if value for this key is void, key has been removed
+
+        if (NOT(form))
+            New_Indented_Line(mo);
+        Emit(mo, "V V", key, key + 1);
+        if (form)
+            Append_Codepoint_Raw(mo->series, '\n');
+    }
+    mo->indent--;
+
+    if (NOT(form)) {
+        New_Indented_Line(mo);
+        Append_Codepoint_Raw(mo->series, ']');
+    }
+
+    End_Mold(mo);
+
+    Drop_Pointer_From_Series(TG_Mold_Stack, m);
+}
+
+
+//
 //  REBTYPE: C
 //
 REBTYPE(Map)

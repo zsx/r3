@@ -606,6 +606,19 @@ available-modules: reduce [
             append-of [%odbc] unless find [no false off _ #[false]] user-config/odbc-requires-ltdl [%ltdl]
         ]
     ]
+
+    mod-ffi: make module-class [
+        name: 'FFI
+        source: %ffi/mod-ffi.c
+        depends: [
+            %ffi/t-struct.c
+            %ffi/t-routine.c
+        ]
+        ; Currently the libraries are specified by the USER-CONFIG/WITH-FFI
+        ; until that logic is moved to something here.  So if you are going
+        ; to build the FFI module, you need to also set WITH-FFI (though
+        ; setting WITH-FFI alone will not get you the module)
+    ]
 ]
 
 ;dump mod-uuid
@@ -687,6 +700,15 @@ available-extensions: reduce [
         ]
         source: %odbc/ext-odbc.c
         init: %odbc/ext-odbc-init.reb
+    ]
+
+    ext-ffi: make extension-class [
+        name: 'FFI
+        modules: reduce [
+            mod-ffi
+        ]
+        source: %ffi/ext-ffi.c
+        init: %ffi/ext-ffi-init.reb
     ]
 ]
 
@@ -1011,7 +1033,6 @@ either block? user-config/with-ffi [
         append get in app-config word
             opt get in ffi word
     ]
-    append app-config/definitions [ {HAVE_LIBFFI_AVAILABLE} ]
 ][
     switch/default user-config/with-ffi [
         static dynamic [
@@ -1037,7 +1058,6 @@ either block? user-config/with-ffi [
                     flags: either user-config/with-ffi = 'static [[static]][_]
                 ]
             ]
-            append app-config/definitions [ {HAVE_LIBFFI_AVAILABLE} ]
         ]
         _ no off false #[false] [
             ;pass

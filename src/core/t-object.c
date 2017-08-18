@@ -622,6 +622,157 @@ REBCTX *Copy_Context_Core(REBCTX *original, REBOOL deep, REBU64 types)
 
 
 //
+//  MF_Context: C
+//
+void MF_Context(REB_MOLD *mo, const RELVAL *v, REBOOL form)
+{
+    REBCTX *c = VAL_CONTEXT(v);
+
+    // Prevent endless mold loop:
+    //
+    if (Find_Pointer_In_Series(TG_Mold_Stack, c) != NOT_FOUND) {
+        if (NOT(form)) {
+            Pre_Mold(mo, v); // If molding, get #[object! etc.
+            Append_Codepoint_Raw(mo->series, '[');
+        }
+        Append_Unencoded(mo->series, "...");
+
+        if (NOT(form)) {
+            Append_Codepoint_Raw(mo->series, ']');
+            End_Mold(mo);
+        }
+        return;
+    }
+    Push_Pointer_To_Series(TG_Mold_Stack, c);
+
+    if (form) {
+        //
+        // Mold all words and their values:
+        //
+        REBVAL *key = CTX_KEYS_HEAD(c);
+        REBVAL *var = CTX_VARS_HEAD(c);
+        REBOOL had_output = FALSE;
+        for (; NOT_END(key); key++, var++) {
+            if (NOT_VAL_FLAG(key, TYPESET_FLAG_HIDDEN)) {
+                had_output = TRUE;
+                Emit(mo, "N: V\n", VAL_KEY_SPELLING(key), var);
+            }
+        }
+
+        // Remove the final newline...but only if WE added to the buffer
+        //
+        if (had_output) {
+            SET_SERIES_LEN(mo->series, SER_LEN(mo->series) - 1);
+            TERM_SEQUENCE(mo->series);
+        }
+
+        Drop_Pointer_From_Series(TG_Mold_Stack, c);
+        return;
+    }
+
+    // Otherwise we are molding
+
+    Pre_Mold(mo, v);
+
+    Append_Codepoint_Raw(mo->series, '[');
+
+    mo->indent++;
+
+    // !!! New experimental Ren-C code for the [[spec][body]] format of the
+    // non-evaluative MAKE OBJECT!.
+
+    // First loop: spec block.  This is difficult because unlike functions,
+    // objects are dynamically modified with new members added.  If the spec
+    // were captured with strings and other data in it as separate from the
+    // "keylist" information, it would have to be updated to reflect newly
+    // added fields in order to be able to run a corresponding MAKE OBJECT!.
+    //
+    // To get things started, we aren't saving the original spec that made
+    // the object...but regenerate one from the keylist.  If this were done
+    // with functions, they would "forget" their help strings in MOLDing.
+
+    New_Indented_Line(mo);
+    Append_Codepoint_Raw(mo->series, '[');
+
+    REBVAL *keys_head = CTX_KEYS_HEAD(c);
+    REBVAL *vars_head;
+    if (CTX_VARS_UNAVAILABLE(VAL_CONTEXT(v))) {
+        //
+        // If something like a function call has gone of the stack, the data
+        // for the vars will no longer be available.  The keys should still
+        // be good, however.
+        //
+        vars_head = NULL;
+    }
+    else
+        vars_head = CTX_VARS_HEAD(VAL_CONTEXT(v));
+
+    REBVAL *key = keys_head;
+    for (; NOT_END(key); ++key) {
+        if (GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN))
+            continue;
+
+        if (key != keys_head)
+            Append_Codepoint_Raw(mo->series, ' ');
+
+        // !!! Feature of "private" words in object specs not yet implemented,
+        // but if it paralleled how <local> works for functions then it would
+        // be shown as SET-WORD!
+        //
+        DECLARE_LOCAL (any_word);
+        Init_Any_Word(any_word, REB_WORD, VAL_KEY_SPELLING(key));
+        Mold_Value(mo, any_word);
+    }
+
+    Append_Codepoint_Raw(mo->series, ']');
+    New_Indented_Line(mo);
+    Append_Codepoint_Raw(mo->series, '[');
+
+    mo->indent++;
+
+    key = keys_head;
+
+    REBVAL *var = vars_head;
+
+    for (; NOT_END(key); var ? (++key, ++var) : ++key) {
+        if (GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN))
+            continue;
+
+        // Having the key mentioned in the spec and then not being assigned
+        // a value in the body is how voids are denoted.
+        //
+        if (var && IS_VOID(var))
+            continue;
+
+        New_Indented_Line(mo);
+
+        REBSTR *spelling = VAL_KEY_SPELLING(key);
+        Append_UTF8_May_Fail(
+            mo->series, STR_HEAD(spelling), STR_NUM_BYTES(spelling)
+        );
+
+        Append_Unencoded(mo->series, ": ");
+
+        if (var)
+            Mold_Value(mo, var);
+        else
+            Append_Unencoded(mo->series, ": --optimized out--");
+    }
+
+    mo->indent--;
+    New_Indented_Line(mo);
+    Append_Codepoint_Raw(mo->series, ']');
+    mo->indent--;
+    New_Indented_Line(mo);
+    Append_Codepoint_Raw(mo->series, ']');
+
+    End_Mold(mo);
+
+    Drop_Pointer_From_Series(TG_Mold_Stack, c);
+}
+
+
+//
 //  REBTYPE: C
 //
 // Handles object!, module!, and error! datatypes.
@@ -787,23 +938,7 @@ REBNATIVE(construct)
     enum Reb_Kind target;
     REBCTX *context;
 
-    if (IS_STRUCT(spec)) {
-        //
-        // !!! Compatibility for `MAKE struct [...]` from Atronix R3.  There
-        // isn't any real "inheritance management" for structs but it allows
-        // the re-use of the structure's field definitions, so it is a means
-        // of saving on memory (?)
-        //
-        REBSTU *stu = Copy_Struct_Managed(VAL_STRUCT(spec));
-
-        Move_Value(D_OUT, STU_VALUE(stu));
-
-        // !!! Comment said "only accept value initialization"
-        //
-        Init_Struct_Fields(D_OUT, body);
-        return R_OUT;
-    }
-    else if (IS_GOB(spec)) {
+    if (IS_GOB(spec)) {
         //
         // !!! Compatibility for `MAKE gob [...]` or `MAKE gob NxN` from
         // R3-Alpha GUI.  Start by copying the gob (minus pane and parent),

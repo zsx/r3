@@ -83,9 +83,9 @@ REBINT CT_Date(const RELVAL *a, const RELVAL *b, REBINT mode)
 
 
 //
-//  Emit_Date: C
+//  MF_Date: C
 //
-void Emit_Date(REB_MOLD *mo, const RELVAL *v_orig)
+void MF_Date(REB_MOLD *mo, const RELVAL *v_orig, REBOOL form)
 {
     // We don't want to modify the incoming date value we are molding,
     // so we make a copy that we can tweak during the emit process
@@ -125,7 +125,7 @@ void Emit_Date(REB_MOLD *mo, const RELVAL *v_orig)
 
     if (GET_VAL_FLAG(v, DATE_FLAG_HAS_TIME)) {
         Append_Codepoint_Raw(mo->series, '/');
-        Emit_Time(mo, v);
+        MF_Time(mo, v, form);
 
         if (GET_VAL_FLAG(v, DATE_FLAG_HAS_ZONE)) {
             bp = &buf[0];

@@ -28,140 +28,7 @@
 //
 
 
-//=////////////////////////////////////////////////////////////////////////=//
-//
-//  LIBRARY! (`struct Reb_Library`)
-//
-//=////////////////////////////////////////////////////////////////////////=//
-//
-// A library represents a loaded .DLL or .so file.  This contains native
-// code, which can be executed either through the "COMMAND" method (Rebol
-// extensions) or the FFI interface.
-//
-// !!! The COMMAND method of extension is being deprecated by Ren-C, instead
-// leaning on the idea of writing new natives using the same API that
-// the system uses internally.
-//
-
-inline static void *LIB_FD(REBLIB *l) {
-    return SER(l)->misc.fd; // file descriptor
-}
-
-inline static REBOOL IS_LIB_CLOSED(REBLIB *l) {
-    return LOGICAL(SER(l)->misc.fd == NULL);
-}
-
-inline static REBCTX *VAL_LIBRARY_META(const RELVAL *v) {
-    return SER(v->payload.library.singular)->link.meta;
-}
-
-inline static REBLIB *VAL_LIBRARY(const RELVAL *v) {
-    return v->payload.library.singular;
-}
-
-inline static void *VAL_LIBRARY_FD(const RELVAL *v) {
-    return LIB_FD(VAL_LIBRARY(v));
-}
-
-
-
-#ifdef HAVE_LIBFFI_AVAILABLE
-    #include <ffi.h>
-#else
-    // Non-functional stubs, see notes at top of t-routine.c
-
-    typedef struct _ffi_type
-    {
-        size_t size;
-        unsigned short alignment;
-        unsigned short type;
-        struct _ffi_type **elements;
-    } ffi_type;
-
-    #define FFI_TYPE_VOID       0
-    #define FFI_TYPE_INT        1
-    #define FFI_TYPE_FLOAT      2
-    #define FFI_TYPE_DOUBLE     3
-    #define FFI_TYPE_LONGDOUBLE 4
-    #define FFI_TYPE_UINT8      5
-    #define FFI_TYPE_SINT8      6
-    #define FFI_TYPE_UINT16     7
-    #define FFI_TYPE_SINT16     8
-    #define FFI_TYPE_UINT32     9
-    #define FFI_TYPE_SINT32     10
-    #define FFI_TYPE_UINT64     11
-    #define FFI_TYPE_SINT64     12
-    #define FFI_TYPE_STRUCT     13
-    #define FFI_TYPE_POINTER    14
-    #define FFI_TYPE_COMPLEX    15
-
-    // !!! Heads-up to FFI lib authors: these aren't const definitions.  :-/
-    // Stray modifications could ruin these "constants".  Being const-correct
-    // in the parameter structs for the type arrays would have been nice...
-
-    extern ffi_type ffi_type_void;
-    extern ffi_type ffi_type_uint8;
-    extern ffi_type ffi_type_sint8;
-    extern ffi_type ffi_type_uint16;
-    extern ffi_type ffi_type_sint16;
-    extern ffi_type ffi_type_uint32;
-    extern ffi_type ffi_type_sint32;
-    extern ffi_type ffi_type_uint64;
-    extern ffi_type ffi_type_sint64;
-    extern ffi_type ffi_type_float;
-    extern ffi_type ffi_type_double;
-    extern ffi_type ffi_type_pointer;
-
-    // Switched from an enum to allow Panic w/o complaint
-    typedef int ffi_status;
-    #define FFI_OK 0
-    #define FFI_BAD_TYPEDEF 1
-    #define FFI_BAD_ABI 2
-
-    typedef enum ffi_abi
-    {
-        // !!! The real ffi_abi constants will be different per-platform,
-        // you would not have the full list.  Interestingly, a subsetting
-        // script *might* choose to alter libffi to produce a larger list
-        // vs being full of #ifdefs (though that's rather invasive change
-        // to the libffi code to be maintaining!)
-
-        FFI_FIRST_ABI = 0x0BAD,
-        FFI_WIN64,
-        FFI_STDCALL,
-        FFI_SYSV,
-        FFI_THISCALL,
-        FFI_FASTCALL,
-        FFI_MS_CDECL,
-        FFI_UNIX64,
-        FFI_VFP,
-        FFI_O32,
-        FFI_N32,
-        FFI_N64,
-        FFI_O32_SOFT_FLOAT,
-        FFI_N32_SOFT_FLOAT,
-        FFI_N64_SOFT_FLOAT,
-        FFI_LAST_ABI,
-        FFI_DEFAULT_ABI = FFI_FIRST_ABI
-    } ffi_abi;
-
-    typedef struct {
-        ffi_abi abi;
-        unsigned nargs;
-        ffi_type **arg_types;
-        ffi_type *rtype;
-        unsigned bytes;
-        unsigned flags;
-    } ffi_cif;
-
-    // The closure is a "black box" but client code takes the sizeof() to
-    // pass into the alloc routine...
-
-    typedef struct {
-        int stub;
-    } ffi_closure;
-
-#endif // HAVE_LIBFFI_AVAILABLE
+#include <ffi.h>
 
 
 // Returns an ffi_type* (which contains a ->type field, that holds the
@@ -233,8 +100,6 @@ inline static ffi_type *Get_FFType_For_Sym(REBSYM sym) {
 // with a keylist so it can be an easy-to-read OBJECT!
 //
 
-typedef REBARR REBFLD;
-
 enum {
     // A WORD! name for the field (or BLANK! if anonymous ?)  What should
     // probably happen here is that structs should use a keylist for this;
@@ -274,7 +139,8 @@ enum {
     IDX_FIELD_MAX
 };
 
-#define FLD_AT(a, n) SER_AT(REBVAL, SER(a), (n)) // locate index access
+#define FLD_AT(a, n) \
+    SER_AT(REBVAL, SER(a), (n)) // locate index access
 
 inline static REBSTR *FLD_NAME(REBFLD *f) {
     if (IS_BLANK(FLD_AT(f, IDX_FIELD_NAME)))
@@ -282,8 +148,16 @@ inline static REBSTR *FLD_NAME(REBFLD *f) {
     return VAL_WORD_SPELLING(FLD_AT(f, IDX_FIELD_NAME));
 }
 
-inline static REBOOL FLD_IS_STRUCT(REBFLD *f)
-    { return IS_BLOCK(FLD_AT(f, IDX_FIELD_TYPE)); }
+inline static REBOOL FLD_IS_STRUCT(REBFLD *f) {
+    if (IS_BLOCK(FLD_AT(f, IDX_FIELD_TYPE))) {
+        //
+        // Only non-struct fields are currently named.
+        //
+        assert(FLD_NAME(f) == NULL);
+        return TRUE;
+    }
+    return FALSE;
+}
 
 inline static REBSYM FLD_TYPE_SYM(REBFLD *f) {
     if (FLD_IS_STRUCT(f)) {
@@ -476,6 +350,10 @@ inline static REBOOL VAL_STRUCT_INACCESSIBLE(const RELVAL *v) {
 // could be done with PARSE, as opposed to harder-to-edit-and-maintain
 // internal API C code.
 //
+ 
+inline static REBRIN *VAL_FUNC_ROUTINE(const RELVAL *v) {
+    return VAL_ARRAY(VAL_FUNC_BODY(v));
+}
 
 enum {
     // The HANDLE! of a CFUNC*, obeying the interface of the C-format call.
@@ -545,7 +423,8 @@ enum {
     IDX_ROUTINE_MAX
 };
 
-#define RIN_AT(a, n) SER_AT(REBVAL, SER(a), (n)) // locate index access
+#define RIN_AT(a, n) \
+    SER_AT(REBVAL, SER(a), (n)) // locate index access
 
 inline static CFUNC *RIN_CFUNC(REBRIN *r)
     { return VAL_HANDLE_CFUNC(RIN_AT(r, IDX_ROUTINE_CFUNC)); }
@@ -570,6 +449,8 @@ inline static ffi_closure* RIN_CLOSURE(REBRIN *r) {
 
 inline static REBLIB *RIN_LIB(REBRIN *r) {
     assert(NOT(RIN_IS_CALLBACK(r)));
+    if (IS_BLANK(RIN_AT(r, IDX_ROUTINE_ORIGIN)))
+        return NULL;
     return VAL_LIBRARY(RIN_AT(r, IDX_ROUTINE_ORIGIN));
 }
 
@@ -597,3 +478,35 @@ inline static ffi_type** RIN_ARG_FFTYPES(REBRIN *r) {
 
 inline static REBOOL RIN_IS_VARIADIC(REBRIN *r)
     { return VAL_LOGIC(RIN_AT(r, IDX_ROUTINE_IS_VARIADIC)); }
+
+
+// !!! FORWARD DECLARATIONS
+//
+// Currently there is no auto-processing of the files in extensions to look
+// for C functions and extract their prototypes to be used within that
+// extension.  Maintain manually for the moment.
+//
+
+extern REBSTU *Copy_Struct_Managed(REBSTU *src);
+extern void Init_Struct_Fields(REBVAL *ret, REBVAL *spec);
+extern REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec, ffi_abi abi);
+extern void callback_dispatcher(
+    ffi_cif *cif,
+    void *ret,
+    void **args,
+    void *user_data
+);
+extern void cleanup_ffi_closure(const REBVAL *v);
+
+extern REB_R T_Struct(REBFRM *frame_, REBSYM action);
+extern REBINT PD_Struct(REBPVS *pvs);
+extern REBINT CT_Struct(const RELVAL *a, const RELVAL *b, REBINT mode);
+extern void MAKE_Struct(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg);
+extern void TO_Struct(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg);
+extern void MF_Struct(REB_MOLD *mo, const RELVAL *v, REBOOL form);
+
+extern REB_R Routine_Dispatcher(REBFRM *f);
+
+inline static REBOOL IS_FUNCTION_RIN(const RELVAL *v)
+    { return LOGICAL(VAL_FUNC_DISPATCHER(v) == &Routine_Dispatcher); }
+

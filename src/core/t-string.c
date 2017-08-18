@@ -33,6 +33,24 @@
 #include "sys-int-funcs.h"
 
 
+#define MAX_QUOTED_STR  50  // max length of "string" before going to { }
+
+REBYTE *Char_Escapes;
+#define MAX_ESC_CHAR (0x60-1) // size of escape table
+#define IS_CHR_ESC(c) ((c) <= MAX_ESC_CHAR && Char_Escapes[c])
+
+REBYTE *URL_Escapes;
+#define MAX_URL_CHAR (0x80-1)
+#define IS_URL_ESC(c)  ((c) <= MAX_URL_CHAR && (URL_Escapes[c] & ESC_URL))
+#define IS_FILE_ESC(c) ((c) <= MAX_URL_CHAR && (URL_Escapes[c] & ESC_FILE))
+
+enum {
+    ESC_URL = 1,
+    ESC_FILE = 2,
+    ESC_EMAIL = 4
+};
+
+
 //
 //  CT_String: C
 //
@@ -758,6 +776,375 @@ REBINT PD_String(REBPVS *pvs)
 }
 
 
+typedef struct REB_Str_Flags {
+    REBCNT escape;      // escaped chars
+    REBCNT brace_in;    // {
+    REBCNT brace_out;   // }
+    REBCNT newline;     // lf
+    REBCNT quote;       // "
+    REBCNT paren;       // (1234)
+    REBCNT chr1e;
+    REBCNT malign;
+} REB_STRF;
+
+
+static void Sniff_String(REBSER *ser, REBCNT idx, REB_STRF *sf)
+{
+    // Scan to find out what special chars the string contains?
+    REBYTE *bp = SER_DATA_RAW(ser);
+    REBUNI *up = cast(REBUNI*, bp);
+    REBUNI c;
+    REBCNT n;
+
+    for (n = idx; n < SER_LEN(ser); n++) {
+        c = BYTE_SIZE(ser) ? cast(REBUNI, bp[n]) : up[n];
+        switch (c) {
+        case '{':
+            sf->brace_in++;
+            break;
+        case '}':
+            sf->brace_out++;
+            if (sf->brace_out > sf->brace_in) sf->malign++;
+            break;
+        case '"':
+            sf->quote++;
+            break;
+        case '\n':
+            sf->newline++;
+            break;
+        default:
+            if (c == 0x1e) sf->chr1e += 4; // special case of ^(1e)
+            else if (IS_CHR_ESC(c)) sf->escape++;
+            else if (c >= 0x1000) sf->paren += 6; // ^(1234)
+            else if (c >= 0x100)  sf->paren += 5; // ^(123)
+            else if (c >= 0x80)   sf->paren += 4; // ^(12)
+        }
+    }
+    if (sf->brace_in != sf->brace_out) sf->malign++;
+}
+
+
+//
+//  Emit_Uni_Char: C
+//
+REBUNI *Emit_Uni_Char(REBUNI *up, REBUNI chr, REBOOL parened)
+{
+    if (chr >= 0x7f || chr == 0x1e) {  // non ASCII or ^ must be (00) escaped
+        if (parened || chr == 0x1e) { // do not AND with above
+            *up++ = '^';
+            *up++ = '(';
+            up = Form_Uni_Hex(up, chr);
+            *up++ = ')';
+            return up;
+        }
+    }
+    else if (IS_CHR_ESC(chr)) {
+        *up++ = '^';
+        *up++ = Char_Escapes[chr];
+        return up;
+    }
+
+    *up++ = chr;
+    return up;
+}
+
+
+static void Mold_String_Series(REB_MOLD *mo, const RELVAL *v)
+{
+    REBCNT len = VAL_LEN_AT(v);
+    REBSER *series = VAL_SERIES(v);
+    REBCNT index = VAL_INDEX(v);
+
+    // Empty string:
+    if (index >= VAL_LEN_HEAD(v)) {
+        // !!! Comment said `fail (Error_Past_End_Raw());`
+        Append_Unencoded(mo->series, "\"\"");
+        return;
+    }
+
+    REB_STRF sf;
+    CLEARS(&sf);
+    Sniff_String(series, index, &sf);
+    if (NOT_MOLD_FLAG(mo, MOLD_FLAG_NON_ANSI_PARENED))
+        sf.paren = 0;
+
+    // Source can be 8 or 16 bits:
+    REBYTE *bp;
+    REBUNI *up;
+    REBOOL unicode = NOT(BYTE_SIZE(series));
+    if (unicode) {
+        up = UNI_HEAD(series);
+        bp = NULL; // wasteful, but avoids may be used uninitialized warning
+    }
+    else {
+        up = NULL; // wasteful, but avoids may be used uninitialized warning
+        bp = BIN_HEAD(series);
+    }
+
+    // If it is a short quoted string, emit it as "string"
+    //
+    if (len <= MAX_QUOTED_STR && sf.quote == 0 && sf.newline < 3) {
+        REBUNI *dp = Prep_Uni_Series(
+            mo,
+            len + sf.newline + sf.escape + sf.paren + sf.chr1e + 2
+        );
+
+        *dp++ = '"';
+
+        REBCNT n;
+        for (n = index; n < VAL_LEN_HEAD(v); n++) {
+            REBUNI c = unicode ? up[n] : cast(REBUNI, bp[n]);
+            dp = Emit_Uni_Char(
+                dp, c, GET_MOLD_FLAG(mo, MOLD_FLAG_NON_ANSI_PARENED)
+            );
+        }
+
+        *dp++ = '"';
+        *dp = 0;
+        return;
+    }
+
+    // It is a braced string, emit it as {string}:
+    if (!sf.malign)
+        sf.brace_in = sf.brace_out = 0;
+
+    REBUNI *dp = Prep_Uni_Series(
+        mo,
+        len + sf.brace_in + sf.brace_out + sf.escape + sf.paren + sf.chr1e + 2
+    );
+
+    *dp++ = '{';
+
+    REBCNT n;
+    for (n = index; n < VAL_LEN_HEAD(v); n++) {
+        REBUNI c = unicode ? up[n] : cast(REBUNI, bp[n]);
+
+        switch (c) {
+        case '{':
+        case '}':
+            if (sf.malign) {
+                *dp++ = '^';
+                *dp++ = c;
+                break;
+            }
+            // fall through
+        case '\n':
+        case '"':
+            *dp++ = c;
+            break;
+
+        default:
+            dp = Emit_Uni_Char(
+                dp, c, GET_MOLD_FLAG(mo, MOLD_FLAG_NON_ANSI_PARENED)
+            );
+        }
+    }
+
+    *dp++ = '}';
+    *dp = '\0';
+}
+
+
+/*
+    http://www.blooberry.com/indexdot/html/topics/urlencoding.htm
+
+    Only alphanumerics [0-9a-zA-Z], the special characters $-_.+!*'(),
+    and reserved characters used for their reserved purposes may be used
+    unencoded within a URL.
+*/
+
+static void Mold_Url(REB_MOLD *mo, const RELVAL *v)
+{
+    REBSER *series = VAL_SERIES(v);
+    REBCNT len = VAL_LEN_AT(v);
+
+    // Compute extra space needed for hex encoded characters:
+    //
+    REBCNT n;
+    for (n = VAL_INDEX(v); n < VAL_LEN_HEAD(v); ++n) {
+        REBUNI c = GET_ANY_CHAR(series, n);
+        if (IS_URL_ESC(c))
+            len += 2; // c => %xx
+    }
+
+    REBUNI *dp = Prep_Uni_Series(mo, len);
+
+    for (n = VAL_INDEX(v); n < VAL_LEN_HEAD(v); ++n) {
+        REBUNI c = GET_ANY_CHAR(series, n);
+        if (IS_URL_ESC(c))
+            dp = Form_Hex_Esc_Uni(dp, c); // c => %xx
+        else
+            *dp++ = c;
+    }
+
+    *dp = '\0';
+}
+
+
+static void Mold_File(REB_MOLD *mo, const RELVAL *v)
+{
+    REBSER *series = VAL_SERIES(v);
+    REBCNT len = VAL_LEN_AT(v);
+
+    // Compute extra space needed for hex encoded characters:
+    //
+    REBCNT n;
+    for (n = VAL_INDEX(v); n < VAL_LEN_HEAD(v); ++n) {
+        REBUNI c = GET_ANY_CHAR(series, n);
+        if (IS_FILE_ESC(c))
+            len += 2; // %xx is 3 characters instead of 1
+    }
+
+    ++len; // room for % at start
+
+    REBUNI *dp = Prep_Uni_Series(mo, len);
+
+    *dp++ = '%';
+
+    for (n = VAL_INDEX(v); n < VAL_LEN_HEAD(v); ++n) {
+        REBUNI c = GET_ANY_CHAR(series, n);
+        if (IS_FILE_ESC(c))
+            dp = Form_Hex_Esc_Uni(dp, c); // c => %xx
+        else
+            *dp++ = c;
+    }
+
+    *dp = '\0';
+}
+
+
+static void Mold_Tag(REB_MOLD *mo, const RELVAL *v)
+{
+    Append_Codepoint_Raw(mo->series, '<');
+    Insert_String(
+        mo->series,
+        SER_LEN(mo->series), // "insert" at tail (append)
+        VAL_SERIES(v),
+        VAL_INDEX(v),
+        VAL_LEN_AT(v),
+        FALSE
+    );
+    Append_Codepoint_Raw(mo->series, '>');
+
+}
+
+
+//
+//  MF_Binary: C
+//
+void MF_Binary(REB_MOLD *mo, const RELVAL *v, REBOOL form)
+{
+    UNUSED(form);
+
+    if (GET_MOLD_FLAG(mo, MOLD_FLAG_ALL) && VAL_INDEX(v) != 0) {
+        Pre_Mold(mo, v); // #[binary!
+    }
+
+    REBCNT len = VAL_LEN_AT(v);
+    REBSER *out;
+
+    switch (Get_System_Int(SYS_OPTIONS, OPTIONS_BINARY_BASE, 16)) {
+    default:
+    case 16: {
+        const REBOOL brk = LOGICAL(len > 32);
+        out = Encode_Base16(NULL, v, brk);
+        break; }
+
+    case 64: {
+        const REBOOL brk = LOGICAL(len > 64);
+        Append_Unencoded(mo->series, "64");
+        out = Encode_Base64(NULL, v, brk);
+        break; }
+
+    case 2: {
+        const REBOOL brk = LOGICAL(len > 8);
+        Append_Codepoint_Raw(mo->series, '2');
+        out = Encode_Base2(NULL, v, brk);
+        break; }
+    }
+
+    Emit(mo, "#{E}", out);
+    Free_Series(out);
+
+    if (GET_MOLD_FLAG(mo, MOLD_FLAG_ALL) && VAL_INDEX(v) != 0) {
+        Post_Mold(mo, v);
+    }
+}
+
+
+//
+//  MF_String: C
+//
+void MF_String(REB_MOLD *mo, const RELVAL *v, REBOOL form)
+{
+    REBSER *s = mo->series;
+
+    assert(ANY_STRING(v));
+
+    // Special format for MOLD/ALL string series when not at head
+    //
+    if (GET_MOLD_FLAG(mo, MOLD_FLAG_ALL) && VAL_INDEX(v) != 0) {
+        Pre_Mold(mo, v); // e.g. #[file! part
+
+        DECLARE_LOCAL (head);
+        VAL_RESET_HEADER(head, REB_STRING);
+        head->payload.any_series.series = VAL_SERIES(v);
+        VAL_INDEX(head) = 0;
+
+        Mold_String_Series(mo, head);
+
+        Post_Mold(mo, v);
+        return;
+    }
+
+    // The R3-Alpha forming logic was that every string type besides TAG!
+    // would form with no delimiters, e.g. `form #foo` is just foo
+    //
+    if (form && NOT(IS_TAG(v))) {
+        //
+        // Reuse the Insert_String logic here, because although the mold
+        // buffer is guaranteed to be REBUNI, the source string might be
+        // byte-sized.
+        //
+        Insert_String(
+            s,
+            SER_LEN(s), // "insert" at tail (append)
+            VAL_SERIES(v),
+            VAL_INDEX(v),
+            VAL_LEN_AT(v),
+            FALSE
+        );
+        return;
+    }
+
+    switch(VAL_TYPE(v)) {
+    case REB_STRING:
+        Mold_String_Series(mo, v);
+        break;
+
+    case REB_FILE:
+        if (VAL_LEN_AT(v) == 0) {
+            Append_Unencoded(s, "%\"\"");
+            break;
+        }
+        Mold_File(mo, v);
+        break;
+
+    case REB_EMAIL:
+    case REB_URL:
+        Mold_Url(mo, v);
+        break;
+
+    case REB_TAG:
+        Mold_Tag(mo, v);
+        break;
+
+    default:
+        panic (v);
+    }
+}
+
+
 //
 //  REBTYPE: C
 //
@@ -1232,4 +1619,43 @@ REBTYPE(String)
 return_ser:
     Init_Any_Series(D_OUT, VAL_TYPE(value), ser);
     return R_OUT;
+}
+
+
+//
+//  Startup_String: C
+//
+void Startup_String(void)
+{
+    Char_Escapes = ALLOC_N_ZEROFILL(REBYTE, MAX_ESC_CHAR + 1);
+
+    REBYTE *cp = Char_Escapes;
+    REBYTE c;
+    for (c = '@'; c <= '_'; c++)
+        *cp++ = c;
+
+    Char_Escapes[cast(REBYTE, '\t')] = '-'; // tab
+    Char_Escapes[cast(REBYTE, '\n')] = '/'; // line feed
+    Char_Escapes[cast(REBYTE, '"')] = '"';
+    Char_Escapes[cast(REBYTE, '^')] = '^';
+
+    URL_Escapes = ALLOC_N_ZEROFILL(REBYTE, MAX_URL_CHAR + 1);
+
+    for (c = 0; c <= ' '; c++)
+        URL_Escapes[c] = ESC_URL | ESC_FILE;
+
+    const REBYTE *dc = cb_cast(";%\"()[]{}<>");
+
+    for (c = LEN_BYTES(dc); c > 0; c--)
+        URL_Escapes[*dc++] = ESC_URL | ESC_FILE;
+}
+
+
+//
+//  Shutdown_String: C
+//
+void Shutdown_String(void)
+{
+    FREE_N(REBYTE, MAX_ESC_CHAR + 1, Char_Escapes);
+    FREE_N(REBYTE, MAX_URL_CHAR + 1, URL_Escapes);
 }

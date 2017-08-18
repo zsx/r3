@@ -130,6 +130,60 @@ void TO_Function(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 
 
 //
+//  MF_Function: C
+//
+void MF_Function(REB_MOLD *mo, const RELVAL *v, REBOOL form)
+{
+    UNUSED(form);
+
+    Pre_Mold(mo, v);
+
+    Append_Codepoint_Raw(mo->series, '[');
+
+    // !!! The system is no longer keeping the spec of functions, in order
+    // to focus on a generalized "meta info object" service.  MOLD of
+    // functions temporarily uses the word list as a substitute (which
+    // drops types)
+    //
+    REBARR *words_list = List_Func_Words(v, TRUE); // show pure locals
+    Mold_Array_At(mo, words_list, 0, 0);
+    Free_Array(words_list);
+
+    if (IS_FUNCTION_INTERPRETED(v)) {
+        //
+        // MOLD is an example of user-facing code that needs to be complicit
+        // in the "lie" about the effective bodies of the functions made
+        // by the optimized generators FUNC and PROC...
+
+        REBOOL is_fake;
+        REBARR *body = Get_Maybe_Fake_Func_Body(&is_fake, const_KNOWN(v));
+
+        Mold_Array_At(mo, body, 0, 0);
+
+        if (is_fake)
+            Free_Array(body); // was shallow copy
+    }
+    else if (IS_FUNCTION_SPECIALIZER(v)) {
+        //
+        // !!! Interim form of looking at specialized functions... show
+        // the frame
+        //
+        //     >> source first
+        //     first: make function! [[aggregate index] [
+        //         aggregate: $void
+        //         index: 1
+        //     ]]
+        //
+        REBVAL *exemplar = KNOWN(VAL_FUNC_BODY(v));
+        Mold_Value(mo, exemplar);
+    }
+
+    Append_Codepoint_Raw(mo->series, ']');
+    End_Mold(mo);
+}
+
+
+//
 //  REBTYPE: C
 //
 REBTYPE(Function)
@@ -197,18 +251,6 @@ REBTYPE(Function)
         REBSYM sym = VAL_WORD_SYM(arg);
 
         switch (sym) {
-        case SYM_ADDR:
-            if (IS_FUNCTION_RIN(value)) {
-                //
-                // The CFUNC is fabricated by the FFI if it's a callback, or
-                // just the wrapped DLL function if it's an ordinary routine
-                //
-                Init_Integer(
-                    D_OUT, cast(REBUPT, RIN_CFUNC(VAL_FUNC_ROUTINE(value)))
-                );
-                return R_OUT;
-            }
-            break;
 
         case SYM_WORDS:
             Init_Block(D_OUT, List_Func_Words(value, FALSE)); // no locals
@@ -319,12 +361,16 @@ REBTYPE(Function)
 //
 REBNATIVE(func_class_of)
 //
-// !!! The concept of the VAL_FUNC_CLASS was killed, because functions get
-// their classification by way of their dispatch pointers.  Generally
-// speaking, functions should be a "black box" to user code, and it's only
-// at the "meta" level that a function would choose to expose whether it
-// is something like a specialization or an adaptation...but that would be
-// purely documentary, and could lie.
+// !!! This is a stopgap measure.  Generally speaking, functions should be a
+// "black box" to user code, and it's only in META-OF data that a function
+// would choose to expose whether it is something like a specialization or an
+// adaptation.
+//
+// Currently, BODY-OF relies on this.  But not only do not all functions have
+// "bodies" (specializations, etc.) some have C code bodies (natives).
+// With a variety of dispatchers, there would need to be some reverse lookup
+// by dispatcher to reliably provide reflectors (META-OF could work but could
+// get out of sync with the dispatcher, e.g. with hijacking)
 {
     INCLUDE_PARAMS_OF_FUNC_CLASS_OF;
 
@@ -335,17 +381,11 @@ REBNATIVE(func_class_of)
         n = 2;
     else if (IS_FUNCTION_ACTION(value))
         n = 3;
-    else if (IS_FUNCTION_RIN(value)) {
-        if (NOT(RIN_IS_CALLBACK(VAL_FUNC_ROUTINE(value))))
-            n = 5;
-        else
-            n = 6;
-    }
     else if (IS_FUNCTION_SPECIALIZER(value))
         n = 7;
     else {
         // !!! A shaky guess, but assume native if none of the above.
-        // (COMMAND! was once 4)
+        // (COMMAND! was once 4, 5 and 6 were routine and callback).
         n = 1;
     }
 

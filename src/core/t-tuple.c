@@ -264,30 +264,37 @@ REBINT PD_Tuple(REBPVS *pvs)
 
 
 //
-//  Emit_Tuple: C
+//  MF_Tuple: C
 //
-// The out array must be large enough to hold longest tuple.
-// Longest is: (3 digits + '.') * 11 nums + 1 term => 45
-//
-REBINT Emit_Tuple(const REBVAL *value, REBYTE *out)
+void MF_Tuple(REB_MOLD *mo, const RELVAL *v, REBOOL form)
 {
-    REBCNT len = VAL_TUPLE_LEN(value);
-    const REBYTE *tp = cast(const REBYTE *, VAL_TUPLE(value));
-    REBYTE *start = out;
+    UNUSED(form);
+
+    // "Buffer must be large enough to hold longest tuple.
+    //  Longest is: (3 digits + '.') * 11 nums + 1 term => 45"
+    //
+    // !!! ^-- Out of date comments; TUPLE! needs review and replacement.
+    //
+    REBYTE buf[60];
+
+    REBCNT len = VAL_TUPLE_LEN(v);
+    const REBYTE *tp = cast(const REBYTE *, VAL_TUPLE(v));
+
+    REBYTE *out = buf;
 
     for (; len > 0; len--, tp++) {
         out = Form_Int(out, *tp);
         *out++ = '.';
     }
 
-    len = VAL_TUPLE_LEN(value);
+    len = VAL_TUPLE_LEN(v);
     while (len++ < 3) {
         *out++ = '0';
         *out++ = '.';
     }
     *--out = 0;
 
-    return out-start;
+    Append_Unencoded_Len(mo->series, s_cast(buf), out - buf);
 }
 
 

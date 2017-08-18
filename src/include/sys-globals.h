@@ -206,5 +206,3 @@ TVAR REBCNT Trace_Limit;    // Backtrace buffering limit
 TVAR REBSER *Trace_Buffer;  // Holds backtrace lines
 
 TVAR REBI64 Eval_Functions;
-
-TVAR REBVAL Callback_Error; //Error produced by callback!, note it's not callback://

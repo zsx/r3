@@ -629,6 +629,90 @@ RELVAL *Pick_Block(REBVAL *out, const REBVAL *block, const REBVAL *picker)
 
 
 //
+//  MF_Array: C
+//
+void MF_Array(REB_MOLD *mo, const RELVAL *v, REBOOL form)
+{
+    if (form && (IS_BLOCK(v) || IS_GROUP(v))) {
+        Form_Array_At(mo, VAL_ARRAY(v), VAL_INDEX(v), 0);
+        return;
+    }
+
+    REBOOL all;
+    if (VAL_INDEX(v) == 0) { // "&& VAL_TYPE(v) <= REB_LIT_PATH" commented out
+        //
+        // Optimize when no index needed
+        //
+        all = FALSE;
+    }
+    else
+        all = GET_MOLD_FLAG(mo, MOLD_FLAG_ALL);
+
+    REBOOL over;
+    if (VAL_INDEX(v) >= VAL_LEN_HEAD(v)) {
+        //
+        // If out of range, do not cause error to avoid error looping.
+        //
+        over = TRUE; // Force it into []
+    }
+    else
+        over = FALSE;
+
+    if (all || (over && !IS_BLOCK(v) && !IS_GROUP(v))) {
+        SET_MOLD_FLAG(mo, MOLD_FLAG_ALL);
+        Pre_Mold(mo, v); // #[block! part
+
+        Append_Codepoint_Raw(mo->series, '[');
+        Mold_Array_At(mo, VAL_ARRAY(v), 0, 0);
+        Post_Mold(mo, v);
+        Append_Codepoint_Raw(mo->series, ']');
+    }
+    else {
+        const char *sep;
+
+        switch(VAL_TYPE(v)) {
+        case REB_BLOCK:
+            if (GET_MOLD_FLAG(mo, MOLD_FLAG_ONLY)) {
+                CLEAR_MOLD_FLAG(mo, MOLD_FLAG_ONLY); // only top level
+                sep = "\000\000";
+            }
+            else
+                sep = 0;
+            break;
+
+        case REB_GROUP:
+            sep = "()";
+            break;
+
+        case REB_GET_PATH:
+            Append_Codepoint_Raw(mo->series, ':');
+            sep = "/";
+            break;
+
+        case REB_LIT_PATH:
+            Append_Codepoint_Raw(mo->series, '\'');
+            // fall through
+        case REB_PATH:
+        case REB_SET_PATH:
+            sep = "/";
+            break;
+
+        default:
+            sep = NULL;
+        }
+
+        if (over)
+            Append_Unencoded(mo->series, sep ? sep : "[]");
+        else
+            Mold_Array_At(mo, VAL_ARRAY(v), VAL_INDEX(v), sep);
+
+        if (VAL_TYPE(v) == REB_SET_PATH)
+            Append_Codepoint_Raw(mo->series, ':');
+    }
+}
+
+
+//
 //  REBTYPE: C
 //
 // Implementation of type dispatch of the following:

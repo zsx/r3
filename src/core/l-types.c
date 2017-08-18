@@ -59,6 +59,25 @@ void MAKE_Fail(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 
 
 //
+//  MAKE_Unhooked: C
+//
+// MAKE STRUCT! is part of the FFI extension, but since user defined types
+// aren't ready yet as a general concept, this hook is overwritten in the
+// dispatch table when the extension loads.
+//
+void MAKE_Unhooked(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
+{
+    UNUSED(out);
+    UNUSED(arg);
+
+    REBVAL *type = Get_Type(kind);
+    UNUSED(type); // put in error message?
+
+    fail ("Datatype is provided by an extension that's not currently loaded");
+}
+
+
+//
 //  make: native [
 //
 //  {Constructs or allocates the specified datatype.}
@@ -205,7 +224,22 @@ void TO_Fail(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
     UNUSED(kind);
     UNUSED(arg);
 
-    fail ("Datatype does not have a TO handler registered");
+    fail ("Cannot convert to datatype");
+}
+
+
+//
+//  TO_Unhooked: C
+//
+void TO_Unhooked(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
+{
+    UNUSED(out);
+    UNUSED(arg);
+
+    REBVAL *type = Get_Type(kind);
+    UNUSED(type); // use in error message?
+
+    fail ("Datatype does not have extension with a TO handler registered");
 }
 
 
@@ -239,6 +273,22 @@ REBNATIVE(to)
 
     dispatcher(D_OUT, kind, arg); // may fail();
     return R_OUT;
+}
+
+
+//
+//  REBTYPE: C
+//
+// There's no actual "Unhooked" data type, it is used as a placeholder for
+// if a datatype (such as STRUCT!) is going to have its behavior loaded by
+// an extension.
+//
+REBTYPE(Unhooked)
+{
+    UNUSED(frame_);
+    UNUSED(action);
+
+    fail ("Datatype does not have its REBTYPE() handler loaded by extension");
 }
 
 

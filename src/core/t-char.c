@@ -150,6 +150,36 @@ static REBINT Math_Arg_For_Char(REBVAL *arg, REBSYM action)
 
 
 //
+//  MF_Char: C
+//
+void MF_Char(REB_MOLD *mo, const RELVAL *v, REBOOL form)
+{
+    REBSER *s = mo->series;
+    REBOOL parened = GET_MOLD_FLAG(mo, MOLD_FLAG_ALL);
+    REBUNI chr = VAL_CHAR(v);
+
+    REBCNT tail = SER_LEN(s);
+
+    if (form) {
+        EXPAND_SERIES_TAIL(s, 1);
+        *UNI_AT(s, tail) = chr;
+    }
+    else {
+        EXPAND_SERIES_TAIL(s, 10); // worst case: #"^(1234)"
+
+        REBUNI *up = UNI_AT(s, tail);
+        *up++ = '#';
+        *up++ = '"';
+        up = Emit_Uni_Char(up, chr, parened);
+        *up++ = '"';
+
+        SET_SERIES_LEN(s, up - UNI_HEAD(s));
+    }
+    TERM_UNI(s);
+}
+
+
+//
 //  REBTYPE: C
 //
 REBTYPE(Char)

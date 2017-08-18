@@ -27,43 +27,60 @@
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
+// "Molding" is the term in Rebol for getting a string representation of a
+// value that is intended to be LOADed back into the system.  So if you
+// mold a STRING!, you would get back another STRING! that would include
+// the delimiters for that string.
+//
+// "Forming" is the term for creating a string representation of a value that
+// is intended for print output.  So if you were to form a STRING!, it would
+// *not* add delimiters--just giving the string back as-is.
+//
+// There are several technical problems in molding regarding the handling of
+// values that do not have natural expressions in Rebol source.  For instance,
+// it might be legal to `make word! "123"` but that cannot just be molded as
+// 123 because that would LOAD as an integer.  There are additional problems
+// with `mold next [a b c]`, because there is no natural representation for a
+// series that is not at its head.  These problems were addressed with
+// "construction syntax", e.g. #[word! "123"] or #[block! [a b c] 1].  But
+// to get this behavior MOLD/ALL had to be used, and it was implemented in
+// something of an ad-hoc way.
+//
+// These concepts are a bit fuzzy in general, and though MOLD might have made
+// sense when Rebol was supposedly called "Clay", it now looks off-putting.
+// (Who wants to deal with old, moldy code?)  Most of Ren-C's focus has been
+// on the evaluator, so there are not that many advances in molding--other
+// than the code being tidied up and methodized a little.
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Notes:
+//
+// * Because molding and forming of a type share a lot of code, they are
+//   implemented in "(M)old or (F)orm" hooks (MF_Xxx).  Also, since classes
+//   of types can share behavior, several types are sometimes handled in the
+//   same hook.  See %types.r for these categorizations in the "mold" column.
+//
+// * Molding is done into a REB_MOLD structure, which in addition to the
+//   series to mold into contains options for the mold--including length
+//   limits, whether commas or periods should be used for decimal points,
+//   indentation rules, etc.
+//
+// * If you create the REB_MOLD using the Push_Mold() function, then it will
+//   append in a stacklike way to the thread-local "mold buffer".  This
+//   allows new molds to start running and use that buffer while another is in
+//   progress, so long as it pops or drops the buffer before returning to the
+//   code doing the higher level mold.
+//
+// * It's hard to know in advance how long molded output will be or whether
+//   it will use any wide characters, using the mold buffer allows one to use
+//   a "hot" preallocated wide-char buffer for the mold...and copy out a
+//   series of the precise width and length needed.  (That is, if copying out
+//   the result is needed at all.)
+//
 
 #include "sys-core.h"
-#include <float.h>
 
-#define MAX_QUOTED_STR  50  // max length of "string" before going to { }
-
-const REBYTE Punctuation[] = ".,-/";
-enum REB_Punct {
-    PUNCT_DOT = 0, // Must be 0
-    PUNCT_COMMA,   // Must be 1
-    PUNCT_DASH,
-    PUNCT_SLASH,
-    PUNCT_MAX
-};
-
-REBYTE *Char_Escapes;
-#define MAX_ESC_CHAR (0x60-1) // size of escape table
-#define IS_CHR_ESC(c) ((c) <= MAX_ESC_CHAR && Char_Escapes[c])
-
-REBYTE *URL_Escapes;
-#define MAX_URL_CHAR (0x80-1)
-#define IS_URL_ESC(c)  ((c) <= MAX_URL_CHAR && (URL_Escapes[c] & ESC_URL))
-#define IS_FILE_ESC(c) ((c) <= MAX_URL_CHAR && (URL_Escapes[c] & ESC_FILE))
-
-enum {
-    ESC_URL = 1,
-    ESC_FILE = 2,
-    ESC_EMAIL = 4
-};
-
-/***********************************************************************
-************************************************************************
-**
-**  SECTION: Global Mold Utilities
-**
-************************************************************************
-***********************************************************************/
 
 //
 //  Emit: C
@@ -168,35 +185,6 @@ void Emit(REB_MOLD *mo, const char *fmt, ...)
 
 
 //
-//  Prep_String: C
-//
-// Helper function for the string related Mold functions below.
-// Creates or expands the series and provides the location to
-// copy text into.
-//
-REBSER *Prep_String(REBSER *series, REBYTE **str, REBCNT len)
-{
-    if (series == NULL) {
-        series = Make_Binary(len);
-        SET_SERIES_LEN(series, len);
-        *str = BIN_HEAD(series);
-    }
-    else {
-        // This used "STR_AT" (obsolete) but didn't have an explicit case
-        // here that it was byte sized.  Check it, because if you have
-        // unicode characters this would give the wrong pointer.
-        //
-        assert(BYTE_SIZE(series));
-
-        REBCNT tail = SER_LEN(series);
-        EXPAND_SERIES_TAIL(series, len);
-        *str = BIN_AT(series, tail);
-    }
-    return series;
-}
-
-
-//
 //  Prep_Uni_Series: C
 //
 REBUNI *Prep_Uni_Series(REB_MOLD *mo, REBCNT len)
@@ -208,14 +196,6 @@ REBUNI *Prep_Uni_Series(REB_MOLD *mo, REBCNT len)
     return UNI_AT(mo->series, tail);
 }
 
-
-/***********************************************************************
-************************************************************************
-**
-**  SECTION: Local MOLD Utilities
-**
-************************************************************************
-***********************************************************************/
 
 //
 //  Pre_Mold: C
@@ -290,346 +270,22 @@ void New_Indented_Line(REB_MOLD *mo)
 }
 
 
-/***********************************************************************
-************************************************************************
-**
-**  SECTION: Char/String Datatypes
-**
-************************************************************************
-***********************************************************************/
-
-typedef struct REB_Str_Flags {
-    REBCNT escape;      // escaped chars
-    REBCNT brace_in;    // {
-    REBCNT brace_out;   // }
-    REBCNT newline;     // lf
-    REBCNT quote;       // "
-    REBCNT paren;       // (1234)
-    REBCNT chr1e;
-    REBCNT malign;
-} REB_STRF;
-
-
-static void Sniff_String(REBSER *ser, REBCNT idx, REB_STRF *sf)
-{
-    // Scan to find out what special chars the string contains?
-    REBYTE *bp = SER_DATA_RAW(ser);
-    REBUNI *up = cast(REBUNI*, bp);
-    REBUNI c;
-    REBCNT n;
-
-    for (n = idx; n < SER_LEN(ser); n++) {
-        c = BYTE_SIZE(ser) ? cast(REBUNI, bp[n]) : up[n];
-        switch (c) {
-        case '{':
-            sf->brace_in++;
-            break;
-        case '}':
-            sf->brace_out++;
-            if (sf->brace_out > sf->brace_in) sf->malign++;
-            break;
-        case '"':
-            sf->quote++;
-            break;
-        case '\n':
-            sf->newline++;
-            break;
-        default:
-            if (c == 0x1e) sf->chr1e += 4; // special case of ^(1e)
-            else if (IS_CHR_ESC(c)) sf->escape++;
-            else if (c >= 0x1000) sf->paren += 6; // ^(1234)
-            else if (c >= 0x100)  sf->paren += 5; // ^(123)
-            else if (c >= 0x80)   sf->paren += 4; // ^(12)
-        }
-    }
-    if (sf->brace_in != sf->brace_out) sf->malign++;
-}
-
-static REBUNI *Emit_Uni_Char(REBUNI *up, REBUNI chr, REBOOL parened)
-{
-    if (chr >= 0x7f || chr == 0x1e) {  // non ASCII or ^ must be (00) escaped
-        if (parened || chr == 0x1e) { // do not AND with above
-            *up++ = '^';
-            *up++ = '(';
-            up = Form_Uni_Hex(up, chr);
-            *up++ = ')';
-            return up;
-        }
-    }
-    else if (IS_CHR_ESC(chr)) {
-        *up++ = '^';
-        *up++ = Char_Escapes[chr];
-        return up;
-    }
-
-    *up++ = chr;
-    return up;
-}
-
-static void Mold_Or_Form_Uni_Char(
-    REBSER *dst,
-    REBUNI chr,
-    REBOOL form,
-    REBOOL parened
-){
-    REBCNT tail = SER_LEN(dst);
-
-    if (form) {
-        EXPAND_SERIES_TAIL(dst, 1);
-        *UNI_AT(dst, tail) = chr;
-    }
-    else {
-        EXPAND_SERIES_TAIL(dst, 10); // worst case: #"^(1234)"
-
-        REBUNI *up = UNI_AT(dst, tail);
-        *up++ = '#';
-        *up++ = '"';
-        up = Emit_Uni_Char(up, chr, parened);
-        *up++ = '"';
-
-        SET_SERIES_LEN(dst, up - UNI_HEAD(dst));
-    }
-    TERM_UNI(dst);
-}
-
-
-static void Mold_String_Series(REB_MOLD *mo, const RELVAL *v)
-{
-    REBCNT len = VAL_LEN_AT(v);
-    REBSER *series = VAL_SERIES(v);
-    REBCNT index = VAL_INDEX(v);
-
-    // Empty string:
-    if (index >= VAL_LEN_HEAD(v)) {
-        // !!! Comment said `fail (Error_Past_End_Raw());`
-        Append_Unencoded(mo->series, "\"\"");
-        return;
-    }
-
-    REB_STRF sf;
-    CLEARS(&sf);
-    Sniff_String(series, index, &sf);
-    if (NOT_MOLD_FLAG(mo, MOLD_FLAG_NON_ANSI_PARENED))
-        sf.paren = 0;
-
-    // Source can be 8 or 16 bits:
-    REBYTE *bp;
-    REBUNI *up;
-    REBOOL unicode = NOT(BYTE_SIZE(series));
-    if (unicode) {
-        up = UNI_HEAD(series);
-        bp = NULL; // wasteful, but avoids may be used uninitialized warning
-    }
-    else {
-        up = NULL; // wasteful, but avoids may be used uninitialized warning
-        bp = BIN_HEAD(series);
-    }
-
-    // If it is a short quoted string, emit it as "string"
-    //
-    if (len <= MAX_QUOTED_STR && sf.quote == 0 && sf.newline < 3) {
-        REBUNI *dp = Prep_Uni_Series(
-            mo,
-            len + sf.newline + sf.escape + sf.paren + sf.chr1e + 2
-        );
-
-        *dp++ = '"';
-
-        REBCNT n;
-        for (n = index; n < VAL_LEN_HEAD(v); n++) {
-            REBUNI c = unicode ? up[n] : cast(REBUNI, bp[n]);
-            dp = Emit_Uni_Char(
-                dp, c, GET_MOLD_FLAG(mo, MOLD_FLAG_NON_ANSI_PARENED)
-            );
-        }
-
-        *dp++ = '"';
-        *dp = 0;
-        return;
-    }
-
-    // It is a braced string, emit it as {string}:
-    if (!sf.malign)
-        sf.brace_in = sf.brace_out = 0;
-
-    REBUNI *dp = Prep_Uni_Series(
-        mo,
-        len + sf.brace_in + sf.brace_out + sf.escape + sf.paren + sf.chr1e + 2
-    );
-
-    *dp++ = '{';
-
-    REBCNT n;
-    for (n = index; n < VAL_LEN_HEAD(v); n++) {
-        REBUNI c = unicode ? up[n] : cast(REBUNI, bp[n]);
-
-        switch (c) {
-        case '{':
-        case '}':
-            if (sf.malign) {
-                *dp++ = '^';
-                *dp++ = c;
-                break;
-            }
-            // fall through
-        case '\n':
-        case '"':
-            *dp++ = c;
-            break;
-
-        default:
-            dp = Emit_Uni_Char(
-                dp, c, GET_MOLD_FLAG(mo, MOLD_FLAG_NON_ANSI_PARENED)
-            );
-        }
-    }
-
-    *dp++ = '}';
-    *dp = '\0';
-}
-
-
-/*
-    http://www.blooberry.com/indexdot/html/topics/urlencoding.htm
-
-    Only alphanumerics [0-9a-zA-Z], the special characters $-_.+!*'(),
-    and reserved characters used for their reserved purposes may be used
-    unencoded within a URL.
-*/
-
-static void Mold_Url(REB_MOLD *mo, const RELVAL *v)
-{
-    REBSER *series = VAL_SERIES(v);
-    REBCNT len = VAL_LEN_AT(v);
-
-    // Compute extra space needed for hex encoded characters:
-    //
-    REBCNT n;
-    for (n = VAL_INDEX(v); n < VAL_LEN_HEAD(v); ++n) {
-        REBUNI c = GET_ANY_CHAR(series, n);
-        if (IS_URL_ESC(c))
-            len += 2; // c => %xx
-    }
-
-    REBUNI *dp = Prep_Uni_Series(mo, len);
-
-    for (n = VAL_INDEX(v); n < VAL_LEN_HEAD(v); ++n) {
-        REBUNI c = GET_ANY_CHAR(series, n);
-        if (IS_URL_ESC(c))
-            dp = Form_Hex_Esc_Uni(dp, c); // c => %xx
-        else
-            *dp++ = c;
-    }
-
-    *dp = '\0';
-}
-
-
-static void Mold_File(REB_MOLD *mo, const RELVAL *v)
-{
-    REBSER *series = VAL_SERIES(v);
-    REBCNT len = VAL_LEN_AT(v);
-
-    // Compute extra space needed for hex encoded characters:
-    //
-    REBCNT n;
-    for (n = VAL_INDEX(v); n < VAL_LEN_HEAD(v); ++n) {
-        REBUNI c = GET_ANY_CHAR(series, n);
-        if (IS_FILE_ESC(c))
-            len += 2; // %xx is 3 characters instead of 1
-    }
-
-    ++len; // room for % at start
-
-    REBUNI *dp = Prep_Uni_Series(mo, len);
-
-    *dp++ = '%';
-
-    for (n = VAL_INDEX(v); n < VAL_LEN_HEAD(v); ++n) {
-        REBUNI c = GET_ANY_CHAR(series, n);
-        if (IS_FILE_ESC(c))
-            dp = Form_Hex_Esc_Uni(dp, c); // c => %xx
-        else
-            *dp++ = c;
-    }
-
-    *dp = '\0';
-}
-
-
-static void Mold_Tag(REB_MOLD *mo, const RELVAL *v)
-{
-    Append_Codepoint_Raw(mo->series, '<');
-    Insert_String(
-        mo->series,
-        SER_LEN(mo->series), // "insert" at tail (append)
-        VAL_SERIES(v),
-        VAL_INDEX(v),
-        VAL_LEN_AT(v),
-        FALSE
-    );
-    Append_Codepoint_Raw(mo->series, '>');
-
-}
-
+//=//// DEALING WITH CYCLICAL MOLDS ///////////////////////////////////////=//
+//
+// While Rebol has never had a particularly coherent story about how cyclical
+// data structures will be handled in evaluation, they do occur--and the GC
+// is robust to their existence.  These helper functions can be used to
+// maintain a stack of series.
+//
+// !!! TBD: Unify this with the PUSH_GUARD and DROP_GUARD implementation so
+// that improvements in one will improve the other?
+//
+//=////////////////////////////////////////////////////////////////////////=//
 
 //
-//  Mold_Binary: C
+//  Find_Pointer_In_Series: C
 //
-void Mold_Binary(REB_MOLD *mo, const RELVAL *v)
-{
-    REBCNT len = VAL_LEN_AT(v);
-    REBSER *out;
-
-    switch (Get_System_Int(SYS_OPTIONS, OPTIONS_BINARY_BASE, 16)) {
-    default:
-    case 16: {
-        const REBOOL brk = LOGICAL(len > 32);
-        out = Encode_Base16(NULL, v, brk);
-        break; }
-
-    case 64: {
-        const REBOOL brk = LOGICAL(len > 64);
-        Append_Unencoded(mo->series, "64");
-        out = Encode_Base64(NULL, v, brk);
-        break; }
-
-    case 2: {
-        const REBOOL brk = LOGICAL(len > 8);
-        Append_Codepoint_Raw(mo->series, '2');
-        out = Encode_Base2(NULL, v, brk);
-        break; }
-    }
-
-    Emit(mo, "#{E}", out);
-    Free_Series(out);
-}
-
-
-static void Mold_All_String(REB_MOLD *mo, const RELVAL *v)
-{
-    //// ???? move to above Mold_String_Series function????
-
-    Pre_Mold(mo, v); // e.g. #[file! part
-
-    DECLARE_LOCAL (head);
-    Move_Value(head, const_KNOWN(v));
-    VAL_INDEX(head) = 0;
-
-    if (IS_BINARY(v))
-        Mold_Binary(mo, head);
-    else {
-        VAL_RESET_HEADER(head, REB_STRING);
-        Mold_String_Series(mo, head);
-    }
-
-    Post_Mold(mo, v);
-}
-
-
-// !!! Used for detecting cycles in MOLD
-//
-static REBCNT Find_Pointer_In_Series(REBSER *s, void *p)
+REBCNT Find_Pointer_In_Series(REBSER *s, void *p)
 {
     REBCNT index = 0;
     for (; index < SER_LEN(s); ++index) {
@@ -639,7 +295,10 @@ static REBCNT Find_Pointer_In_Series(REBSER *s, void *p)
     return NOT_FOUND;
 }
 
-static void Push_Pointer_To_Series(REBSER *s, void *p)
+//
+//  Push_Pointer_To_Series: C
+//
+void Push_Pointer_To_Series(REBSER *s, void *p)
 {
     if (SER_FULL(s))
         Extend_Series(s, 8);
@@ -647,7 +306,10 @@ static void Push_Pointer_To_Series(REBSER *s, void *p)
     SET_SERIES_LEN(s, SER_LEN(s) + 1);
 }
 
-static void Drop_Pointer_From_Series(REBSER *s, void *p)
+//
+//  Drop_Pointer_From_Series: C
+//
+void Drop_Pointer_From_Series(REBSER *s, void *p)
 {
     assert(p == *SER_AT(void*, s, SER_LEN(s) - 1));
     UNUSED(p);
@@ -718,109 +380,10 @@ void Mold_Array_At(
 }
 
 
-static void Mold_Block(REB_MOLD *mo, const RELVAL *v)
-{
-    assert(NOT(IS_MAP(v))); // used to accept MAP!, at some point (?)
-
-    REBOOL all;
-    if (VAL_INDEX(v) == 0) { // "&& VAL_TYPE(v) <= REB_LIT_PATH" commented out
-        //
-        // Optimize when no index needed
-        //
-        all = FALSE;
-    }
-    else
-        all = GET_MOLD_FLAG(mo, MOLD_FLAG_ALL);
-
-    REBOOL over;
-    if (VAL_INDEX(v) >= VAL_LEN_HEAD(v)) {
-        //
-        // If out of range, do not cause error to avoid error looping.
-        //
-        over = TRUE; // Force it into []
-    }
-    else
-        over = FALSE;
-
-    if (all || (over && !IS_BLOCK(v) && !IS_GROUP(v))) {
-        SET_MOLD_FLAG(mo, MOLD_FLAG_ALL);
-        Pre_Mold(mo, v); // #[block! part
-
-        Append_Codepoint_Raw(mo->series, '[');
-        Mold_Array_At(mo, VAL_ARRAY(v), 0, 0);
-        Post_Mold(mo, v);
-        Append_Codepoint_Raw(mo->series, ']');
-    }
-    else {
-        const char *sep;
-
-        switch(VAL_TYPE(v)) {
-        case REB_BLOCK:
-            if (GET_MOLD_FLAG(mo, MOLD_FLAG_ONLY)) {
-                CLEAR_MOLD_FLAG(mo, MOLD_FLAG_ONLY); // only top level
-                sep = "\000\000";
-            }
-            else
-                sep = 0;
-            break;
-
-        case REB_GROUP:
-            sep = "()";
-            break;
-
-        case REB_GET_PATH:
-            Append_Codepoint_Raw(mo->series, ':');
-            sep = "/";
-            break;
-
-        case REB_LIT_PATH:
-            Append_Codepoint_Raw(mo->series, '\'');
-            // fall through
-        case REB_PATH:
-        case REB_SET_PATH:
-            sep = "/";
-            break;
-
-        default:
-            sep = NULL;
-        }
-
-        if (over)
-            Append_Unencoded(mo->series, sep ? sep : "[]");
-        else
-            Mold_Array_At(mo, VAL_ARRAY(v), VAL_INDEX(v), sep);
-
-        if (VAL_TYPE(v) == REB_SET_PATH)
-            Append_Codepoint_Raw(mo->series, ':');
-    }
-}
-
-
-// Simple molder for error locations. Series must be valid.
-// Max length in chars must be provided.
 //
-static void Mold_Simple_Block(REB_MOLD *mo, RELVAL *block, REBCNT len)
-{
-    REBCNT start = SER_LEN(mo->series);
-
-    while (NOT_END(block)) {
-        if (SER_LEN(mo->series) - start > len)
-            break;
-        Mold_Value(mo, block);
-        block++;
-        if (NOT_END(block))
-            Append_Codepoint_Raw(mo->series, ' ');
-    }
-
-    // If it's too large, truncate it:
-    if (SER_LEN(mo->series) - start > len) {
-        SET_SERIES_LEN(mo->series, start + len);
-        Append_Unencoded(mo->series, "...");
-    }
-}
-
-
-static void Form_Array_At(
+//  Form_Array_At: C
+//
+void Form_Array_At(
     REB_MOLD *mo,
     REBARR *array,
     REBCNT index,
@@ -857,416 +420,46 @@ static void Form_Array_At(
 }
 
 
-/***********************************************************************
-************************************************************************
-**
-**  SECTION: Special Datatypes
-**
-************************************************************************
-***********************************************************************/
-
-
-static void Mold_Or_Form_Typeset(REB_MOLD *mo, const RELVAL *v, REBOOL form)
+//
+//  MF_Fail: C
+//
+void MF_Fail(REB_MOLD *mo, const RELVAL *v, REBOOL form)
 {
-    REBINT n;
+    UNUSED(form);
 
-    if (NOT(form)) {
-        Pre_Mold(mo, v);  // #[typeset! or make typeset!
-        Append_Codepoint_Raw(mo->series, '[');
+    if (VAL_TYPE(v) == REB_0) {
+        //
+        // REB_0 is reserved for special purposes, and should only be molded
+        // in debug scenarios.
+        //
+    #if defined(NDEBUG)
+        UNUSED(mo);
+        panic (v);
+    #else
+        printf("!!! Request to MOLD or FORM a REB_0 value !!!\n");
+        Append_Unencoded(mo->series, "!!!REB_0!!!");
+        debug_break(); // don't crash if under a debugger, just "pause"
+    #endif
     }
 
-#if !defined(NDEBUG)
-    REBSTR *spelling = VAL_KEY_SPELLING(v);
-    if (spelling == NULL) {
-        //
-        // Note that although REB_MAX_VOID is used as an implementation detail
-        // for special typesets in function paramlists or context keys to
-        // indicate <opt>-style optionality, the "absence of a type" is not
-        // generally legal in user typesets.  Only legal "key" typesets
-        // (that have symbols).
-        //
-        assert(NOT(TYPE_CHECK(v, REB_MAX_VOID)));
-    }
-    else {
-        //
-        // In debug builds we're probably more interested in the symbol than
-        // the typesets, if we are looking at a PARAMLIST or KEYLIST.
-        //
-        Append_Unencoded(mo->series, "(");
-
-        Append_UTF8_May_Fail(
-            mo->series, STR_HEAD(spelling), STR_NUM_BYTES(spelling)
-        );
-        Append_Unencoded(mo->series, ") ");
-
-        // REVIEW: should detect when a lot of types are active and condense
-        // only if the number of types is unreasonable (often for keys/params)
-        //
-        if (TRUE) {
-            Append_Unencoded(mo->series, "...");
-            goto skip_types;
-        }
-    }
-#endif
-
-    assert(NOT(TYPE_CHECK(v, REB_0))); // REB_0 is used for internal purposes
-
-    // Convert bits to types.
-    //
-    for (n = REB_0 + 1; n < REB_MAX; n++) {
-        if (TYPE_CHECK(v, cast(enum Reb_Kind, n))) {
-            Emit(mo, "+DN ", SYM_DATATYPE_X, Canon(cast(REBSYM, n)));
-        }
-    }
-    Trim_Tail(mo->series, ' ');
-
-#if !defined(NDEBUG)
-skip_types:
-#endif
-
-    if (NOT(form)) {
-        Append_Codepoint_Raw(mo->series, ']');
-        End_Mold(mo);
-    }
+    fail ("Cannot MOLD or FORM datatype.");
 }
 
 
-static void Mold_Function(REB_MOLD *mo, const RELVAL *v)
+//
+//  MF_Unhooked: C
+//
+void MF_Unhooked(REB_MOLD *mo, const RELVAL *v, REBOOL form)
 {
-    Pre_Mold(mo, v);
+    UNUSED(mo);
+    UNUSED(form);
 
-    Append_Codepoint_Raw(mo->series, '[');
+    REBVAL *type = Get_Type(VAL_TYPE(v));
+    UNUSED(type); // use in error message?
 
-    // !!! The system is no longer keeping the spec of functions, in order
-    // to focus on a generalized "meta info object" service.  MOLD of
-    // functions temporarily uses the word list as a substitute (which
-    // drops types)
-    //
-    REBARR *words_list = List_Func_Words(v, TRUE); // show pure locals
-    Mold_Array_At(mo, words_list, 0, 0);
-    Free_Array(words_list);
-
-    if (IS_FUNCTION_INTERPRETED(v)) {
-        //
-        // MOLD is an example of user-facing code that needs to be complicit
-        // in the "lie" about the effective bodies of the functions made
-        // by the optimized generators FUNC and PROC...
-
-        REBOOL is_fake;
-        REBARR *body = Get_Maybe_Fake_Func_Body(&is_fake, const_KNOWN(v));
-
-        Mold_Array_At(mo, body, 0, 0);
-
-        if (is_fake)
-            Free_Array(body); // was shallow copy
-    }
-    else if (IS_FUNCTION_SPECIALIZER(v)) {
-        //
-        // !!! Interim form of looking at specialized functions... show
-        // the frame
-        //
-        //     >> source first
-        //     first: make function! [[aggregate index] [
-        //         aggregate: $void
-        //         index: 1
-        //     ]]
-        //
-        REBVAL *exemplar = KNOWN(VAL_FUNC_BODY(v));
-        Mold_Value(mo, exemplar);
-    }
-
-    Append_Codepoint_Raw(mo->series, ']');
-    End_Mold(mo);
+    fail ("Datatype does not have extension with a MOLD handler registered");
 }
 
-
-static void Mold_Or_Form_Map(REB_MOLD *mo, const RELVAL *v, REBOOL form)
-{
-    REBMAP *m = VAL_MAP(v);
-
-    // Prevent endless mold loop:
-    if (Find_Pointer_In_Series(TG_Mold_Stack, m) != NOT_FOUND) {
-        Append_Unencoded(mo->series, "...]");
-        return;
-    }
-
-    Push_Pointer_To_Series(TG_Mold_Stack, m);
-
-    if (NOT(form)) {
-        Pre_Mold(mo, v);
-        Append_Codepoint_Raw(mo->series, '[');
-    }
-
-    // Mold all entries that are set.  As with contexts, void values are not
-    // valid entries but indicate the absence of a value.
-    //
-    mo->indent++;
-
-    RELVAL *key = ARR_HEAD(MAP_PAIRLIST(m));
-    for (; NOT_END(key); key += 2) {
-        assert(NOT_END(key + 1)); // value slot must not be END
-        if (IS_VOID(key + 1))
-            continue; // if value for this key is void, key has been removed
-
-        if (NOT(form))
-            New_Indented_Line(mo);
-        Emit(mo, "V V", key, key + 1);
-        if (form)
-            Append_Codepoint_Raw(mo->series, '\n');
-    }
-    mo->indent--;
-
-    if (NOT(form)) {
-        New_Indented_Line(mo);
-        Append_Codepoint_Raw(mo->series, ']');
-    }
-
-    End_Mold(mo);
-
-    Drop_Pointer_From_Series(TG_Mold_Stack, m);
-}
-
-
-static void Form_Any_Context(REB_MOLD *mo, const RELVAL *v)
-{
-    REBCTX *c = VAL_CONTEXT(v);
-
-    // Prevent endless mold loop:
-    //
-    if (Find_Pointer_In_Series(TG_Mold_Stack, c) != NOT_FOUND) {
-        Append_Unencoded(mo->series, "...]");
-        return;
-    }
-    Push_Pointer_To_Series(TG_Mold_Stack, c);
-
-    // Mold all words and their values:
-    //
-    REBVAL *key = CTX_KEYS_HEAD(c);
-    REBVAL *var = CTX_VARS_HEAD(c);
-    REBOOL had_output = FALSE;
-    for (; NOT_END(key); key++, var++) {
-        if (NOT_VAL_FLAG(key, TYPESET_FLAG_HIDDEN)) {
-            had_output = TRUE;
-            Emit(mo, "N: V\n", VAL_KEY_SPELLING(key), var);
-        }
-    }
-
-    // Remove the final newline...but only if WE added something to the buffer
-    //
-    if (had_output) {
-        SET_SERIES_LEN(mo->series, SER_LEN(mo->series) - 1);
-        TERM_SEQUENCE(mo->series);
-    }
-
-    Drop_Pointer_From_Series(TG_Mold_Stack, c);
-}
-
-
-static void Mold_Any_Context(REB_MOLD *mo, const RELVAL *v)
-{
-    REBCTX *c = VAL_CONTEXT(v);
-
-    Pre_Mold(mo, v);
-
-    Append_Codepoint_Raw(mo->series, '[');
-
-    // Prevent infinite looping:
-    //
-    if (Find_Pointer_In_Series(TG_Mold_Stack, c) != NOT_FOUND) {
-        Append_Unencoded(mo->series, "...]");
-        return;
-    }
-    Push_Pointer_To_Series(TG_Mold_Stack, c);
-
-    mo->indent++;
-
-    // !!! New experimental Ren-C code for the [[spec][body]] format of the
-    // non-evaluative MAKE OBJECT!.
-
-    // First loop: spec block.  This is difficult because unlike functions,
-    // objects are dynamically modified with new members added.  If the spec
-    // were captured with strings and other data in it as separate from the
-    // "keylist" information, it would have to be updated to reflect newly
-    // added fields in order to be able to run a corresponding MAKE OBJECT!.
-    //
-    // To get things started, we aren't saving the original spec that made
-    // the object...but regenerate one from the keylist.  If this were done
-    // with functions, they would "forget" their help strings in MOLDing.
-
-    New_Indented_Line(mo);
-    Append_Codepoint_Raw(mo->series, '[');
-
-    REBVAL *keys_head = CTX_KEYS_HEAD(c);
-    REBVAL *vars_head;
-    if (CTX_VARS_UNAVAILABLE(VAL_CONTEXT(v))) {
-        //
-        // If something like a function call has gone of the stack, the data
-        // for the vars will no longer be available.  The keys should still
-        // be good, however.
-        //
-        vars_head = NULL;
-    }
-    else
-        vars_head = CTX_VARS_HEAD(VAL_CONTEXT(v));
-
-    REBVAL *key = keys_head;
-    for (; NOT_END(key); ++key) {
-        if (GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN))
-            continue;
-
-        if (key != keys_head)
-            Append_Codepoint_Raw(mo->series, ' ');
-
-        DECLARE_LOCAL (any_word);
-        Init_Any_Word(any_word, REB_WORD, VAL_KEY_SPELLING(key));
-        Mold_Value(mo, any_word);
-    }
-
-    Append_Codepoint_Raw(mo->series, ']');
-    New_Indented_Line(mo);
-    Append_Codepoint_Raw(mo->series, '[');
-
-    mo->indent++;
-
-    key = keys_head;
-
-    REBVAL *var = vars_head;
-
-    for (; NOT_END(key); var ? (++key, ++var) : ++key) {
-        if (GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN))
-            continue; // !!! Should hidden fields be in molded view?
-
-        // Having the key mentioned in the spec and then not being assigned
-        // a value in the body is how voids are denoted.
-        //
-        if (var && IS_VOID(var))
-            continue;
-
-        New_Indented_Line(mo);
-
-        REBSTR *spelling = VAL_KEY_SPELLING(key);
-        Append_UTF8_May_Fail(
-            mo->series, STR_HEAD(spelling), STR_NUM_BYTES(spelling)
-        );
-
-        Append_Unencoded(mo->series, ": ");
-
-        if (var)
-            Mold_Value(mo, var);
-        else
-            Append_Unencoded(mo->series, ": --optimized out--");
-    }
-
-    mo->indent--;
-    New_Indented_Line(mo);
-    Append_Codepoint_Raw(mo->series, ']');
-    mo->indent--;
-    New_Indented_Line(mo);
-    Append_Codepoint_Raw(mo->series, ']');
-
-    End_Mold(mo);
-
-    Drop_Pointer_From_Series(TG_Mold_Stack, c);
-}
-
-
-static void Mold_Or_Form_Error(REB_MOLD *mo, const RELVAL *v, REBOOL form)
-{
-    // Protect against recursion. !!!!
-    //
-    if (NOT(form)) {
-        Mold_Any_Context(mo, v);
-        return;
-    }
-
-    REBCTX *error = VAL_CONTEXT(v);
-    ERROR_VARS *vars = ERR_VARS(error);
-
-    // Form: ** <type> Error:
-    if (IS_BLANK(&vars->type))
-        Emit(mo, "** S", RM_ERROR_LABEL);
-    else {
-        assert(IS_WORD(&vars->type));
-        Emit(mo, "** W S", &vars->type, RM_ERROR_LABEL);
-    }
-
-    // Append: error message ARG1, ARG2, etc.
-    if (IS_BLOCK(&vars->message))
-        Form_Array_At(mo, VAL_ARRAY(&vars->message), 0, error);
-    else if (IS_STRING(&vars->message))
-        Form_Value(mo, &vars->message);
-    else
-        Append_Unencoded(mo->series, RM_BAD_ERROR_FORMAT);
-
-    // Form: ** Where: function
-    REBVAL *where = KNOWN(&vars->where);
-    if (NOT(IS_BLANK(where))) {
-        Append_Codepoint_Raw(mo->series, '\n');
-        Append_Unencoded(mo->series, RM_ERROR_WHERE);
-        Form_Value(mo, where);
-    }
-
-    // Form: ** Near: location
-    REBVAL *nearest = KNOWN(&vars->nearest);
-    if (NOT(IS_BLANK(nearest))) {
-        Append_Codepoint_Raw(mo->series, '\n');
-        Append_Unencoded(mo->series, RM_ERROR_NEAR);
-
-        if (IS_STRING(nearest)) {
-            //
-            // !!! The scanner puts strings into the near information in order
-            // to say where the file and line of the scan problem was.  This
-            // seems better expressed as an explicit argument to the scanner
-            // error, because otherwise it obscures the LOAD call where the
-            // scanner was invoked.  Review.
-            //
-            Append_String(
-                mo->series, VAL_SERIES(nearest), 0, VAL_LEN_HEAD(nearest)
-            );
-        }
-        else if (IS_BLOCK(nearest))
-            Mold_Simple_Block(mo, VAL_ARRAY_AT(nearest), 60);
-        else
-            Append_Unencoded(mo->series, RM_BAD_ERROR_FORMAT);
-    }
-
-    // Form: ** File: filename
-    //
-    // !!! In order to conserve space in the system, filenames are interned.
-    // Although interned strings are GC'd when no longer referenced, they can
-    // only be used in ANY-WORD! values at the moment, so the filename is
-    // not a FILE!.
-    //
-    REBVAL *file = KNOWN(&vars->file);
-    if (NOT(IS_BLANK(file))) {
-        Append_Codepoint_Raw(mo->series, '\n');
-        Append_Unencoded(mo->series, RM_ERROR_FILE);
-        if (IS_WORD(file))
-            Form_Value(mo, file);
-        else
-            Append_Unencoded(mo->series, RM_BAD_ERROR_FORMAT);
-    }
-
-    // Form: ** Line: line-number
-    REBVAL *line = KNOWN(&vars->line);
-    if (NOT(IS_BLANK(line))) {
-        Append_Codepoint_Raw(mo->series, '\n');
-        Append_Unencoded(mo->series, RM_ERROR_LINE);
-        if (IS_INTEGER(line))
-            Form_Value(mo, line);
-        else
-            Append_Unencoded(mo->series, RM_BAD_ERROR_FORMAT);
-    }
-}
-
-
-/***********************************************************************
-************************************************************************
-**
-**  SECTION: Global Mold Functions
-**
-************************************************************************
-***********************************************************************/
 
 //
 //  Mold_Or_Form_Value: C
@@ -1300,8 +493,8 @@ void Mold_Or_Form_Value(REB_MOLD *mo, const RELVAL *v, REBOOL form)
     if (THROWN(v)) {
         //
         // !!! You do not want to see THROWN values leak into user awareness,
-        // as they are an implementation detail.  Someone might explicitly
-        // PROBE() a thrown value, however.
+        // as they are an implementation detail.  In the C code, a developer
+        // might explicitly PROBE() a thrown value, however.
         //
     #if defined(NDEBUG)
         panic (v);
@@ -1312,313 +505,7 @@ void Mold_Or_Form_Value(REB_MOLD *mo, const RELVAL *v, REBOOL form)
     #endif
     }
 
-    // Special handling of string series: {
-    if (ANY_STRING(v) && NOT(IS_TAG(v))) {
-        if (form) {
-            Insert_String(
-                s,
-                SER_LEN(s), // "insert" at tail (append)
-                VAL_SERIES(v),
-                VAL_INDEX(v),
-                VAL_LEN_AT(v),
-                FALSE
-            );
-            return;
-        }
-
-        // Special format for ALL string series when not at head:
-        if (GET_MOLD_FLAG(mo, MOLD_FLAG_ALL) && VAL_INDEX(v) != 0) {
-            Mold_All_String(mo, v);
-            return;
-        }
-    }
-
-    switch (VAL_TYPE(v)) {
-    case REB_0:
-        // REB_0 is reserved for special purposes, and should only be molded
-        // in debug scenarios.
-        //
-    #if defined(NDEBUG)
-        panic (v);
-    #else
-        printf("!!! Request to MOLD or FORM a REB_0 value !!!\n");
-        Append_Unencoded(s, "!!!REB_0!!!");
-        debug_break(); // don't crash if under a debugger, just "pause"
-    #endif
-        break;
-
-    case REB_BAR:
-        Append_Unencoded(s, "|");
-        break;
-
-    case REB_LIT_BAR:
-        Append_Unencoded(s, "'|");
-        break;
-
-    case REB_BLANK:
-        Append_Unencoded(s, "_");
-        break;
-
-    case REB_LOGIC:
-        Emit(mo, "+N", VAL_LOGIC(v) ? Canon(SYM_TRUE) : Canon(SYM_FALSE));
-        break;
-
-    case REB_INTEGER: {
-        REBYTE buf[60];
-        REBINT len = Emit_Integer(buf, VAL_INT64(v));
-        Append_Unencoded_Len(s, s_cast(buf), len);
-        break; }
-
-    case REB_DECIMAL:
-    case REB_PERCENT: {
-        REBYTE buf[60];
-        REBINT len = Emit_Decimal(
-            buf,
-            VAL_DECIMAL(v),
-            IS_PERCENT(v) ? DEC_MOLD_PERCENT : 0,
-            Punctuation[GET_MOLD_FLAG(mo, MOLD_FLAG_COMMA_PT)
-                ? PUNCT_COMMA
-                : PUNCT_DOT],
-            mo->digits
-        );
-        Append_Unencoded_Len(s, s_cast(buf), len);
-        break; }
-
-    case REB_MONEY: {
-        REBYTE buf[60];
-        REBINT len = Emit_Money(buf, v, mo->opts);
-        Append_Unencoded_Len(s, s_cast(buf), len);
-        break; }
-
-    case REB_CHAR:
-        Mold_Or_Form_Uni_Char(
-            s, VAL_CHAR(v), form, GET_MOLD_FLAG(mo, MOLD_FLAG_ALL)
-        );
-        break;
-
-    case REB_PAIR: {
-        REBYTE buf[60];
-        REBINT len = Emit_Decimal(
-            buf,
-            VAL_PAIR_X(v),
-            DEC_MOLD_MINIMAL,
-            Punctuation[PUNCT_DOT],
-            mo->digits / 2
-        );
-        Append_Unencoded_Len(s, s_cast(buf), len);
-        Append_Codepoint_Raw(s, 'x');
-        len = Emit_Decimal(
-            buf,
-            VAL_PAIR_Y(v),
-            DEC_MOLD_MINIMAL,
-            Punctuation[PUNCT_DOT],
-            mo->digits / 2
-        );
-        Append_Unencoded_Len(s, s_cast(buf), len);
-        break; }
-
-    case REB_TUPLE: {
-        REBYTE buf[60];
-        REBINT len = Emit_Tuple(const_KNOWN(v), buf);
-        Append_Unencoded_Len(s, s_cast(buf), len);
-        break; }
-
-    case REB_TIME:
-        Emit_Time(mo, v);
-        break;
-
-    case REB_DATE:
-        Emit_Date(mo, v);
-        break;
-
-    case REB_STRING:
-        // FORM happens in top section.
-        Mold_String_Series(mo, v);
-        break;
-
-    case REB_BINARY:
-        if (GET_MOLD_FLAG(mo, MOLD_FLAG_ALL) && VAL_INDEX(v) != 0) {
-            Mold_All_String(mo, v);
-            return;
-        }
-        Mold_Binary(mo, v);
-        break;
-
-    case REB_FILE:
-        if (VAL_LEN_AT(v) == 0) {
-            Append_Unencoded(s, "%\"\"");
-            break;
-        }
-        Mold_File(mo, v);
-        break;
-
-    case REB_EMAIL:
-    case REB_URL:
-        Mold_Url(mo, v);
-        break;
-
-    case REB_TAG:
-        if (GET_MOLD_FLAG(mo, MOLD_FLAG_ALL) && VAL_INDEX(v) != 0) {
-            Mold_All_String(mo, v);
-            return;
-        }
-        Mold_Tag(mo, v);
-        break;
-
-    case REB_BITSET:
-        Pre_Mold(mo, v); // #[bitset! or make bitset!
-        Mold_Bitset(mo, v);
-        End_Mold(mo);
-        break;
-
-    case REB_IMAGE:
-        Pre_Mold(mo, v);
-        if (GET_MOLD_FLAG(mo, MOLD_FLAG_ALL)) {
-            DECLARE_LOCAL (head);
-            Move_Value(head, const_KNOWN(v));
-            VAL_INDEX(head) = 0; // mold all of it
-            Mold_Image_Data(head, mo);
-            Post_Mold(mo, v);
-        }
-        else {
-            Append_Codepoint_Raw(s, '[');
-            Mold_Image_Data(const_KNOWN(v), mo);
-            Append_Codepoint_Raw(s, ']');
-            End_Mold(mo);
-        }
-        break;
-
-    case REB_BLOCK:
-    case REB_GROUP:
-        if (form)
-            Form_Array_At(mo, VAL_ARRAY(v), VAL_INDEX(v), 0);
-        else
-            Mold_Block(mo, v);
-        break;
-
-    case REB_PATH:
-    case REB_SET_PATH:
-    case REB_GET_PATH:
-    case REB_LIT_PATH:
-        Mold_Block(mo, v);
-        break;
-
-    case REB_VECTOR:
-        Mold_Or_Form_Vector(mo, v, form);
-        break;
-
-    case REB_DATATYPE: {
-        REBSTR *name = Canon(VAL_TYPE_SYM(v));
-    #if !defined(NDEBUG)
-        if (LEGACY(OPTIONS_PAREN_INSTEAD_OF_GROUP)) {
-            if (VAL_TYPE_KIND(v) == REB_GROUP)
-                name = Canon(SYM_PAREN_X); // e_Xclamation point (PAREN!)
-        }
-    #endif
-        if (form)
-            Emit(mo, "N", name);
-        else
-            Emit(mo, "+DN", SYM_DATATYPE_X, name);
-        break; }
-
-    case REB_TYPESET:
-        Mold_Or_Form_Typeset(mo, v, form);
-        break;
-
-    case REB_WORD: { // Note: called often
-        REBSTR *spelling = VAL_WORD_SPELLING(v);
-        Append_UTF8_May_Fail(s, STR_HEAD(spelling), STR_NUM_BYTES(spelling));
-        break; }
-
-    case REB_SET_WORD:
-        Emit(mo, "W:", v);
-        break;
-
-    case REB_GET_WORD:
-        Emit(mo, ":W", v);
-        break;
-
-    case REB_LIT_WORD:
-        Emit(mo, "\'W", v);
-        break;
-
-    case REB_REFINEMENT:
-        Emit(mo, "/W", v);
-        break;
-
-    case REB_ISSUE:
-        Emit(mo, "#W", v);
-        break;
-
-    case REB_FUNCTION:
-        Mold_Function(mo, v);
-        break;
-
-    case REB_VARARGS:
-        Mold_Varargs(mo, v);
-        break;
-
-    case REB_OBJECT:
-    case REB_MODULE:
-    case REB_PORT:
-    case REB_FRAME:
-        if (form)
-            Form_Any_Context(mo, v);
-        else
-            Mold_Any_Context(mo, v);
-        break;
-
-    case REB_ERROR:
-        Mold_Or_Form_Error(mo, v, form);
-        break;
-
-    case REB_MAP:
-        Mold_Or_Form_Map(mo, v, form);
-        break;
-
-    case REB_GOB: {
-        Pre_Mold(mo, v);
-
-        REBARR *array = Gob_To_Array(VAL_GOB(v));
-        Mold_Array_At(mo, array, 0, 0);
-        Free_Array(array);
-
-        End_Mold(mo);
-        break; }
-
-    case REB_EVENT:
-        Mold_Event(mo, v);
-        break;
-
-    case REB_STRUCT: {
-        Pre_Mold(mo, v);
-
-        REBARR *array = Struct_To_Array(VAL_STRUCT(v));
-        Mold_Array_At(mo, array, 0, 0);
-        Free_Array(array);
-
-        End_Mold(mo);
-        break; }
-
-    case REB_LIBRARY: {
-        Pre_Mold(mo, v);
-
-        REBCTX *meta = VAL_LIBRARY_META(v);
-        if (meta)
-            Mold_Any_Context(mo, CTX_VALUE(meta));
-
-        End_Mold(mo);
-        break; }
-
-    case REB_HANDLE:
-        // Value has no printable form, so just print its name.
-        if (form)
-            Emit(mo, "?T?", v);
-        else
-            Emit(mo, "+T", v);
-        break;
-
-    case REB_MAX_VOID:
+    if (IS_VOID(v)) {
         //
         // Voids should only be molded out in debug scenarios, but this still
         // happens a lot, e.g. PROBE() of context arrays when they have unset
@@ -1631,12 +518,12 @@ void Mold_Or_Form_Value(REB_MOLD *mo, const RELVAL *v, REBOOL form)
     #else
         printf("!!! Request to MOLD or FORM a void value !!!\n");
         Append_Unencoded(s, "!!!void!!!");
+        return;
     #endif
-        break;
-
-    default:
-        panic (v);
     }
+
+    MOLD_FUNC dispatcher = Mold_Or_Form_Dispatch[VAL_TYPE(v)];
+    dispatcher(mo, v, form); // all types have a hook, even if it just fails
 
 #if !defined(NDEBUG)
     if (THROWN(v))
@@ -2006,27 +893,9 @@ void Drop_Mold_Core(REB_MOLD *mo, REBOOL not_pushed_ok)
 //
 void Startup_Mold(REBCNT size)
 {
-    REBYTE *cp;
-    REBYTE c;
-    const REBYTE *dc;
-
     TG_Mold_Stack = Make_Series(10, sizeof(void*));
 
     Init_String(TASK_UNI_BUF, Make_Unicode(size));
-
-    // Create quoted char escape table:
-    Char_Escapes = cp = ALLOC_N_ZEROFILL(REBYTE, MAX_ESC_CHAR + 1);
-    for (c = '@'; c <= '_'; c++) *cp++ = c;
-    Char_Escapes[cast(REBYTE, '\t')] = '-'; // tab
-    Char_Escapes[cast(REBYTE, '\n')] = '/'; // line feed
-    Char_Escapes[cast(REBYTE, '"')] = '"';
-    Char_Escapes[cast(REBYTE, '^')] = '^';
-
-    URL_Escapes = cp = ALLOC_N_ZEROFILL(REBYTE, MAX_URL_CHAR + 1);
-    //for (c = 0; c <= MAX_URL_CHAR; c++) if (IS_LEX_DELIMIT(c)) cp[c] = ESC_URL;
-    for (c = 0; c <= ' '; c++) cp[c] = ESC_URL | ESC_FILE;
-    dc = cb_cast(";%\"()[]{}<>");
-    for (c = LEN_BYTES(dc); c > 0; c--) URL_Escapes[*dc++] = ESC_URL | ESC_FILE;
 }
 
 
@@ -2036,7 +905,4 @@ void Startup_Mold(REBCNT size)
 void Shutdown_Mold(void)
 {
     Free_Series(TG_Mold_Stack);
-
-    FREE_N(REBYTE, MAX_ESC_CHAR + 1, Char_Escapes);
-    FREE_N(REBYTE, MAX_URL_CHAR + 1, URL_Escapes);
 }

@@ -380,6 +380,33 @@ const REBYTE *Decode_Binary(
 
 
 //
+//  Prep_String: C
+//
+// Creates or expands the series and provides the location to copy text into.
+//
+static REBSER *Prep_String(REBSER *series, REBYTE **str, REBCNT len)
+{
+    if (series == NULL) {
+        series = Make_Binary(len);
+        SET_SERIES_LEN(series, len);
+        *str = BIN_HEAD(series);
+    }
+    else {
+        // This used "STR_AT" (obsolete) but didn't have an explicit case
+        // here that it was byte sized.  Check it, because if you have
+        // unicode characters this would give the wrong pointer.
+        //
+        assert(BYTE_SIZE(series));
+
+        REBCNT tail = SER_LEN(series);
+        EXPAND_SERIES_TAIL(series, len);
+        *str = BIN_AT(series, tail);
+    }
+    return series;
+}
+
+
+//
 //  Encode_Base2: C
 //
 // Base2 encode a given series. Must be BYTES, not UNICODE.

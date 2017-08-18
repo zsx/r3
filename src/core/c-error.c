@@ -1697,3 +1697,120 @@ REBINT Find_Next_Error_Base_Code(void)
         fail (Error_Out_Of_Error_Numbers_Raw());
     return (CTX_LEN(categories) - 1) * RE_CATEGORY_SIZE;
 }
+
+
+// Simple molder for error locations. Series must be valid.
+// Max length in chars must be provided.
+//
+static void Mold_Simple_Block(REB_MOLD *mo, RELVAL *block, REBCNT len)
+{
+    REBCNT start = SER_LEN(mo->series);
+
+    while (NOT_END(block)) {
+        if (SER_LEN(mo->series) - start > len)
+            break;
+        Mold_Value(mo, block);
+        block++;
+        if (NOT_END(block))
+            Append_Codepoint_Raw(mo->series, ' ');
+    }
+
+    // If it's too large, truncate it:
+    if (SER_LEN(mo->series) - start > len) {
+        SET_SERIES_LEN(mo->series, start + len);
+        Append_Unencoded(mo->series, "...");
+    }
+}
+
+
+//
+//  MF_Error: C
+//
+void MF_Error(REB_MOLD *mo, const RELVAL *v, REBOOL form)
+{
+    // Protect against recursion. !!!!
+    //
+    if (NOT(form)) {
+        MF_Context(mo, v, FALSE);
+        return;
+    }
+
+    REBCTX *error = VAL_CONTEXT(v);
+    ERROR_VARS *vars = ERR_VARS(error);
+
+    // Form: ** <type> Error:
+    if (IS_BLANK(&vars->type))
+        Emit(mo, "** S", RM_ERROR_LABEL);
+    else {
+        assert(IS_WORD(&vars->type));
+        Emit(mo, "** W S", &vars->type, RM_ERROR_LABEL);
+    }
+
+    // Append: error message ARG1, ARG2, etc.
+    if (IS_BLOCK(&vars->message))
+        Form_Array_At(mo, VAL_ARRAY(&vars->message), 0, error);
+    else if (IS_STRING(&vars->message))
+        Form_Value(mo, &vars->message);
+    else
+        Append_Unencoded(mo->series, RM_BAD_ERROR_FORMAT);
+
+    // Form: ** Where: function
+    REBVAL *where = KNOWN(&vars->where);
+    if (NOT(IS_BLANK(where))) {
+        Append_Codepoint_Raw(mo->series, '\n');
+        Append_Unencoded(mo->series, RM_ERROR_WHERE);
+        Form_Value(mo, where);
+    }
+
+    // Form: ** Near: location
+    REBVAL *nearest = KNOWN(&vars->nearest);
+    if (NOT(IS_BLANK(nearest))) {
+        Append_Codepoint_Raw(mo->series, '\n');
+        Append_Unencoded(mo->series, RM_ERROR_NEAR);
+
+        if (IS_STRING(nearest)) {
+            //
+            // !!! The scanner puts strings into the near information in order
+            // to say where the file and line of the scan problem was.  This
+            // seems better expressed as an explicit argument to the scanner
+            // error, because otherwise it obscures the LOAD call where the
+            // scanner was invoked.  Review.
+            //
+            Append_String(
+                mo->series, VAL_SERIES(nearest), 0, VAL_LEN_HEAD(nearest)
+            );
+        }
+        else if (IS_BLOCK(nearest))
+            Mold_Simple_Block(mo, VAL_ARRAY_AT(nearest), 60);
+        else
+            Append_Unencoded(mo->series, RM_BAD_ERROR_FORMAT);
+    }
+
+    // Form: ** File: filename
+    //
+    // !!! In order to conserve space in the system, filenames are interned.
+    // Although interned strings are GC'd when no longer referenced, they can
+    // only be used in ANY-WORD! values at the moment, so the filename is
+    // not a FILE!.
+    //
+    REBVAL *file = KNOWN(&vars->file);
+    if (NOT(IS_BLANK(file))) {
+        Append_Codepoint_Raw(mo->series, '\n');
+        Append_Unencoded(mo->series, RM_ERROR_FILE);
+        if (IS_WORD(file))
+            Form_Value(mo, file);
+        else
+            Append_Unencoded(mo->series, RM_BAD_ERROR_FORMAT);
+    }
+
+    // Form: ** Line: line-number
+    REBVAL *line = KNOWN(&vars->line);
+    if (NOT(IS_BLANK(line))) {
+        Append_Codepoint_Raw(mo->series, '\n');
+        Append_Unencoded(mo->series, RM_ERROR_LINE);
+        if (IS_INTEGER(line))
+            Form_Value(mo, line);
+        else
+            Append_Unencoded(mo->series, RM_BAD_ERROR_FORMAT);
+    }
+}
