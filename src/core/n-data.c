@@ -285,6 +285,48 @@ REBNATIVE(bind)
 
 
 //
+//  use: native [
+//
+//  {Defines words local to a block.}
+//
+//      return: [<opt> any-value!]
+//      vars [block! word!]
+//          {Local word(s) to the block}
+//      body [block!]
+//          {Block to evaluate}
+//  ]
+//
+REBNATIVE(use)
+//
+// !!! R3-Alpha's USE was written in userspace and was based on building a
+// CLOSURE! that it would DO.  Hence it took advantage of the existing code
+// for tying function locals to a block, and could be relatively short.  This
+// was wasteful in terms of creating an unnecessary function that would only
+// be called once.  The fate of CLOSURE-like semantics is in flux in Ren-C
+// (how much automatic-gathering and indefinite-lifetime will be built-in),
+// yet it's also more efficient to just make a native.
+//
+// As it stands, the code already existed for loop bodies to do this more
+// efficiently.  The hope is that with virtual binding, such constructs will
+// become even more efficient--for loops, BIND, and USE.
+{
+    INCLUDE_PARAMS_OF_USE;
+
+    REBCTX *context;
+    REBARR *copy = Copy_Body_Deep_Bound_To_New_Context(
+        &context,
+        ARG(vars), // similar to the "spec" of a loop, WORD! or BLOCK!
+        ARG(body)
+    );
+
+    if (Do_At_Throws(D_OUT, copy, 0, SPECIFIED)) // Will lock for GC
+        return R_OUT_IS_THROWN;
+
+    return R_OUT;
+}
+
+
+//
 //  context-of: native [
 //
 //  "Returns the context in which a word is bound."

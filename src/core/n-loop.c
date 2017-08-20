@@ -95,7 +95,8 @@ REBNATIVE(break)
 
     Move_Value(D_OUT, NAT_VALUE(break));
 
-    CONVERT_NAME_TO_THROWN(D_OUT, REF(with) ? ARG(value) : VOID_CELL);
+    UNUSED(REF(with)); // value will be void if no refinement provided
+    CONVERT_NAME_TO_THROWN(D_OUT, ARG(value));
 
     return R_OUT_IS_THROWN;
 }
@@ -121,7 +122,8 @@ REBNATIVE(continue)
 
     Move_Value(D_OUT, NAT_VALUE(continue));
 
-    CONVERT_NAME_TO_THROWN(D_OUT, REF(with) ? ARG(value) : VOID_CELL);
+    UNUSED(REF(with)); // value will be void if no refinement provided
+    CONVERT_NAME_TO_THROWN(D_OUT, ARG(value));
 
     return R_OUT_IS_THROWN;
 }
@@ -164,7 +166,7 @@ REBNATIVE(continue)
 // zero is correct because the duplicate body has already had the
 // items before its VAL_INDEX() omitted.
 //
-static REBARR *Copy_Body_Deep_Bound_To_New_Context(
+REBARR *Copy_Body_Deep_Bound_To_New_Context(
     REBCTX **context_out,
     const REBVAL *spec,
     REBVAL *body
@@ -213,6 +215,15 @@ static REBARR *Copy_Body_Deep_Bound_To_New_Context(
         VAL_ARRAY(body), VAL_INDEX(body), VAL_SPECIFIER(body)
     );
     Bind_Values_Deep(ARR_HEAD(body_out), context);
+
+    // !!! The binding process above may or may not have initialized a word
+    // in the body to point into the context, which (currently) would
+    // ensure the varlist of the context is managed.  If that didn't happen,
+    // (e.g. no references in the body) it would not be managed.  Make sure
+    // the resulting context is always managed for now, and review the idea
+    // of whether binding should ensure vs. assert.
+    //
+    ENSURE_ARRAY_MANAGED(CTX_VARLIST(context));
 
     *context_out = context;
 
