@@ -428,34 +428,11 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
 
     REBSER *series;
     REBCNT index;
-    if (ANY_CONTEXT(data)) {
-        series = SER(CTX_VARLIST(VAL_CONTEXT(data)));
-        index = 1;
-    }
-    else if (IS_MAP(data)) {
+    if (ANY_SERIES(data)) {
         series = VAL_SERIES(data);
-        index = 0;
-    }
-    else if (IS_DATATYPE(data)) {
-        //
-        // !!! Snapshotting the state is not particularly efficient.  However,
-        // bulletproofing an enumeration of the system against possible GC
-        // would be difficult.  And this is really just a debug/instrumentation
-        // feature anyway.
-        //
-        switch (VAL_TYPE_KIND(data)) {
-        case REB_FUNCTION:
-            series = SER(Snapshot_All_Functions());
-            index = 0;
-            PUSH_GUARD_ARRAY_CONTENTS(ARR(series));
-            break;
+        if (mode == LOOP_REMOVE_EACH)
+            FAIL_IF_READ_ONLY_SERIES(series);
 
-        default:
-            fail ("FUNCTION! is the only datatype with global enumeration");
-        }
-    }
-    else {
-        series = VAL_SERIES(data);
         index = VAL_INDEX(data);
         if (index >= SER_LEN(series)) {
             if (mode == LOOP_REMOVE_EACH) {
@@ -468,6 +445,44 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
             }
             return R_VOID;
         }
+    }
+    else {
+        // !!! Historically, only plain series supported REMOVE-EACH.  There
+        // are reasons why it is more complex or impossible for other types.
+        // It should also be noted that it's not a particularly efficient
+        // operation, since it requires "sliding up" the data on each
+        // removal to leave a valid series for the body.
+        // 
+        assert(mode != LOOP_REMOVE_EACH);
+
+        if (ANY_CONTEXT(data)) {
+            series = SER(CTX_VARLIST(VAL_CONTEXT(data)));
+            index = 1;
+        }
+        else if (IS_MAP(data)) {
+            series = VAL_SERIES(data);
+            index = 0;
+        }
+        else if (IS_DATATYPE(data)) {
+            //
+            // !!! Snapshotting the state is not particularly efficient.
+            // However, bulletproofing an enumeration of the system against
+            // possible GC would be difficult.  And this is really just a
+            // debug/instrumentation feature anyway.
+            //
+            switch (VAL_TYPE_KIND(data)) {
+            case REB_FUNCTION:
+                series = SER(Snapshot_All_Functions());
+                index = 0;
+                PUSH_GUARD_ARRAY_CONTENTS(ARR(series));
+                break;
+
+            default:
+                fail ("FUNCTION! is the only type with global enumeration");
+            }
+        }
+        else
+            panic ("Illegal type passed to Loop_Each()");
     }
 
     REBCNT write_index = index;

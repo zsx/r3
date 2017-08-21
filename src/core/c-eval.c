@@ -225,11 +225,21 @@ static inline void Link_Vararg_Param_To_Frame(REBFRM *f, REBOOL make) {
 // refinement to revoke it.  Note that since literal pointers are used, tests
 // like `f->refine == BLANK_VALUE` are faster than `IS_BLANK(f->refine)`.
 //
-#define SKIPPING_REFINEMENT_ARGS m_cast(REBVAL*, VOID_CELL)
-#define ARG_TO_UNUSED_REFINEMENT m_cast(REBVAL*, BLANK_VALUE)
-#define ARG_TO_REVOKED_REFINEMENT m_cast(REBVAL*, FALSE_VALUE)
-#define ORDINARY_ARG m_cast(REBVAL*, EMPTY_BLOCK)
-#define LOOKBACK_ARG m_cast(REBVAL*, EMPTY_STRING)
+
+#define SKIPPING_REFINEMENT_ARGS \
+    m_cast(REBVAL*, VOID_CELL)
+
+#define ARG_TO_UNUSED_REFINEMENT \
+    m_cast(REBVAL*, BLANK_VALUE)
+
+#define ARG_TO_REVOKED_REFINEMENT \
+    m_cast(REBVAL*, FALSE_VALUE)
+
+#define ORDINARY_ARG \
+    m_cast(REBVAL*, EMPTY_BLOCK)
+
+#define LOOKBACK_ARG \
+    m_cast(REBVAL*, EMPTY_STRING)
 
 
 //
