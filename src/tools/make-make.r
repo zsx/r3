@@ -446,6 +446,58 @@ extension-class: make object! [
     init: _ ;init-script
 ]
 
+;libffi
+cfg-ffi: make object! [
+    cflags:
+    includes:
+    definitions:
+    ldflags:
+    libraries:
+    searches: _
+]
+either block? user-config/with-ffi [
+    ffi: make cfg-ffi user-config/with-ffi
+    for-each word words-of cfg-ffi [
+        append get in app-config word
+            opt get in ffi word
+    ]
+][
+    switch/default user-config/with-ffi [
+        static dynamic [
+            for-each var [includes cflags searches ldflags][
+                x: rebmake/pkg-config
+                    any [user-config/pkg-config {pkg-config}]
+                    var
+                    %libffi
+                ;dump x
+                unless empty? x [
+                    set (in cfg-ffi var) x
+                ]
+            ]
+
+            libs: rebmake/pkg-config
+                any [user-config/pkg-config {pkg-config}]
+                'libraries
+                %libffi
+
+            cfg-ffi/libraries: map-each lib libs [
+                make rebmake/ext-dynamic-class [
+                    output: lib
+                    flags: either user-config/with-ffi = 'static [[static]][_]
+                ]
+            ]
+        ]
+        _ no off false #[false] [
+            ;pass
+        ]
+    ][
+        fail [
+            "WITH-FFI should be one of [dynamic static no]"
+            "not" (user-config/with-ffi)
+        ]
+    ]
+]
+
 available-modules: reduce [
     ;name module-file other-files
     mod-crypt: make module-class [
@@ -623,6 +675,11 @@ available-modules: reduce [
             %ffi/t-struct.c
             %ffi/t-routine.c
         ]
+        includes: cfg-ffi/includes
+        cflags: cfg-ffi/cflags
+        searches: cfg-ffi/searches
+        ldflags: cfg-ffi/ldflags
+        libraries: cfg-ffi/libraries
         ; Currently the libraries are specified by the USER-CONFIG/WITH-FFI
         ; until that logic is moved to something here.  So if you are going
         ; to build the FFI module, you need to also set WITH-FFI (though
@@ -1026,59 +1083,6 @@ append app-config/ldflags opt switch/default user-config/static [
     fail ["STATIC must be yes, no or logic! not" (user-config/static)]
 ]
 
-;libffi
-libffi-cflags: _
-either block? user-config/with-ffi [
-    ffi-proto: make object! [
-        cflags:
-        includes:
-        definitions:
-        ldflags:
-        libraries:
-        searches: _
-    ]
-    ffi: make ffi-proto user-config/with-ffi
-    for-each word words-of ffi-proto [
-        append get in app-config word
-            opt get in ffi word
-    ]
-][
-    switch/default user-config/with-ffi [
-        static dynamic [
-            for-each var [includes cflags searches ldflags][
-                x: rebmake/pkg-config
-                    any [user-config/pkg-config {pkg-config}]
-                    var
-                    %libffi
-                ;dump x
-                unless empty? x [
-                    append (get in app-config var) x
-                ]
-            ]
-
-            libs: rebmake/pkg-config
-                any [user-config/pkg-config {pkg-config}]
-                'libraries
-                %libffi
-
-            append app-config/libraries map-each lib libs [
-                make rebmake/ext-dynamic-class [
-                    output: lib
-                    flags: either user-config/with-ffi = 'static [[static]][_]
-                ]
-            ]
-        ]
-        _ no off false #[false] [
-            ;pass
-        ]
-    ][
-        fail [
-            "WITH-FFI should be one of [dynamic static no]"
-            "not" (user-config/with-ffi)
-        ]
-    ]
-]
-
 ;TCC
 cfg-tcc: _
 case [
@@ -1407,7 +1411,7 @@ prep: make rebmake/entry-class [
                     source: %../src/include/sys-core.h
                     definitions: join-of app-config/definitions [ {REN_C_STDIO_OK} ]
                     includes: append-of app-config/includes [%../external/tcc %../external/tcc/include]
-                    cflags: append-of append-of [ {-dD} {-nostdlib} ] opt libffi-cflags opt cfg-tcc/cpp-flags
+                    cflags: append-of append-of [ {-dD} {-nostdlib} ] opt cfg-ffi/cflags opt cfg-tcc/cpp-flags
                 ]
                 reduce [
                     sys-core-i/command/E
