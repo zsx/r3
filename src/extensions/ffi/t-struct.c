@@ -1269,7 +1269,11 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
         else if (raw_addr == 0) {
             if (FLD_IS_STRUCT(field)) {
                 REBCNT n = 0;
-                for (n = 0; n < FLD_DIMENSION(field); n ++) {
+                for (
+                    n = 0;
+                    n < (FLD_IS_ARRAY(field) ? FLD_DIMENSION(field) : 1);
+                    ++n
+                ){
                     memcpy(
                         SER_AT(
                             REBYTE,
