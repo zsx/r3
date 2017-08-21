@@ -264,9 +264,9 @@ process-module: func [
                         find? [
                             ext-dynamic-class
                             ext-static-class
-                        ] lib/class-name [
-                            lib
-                        ]
+                        ] lib/class-name
+                    ][
+                        lib
                     ]
                     true [
                         dump lib
