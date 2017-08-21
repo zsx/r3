@@ -970,27 +970,6 @@ once-bar: func [
 ]
 
 
-use: func [
-    {Defines words local to a block.}
-    return: [<opt> any-value!]
-    vars [block! word!] {Local word(s) to the block}
-    body [block!] {Block to evaluate}
-][
-    ; We are building a FUNC out of the body that was passed to us, and that
-    ; body may have RETURN words with bindings in them already that we do
-    ; not want to disturb with the definitional bindings in the new code.
-    ; So that means either using MAKE FUNCTION! (which wouldn't disrupt
-    ; RETURN bindings) or using the more friendly FUNC and `<with> return`
-    ; (they do the same thing, just FUNC is arity-2)
-    ;
-    ; <durable> is used so that the data for the locals will still be
-    ; available if any of the words leak out and are accessed after the
-    ; execution is finished.
-    ;
-    eval func compose [<durable> <local> (vars) <with> return] body
-]
-
-
 ; Shorthand helper for CONSTRUCT (similar to DOES for FUNCTION).
 ;
 has: func [

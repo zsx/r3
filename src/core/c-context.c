@@ -308,9 +308,7 @@ REBCTX *Copy_Context_Shallow_Extra(REBCTX *src, REBCNT extra) {
 void Collect_Keys_Start(REBFLGS flags)
 {
     assert(ARR_LEN(BUF_COLLECT) == 0); // should be empty
-    if (flags & COLLECT_ANY_WORD) {
-        NOOP; // flags not paid attention to for now
-    }
+    UNUSED(flags); // not paid attention to for _Start at this time
 
     // Leave the [0] slot blank while collecting.  This will become the
     // "rootparam" in function paramlists (where the FUNCTION! archetype
@@ -319,8 +317,8 @@ void Collect_Keys_Start(REBFLGS flags)
     // it's a FRAME! context...and not yet used in other context types)
     //
     // The reason it is set to an unreadable blank is because if it were trash
-    // then the copy routine that grabs the varlist as a copy of this array would
-    // have to support copying trash--which they do not allow.
+    // then the copy routine that grabs the varlist as a copy of this array
+    // would have to support copying trash--which they do not allow.
     //
     Init_Unreadable_Blank(ARR_HEAD(BUF_COLLECT));
     SET_ARRAY_LEN_NOTERM(BUF_COLLECT, 1);

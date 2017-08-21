@@ -95,7 +95,8 @@ REBNATIVE(break)
 
     Move_Value(D_OUT, NAT_VALUE(break));
 
-    CONVERT_NAME_TO_THROWN(D_OUT, REF(with) ? ARG(value) : VOID_CELL);
+    UNUSED(REF(with)); // value will be void if no refinement provided
+    CONVERT_NAME_TO_THROWN(D_OUT, ARG(value));
 
     return R_OUT_IS_THROWN;
 }
@@ -121,7 +122,8 @@ REBNATIVE(continue)
 
     Move_Value(D_OUT, NAT_VALUE(continue));
 
-    CONVERT_NAME_TO_THROWN(D_OUT, REF(with) ? ARG(value) : VOID_CELL);
+    UNUSED(REF(with)); // value will be void if no refinement provided
+    CONVERT_NAME_TO_THROWN(D_OUT, ARG(value));
 
     return R_OUT_IS_THROWN;
 }
@@ -164,7 +166,7 @@ REBNATIVE(continue)
 // zero is correct because the duplicate body has already had the
 // items before its VAL_INDEX() omitted.
 //
-static REBARR *Copy_Body_Deep_Bound_To_New_Context(
+REBARR *Copy_Body_Deep_Bound_To_New_Context(
     REBCTX **context_out,
     const REBVAL *spec,
     REBVAL *body
@@ -213,6 +215,15 @@ static REBARR *Copy_Body_Deep_Bound_To_New_Context(
         VAL_ARRAY(body), VAL_INDEX(body), VAL_SPECIFIER(body)
     );
     Bind_Values_Deep(ARR_HEAD(body_out), context);
+
+    // !!! The binding process above may or may not have initialized a word
+    // in the body to point into the context, which (currently) would
+    // ensure the varlist of the context is managed.  If that didn't happen,
+    // (e.g. no references in the body) it would not be managed.  Make sure
+    // the resulting context is always managed for now, and review the idea
+    // of whether binding should ensure vs. assert.
+    //
+    ENSURE_ARRAY_MANAGED(CTX_VARLIST(context));
 
     *context_out = context;
 
@@ -417,34 +428,11 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
 
     REBSER *series;
     REBCNT index;
-    if (ANY_CONTEXT(data)) {
-        series = SER(CTX_VARLIST(VAL_CONTEXT(data)));
-        index = 1;
-    }
-    else if (IS_MAP(data)) {
+    if (ANY_SERIES(data)) {
         series = VAL_SERIES(data);
-        index = 0;
-    }
-    else if (IS_DATATYPE(data)) {
-        //
-        // !!! Snapshotting the state is not particularly efficient.  However,
-        // bulletproofing an enumeration of the system against possible GC
-        // would be difficult.  And this is really just a debug/instrumentation
-        // feature anyway.
-        //
-        switch (VAL_TYPE_KIND(data)) {
-        case REB_FUNCTION:
-            series = SER(Snapshot_All_Functions());
-            index = 0;
-            PUSH_GUARD_ARRAY_CONTENTS(ARR(series));
-            break;
+        if (mode == LOOP_REMOVE_EACH)
+            FAIL_IF_READ_ONLY_SERIES(series);
 
-        default:
-            fail ("FUNCTION! is the only datatype with global enumeration");
-        }
-    }
-    else {
-        series = VAL_SERIES(data);
         index = VAL_INDEX(data);
         if (index >= SER_LEN(series)) {
             if (mode == LOOP_REMOVE_EACH) {
@@ -457,6 +445,44 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
             }
             return R_VOID;
         }
+    }
+    else {
+        // !!! Historically, only plain series supported REMOVE-EACH.  There
+        // are reasons why it is more complex or impossible for other types.
+        // It should also be noted that it's not a particularly efficient
+        // operation, since it requires "sliding up" the data on each
+        // removal to leave a valid series for the body.
+        // 
+        assert(mode != LOOP_REMOVE_EACH);
+
+        if (ANY_CONTEXT(data)) {
+            series = SER(CTX_VARLIST(VAL_CONTEXT(data)));
+            index = 1;
+        }
+        else if (IS_MAP(data)) {
+            series = VAL_SERIES(data);
+            index = 0;
+        }
+        else if (IS_DATATYPE(data)) {
+            //
+            // !!! Snapshotting the state is not particularly efficient.
+            // However, bulletproofing an enumeration of the system against
+            // possible GC would be difficult.  And this is really just a
+            // debug/instrumentation feature anyway.
+            //
+            switch (VAL_TYPE_KIND(data)) {
+            case REB_FUNCTION:
+                series = SER(Snapshot_All_Functions());
+                index = 0;
+                PUSH_GUARD_ARRAY_CONTENTS(ARR(series));
+                break;
+
+            default:
+                fail ("FUNCTION! is the only type with global enumeration");
+            }
+        }
+        else
+            panic ("Illegal type passed to Loop_Each()");
     }
 
     REBCNT write_index = index;

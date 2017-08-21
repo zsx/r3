@@ -300,15 +300,15 @@ inline static void SET_FRAME_VALUE(REBFRM *f, const RELVAL *value) {
 // Though REF can only be used with a REFINE() declaration, ARG can be used
 // with either.
 //
-// Under the hood `PARAM(1, foo)` and `REFINE(2, bar)` make const structs.
-// In an optimized build, these structures disappear completely, with all
-// addressing done directly into the call frame's cached `arg` pointer.
+// Under the hood `PARAM(1, foo)` and `REFINE(2, bar)` are const values in
+// the release build.  Under optimization they disappear completely, so that
+// addressing is done directly into the call frame's cached `arg` pointer.
 // It is also possible to get the typeset-with-symbol for a particular
 // parameter or refinement, e.g. with `PAR(foo)` or `PAR(bar)`.
 //
 // The PARAM and REFINE macros use token pasting to name the variables they
 // are declaring `p_name` instead of just `name`.  This prevents collisions
-// with C++ identifiers, so PARAM(case) and REFINE(new) would make `p_case`
+// with C/C++ identifiers, so PARAM(case) and REFINE(new) would make `p_case`
 // and `p_new` instead of just `case` and `new` as the variable names.  (This
 // is only visible in the debugger.)
 //
