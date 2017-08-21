@@ -492,6 +492,15 @@ available-modules: reduce [
                 ;
                 <msc:/wd4456>
 
+                ; This line causes the warning "result of 32-bit shift
+                ; implicitly converted to 64-bits" in MSVC 64-bit builds:
+                ;
+                ;     size_t palsize = 1u << mode_out->bitdepth;
+                ;
+                ; It could be changed to `((size_t)1) << ...` and avoid it.
+                ;
+                <msc:/wd4334>
+
                 ; There is a casting away of const qualifiers, which is bad,
                 ; but the PR to fix it has not been merged to LodePNG master.
                 ;
