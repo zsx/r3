@@ -33,7 +33,6 @@
 
 typedef enum {
     LOOP_FOR_EACH,
-    LOOP_REMOVE_EACH,
     LOOP_MAP_EACH,
     LOOP_EVERY
 } LOOP_MODE;
@@ -387,7 +386,7 @@ static REB_R Loop_Number_Common(
 //
 //  Loop_Each: C
 //
-// Common implementation code of FOR-EACH, REMOVE-EACH, MAP-EACH, and EVERY.
+// Common implementation code of FOR-EACH, MAP-EACH, and EVERY.
 //
 // !!! This routine has been slowly clarifying since R3-Alpha, and can
 // likely be factored in a better way...pushing more per-native code into the
@@ -430,62 +429,43 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
     REBCNT index;
     if (ANY_SERIES(data)) {
         series = VAL_SERIES(data);
-        if (mode == LOOP_REMOVE_EACH)
-            FAIL_IF_READ_ONLY_SERIES(series);
-
         index = VAL_INDEX(data);
         if (index >= SER_LEN(series)) {
-            if (mode == LOOP_REMOVE_EACH) {
-                Init_Integer(D_OUT, 0);
-                return R_OUT;
-            }
-            else if (mode == LOOP_MAP_EACH) {
+            if (mode == LOOP_MAP_EACH) {
                 Init_Block(D_OUT, Make_Array(0));
                 return R_OUT;
             }
             return R_VOID;
         }
     }
-    else {
-        // !!! Historically, only plain series supported REMOVE-EACH.  There
-        // are reasons why it is more complex or impossible for other types.
-        // It should also be noted that it's not a particularly efficient
-        // operation, since it requires "sliding up" the data on each
-        // removal to leave a valid series for the body.
-        // 
-        assert(mode != LOOP_REMOVE_EACH);
-
-        if (ANY_CONTEXT(data)) {
-            series = SER(CTX_VARLIST(VAL_CONTEXT(data)));
-            index = 1;
-        }
-        else if (IS_MAP(data)) {
-            series = VAL_SERIES(data);
-            index = 0;
-        }
-        else if (IS_DATATYPE(data)) {
-            //
-            // !!! Snapshotting the state is not particularly efficient.
-            // However, bulletproofing an enumeration of the system against
-            // possible GC would be difficult.  And this is really just a
-            // debug/instrumentation feature anyway.
-            //
-            switch (VAL_TYPE_KIND(data)) {
-            case REB_FUNCTION:
-                series = SER(Snapshot_All_Functions());
-                index = 0;
-                PUSH_GUARD_ARRAY_CONTENTS(ARR(series));
-                break;
-
-            default:
-                fail ("FUNCTION! is the only type with global enumeration");
-            }
-        }
-        else
-            panic ("Illegal type passed to Loop_Each()");
+    else if (ANY_CONTEXT(data)) {
+        series = SER(CTX_VARLIST(VAL_CONTEXT(data)));
+        index = 1;
     }
+    else if (IS_MAP(data)) {
+        series = VAL_SERIES(data);
+        index = 0;
+    }
+    else if (IS_DATATYPE(data)) {
+        //
+        // !!! Snapshotting the state is not particularly efficient.
+        // However, bulletproofing an enumeration of the system against
+        // possible GC would be difficult.  And this is really just a
+        // debug/instrumentation feature anyway.
+        //
+        switch (VAL_TYPE_KIND(data)) {
+        case REB_FUNCTION:
+            series = SER(Snapshot_All_Functions());
+            index = 0;
+            PUSH_GUARD_ARRAY_CONTENTS(ARR(series));
+            break;
 
-    REBCNT write_index = index;
+        default:
+            fail ("FUNCTION! is the only type with global enumeration");
+        }
+    }
+    else
+        panic ("Illegal type passed to Loop_Each()");
 
     // Iterate over each value in the data series block:
 
@@ -496,10 +476,6 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
 
         REBVAL *key = CTX_KEY(context, 1);
         REBVAL *var = CTX_VAR(context, 1);
-
-        REBCNT read_index;
-
-        read_index = index;  // remember starting spot
 
         // Set the FOREACH loop variables from the series:
         for (i = 1; NOT_END(key); i++, key++, var++) {
@@ -608,19 +584,13 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
                 Set_Tuple_Pixel(BIN_AT(series, index), var);
             }
             else {
-                assert(IS_STRING(data));
-                VAL_RESET_HEADER(var, REB_CHAR);
-                VAL_CHAR(var) = GET_ANY_CHAR(series, index);
+                assert(ANY_STRING(data));
+                Init_Char(var, GET_ANY_CHAR(series, index));
             }
             index++;
         }
 
         assert(IS_END(key) && IS_END(var));
-
-        if (index == read_index) {
-            // the word block has only set-words: for-each [a:] [1 2 3][]
-            index++;
-        }
 
         if (Do_At_Throws(D_OUT, body_copy, 0, SPECIFIED)) { // copy, specified
             if (!Catching_Break_Or_Continue(D_OUT, &stop)) {
@@ -638,30 +608,6 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
             // no action needed after body is run
             break;
 
-        case LOOP_REMOVE_EACH:
-            //
-            // If body evaluates to FALSE, preserve the slot.  Do the same
-            // for a void body, since that should have the same behavior as
-            // a CONTINUE with no /WITH (which most sensibly does not do
-            // a removal.)
-            //
-            if (IS_VOID(D_OUT) || IS_FALSEY(D_OUT)) {
-                //
-                // memory areas may overlap, so use memmove and not memcpy!
-                //
-                // !!! This seems a slow way to do it, but there's probably
-                // not a lot that can be done as the series is expected to
-                // be in a good state for the next iteration of the body. :-/
-                //
-                memmove(
-                    SER_AT_RAW(SER_WIDE(series), series, write_index),
-                    SER_AT_RAW(SER_WIDE(series), series, read_index),
-                    (index - read_index) * SER_WIDE(series)
-                );
-                write_index += index - read_index;
-            }
-            break;
-
         case LOOP_MAP_EACH:
             // anything that's not void will be added to the result
             if (!IS_VOID(D_OUT))
@@ -677,8 +623,6 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
             else if (IS_END(D_CELL) || !IS_BLANK(D_CELL))
                 Move_Value(D_CELL, D_OUT);
             break;
-        default:
-            assert(FALSE);
         }
 
         if (stop) {
@@ -736,13 +680,6 @@ skip_hidden: ;
     case LOOP_FOR_EACH:
         return R_OUT_VOID_IF_UNWRITTEN_TRUTHIFY;
 
-    case LOOP_REMOVE_EACH:
-        // Remove hole (updates tail):
-        if (write_index < index)
-            Remove_Series(series, write_index, index - write_index);
-        Init_Integer(D_OUT, index - write_index);
-        return R_OUT;
-
     case LOOP_MAP_EACH:
         Init_Block(D_OUT, Pop_Stack_Values(dsp_orig));
         return R_OUT;
@@ -756,12 +693,9 @@ skip_hidden: ;
 
         Move_Value(D_OUT, D_CELL);
         return R_OUT; // should it be like R_OUT_VOID_IF_UNWRITTEN_TRUTHIFY?
-
-    default:
-        assert(FALSE);
     }
 
-    DEAD_END;
+    DEAD_END; // all branches handled in enum switch
 }
 
 
@@ -997,14 +931,132 @@ REBNATIVE(for_each)
 //      'vars [word! block!]
 //          "Word or block of words to set each time (local)"
 //      data [any-series!]
-//          "The series to traverse (modified)"
+//          "The series to traverse (modified)" ; should BLANK! opt-out?
 //      body [block!]
 //          "Block to evaluate (return TRUE to remove)"
 //  ]
 //
 REBNATIVE(remove_each)
 {
-    return Loop_Each(frame_, LOOP_REMOVE_EACH);
+    INCLUDE_PARAMS_OF_REMOVE_EACH;
+
+    REBVAL *data = ARG(data);
+
+    // Check the series for whether it is read only, in which case we should
+    // not be running a REMOVE-EACH on it.
+    //
+    REBSER *series = VAL_SERIES(data);
+    FAIL_IF_READ_ONLY_SERIES(series);
+
+    REBCNT index = VAL_INDEX(data);
+    if (index >= SER_LEN(series)) {
+        Init_Integer(D_OUT, 0);
+        return R_OUT;
+    }
+
+    REBOOL stop = FALSE;
+    REBOOL threw = FALSE; // did a non-BREAK or non-CONTINUE throw occur
+
+    assert(IS_END(D_OUT));
+
+    REBCTX *context;
+    REBARR *body_copy = Copy_Body_Deep_Bound_To_New_Context(
+        &context,
+        ARG(vars),
+        ARG(body)
+    );
+    Init_Object(ARG(vars), context); // keep GC safe
+    Init_Block(ARG(body), body_copy); // keep GC safe
+
+    REBCNT write_index = index;
+
+    // Iterate over each value in the data series block:
+
+    REBCNT tail;
+    while (index < (tail = SER_LEN(series))) {
+        REBCNT read_index = index;  // remember starting spot
+
+        REBVAL *key = CTX_KEY(context, 1);
+        REBVAL *var = CTX_VAR(context, 1);
+        REBCNT i;
+        for (i = 1; NOT_END(key); i++, key++, var++) {
+
+            if (index >= tail) {
+                Init_Blank(var);
+                continue;
+            }
+
+            if (ANY_ARRAY(data)) {
+                Derelativize(
+                    var,
+                    ARR_AT(ARR(series), index),
+                    VAL_SPECIFIER(data) // !!! always matches series?
+                );
+            }
+            else if (IS_BINARY(data)) {
+                Init_Integer(var, cast(REBI64, BIN_HEAD(series)[index]));
+            }
+            else {
+                assert(ANY_STRING(data));
+                Init_Char(var, GET_ANY_CHAR(series, index));
+            }
+            index++;
+        }
+
+        assert(IS_END(key) && IS_END(var));
+
+        if (index == read_index) {
+            // the word block has only set-words: for-each [a:] [1 2 3][]
+            index++;
+        }
+
+        if (Do_At_Throws(D_OUT, body_copy, 0, SPECIFIED)) { // copy, specified
+            if (!Catching_Break_Or_Continue(D_OUT, &stop)) {
+                // A non-loop throw, we should be bubbling up
+                threw = TRUE;
+                break;
+            }
+
+            // Fall through and process the D_OUT (unset if no /WITH) for
+            // this iteration.  `stop` flag will be checked ater that.
+        }
+
+        if (IS_VOID(D_OUT) || IS_FALSEY(D_OUT)) {
+            //
+            // memory areas may overlap, so use memmove and not memcpy!
+            //
+            // !!! This seems a slow way to do it, but there's probably
+            // not a lot that can be done as the series is expected to
+            // be in a good state for the next iteration of the body. :-/
+            //
+            memmove(
+                SER_AT_RAW(SER_WIDE(series), series, write_index),
+                SER_AT_RAW(SER_WIDE(series), series, read_index),
+                (index - read_index) * SER_WIDE(series)
+            );
+            write_index += index - read_index;
+        }
+
+        if (stop) {
+            Init_Blank(D_OUT);
+            break;
+        }
+    }
+
+    if (threw) {
+        // a non-BREAK and non-CONTINUE throw overrides any other return
+        // result we might give (generic THROW, RETURN, QUIT, etc.)
+
+        return R_OUT_IS_THROWN;
+    }
+
+    if (stop)
+        return R_BLANK;
+
+    if (write_index < index)
+        Remove_Series(series, write_index, index - write_index);
+    Init_Integer(D_OUT, index - write_index);
+    return R_OUT;
 }
 
 
