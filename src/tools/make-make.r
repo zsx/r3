@@ -497,6 +497,7 @@ either block? user-config/with-ffi [
         ]
     ]
 ]
+print ["cfg-ffi:" mold cfg-ffi]
 
 available-modules: reduce [
     ;name module-file other-files
