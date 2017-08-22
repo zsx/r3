@@ -149,13 +149,12 @@ inline static REBSTR *FLD_NAME(REBFLD *f) {
 }
 
 inline static REBOOL FLD_IS_STRUCT(REBFLD *f) {
-    if (IS_BLOCK(FLD_AT(f, IDX_FIELD_TYPE))) {
-        //
-        // Only non-struct fields are currently named.
-        //
-        assert(FLD_NAME(f) == NULL);
+    if (IS_BLOCK(FLD_AT(f, IDX_FIELD_TYPE)))
         return TRUE;
-    }
+
+    // Only top level struct schemas may have NULL names
+    //
+    assert(FLD_NAME(f) != NULL);
     return FALSE;
 }
 
