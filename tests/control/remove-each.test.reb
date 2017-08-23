@@ -23,6 +23,21 @@
     block = [3 4]
 ][
     block: copy [1 2 3 4]
+    remove-each i block [
+        if i = 3 [break/with true]
+        false
+    ]
+    block = [1 2 4]
+][
+    block: copy [1 2 3 4]
+    remove-each i block [
+        if i = 3 [continue/with true]
+        if i = 4 [true]
+        false
+    ]
+    block = [1 2]
+][
+    block: copy [1 2 3 4]
     trap [
         remove-each i block [
             if i = 3 [fail "midstream failure"]

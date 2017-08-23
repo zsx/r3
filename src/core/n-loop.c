@@ -153,8 +153,7 @@ REBNATIVE(continue)
 //
 // !!! Ren-C managed to avoid deep copying function bodies yet still get
 // "specific binding" by means of "relative values" (RELVALs) and specifiers.
-// Extending this approach is hoped to be able to avoid the deep copy.  It
-// may also be that the underlying data of the
+// Extending this approach is hoped to be able to avoid the deep copy.
 //
 // !!! With stack-backed contexts in Ren-C, it may be the case that the
 // chunk stack is used as backing memory for the loop, so it can be freed
@@ -1076,8 +1075,6 @@ REBNATIVE(remove_each)
     REBSER *series = VAL_SERIES(data);
     FAIL_IF_READ_ONLY_SERIES(series);
 
-    struct Remove_Each_State res;
-
     REBCNT index = VAL_INDEX(data);
     if (index >= SER_LEN(series)) {
         //
@@ -1090,14 +1087,29 @@ REBNATIVE(remove_each)
         return R_OUT;
     }
 
-    // Set a bit saying we are iterating the series, which will disallow
-    // mutations (including a nested REMOVE-EACH) until completion or failure.
-    // This flag will be cleaned up by Finalize_Remove_Each(), which is run
-    // even if there is a fail().
+    // Create a context for the loop variables, and bind the body to it.
+    // Do this before PUSH_TRAP, so that if there is any failure related to
+    // memory or a poorly formed ARG(vars) that it doesn't try to finalize
+    // the REMOVE-EACH, as `res` is not ready yet.
     //
-    SET_SER_INFO(series, SERIES_INFO_HOLD);
+    REBCTX *context;
+    REBARR *body_copy = Copy_Body_Deep_Bound_To_New_Context(
+        &context,
+        ARG(vars),
+        ARG(body)
+    );
 
+    // Both must be kept safe from GC, so store them in the argument slots
+    // that have had their information extracted and aren't needed anymore.
+    //
+    Init_Object(ARG(vars), context); // keep GC safe
+    Init_Block(ARG(body), body_copy); // keep GC safe
+
+    struct Remove_Each_State res;
     res.data = data;
+
+    // res.start will be initialized on the first loop iteration, and will
+    // be guaranteed set to the length if the loop ends normally.
 
     REB_MOLD mold_struct;
     if (ANY_ARRAY(data)) {
@@ -1150,22 +1162,17 @@ REBNATIVE(remove_each)
         fail (error); // Trap happened, so no trap in effect; this propagates
     }
 
-    // Create a context for the loop variables, and bind the body to it.
-    REBCTX *context;
-    REBARR *body_copy = Copy_Body_Deep_Bound_To_New_Context(
-        &context,
-        ARG(vars),
-        ARG(body)
-    );
-
-    // Both must be kept safe from GC, so store them in the argument slots
-    // that have had their information extracted and aren't needed anymore)
+    // Set a bit saying we are iterating the series, which will disallow
+    // mutations (including a nested REMOVE-EACH) until completion or failure.
+    // This flag will be cleaned up by Finalize_Remove_Each(), which is run
+    // even if there is a fail().
     //
-    Init_Object(ARG(vars), context); // keep GC safe
-    Init_Block(ARG(body), body_copy); // keep GC safe
+    SET_SER_INFO(series, SERIES_INFO_HOLD);
+
+    REBOOL stop = FALSE;
 
     REBCNT len = SER_LEN(series); // series temp read-only, this won't change
-    while (index < len) {
+    while (index < len && NOT(stop)) {
         res.start = index;
 
         REBVAL *var = CTX_VAR(context, 1);
@@ -1178,7 +1185,7 @@ REBNATIVE(remove_each)
                 //     remove-each [x y] data [...]
                 //
                 Init_Void(var);
-                continue; // the FOR loop setting variables
+                continue; // the `for` loop setting variables
             }
 
             if (ANY_ARRAY(data))
@@ -1197,7 +1204,6 @@ REBNATIVE(remove_each)
         }
 
         if (Do_At_Throws(D_CELL, body_copy, 0, SPECIFIED)) {
-            REBOOL stop;
             if (!Catching_Break_Or_Continue(D_CELL, &stop)) {
                 //
                 // A non-loop throw, we should be bubbling up.
@@ -1210,20 +1216,15 @@ REBNATIVE(remove_each)
 
             if (stop) {
                 //
-                // !!! Should the return conventions of REMOVE-EACH honor the
-                // "loop protocol" where a broken loop returns BLANK!?
-                //
-                DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
-                REBCNT removals = Finalize_Remove_Each(&res);
-                Init_Integer(D_OUT, removals);
-                return R_OUT;
+                // BREAK - D_CELL may not be void if /WITH refinement used
             }
-
-            assert(IS_VOID(D_CELL)); // `continue` is same as body giving void
+            else {
+                // CONTINUE - D_CELL may not be void if /WITH refinement used
+            }
         }
 
         if (IS_VOID(D_CELL))
-            continue; // void body means opt out of removal decision
+            continue; // void body (or plain CONTINUE), opt out of decision
 
         if (ANY_ARRAY(data)) {
             if (IS_FALSEY(D_CELL)) // keep requested, don't mark for culling
@@ -1242,30 +1243,33 @@ REBNATIVE(remove_each)
 
             do {
                 assert(res.start <= len);
-                if (IS_BINARY(data))
-                    Append_Codepoint_Raw(
-                        res.mo->series,
-                        cast(REBUNI, BIN_HEAD(series)[res.start])
-                    );
-                else
-                    Append_Codepoint_Raw(
-                        res.mo->series,
-                        GET_ANY_CHAR(series, res.start)
-                    );
+                Append_Codepoint_Raw(
+                   res.mo->series,
+                   IS_BINARY(data)
+                       ? cast(REBUNI, BIN_HEAD(series)[res.start])
+                       : GET_ANY_CHAR(series, res.start)
+                );
                 ++res.start;
             } while (res.start != index);
         }
     }
 
     // We get here on normal completion without BREAK, THROW, or fail()
+
+    DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
+
     // Finalize needs to know it doesn't need to push any residual data,
     // and it knows this because res.start is not less than the length.
     //
     res.start = len;
-
-    DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
-
     REBCNT removals = Finalize_Remove_Each(&res);
+
+    if (stop) {
+        //
+        // !!! Should the return conventions of REMOVE-EACH honor the
+        // "loop protocol" where a broken loop returns BLANK!?
+    }
+
     Init_Integer(D_OUT, removals);
     return R_OUT;
 }
