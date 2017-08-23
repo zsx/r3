@@ -386,11 +386,14 @@ inline static void VAL_RESET_HEADER_common( // don't call directly
 }
 
 #ifdef NDEBUG
+    #define ASSERT_CELL_WRITABLE(v,file,line) \
+        NOOP
+
     #define VAL_RESET_HEADER_EXTRA(v,kind,extra) \
         VAL_RESET_HEADER_common((v), (kind), (extra))
 
-    #define ASSERT_CELL_WRITABLE(v,file,line) \
-        NOOP
+    #define VAL_RESET(v,kind,extra) \
+        VAL_RESET_HEADER_EXTRA((v), (kind), (extra))
 
     // Note no VALUE_FLAG_STACK
     #define INIT_CELL(v) \
@@ -446,6 +449,25 @@ inline static void VAL_RESET_HEADER_common( // don't call directly
 
     #define VAL_RESET_HEADER_EXTRA(v,kind,extra) \
         VAL_RESET_HEADER_EXTRA_Debug((v), (kind), (extra), __FILE__, __LINE__)
+
+    // VAL_RESET is a variant of VAL_RESET_HEADER_EXTRA that actually
+    // overwrites the payload with tracking information.  It should not be
+    // used if the intent is to preserve the payload and extra, and is
+    // wasteful if you're just going to overwrite them immediately afterward.
+    //
+    inline static void VAL_RESET_Debug(
+        RELVAL *v,
+        enum Reb_Kind kind,
+        REBUPT extra,
+        const char *file,
+        int line
+    ){
+        VAL_RESET_HEADER_EXTRA_Debug(v, kind, extra, file, line);
+        Set_Track_Payload_Debug(v, file, line);
+    }
+
+    #define VAL_RESET(v,kind,extra) \
+        VAL_RESET_Debug((v), (kind), (extra), __FILE__, __LINE__)
 
     inline static void INIT_CELL_Debug(
         RELVAL *v, const char *file, int line
@@ -658,7 +680,7 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
     LOGICAL(VAL_TYPE(v) == REB_MAX_VOID)
 
 #define Init_Void(v) \
-    VAL_RESET_HEADER(v, REB_MAX_VOID)
+    VAL_RESET((v), REB_MAX_VOID, 0)
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -682,10 +704,10 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
     c_cast(const REBVAL*, &PG_Bar_Value[0])
 
 #define Init_Bar(v) \
-    VAL_RESET_HEADER((v), REB_BAR)
+    VAL_RESET((v), REB_BAR, 0)
 
 #define Init_Lit_Bar(v) \
-    VAL_RESET_HEADER((v), REB_LIT_BAR)
+    VAL_RESET((v), REB_LIT_BAR, 0)
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -719,7 +741,7 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
     c_cast(const REBVAL*, &PG_Blank_Value[0])
 
 #define Init_Blank(v) \
-    VAL_RESET_HEADER_EXTRA((v), REB_BLANK, VALUE_FLAG_FALSEY)
+    VAL_RESET((v), REB_BLANK, VALUE_FLAG_FALSEY)
 
 #ifdef NDEBUG
     #define Init_Unreadable_Blank(v) \
@@ -735,7 +757,7 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
         cast(REBVAL*, (v))
 #else
     #define Init_Unreadable_Blank(v) \
-        VAL_RESET_HEADER_EXTRA((v), REB_BLANK, \
+        VAL_RESET((v), REB_BLANK, \
             VALUE_FLAG_FALSEY | BLANK_FLAG_UNREADABLE_DEBUG)
 
     inline static REBOOL IS_BLANK_RAW(const RELVAL *v) {
@@ -813,8 +835,7 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
     c_cast(const REBVAL*, &PG_True_Value[0])
 
 #define Init_Logic(v,b) \
-    VAL_RESET_HEADER_EXTRA((v), REB_LOGIC, \
-        (b) ? 0 : VALUE_FLAG_FALSEY)
+    VAL_RESET((v), REB_LOGIC, (b) ? 0 : VALUE_FLAG_FALSEY)
 
 #ifdef NDEBUG
     #define IS_FALSEY(v) \
