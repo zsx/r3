@@ -1223,12 +1223,11 @@ REBNATIVE(remove_each)
             }
         }
 
-        if (IS_VOID(D_CELL))
-            continue; // void body (or plain CONTINUE), opt out of decision
-
         if (ANY_ARRAY(data)) {
-            if (IS_FALSEY(D_CELL)) // keep requested, don't mark for culling
-                continue;
+            if (IS_VOID(D_CELL) || IS_FALSEY(D_CELL)) {
+                res.start = index;
+                continue; // keep requested, don't mark for culling
+            }
 
             do {
                 assert(res.start <= len);
@@ -1238,8 +1237,10 @@ REBNATIVE(remove_each)
             } while (res.start != index);
         }
         else {
-            if (IS_TRUTHY(D_CELL)) // remove requested, don't save to buffer
-                continue;
+            if (NOT(IS_VOID(D_CELL)) && IS_TRUTHY(D_CELL)) {
+                res.start = index;
+                continue; // remove requested, don't save to buffer
+            }
 
             do {
                 assert(res.start <= len);
@@ -1254,14 +1255,15 @@ REBNATIVE(remove_each)
         }
     }
 
-    // We get here on normal completion without BREAK, THROW, or fail()
+    // We get here on normal completion or a BREAK
+    // THROW will return above, fail() takes the `error != NULL` branch
 
     DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 
-    // Finalize needs to know it doesn't need to push any residual data,
-    // and it knows this because res.start is not less than the length.
+    // Finalize may need to process residual data in the case of BREAK
+    // It knows this based on res.start < len
     //
-    res.start = len;
+    assert((stop && res.start <= len) || (!stop && res.start == len));
     REBCNT removals = Finalize_Remove_Each(&res);
 
     if (stop) {
