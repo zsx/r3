@@ -1379,6 +1379,54 @@ void Expand_Series(REBSER *s, REBCNT index, REBCNT delta)
 
 
 //
+//  Swap_Series_Content: C
+//
+// Retain the identity of the two series but do a low-level swap of their
+// content with each other.
+//
+void Swap_Series_Content(REBSER* a, REBSER* b)
+{
+    // While the data series underlying a string may change widths over the
+    // lifetime of that string node, there's not really any reasonable case
+    // for mutating an array node into a non-array or vice versa.
+    //
+    assert(
+        GET_SER_FLAG(a, SERIES_FLAG_ARRAY)
+        == GET_SER_FLAG(b, SERIES_FLAG_ARRAY)
+    );
+
+    // There are bits in the ->info and ->header which pertain to the content,
+    // which includes whether the series is dynamic or if the data lives in
+    // the node itself, the width (right 8 bits), etc.  Note that the length
+    // of non-dynamic series lives in the header.
+
+    REBYTE a_wide = SER_WIDE(a);
+    SER_SET_WIDE(a, SER_WIDE(b));
+    SER_SET_WIDE(b, a_wide);
+
+    REBOOL a_has_dynamic = GET_SER_INFO(a, SERIES_INFO_HAS_DYNAMIC);
+    if (GET_SER_INFO(b, SERIES_INFO_HAS_DYNAMIC))
+        SET_SER_INFO(a, SERIES_INFO_HAS_DYNAMIC);
+    else
+        CLEAR_SER_INFO(a, SERIES_INFO_HAS_DYNAMIC);
+    if (a_has_dynamic)
+        SET_SER_INFO(b, SERIES_INFO_HAS_DYNAMIC);
+    else
+        CLEAR_SER_INFO(b, SERIES_INFO_HAS_DYNAMIC);
+
+    REBCNT a_len = SER_LEN(a);
+    REBCNT b_len = SER_LEN(b);
+
+    union Reb_Series_Content a_content = a->content;
+    a->content = b->content;
+    b->content = a_content;
+
+    SET_SERIES_LEN(a, b_len);
+    SET_SERIES_LEN(b, a_len);
+}
+
+
+//
 //  Remake_Series: C
 //
 // Reallocate a series as a given maximum size.  Content in the retained

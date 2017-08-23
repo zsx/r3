@@ -396,7 +396,7 @@ inline static void SET_FRAME_VALUE(REBFRM *f, const RELVAL *value) {
 inline static void Enter_Native(REBFRM *f) {
     f->flags.bits |= DO_FLAG_NATIVE_HOLD;
     if (f->varlist != NULL)
-        SET_SER_INFO(f->varlist, SERIES_INFO_RUNNING);
+        SET_SER_INFO(f->varlist, SERIES_INFO_HOLD);
 }
 
 

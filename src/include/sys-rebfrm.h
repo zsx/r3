@@ -113,13 +113,14 @@
 #define DO_FLAG_4_IS_TRUE FLAGIT_LEFT(4) // NODE_FLAG_END
 
 
-//=//// DO_FLAG_TOOK_FRAME_LOCK ///////////////////////////////////////////=//
+//=//// DO_FLAG_TOOK_FRAME_HOLD ///////////////////////////////////////////=//
 //
 // While R3-Alpha permitted modifications of an array while it was being
-// executed, Ren-C does not.  It takes a lock if the source is not already
-// read only, and sets it back when Do_Core is finished (or on errors)
+// executed, Ren-C does not.  It takes a temporary read-only "hold" if the
+// source is not already read only, and sets it back when Do_Core is
+// finished (or on errors).  See SERIES_INFO_HOLD for more about this.
 //
-#define DO_FLAG_TOOK_FRAME_LOCK \
+#define DO_FLAG_TOOK_FRAME_HOLD \
     FLAGIT_LEFT(5)
 
 

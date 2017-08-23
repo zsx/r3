@@ -266,7 +266,7 @@ Access: [
     
     series-protected:   {series read-only due to PROTECT (see UNPROTECT)}
     series-frozen:      {series is source or permanently locked, can't modify}
-    series-running:     {series temporarily read-only for running (DO, PARSE)}
+    series-held:        {series has temporary read-only hold for iteration}
 
     hidden:             {not allowed - would expose or modify hidden values}
 

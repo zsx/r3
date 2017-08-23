@@ -321,16 +321,20 @@
     FLAGIT_LEFT(5)
 
 
-//=//// SERIES_INFO_RUNNING ///////////////////////////////////////////////=//
+//=//// SERIES_INFO_HOLD //////////////////////////////////////////////////=//
 //
-// Set in the header while a DO is happening on (or a PARSE, etc.) and gives
-// it a temporarily protected state.  It will be released when the execution
-// is finished, which distinguishes it from SERIES_INFO_FROZEN, from which it
-// will never come back, as long as it lives...
+// Set in the header whenever some stack-based operation wants a temporary
+// hold on a series, to give it a protected state.  This will happen with a
+// DO, or PARSE, or enumerations.  Even REMOVE-EACH will transition the series
+// it is operating on into a HOLD state while the removal signals are being
+// gathered, and apply all the removals at once before releasing the hold.
+//
+// It will be released when the execution is finished, which distinguishes it
+// from SERIES_INFO_FROZEN, which will never be reset, as long as it lives...
 //
 // Note: Same bit as NODE_FLAG_SPECIAL, should not be relevant.
 // 
-#define SERIES_INFO_RUNNING \
+#define SERIES_INFO_HOLD \
     FLAGIT_LEFT(6)
 
 

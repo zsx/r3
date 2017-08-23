@@ -784,13 +784,19 @@ struct Reb_Value
 // Note that this will clear NODE_FLAG_FREE, so it should be checked by the
 // debug build before resetting.
 //
+// Note also that NODE_FLAG_MARKED usage is a relatively new concept, e.g.
+// to allow REMOVE-EACH to mark values in a locked series as to which should
+// be removed when the enumeration is finished.  This *should* not be able
+// to interfere with the GC, since userspace arrays don't use that flag with
+// that meaning, but time will tell if it's a good idea to reuse the bit.
+//
 
 #define CELL_MASK_RESET \
     (NODE_FLAG_NODE | NODE_FLAG_CELL \
         | NODE_FLAG_MANAGED | VALUE_FLAG_STACK)
 
 #define CELL_MASK_COPY \
-    ~(CELL_MASK_RESET \
+    ~(CELL_MASK_RESET | NODE_FLAG_MARKED \
         | VALUE_FLAG_ENFIXED | VALUE_FLAG_PROTECTED | VALUE_FLAG_UNEVALUATED)
 
 

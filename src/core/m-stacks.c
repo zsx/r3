@@ -331,7 +331,7 @@ void Reify_Frame_Context_Maybe_Fulfilling(REBFRM *f) {
     // itself, but should stop modifications from user code.
     //
     if (f->flags.bits & DO_FLAG_NATIVE_HOLD)
-        SET_SER_INFO(f->varlist, SERIES_INFO_RUNNING);
+        SET_SER_INFO(f->varlist, SERIES_INFO_HOLD);
 
     ASSERT_ARRAY_MANAGED(CTX_KEYLIST(c));
     MANAGE_ARRAY(f->varlist);

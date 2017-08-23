@@ -481,7 +481,7 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
         for (i = 1; NOT_END(key); i++, key++, var++) {
 
             if (index >= tail) {
-                Init_Blank(var);
+                Init_Void(var);
                 continue;
             }
 
@@ -923,11 +923,132 @@ REBNATIVE(for_each)
 }
 
 
+struct Remove_Each_State {
+    REBVAL *data;
+    REBCNT start;
+    REB_MOLD *mo;
+};
+
+// For important reasons of semantics and performance, the REMOVE-EACH native
+// does not actually perform removals "as it goes".  It could run afoul of
+// any number of problems, including the mutable series becoming locked during
+// the iteration.  Hence the iterated series is locked, and the removals are
+// applied all at once atomically.
+//
+// However, this means that there's state which must be finalized on every
+// possible exit path...be that BREAK, THROW, FAIL, or just ordinary finishing
+// of the loop.  That finalization is done by this routine, which will clean
+// up the state and remove any indicated items.  (It is assumed that all
+// forms of exit, including raising an error, would like to apply any
+// removals indicated thus far.)
+//
+static inline REBCNT Finalize_Remove_Each(struct Remove_Each_State *res)
+{
+    REBVAL *data = res->data;
+    REBSER *series = VAL_SERIES(data);
+
+    assert(GET_SER_INFO(series, SERIES_INFO_HOLD));
+    CLEAR_SER_INFO(series, SERIES_INFO_HOLD);
+
+    REBCNT count = 0;
+    if (ANY_ARRAY(data)) {
+        REBCNT len = VAL_LEN_HEAD(data);
+
+        RELVAL *dest = VAL_ARRAY_AT(data);
+        RELVAL *src = dest;
+
+        for (; NOT_END(dest); ++dest, ++src) {
+            while (NOT_END(src) && (src->header.bits & NODE_FLAG_MARKED)) {
+                ++src;
+                --len;
+                ++count;
+            }
+            if (IS_END(src)) {
+                TERM_ARRAY_LEN(VAL_ARRAY(data), len);
+                return count;
+            }
+            *dest = *src; // same array--one of the few places we can do this
+        }
+
+        // If we get here, there were no removals, and length is unchanged.
+        //
+        assert(count == 0);
+        assert(len == VAL_LEN_HEAD(data));
+    }
+    else if (IS_BINARY(data)) {
+        //
+        // If there was a BREAK, THROW, or fail() we need the remaining data
+        //
+        REBCNT orig_len = VAL_LEN_HEAD(data);
+        assert(res->start <= orig_len);
+        for (; res->start != orig_len; ++res->start) {
+            Append_Codepoint_Raw(
+                res->mo->series,
+                cast(REBUNI, BIN_HEAD(series)[res->start])
+            );
+        }
+
+        REBSER *popped = Pop_Molded_String(res->mo);
+
+        // We should have only added codepoints between 0x00 and 0xFF, and
+        // Pop_Molded_String() should always use Copy_String_Slimming() and
+        // realize that can be done as a byte-size series.  But it's very
+        // bad if it's not, so keep a panic on it even in release build for
+        // now until this gets some review.
+        //
+        if (NOT(BYTE_SIZE(popped)))
+            panic ("Internal error in REMOVE-EACH, non-BYTE-SIZE BINARY!");
+
+        assert(SER_LEN(popped) <= VAL_LEN_HEAD(data));
+        count = VAL_LEN_HEAD(data) - SER_LEN(popped);
+
+        // We want to swap out the data properties of the series, so the
+        // identity of the incoming series is kept but now with different
+        // underlying data.
+        //
+        Swap_Series_Content(popped, VAL_SERIES(data));
+
+        Free_Series(popped); // now frees the incoming series underlying data
+    }
+    else {
+        assert(ANY_STRING(data));
+
+        // If there was a BREAK, THROW, or fail() we need the remaining data
+        //
+        REBCNT orig_len = VAL_LEN_HEAD(data);
+        assert(res->start <= orig_len);
+        for (; res->start != orig_len; ++res->start) {
+            Append_Codepoint_Raw(
+                res->mo->series,
+                GET_ANY_CHAR(series, res->start)
+            );
+        }
+
+        REBSER *popped = Pop_Molded_String(res->mo);
+
+        assert(SER_LEN(popped) <= VAL_LEN_HEAD(data));
+        count = VAL_LEN_HEAD(data) - SER_LEN(popped);
+
+        // We want to swap out the data properties of the series, so the
+        // identity of the incoming series is kept but now with different
+        // underlying data.
+        //
+        Swap_Series_Content(popped, VAL_SERIES(data));
+
+        Free_Series(popped); // now frees the incoming series underlying data
+    }
+
+    return count;
+}
+
+
 //
 //  remove-each: native [
 //
-//  {Removes values for each block that returns true; returns removal count.}
+//  {Removes values for each block that returns true.}
 //
+//      return: [integer!]
+//          {Number of removed series items}
 //      'vars [word! block!]
 //          "Word or block of words to set each time (local)"
 //      data [any-series!]
@@ -942,120 +1063,210 @@ REBNATIVE(remove_each)
 
     REBVAL *data = ARG(data);
 
+    // !!! Currently there is no support for VECTOR!, or IMAGE! (what would
+    // that even *mean*?) yet these are in the ANY-SERIES! typeset.
+    //
+    if (NOT(ANY_ARRAY(data) || ANY_STRING(data) || IS_BINARY(data)))
+        fail (data); // invalid arg
+
     // Check the series for whether it is read only, in which case we should
-    // not be running a REMOVE-EACH on it.
+    // not be running a REMOVE-EACH on it.  This check for permissions applies
+    // even if the REMOVE-EACH turns out to be a no-op.
     //
     REBSER *series = VAL_SERIES(data);
     FAIL_IF_READ_ONLY_SERIES(series);
 
+    struct Remove_Each_State res;
+
     REBCNT index = VAL_INDEX(data);
     if (index >= SER_LEN(series)) {
+        //
+        // If index is past the series end, then there's nothing removable.
+        //
+        // !!! Should REMOVE-EACH follow the "loop conventions" where if the
+        // body never gets a chance to run, the return value is void?
+        //
         Init_Integer(D_OUT, 0);
         return R_OUT;
     }
 
-    REBOOL stop = FALSE;
-    REBOOL threw = FALSE; // did a non-BREAK or non-CONTINUE throw occur
+    // Set a bit saying we are iterating the series, which will disallow
+    // mutations (including a nested REMOVE-EACH) until completion or failure.
+    // This flag will be cleaned up by Finalize_Remove_Each(), which is run
+    // even if there is a fail().
+    //
+    SET_SER_INFO(series, SERIES_INFO_HOLD);
 
-    assert(IS_END(D_OUT));
+    res.data = data;
 
+    REB_MOLD mold_struct;
+    if (ANY_ARRAY(data)) {
+        //
+        // We're going to use NODE_FLAG_MARKED on the elements of data's
+        // array for those items we wish to remove later.
+        //
+        // !!! This may not be better than pushing kept values to the data
+        // stack and then creating a precisely-sized output blob to swap as
+        // the underlying memory for the array.  (Imagine a large array from
+        // which there are many removals, and the ensuing wasted space being
+        // left behind).  But worth testing the technique of marking in case
+        // it's ever required for other scenarios.
+        //
+        TRASH_POINTER_IF_DEBUG(res.mo);
+    }
+    else {
+        // We're going to generate a new data allocation, but then swap its
+        // underlying content to back the series we were given.  (See notes
+        // above on how this might be the better way to deal with arrays too.)
+        //
+        // !!! Uses the mold buffer even for binaries, and since we know
+        // we're never going to be pushing a value bigger than 0xFF it will
+        // not require a wide string.  So the series we pull off should be
+        // byte-sized.  In a sense this is wasteful and there should be a
+        // byte-buffer-backed parallel to mold, but the logic for nesting mold
+        // stacks already exists and the mold buffer is "hot", so it's not
+        // necessarily *that* wasteful in the scheme of things.
+        //
+        CLEARS(&mold_struct);
+        res.mo = &mold_struct;
+        Push_Mold(res.mo);
+    }
+
+    struct Reb_State state;
+    REBCTX *error;
+
+    PUSH_TRAP(&error, &state);
+
+    // The first time through the following code 'error' will be NULL, but...
+    // `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
+
+    if (error != NULL) {
+        //
+        // Currently, if a fail() happens during the iteration, any removals
+        // which were indicated will be enacted before propagating failure.
+        //
+        Finalize_Remove_Each(&res);
+
+        fail (error); // Trap happened, so no trap in effect; this propagates
+    }
+
+    // Create a context for the loop variables, and bind the body to it.
     REBCTX *context;
     REBARR *body_copy = Copy_Body_Deep_Bound_To_New_Context(
         &context,
         ARG(vars),
         ARG(body)
     );
+
+    // Both must be kept safe from GC, so store them in the argument slots
+    // that have had their information extracted and aren't needed anymore)
+    //
     Init_Object(ARG(vars), context); // keep GC safe
     Init_Block(ARG(body), body_copy); // keep GC safe
 
-    REBCNT write_index = index;
+    REBCNT len = SER_LEN(series); // series temp read-only, this won't change
+    while (index < len) {
+        res.start = index;
 
-    // Iterate over each value in the data series block:
-
-    REBCNT tail;
-    while (index < (tail = SER_LEN(series))) {
-        REBCNT read_index = index;  // remember starting spot
-
-        REBVAL *key = CTX_KEY(context, 1);
         REBVAL *var = CTX_VAR(context, 1);
-        REBCNT i;
-        for (i = 1; NOT_END(key); i++, key++, var++) {
-
-            if (index >= tail) {
-                Init_Blank(var);
-                continue;
+        for (; NOT_END(var); ++var) {
+            if (index == len) {
+                //
+                // The second iteration here needs x = #"c" and y as void.
+                //
+                //     data: copy "abc"
+                //     remove-each [x y] data [...]
+                //
+                Init_Void(var);
+                continue; // the FOR loop setting variables
             }
 
-            if (ANY_ARRAY(data)) {
+            if (ANY_ARRAY(data))
                 Derelativize(
                     var,
-                    ARR_AT(ARR(series), index),
-                    VAL_SPECIFIER(data) // !!! always matches series?
+                    VAL_ARRAY_AT_HEAD(data, index),
+                    VAL_SPECIFIER(data)
                 );
-            }
-            else if (IS_BINARY(data)) {
+            else if (IS_BINARY(data))
                 Init_Integer(var, cast(REBI64, BIN_HEAD(series)[index]));
-            }
             else {
                 assert(ANY_STRING(data));
                 Init_Char(var, GET_ANY_CHAR(series, index));
             }
-            index++;
+            ++index;
         }
 
-        assert(IS_END(key) && IS_END(var));
-
-        if (index == read_index) {
-            // the word block has only set-words: for-each [a:] [1 2 3][]
-            index++;
-        }
-
-        if (Do_At_Throws(D_OUT, body_copy, 0, SPECIFIED)) { // copy, specified
-            if (!Catching_Break_Or_Continue(D_OUT, &stop)) {
-                // A non-loop throw, we should be bubbling up
-                threw = TRUE;
-                break;
+        if (Do_At_Throws(D_CELL, body_copy, 0, SPECIFIED)) {
+            REBOOL stop;
+            if (!Catching_Break_Or_Continue(D_CELL, &stop)) {
+                //
+                // A non-loop throw, we should be bubbling up.
+                //
+                DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
+                Finalize_Remove_Each(&res);
+                Move_Value(D_OUT, D_CELL);
+                return R_OUT_IS_THROWN;
             }
 
-            // Fall through and process the D_OUT (unset if no /WITH) for
-            // this iteration.  `stop` flag will be checked ater that.
+            if (stop) {
+                //
+                // !!! Should the return conventions of REMOVE-EACH honor the
+                // "loop protocol" where a broken loop returns BLANK!?
+                //
+                DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
+                REBCNT removals = Finalize_Remove_Each(&res);
+                Init_Integer(D_OUT, removals);
+                return R_OUT;
+            }
+
+            assert(IS_VOID(D_CELL)); // `continue` is same as body giving void
         }
 
-        if (IS_VOID(D_OUT) || IS_FALSEY(D_OUT)) {
-            //
-            // memory areas may overlap, so use memmove and not memcpy!
-            //
-            // !!! This seems a slow way to do it, but there's probably
-            // not a lot that can be done as the series is expected to
-            // be in a good state for the next iteration of the body. :-/
-            //
-            memmove(
-                SER_AT_RAW(SER_WIDE(series), series, write_index),
-                SER_AT_RAW(SER_WIDE(series), series, read_index),
-                (index - read_index) * SER_WIDE(series)
-            );
-            write_index += index - read_index;
-        }
+        if (IS_VOID(D_CELL))
+            continue; // void body means opt out of removal decision
 
-        if (stop) {
-            Init_Blank(D_OUT);
-            break;
+        if (ANY_ARRAY(data)) {
+            if (IS_FALSEY(D_CELL)) // keep requested, don't mark for culling
+                continue;
+
+            do {
+                assert(res.start <= len);
+                VAL_ARRAY_AT_HEAD(data, res.start)->header.bits
+                    |= NODE_FLAG_MARKED;
+                ++res.start;
+            } while (res.start != index);
+        }
+        else {
+            if (IS_TRUTHY(D_CELL)) // remove requested, don't save to buffer
+                continue;
+
+            do {
+                assert(res.start <= len);
+                if (IS_BINARY(data))
+                    Append_Codepoint_Raw(
+                        res.mo->series,
+                        cast(REBUNI, BIN_HEAD(series)[res.start])
+                    );
+                else
+                    Append_Codepoint_Raw(
+                        res.mo->series,
+                        GET_ANY_CHAR(series, res.start)
+                    );
+                ++res.start;
+            } while (res.start != index);
         }
     }
 
-    if (threw) {
-        // a non-BREAK and non-CONTINUE throw overrides any other return
-        // result we might give (generic THROW, RETURN, QUIT, etc.)
+    // We get here on normal completion without BREAK, THROW, or fail()
+    // Finalize needs to know it doesn't need to push any residual data,
+    // and it knows this because res.start is not less than the length.
+    //
+    res.start = len;
 
-        return R_OUT_IS_THROWN;
-    }
+    DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 
-    if (stop)
-        return R_BLANK;
-
-    if (write_index < index)
-        Remove_Series(series, write_index, index - write_index);
-    Init_Integer(D_OUT, index - write_index);
+    REBCNT removals = Finalize_Remove_Each(&res);
+    Init_Integer(D_OUT, removals);
     return R_OUT;
 }
 

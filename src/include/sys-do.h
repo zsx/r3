@@ -151,11 +151,11 @@ inline static void Push_Frame_Core(REBFRM *f)
     f->prior = TG_Frame_Stack;
     TG_Frame_Stack = f;
     if (NOT(f->flags.bits & DO_FLAG_VA_LIST)) {
-        if (GET_SER_INFO(f->source.array, SERIES_INFO_RUNNING))
+        if (GET_SER_INFO(f->source.array, SERIES_INFO_HOLD))
             NOOP; // already temp-locked
         else {
-            SET_SER_INFO(f->source.array, SERIES_INFO_RUNNING);
-            f->flags.bits |= DO_FLAG_TOOK_FRAME_LOCK;
+            SET_SER_INFO(f->source.array, SERIES_INFO_HOLD);
+            f->flags.bits |= DO_FLAG_TOOK_FRAME_HOLD;
         }
     }
 }
@@ -165,9 +165,9 @@ inline static void UPDATE_EXPRESSION_START(REBFRM *f) {
 }
 
 inline static void Drop_Frame_Core(REBFRM *f) {
-    if (f->flags.bits & DO_FLAG_TOOK_FRAME_LOCK) {
-        assert(GET_SER_INFO(f->source.array, SERIES_INFO_RUNNING));
-        CLEAR_SER_INFO(f->source.array, SERIES_INFO_RUNNING);
+    if (f->flags.bits & DO_FLAG_TOOK_FRAME_HOLD) {
+        assert(GET_SER_INFO(f->source.array, SERIES_INFO_HOLD));
+        CLEAR_SER_INFO(f->source.array, SERIES_INFO_HOLD);
     }
     assert(TG_Frame_Stack == f);
     TG_Frame_Stack = f->prior;
@@ -646,12 +646,12 @@ inline static void Reify_Va_To_Array_In_Frame(
     SET_SER_FLAG(f->source.array, ARRAY_FLAG_VOIDS_LEGAL);
 
     // The array just popped into existence, and it's tied to a running
-    // frame...so safe to say we locked it.  (This would be more complex if
-    // we reused the empty array if dsp_orig == DSP, since someone else
-    // might have it locked...not worth the complexity.) 
+    // frame...so safe to say we're holding it.  (This would be more complex
+    // if we reused the empty array if dsp_orig == DSP, since someone else
+    // might have a hold on it...not worth the complexity.) 
     //
-    SET_SER_INFO(f->source.array, SERIES_INFO_RUNNING);
-    f->flags.bits |= DO_FLAG_TOOK_FRAME_LOCK;
+    SET_SER_INFO(f->source.array, SERIES_INFO_HOLD);
+    f->flags.bits |= DO_FLAG_TOOK_FRAME_HOLD;
 
     if (truncated)
         SET_FRAME_VALUE(f, ARR_AT(f->source.array, 1)); // skip `--optimized--`

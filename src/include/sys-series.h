@@ -487,7 +487,7 @@ inline static REBOOL Is_Series_Frozen(REBSER *s) {
 
 inline static REBOOL Is_Series_Read_Only(REBSER *s) { // may be temporary...
     return ANY_SER_INFOS(
-        s, SERIES_INFO_FROZEN | SERIES_INFO_RUNNING | SERIES_INFO_PROTECTED
+        s, SERIES_INFO_FROZEN | SERIES_INFO_HOLD | SERIES_INFO_PROTECTED
     );
 }
 
@@ -500,8 +500,8 @@ inline static REBOOL Is_Series_Read_Only(REBSER *s) { // may be temporary...
 //
 inline static void FAIL_IF_READ_ONLY_SERIES(REBSER *s) {
     if (Is_Series_Read_Only(s)) {
-        if (GET_SER_INFO(s, SERIES_INFO_RUNNING))
-            fail (Error_Series_Running_Raw());
+        if (GET_SER_INFO(s, SERIES_INFO_HOLD))
+            fail (Error_Series_Held_Raw());
 
         if (GET_SER_INFO(s, SERIES_INFO_FROZEN))
             fail (Error_Series_Frozen_Raw());
