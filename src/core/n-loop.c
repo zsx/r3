@@ -1075,8 +1075,7 @@ REBNATIVE(remove_each)
     REBSER *series = VAL_SERIES(data);
     FAIL_IF_READ_ONLY_SERIES(series);
 
-    REBCNT index = VAL_INDEX(data);
-    if (index >= SER_LEN(series)) {
+    if (VAL_INDEX(data) >= SER_LEN(series)) {
         //
         // If index is past the series end, then there's nothing removable.
         //
@@ -1107,9 +1106,7 @@ REBNATIVE(remove_each)
 
     struct Remove_Each_State res;
     res.data = data;
-
-    // res.start will be initialized on the first loop iteration, and will
-    // be guaranteed set to the length if the loop ends normally.
+    res.start = VAL_INDEX(data); // avoid finalize uninitialized use warnings
 
     REB_MOLD mold_struct;
     if (ANY_ARRAY(data)) {
@@ -1170,10 +1167,11 @@ REBNATIVE(remove_each)
     SET_SER_INFO(series, SERIES_INFO_HOLD);
 
     REBOOL stop = FALSE;
+    REBCNT index = res.start; // declare here, avoid longjmp clobber warnings
 
     REBCNT len = SER_LEN(series); // series temp read-only, this won't change
     while (index < len && NOT(stop)) {
-        res.start = index;
+        assert(res.start == index);
 
         REBVAL *var = CTX_VAR(context, 1);
         for (; NOT_END(var); ++var) {

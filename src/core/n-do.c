@@ -264,7 +264,7 @@ REBNATIVE(do)
         if (CTX_VARS_UNAVAILABLE(c))
             fail (Error_Do_Expired_Frame_Raw());
 
-        return Apply_Core(
+        return Apply_Def_Or_Exemplar(
             D_OUT,
             source->payload.any_context.phase,
             VAL_BINDING(source),
@@ -498,7 +498,7 @@ REBNATIVE(apply)
     if (!IS_FUNCTION(D_OUT))
         fail (Error_Apply_Non_Function_Raw(ARG(value))); // for SPECIALIZE too
 
-    return Apply_Core(
+    return Apply_Def_Or_Exemplar(
         D_OUT,
         VAL_FUNC(D_OUT),
         VAL_BINDING(D_OUT),

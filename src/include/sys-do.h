@@ -289,7 +289,7 @@ inline static REBOOL Do_Next_In_Frame_Throws(
 
     SET_END(out);
     f->out = out;
-    Do_Core(f); // should already be pushed
+    (*PG_Do)(f); // should already be pushed
 
     // Since Do_Core() currently makes no guarantees about the state of
     // f->eval_type when an operation is over, restore it to a benign REB_0
@@ -324,7 +324,7 @@ inline static REBOOL Do_Next_Mid_Frame_Throws(REBFRM *f) {
 #endif
 
     SET_END(f->out);
-    Do_Core(f); // should already be pushed
+    (*PG_Do)(f); // should already be pushed
 
     // The & on the following line is purposeful.  See Init_Endlike_Header.
     //
@@ -398,7 +398,7 @@ inline static REBOOL Do_Next_In_Subframe_Throws(
     child->pending = parent->pending;
 
     Push_Frame_Core(child);
-    Do_Core(child);
+    (*PG_Do)(child);
     Drop_Frame_Core(child);
 
     // !!! `print 1 + 2 <| print 1 + 7` wishes to print 3 and then 8, rather
@@ -481,7 +481,7 @@ inline static REBIXO DO_NEXT_MAY_THROW(
     f->out = out;
 
     Push_Frame_Core(f);    
-    Do_Core(f);
+    (*PG_Do)(f);
     Drop_Frame_Core(f); // Drop_Frame() requires f->eval_type to be REB_0
 
     if (THROWN(out))
@@ -538,7 +538,7 @@ inline static REBIXO Do_Array_At_Core(
     f->pending = NULL;
 
     Push_Frame_Core(f);
-    Do_Core(f);
+    (*PG_Do)(f);
     Drop_Frame_Core(f);
 
     if (THROWN(f->out))
@@ -738,7 +738,7 @@ inline static REBIXO Do_Va_Core(
     Init_Endlike_Header(&f->flags, flags | DO_FLAG_VA_LIST); // see notes
 
     Push_Frame_Core(f);
-    Do_Core(f);
+    (*PG_Do)(f);
     Drop_Frame_Core(f);
 
     // Note: While on many platforms va_end() is a no-op, the C standard is

@@ -36,8 +36,9 @@
 // evaluator from within.
 //
 // A lower-level trace facility may still be interesting even then, for
-// "debugging the debugger".  Either way, the routines have been extracted
-// from %c-do.c in order to reduce the total length of that very long file.
+// "debugging the debugger".  Either way, the feature is fully decoupled from
+// %c-eval.c, and the system could be compiled without it (or it could be
+// done as an extension).
 //
 
 #include "sys-core.h"
@@ -76,84 +77,6 @@ REBFRM *Frame_At_Depth(REBCNT n)
 }
 
 
-static REBINT Init_Depth(void)
-{
-    // Check the trace depth is ok:
-    REBINT depth = Eval_Depth() - Trace_Depth;
-    if (depth < 0 || depth >= Trace_Level) return -1;
-    if (depth > 10) depth = 10;
-    Debug_Space(cast(REBCNT, 4 * depth));
-    return depth;
-}
-
-
-#define CHECK_DEPTH(d) if ((d = Init_Depth()) < 0) return;\
-
-
-//
-//  Trace_Line: C
-//
-void Trace_Line(REBFRM *f)
-{
-    int depth;
-
-    if (GET_FLAG(Trace_Flags, 1)) return; // function
-    if (IS_FUNCTION(f->value)) return;
-
-    CHECK_DEPTH(depth);
-
-    if (IS_END(f->value)) {
-        Debug_Fmt_("END");
-    }
-    else if (f->flags.bits & DO_FLAG_VA_LIST) {
-        Debug_Fmt_("VA_LIST_FLAG...");
-    }
-    else {
-        Debug_Fmt_("%-02d: %50r", cast(REBINT, f->index), f->value);
-    }
-
-    if (IS_WORD(f->value) || IS_GET_WORD(f->value)) {
-        const RELVAL *var = Get_Opt_Var_May_Fail(f->value, f->specifier);
-        if (VAL_TYPE(var) < REB_FUNCTION)
-            Debug_Fmt_(" : %50r", var);
-        else if (VAL_TYPE(var) == REB_FUNCTION) {
-            REBARR *words = List_Func_Words(var, FALSE); // no locals
-            Debug_Fmt_(" : %s %50m", Get_Type_Name(var), words);
-            Free_Array(words);
-        }
-        else
-            Debug_Fmt_(" : %s", Get_Type_Name(var));
-    }
-    Debug_Line();
-}
-
-
-//
-//  Trace_Func: C
-//
-void Trace_Func(REBSTR *label)
-{
-    int depth;
-    CHECK_DEPTH(depth);
-    Debug_Fmt_(RM_TRACE_FUNCTION, STR_HEAD(label));
-    if (GET_FLAG(Trace_Flags, 1))
-        Debug_Values(FRM_ARG(FS_TOP, 1), FRM_NUM_ARGS(FS_TOP), 20);
-    else Debug_Line();
-}
-
-
-//
-//  Trace_Return: C
-//
-void Trace_Return(REBSTR *label, const REBVAL *value)
-{
-    int depth;
-    CHECK_DEPTH(depth);
-    Debug_Fmt_(RM_TRACE_RETURN, STR_HEAD(label));
-    Debug_Values(value, 1, 50);
-}
-
-
 //
 //  Trace_Value: C
 //
@@ -161,8 +84,6 @@ void Trace_Value(
     const char* label, // currently "match" or "input"
     const RELVAL *value
 ) {
-    int depth;
-    CHECK_DEPTH(depth);
     Debug_Fmt(RM_TRACE_PARSE_VALUE, label, value);
 }
 
@@ -173,9 +94,7 @@ void Trace_Value(
 void Trace_String(const REBYTE *str, REBINT limit)
 {
     static char tracebuf[64];
-    int depth;
     int len = MIN(60, limit);
-    CHECK_DEPTH(depth);
     memcpy(tracebuf, str, len);
     tracebuf[len] = '\0';
     Debug_Fmt(RM_TRACE_PARSE_INPUT, tracebuf);
@@ -185,15 +104,266 @@ void Trace_String(const REBYTE *str, REBINT limit)
 //
 //  Trace_Error: C
 //
+// !!! This does not appear to be used
+//
 void Trace_Error(const REBVAL *value)
 {
-    int depth;
-    CHECK_DEPTH(depth);
     Debug_Fmt(
         RM_TRACE_ERROR,
         &VAL_ERR_VARS(value)->type,
         &VAL_ERR_VARS(value)->id
     );
+}
+
+
+//
+//  Do_Core_Traced: C
+//
+// This is the function which is swapped in for Do_Core when tracing is
+// enabled.
+//
+void Do_Core_Traced(REBFRM * const f)
+{
+    // There are a lot of invariants checked on entry to Do_Core(), but this is
+    // a simple one that is important enough to mirror here.
+    //
+    assert(NOT_END(f->value) || f->flags.bits & DO_FLAG_APPLYING);
+
+    int depth = Eval_Depth() - Trace_Depth;
+    if (depth < 0 || depth >= Trace_Level) {
+        Do_Core(f); // don't apply tracing (REPL uses this to hide)
+        return;
+    }
+
+    if (depth > 10)
+        depth = 10; // don't indent so far it goes off the screen
+
+    // In order to trace single steps, we convert a DO_FLAG_TO_END request
+    // into a sequence of DO/NEXT operations, and loop them.
+    //
+    REBOOL was_do_to_end = LOGICAL(f->flags.bits & DO_FLAG_TO_END);
+    f->flags.bits &= ~DO_FLAG_TO_END;
+
+    while (TRUE) {
+        if (NOT(
+            (f->flags.bits & DO_FLAG_APPLYING) // only value is END
+            || IS_FUNCTION(f->value)
+            || GET_FLAG(Trace_Flags, 1)
+        )){
+            Debug_Space(cast(REBCNT, 4 * depth));
+
+            if (f->flags.bits & DO_FLAG_VA_LIST) {
+                //
+                // If you are doing a sequence of REBVAL* held in a C va_list,
+                // it doesn't have an "index".  It could manufacture one if
+                // you reified it (which will be necessary for any inspections
+                // beyond the current element), but TRACE does not currently
+                // output more than one unit of lookahead.
+                //
+                Debug_Fmt_("va: %50r", f->value);
+            }
+            else
+                Debug_Fmt_("%-02d: %50r", FRM_INDEX(f), f->value);
+
+            if (IS_WORD(f->value) || IS_GET_WORD(f->value)) {
+                const RELVAL *var = Get_Opt_Var_Else_End(
+                    f->value,
+                    f->specifier
+                );
+                if (IS_END(var) || IS_VOID(var)) {
+                    Debug_Fmt_(" :"); // just show nothing
+                }
+                else if (IS_FUNCTION(var)) {
+                    const REBOOL locals = FALSE;
+                    REBARR *words = List_Func_Words(var, locals);
+                    Debug_Fmt_(" : %s %50m", Get_Type_Name(var), words);
+                    Free_Array(words);
+                }
+                else if (
+                    ANY_WORD(var)
+                    || ANY_STRING(var)
+                    || ANY_ARRAY(var)
+                    || ANY_SCALAR(var)
+                    || IS_DATE(var)
+                    || IS_TIME(var)
+                    || IS_BAR(var)
+                    || IS_LIT_BAR(var)
+                    || IS_BLANK(var)
+                ){
+                    // These are things that are printed, abbreviated to 50
+                    // characters of molding.
+                    //
+                    Debug_Fmt_(" : %50r", var);
+                }
+                else {
+                    // Just print the type if it's a context, GOB!, etc.
+                    //
+                    Debug_Fmt_(" : %s", Get_Type_Name(var));
+                }
+            }
+            Debug_Line();
+        }
+
+        Do_Core(f);
+
+        if (NOT(was_do_to_end) || THROWN(f->out) || IS_END(f->value))
+            break;
+
+        // It is assumed we could not have finished the last operation with
+        // an enfixed operation pending.  And if an operation is not enfix,
+        // it expects the Do_Core() call to start with f->out set to END.
+        // Throw away the result of evaluation and enforce that invariant.
+        //
+        SET_END(f->out);
+    }
+
+    if (was_do_to_end)
+        f->flags.bits |= DO_FLAG_TO_END;
+}
+
+
+//
+//  Apply_Core_Traced: C
+//
+// This is the function which is swapped in for Apply_Core when tracing is
+// enabled.
+//
+REB_R Apply_Core_Traced(REBFRM * const f)
+{
+    int depth = Eval_Depth() - Trace_Depth;
+    if (depth < 0 || depth >= Trace_Level)
+        return Apply_Core(f); // don't apply tracing (REPL uses this to hide)
+
+    if (depth > 10)
+        depth = 10; // don't indent so far it goes off the screen
+
+    if (f->phase == f->original) {
+        //
+        // Only show the label if this phase is the first phase.
+
+        Debug_Space(cast(REBCNT, 4 * depth));
+        Debug_Fmt_(RM_TRACE_FUNCTION, STR_HEAD(f->label));
+        if (GET_FLAG(Trace_Flags, 1))
+            Debug_Values(FRM_ARG(FS_TOP, 1), FRM_NUM_ARGS(FS_TOP), 20);
+        else
+            Debug_Line();
+    }
+
+    // We can only tell if it's the last phase *before* the apply, because if we
+    // check *after* it may change to become the last and need R_REDO_XXX.
+    //
+    REBOOL last_phase
+        = LOGICAL(FUNC_UNDERLYING(f->phase) == f->phase);
+
+    REB_R r = Apply_Core(f);
+
+    if (last_phase) {
+        //
+        // Only show the return result if this is the last phase.
+
+        Debug_Space(cast(REBCNT, 4 * depth));
+        Debug_Fmt_(RM_TRACE_RETURN, STR_HEAD(f->label));
+
+        switch (r) {
+        case R_FALSE:
+        r_false:
+            Debug_Values(FALSE_VALUE, 1, 50);
+            break;
+
+        case R_TRUE:
+        r_true:
+            Debug_Values(TRUE_VALUE, 1, 50);
+            break;
+
+        case R_VOID:
+        r_void:
+            // It's not legal to mold or form a void, it's not ANY-VALUE!
+            // In this case, just don't print anything, like the console does
+            // when an evaluation gives a void result.
+            break;
+
+        case R_BLANK:
+            Debug_Values(BLANK_VALUE, 1, 50);
+            break;
+
+        case R_BAR:
+        r_bar:
+            Debug_Values(BAR_VALUE, 1, 50);
+            break;
+
+        case R_OUT:
+        r_out:
+            Debug_Values(f->out, 1, 50);
+            break;
+
+        case R_OUT_UNEVALUATED: // returned by QUOTE and SEMIQUOTE
+            goto r_out;
+
+        case R_OUT_IS_THROWN: {
+            //
+            // The system guards against the molding or forming of thrown
+            // values, which are actually a pairing of label + value.  "Catch"
+            // it temporarily, long enough to output it, then re-throw it.
+            //
+            DECLARE_LOCAL (arg);
+            CATCH_THROWN(arg, f->out); // clears bit
+
+            if (IS_VOID(f->out))
+                Debug_Fmt_("throw %50r", arg);
+            else
+                Debug_Fmt_("throw %30r, label %20r", arg, f->out);
+
+            CONVERT_NAME_TO_THROWN(f->out, arg); // sets bit
+            break; }
+
+        case R_OUT_TRUE_IF_WRITTEN:
+            if (IS_END(f->out))
+                goto r_true;
+            else
+                goto r_false;
+            break;
+
+        case R_OUT_VOID_IF_UNWRITTEN:
+            if (IS_END(f->out))
+                goto r_void;
+            else
+                goto r_out;
+            break;
+
+        case R_OUT_VOID_IF_UNWRITTEN_TRUTHIFY:
+            if (IS_END(f->out))
+                goto r_void;
+            else if (IS_VOID(f->out) || IS_FALSEY(f->out))
+                goto r_bar;
+            else
+                goto r_out;
+            break;
+
+        case R_REDO_CHECKED:
+            assert(FALSE); // shouldn't be possible for final phase
+            break;
+
+        case R_REDO_UNCHECKED:
+            assert(FALSE); // shouldn't be possible for final phase
+            break;
+
+        case R_REEVALUATE:
+            Debug_Fmt("..."); // it's EVAL, should we print f->out ?
+            break;
+
+        case R_REEVALUATE_ONLY:
+            Debug_Fmt("..."); // it's EVAL/ONLY, should we print f->out ?
+            break;
+
+        case R_UNHANDLED: // internal use only, shouldn't be returned
+            assert(FALSE);
+
+        default:
+            assert(FALSE);
+        }
+    }
+
+    return r;
 }
 
 
@@ -243,13 +413,17 @@ REBNATIVE(trace)
         Trace_Level = Int32(mode);
 
     if (Trace_Level) {
-        Trace_Flags = 1;
+        PG_Do = &Do_Core_Traced;
+        PG_Apply = &Apply_Core_Traced;
+
         if (REF(function))
             SET_FLAG(Trace_Flags, 1);
         Trace_Depth = Eval_Depth() - 1; // subtract current TRACE frame
     }
-    else
-        Trace_Flags = 0;
+    else {
+        PG_Do = &Do_Core;
+        PG_Apply = &Apply_Core;
+    }
 
     return R_VOID;
 }

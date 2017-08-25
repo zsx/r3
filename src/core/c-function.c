@@ -2038,7 +2038,7 @@ void Get_If_Word_Or_Path_Arg(
 
 
 //
-//  Apply_Core: C
+//  Apply_Def_Or_Exemplar: C
 //
 // Factors out common code used by DO of a FRAME!, and APPLY.
 //
@@ -2054,7 +2054,7 @@ void Get_If_Word_Or_Path_Arg(
 // experiment with for other reasons (e.g. continuations), so that is what
 // is used here.
 //
-REB_R Apply_Core(
+REB_R Apply_Def_Or_Exemplar(
     REBVAL *out,
     REBFUN *fun,
     REBARR *binding,
@@ -2192,7 +2192,7 @@ REB_R Apply_Core(
 
     SET_END(f->out);
 
-    Do_Core(f);
+    (*PG_Do)(f);
 
     Drop_Frame_Core(f);
 

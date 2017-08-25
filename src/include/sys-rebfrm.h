@@ -640,3 +640,10 @@ struct Reb_Frame {
     REBFRM name##struct; \
     REBFRM * const name = &name##struct; \
     Prep_Global_Cell(&name->cell)
+
+
+// Hookable "Rebol DO Function" and "Rebol APPLY Function".  See PG_Do and
+// PG_Apply for usage.
+//
+typedef void (*REBDOF)(REBFRM * const);
+typedef REB_R (*REBAPF)(REBFRM * const);

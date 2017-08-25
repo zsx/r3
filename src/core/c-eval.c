@@ -81,6 +81,20 @@
 #endif
 
 
+//
+//  Apply_Core: C
+//
+// It is desirable to be able to hook the moment of function application,
+// when all the parameters are gathered, and to be able to monitor the return
+// result.  This is the default function put into PG_Apply, but it can be
+// overridden e.g. by TRACE, which would like to preface the apply by dumping
+// the frame and postfix it by showing the evaluative result.
+//
+REB_R Apply_Core(REBFRM * const f) {
+    return FUNC_DISPATCHER(f->phase)(f);
+}
+
+
 static inline REBOOL Start_New_Expression_Throws(REBFRM *f) {
     assert(Eval_Count >= 0);
     if (--Eval_Count == 0) {
@@ -99,8 +113,6 @@ static inline REBOOL Start_New_Expression_Throws(REBFRM *f) {
     }
 
     UPDATE_EXPRESSION_START(f); // !!! See FRM_INDEX() for caveats
-    if (Trace_Flags)
-        Trace_Line(f);
 
     return FALSE;
 }
@@ -581,8 +593,6 @@ reevaluate:;
     #if !defined(NDEBUG)
         assert(f->label_debug != NULL); // SET_FRAME_LABEL sets (C debugging)
     #endif
-
-        Eval_Functions++; // this isn't free...is it worth tracking?
 
         // Now that we have extracted f->phase, we do not have to worry that
         // f->value might have lived in f->cell.eval.  We can't overwrite
@@ -1263,9 +1273,6 @@ reevaluate:;
             || IS_VALUE_IN_ARRAY_DEBUG(f->source.array, f->value)
         );
 
-        if (Trace_Flags)
-            Trace_Func(FRM_LABEL(f));
-
         // The out slot needs initialization for GC safety during the function
         // run.  Choosing an END marker should be legal because places that
         // you can use as output targets can't be visible to the GC (that
@@ -1289,9 +1296,7 @@ reevaluate:;
         // The dispatcher may push functions to the data stack which will be
         // used to process the return result after the switch.
         //
-        REBNAT dispatcher; // goto would cross initialization
-        dispatcher = FUNC_DISPATCHER(f->phase);
-        switch (dispatcher(f)) {
+        switch ((*PG_Apply)(f)) {
         case R_FALSE:
             Init_Logic(f->out, FALSE); // no VALUE_FLAG_UNEVALUATED
             break;
@@ -1465,9 +1470,6 @@ reevaluate:;
 
             DS_DROP;
         }
-
-        if (Trace_Flags)
-            Trace_Return(FRM_LABEL(f), f->out);
 
         // !!! It would technically be possible to drop the arguments before
         // running chains... and if the chained function were to run *in*

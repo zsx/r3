@@ -118,6 +118,14 @@ PVAR REBBRK PG_Breakpoint_Quitting_Hook;
 //
 PVAR REBVAL PG_Write_Action;
 
+
+// It is possible to swap out the evaluator for one that does tracing, or
+// single step debugging, etc.
+//
+PVAR REBDOF PG_Do; // Rebol "DO function" (takes REBFRM, returns void)
+PVAR REBAPF PG_Apply; // Rebol "APPLY function" (takes REBFRM, returns REB_R)
+
+
 /***********************************************************************
 **
 **  Thread Globals - Local to each thread
@@ -204,7 +212,5 @@ TVAR REBINT Trace_Level;    // Trace depth desired
 TVAR REBINT Trace_Depth;    // Tracks trace indentation
 TVAR REBCNT Trace_Limit;    // Backtrace buffering limit
 TVAR REBSER *Trace_Buffer;  // Holds backtrace lines
-
-TVAR REBI64 Eval_Functions;
 
 TVAR REBVAL Callback_Error; //Error produced by callback!, note it's not callback://

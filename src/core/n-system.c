@@ -240,8 +240,6 @@ REBNATIVE(stats)
             Init_Integer(stats, Eval_Cycles + Eval_Dose - Eval_Count);
             stats++;
             Init_Integer(stats, 0); // no such thing as natives, only functions
-            stats++;
-            Init_Integer(stats, Eval_Functions);
 
             stats++;
             Init_Integer(stats, PG_Reb_Stats->Series_Made);
