@@ -279,6 +279,7 @@ process-module: func [
         includes: mod/includes
         definitions: mod/definitions
         cflags: mod/cflags
+        searches: mod/searches
     ]
 
     ret
@@ -1313,6 +1314,11 @@ for-each ext builtin-extensions [
         if mod-obj/libraries [
             assert-no-blank-inside mod-obj/libraries
             append app-config/libraries mod-obj/libraries
+        ]
+
+        if mod/searches [
+            assert-no-blank-inside mod/searches
+            append app-config/searches mod/searches
         ]
 
         if mod/ldflags [
