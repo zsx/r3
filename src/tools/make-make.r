@@ -457,10 +457,25 @@ cfg-ffi: make object! [
     searches: _
 ]
 either block? user-config/with-ffi [
-    ffi: make cfg-ffi user-config/with-ffi
-    for-each word words-of cfg-ffi [
-        append get in app-config word
-            opt get in ffi word
+    cfg-ffi: make cfg-ffi user-config/with-ffi
+    cfg-ffi/libraries: map-each lib cfg-ffi/libraries [
+        case [
+            file? lib [
+                make rebmake/ext-dynamic-class [
+                    output: lib
+                    flags: either user-config/with-ffi = 'static [[static]][_]
+                ]
+            ]
+            all [
+                    object? lib
+                    find [dynamic-library-class static-library-class] lib/class-name
+            ][
+                lib
+            ]
+            true [
+                fail ["Libraries can only be file! or static/dynamic library object, not" lib]
+            ]
+        ]
     ]
 ][
     switch/default user-config/with-ffi [
