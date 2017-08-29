@@ -2138,6 +2138,27 @@ REBNATIVE(subparse)
                     rule = Get_Parse_Value(save, P_RULE, P_RULE_SPECIFIER);
                     FETCH_NEXT_RULE_MAYBE_END(f);
 
+                    // If a GROUP!, then execute it first.  See #1279
+                    //
+                    DECLARE_LOCAL (evaluated);
+                    if (IS_GROUP(rule)) {
+                        REBSPC *derived = Derive_Specifier(
+                            P_RULE_SPECIFIER,
+                            rule
+                        );
+                        if (Do_At_Throws(
+                            evaluated,
+                            VAL_ARRAY(rule),
+                            VAL_INDEX(rule),
+                            derived
+                        )) {
+                            Move_Value(P_OUT, evaluated);
+                            return R_OUT_IS_THROWN;
+                        }
+
+                        rule = evaluated;
+                    }
+
                     if (GET_SER_FLAG(P_INPUT, SERIES_FLAG_ARRAY)) {
                         DECLARE_LOCAL (specified);
                         Derelativize(specified, rule, P_RULE_SPECIFIER);
