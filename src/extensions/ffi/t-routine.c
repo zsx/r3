@@ -1170,7 +1170,9 @@ REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec, ffi_abi abi) {
     DROP_GUARD_ARRAY(args_schemas);
 
     // Now fill in the canon value of the paramlist so it is an actual "REBFUN"
+    // Note: address may have moved if the array was resized.
     //
+    rootparam = ARR_HEAD(paramlist);
     VAL_RESET_HEADER(rootparam, REB_FUNCTION);
     rootparam->payload.function.paramlist = paramlist;
     rootparam->extra.binding = NULL;
