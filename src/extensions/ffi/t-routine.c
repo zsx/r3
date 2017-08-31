@@ -85,6 +85,12 @@ static void Schema_From_Block_May_Fail(
         return;
     }
 
+    if (IS_STRUCT(item)) {
+        Init_Block(schema_out, VAL_STRUCT_SCHEMA(item));
+        Init_Typeset(param_out, FLAGIT_KIND(REB_STRUCT), NULL);
+        return;
+    }
+
     if (VAL_LEN_AT(blk) != 1)
         fail (blk);
 
