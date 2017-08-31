@@ -399,7 +399,8 @@ static REBOOL assign_scalar_core(
         break;
 
     default:
-        fail (Error_Invalid_Type(VAL_TYPE(val)));
+        if (FLD_TYPE_SYM(field) != SYM_REBVAL)
+            fail (Error_Invalid_Type(VAL_TYPE(val)));
     }
 
     switch (FLD_TYPE_SYM(field)) {
