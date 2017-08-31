@@ -71,15 +71,16 @@ make-callback: function [
     ; does not crash.
     ;
     attr-rule: [
-        set-word!
-        block! | word!
+        set-word! block!
+        | word!
+        | copy a [tag! some word!](append r-args a)
     ]
 
     if not parse args [
         opt string!
         any [ arg-rule | attr-rule ]
     ][
-        fail "Unrecognized pattern in MAKE-CALLBACK function spec"
+        fail ["Unrecognized pattern in MAKE-CALLBACK function spec" args]
     ]
 
     ; print ["args:" mold args]
@@ -96,6 +97,13 @@ make-callback: function [
         body
     ]
     ; print ["wrapped-func:" mold :wrapped-func]
+
+    parse args [
+        while [
+            remove [tag! some word!]
+            | skip
+        ]
+    ]
 
     wrap-callback :wrapped-func args
 ]
