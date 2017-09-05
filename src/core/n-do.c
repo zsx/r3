@@ -296,8 +296,24 @@ REBNATIVE(do)
         // in the frame the varargs came from.  It's still on the stack, and
         // we don't want to disrupt its state.  Use a subframe.
         //
-        if (Do_Next_In_Subframe_Throws(D_OUT, f, DO_FLAG_NORMAL))
+        if (Do_Next_In_Subframe_Throws(
+            D_OUT,
+            f,
+            REF(next) ? DO_FLAG_NORMAL : DO_FLAG_TO_END
+        )){
             return R_OUT_IS_THROWN;
+        }
+
+        // The variable passed in /NEXT is just set ot the vararg itself,
+        // which has its positioning updated automatically by virtue of the
+        // evaluation performing a "consumption" of VARARGS! content.
+        //
+        if (REF(next)) {
+            Move_Value(
+                Sink_Var_May_Fail(ARG(var), SPECIFIED),
+                ARG(source)
+            );
+        }
 
         return R_OUT; }
 
