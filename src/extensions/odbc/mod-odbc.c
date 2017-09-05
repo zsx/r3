@@ -816,10 +816,8 @@ SQLRETURN ODBC_BindColumns(
 
         case SQL_CHAR:
         case SQL_VARCHAR:
-        case SQL_LONGVARCHAR: // https://stackoverflow.com/a/9547441
         case SQL_WCHAR:
         case SQL_WVARCHAR:
-        case SQL_WLONGVARCHAR: // https://stackoverflow.com/a/9547441
             //
             // !!! Should the non-wide char types use less space by asking
             // for regular SQL_C_CHAR?  Would it be UTF-8?  Latin1?
@@ -832,6 +830,30 @@ SQLRETURN ODBC_BindColumns(
             // or the driver will truncate the data"
             //
             c->buffer_size = sizeof(WCHAR) * (c->column_size + 1);
+            break;
+
+        case SQL_LONGVARCHAR:
+        case SQL_WLONGVARCHAR:
+            //
+            // !!! Should the non-wide char type use less space by asking
+            // for regular SQL_C_CHAR?  Would it be UTF-8?  Latin1?
+            //
+            c->c_type = SQL_C_WCHAR;
+
+            // The LONG variants of VARCHAR have no length limit specified in
+            // the schema:
+            //
+            // https://stackoverflow.com/a/9547441
+            //
+            // !!! The MS SQL driver reports column_size as 1073741824 (1GB)
+            // which means allocating fields of this type would cause memory
+            // problems.  For the moment, cap it at 32k...though if it can
+            // be larger a truncation should be noted, and possibly refetched
+            // with a larger buffer size.
+            //
+            // As above, the + 1 is for the terminator.
+            //
+            c->buffer_size = sizeof(WCHAR) * (32700 + 1);
             break;
 
         default: // used to allocate a character buffer based on column size
