@@ -399,8 +399,18 @@ static REBOOL assign_scalar_core(
         break;
 
     default:
+        // !!! REBVAL in a STRUCT! is likely not a good feature (see the
+        // ALLOC-VALUE-POINTER routine for a better solution).  However, the
+        // same code is used to process FFI function arguments and struct
+        // definitions, and the feature may be useful for function args.
+
         if (FLD_TYPE_SYM(field) != SYM_REBVAL)
             fail (Error_Invalid_Type(VAL_TYPE(val)));
+
+        // Avoid uninitialized variable warnings (should not be used)
+        //
+        i = 1020;
+        d = 304;
     }
 
     switch (FLD_TYPE_SYM(field)) {

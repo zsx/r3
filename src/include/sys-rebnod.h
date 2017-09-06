@@ -315,17 +315,26 @@ struct Reb_Node {
     /* REBI64 payload[N];*/
 };
 
-inline static REBOOL IS_FREE_NODE(void *p) {
-    struct Reb_Node *n = cast(struct Reb_Node*, p);
+#ifdef NDEBUG
+    #define IS_FREE_NODE(p) \
+        LOGICAL(cast(struct Reb_Node*, (p))->header.bits & NODE_FLAG_FREE)
+#else
+    // In the debug build, add in an extra check that the left 8 bits of any
+    // freed nodes match FREED_SERIES_BYTE or TRASH_CELL_BYTE.  This is
+    // needed to distinguish freed nodes from valid UTF8 strings, to implement
+    // features like polymorphic fail() or distinguishing strings in the API.
+    //
+    inline static REBOOL IS_FREE_NODE(void *p) {
+        struct Reb_Node *n = cast(struct Reb_Node*, p);
 
-    if (NOT(n->header.bits & NODE_FLAG_FREE))
-        return FALSE;
+        if (NOT(n->header.bits & NODE_FLAG_FREE))
+            return FALSE;
 
-    REBYTE left_8 = LEFT_8_BITS(n->header.bits);
-    assert(left_8 == FREED_SERIES_BYTE || left_8 == TRASH_CELL_BYTE);
-    UNUSED(left_8);
-    return TRUE;
-}
+        REBYTE left_8 = LEFT_8_BITS(n->header.bits);
+        assert(left_8 == FREED_SERIES_BYTE || left_8 == TRASH_CELL_BYTE);
+        return TRUE;
+    }
+#endif
 
 
 //

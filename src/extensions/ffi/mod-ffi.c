@@ -415,4 +415,151 @@ REBNATIVE(destroy_struct_storage)
 }
 
 
+//
+//  alloc-value-pointer: native/export [
+//
+//  {Persistently allocate a cell that can be referenced from FFI routines}
+//
+//      return: [integer!]
+//      value [<opt> any-value!]
+//          {Initial value for the cell}
+//  ]
+//
+REBNATIVE(alloc_value_pointer)
+//
+// !!! Would it be better to not bother with the initial value parameter and
+// just start the cell out void?
+{
+    INCLUDE_PARAMS_OF_ALLOC_VALUE_POINTER;
+
+    REBVAL *paired = Alloc_Pairing(NULL); // no owning frame
+    Move_Value(paired, ARG(value));
+
+    // We didn't put a FRAME! in the pairing's key, so instead put a blank.
+    // Also, it is not managed...but we want the GC to mark the pairing,
+    // so add NODE_FLAG_ROOT.
+    //
+    // (If it were managed, then any non-END, non-expired-FRAME! value here
+    // would prevent GC.  For now, go with unmanaged in order to make any
+    // leaks be "noisy".)
+    //
+    REBVAL *key = PAIRING_KEY(paired);
+    Init_Blank(key);
+    SET_VAL_FLAG(key, NODE_FLAG_ROOT);
+
+    Init_Integer(D_OUT, cast(REBUPT, paired));
+    return R_OUT;
+}
+
+
+//
+//  free-value-pointer: native/export [
+//
+//  {Free a cell that was allocated by ALLOC-VALUE-POINTER}
+//
+//      return: [<opt>]
+//      pointer [integer!]
+//  ]
+//
+REBNATIVE(free_value_pointer)
+{
+    INCLUDE_PARAMS_OF_FREE_VALUE_POINTER;
+
+    REBVAL *paired = cast(REBVAL*, cast(REBUPT, VAL_INT64(ARG(pointer))));
+
+    // Check some invariants that should be true if this is the kind of
+    // value pointer that can be freed.
+    //
+    // !!! Should these be included in the release build and trigger an error
+    // in order to make the system a bit more crashproof?  It wouldn't be
+    // 100%, but it might save some headaches.
+    //
+#if !defined(NDEBUG)
+    REBVAL *key = PAIRING_KEY(paired);
+    assert(ALL_VAL_FLAGS(paired, NODE_FLAG_NODE | NODE_FLAG_CELL));
+    assert(ALL_VAL_FLAGS(key, NODE_FLAG_NODE | NODE_FLAG_CELL));
+    assert(IS_BLANK(key));
+    assert(GET_VAL_FLAG(key, NODE_FLAG_ROOT));
+#endif
+
+    // Although currently unmanaged pairings are used, it would also be
+    // possible to use a managed pairing.  Instead of calling Free_Pairing()
+    // then the PAIRING_KEY() would need to be set to void, and the GC would
+    // free it if there were no outstanding references.
+    //
+    // Currently there's no way to make GC-visible references to the returned
+    // pointer.  So the only value of using a managed strategy would be to
+    // have the GC clean up leaks on exit instead of complaining in the
+    // debug build.  For now, assume complaining is better.
+    //
+    Free_Pairing(paired);
+    return R_VOID;
+}
+
+
+//
+//  get-at-pointer: native/export [
+//
+//  {Get the contents of a cell, e.g. one returned by ALLOC-VALUE-POINTER}
+//
+//      return: [<opt> any-value!]
+//          {If the source looks up to a value, that value--else blank}
+//      source [integer!]
+//          {A pointer to a Rebol value}
+//      /only
+//          {Return void if no value instead of blank}
+//  ]
+//
+REBNATIVE(get_at_pointer)
+//
+// !!! In an ideal future, the FFI would probably add a user-defined-type
+// for a POINTER!, and then GET could be overloaded to work with it.  No
+// such mechanisms have been designed yet.  In the meantime, the interface
+// for GET-AT-POINTER should not deviate too far from GET.
+{
+    INCLUDE_PARAMS_OF_GET_AT_POINTER;
+
+    REBVAL *paired = cast(REBVAL*, cast(REBUPT, VAL_INT64(ARG(source))));
+    if (IS_VOID(paired) && NOT(REF(only)))
+        Init_Blank(D_OUT);
+    else
+        Move_Value(D_OUT, paired);
+
+    return R_OUT;
+}
+
+
+//
+//  set-at-pointer: native/export [
+//
+//  {Set the contents of a cell, e.g. one returned by ALLOC-VALUE-POINTER}
+//
+//      return: [<opt> any-value!]
+//          {Will be the value set to, or void if the set values is void}
+//      target [integer!]
+//          {A pointer to a Rebol value}
+//      value [<opt> any-value!]
+//          "Value to assign"
+//      /only
+//          {Treat void values as unsetting the target instead of an error}
+//  ]
+//
+REBNATIVE(set_at_pointer)
+//
+// !!! See notes on GET-AT-POINTER about keeping interface roughly compatible
+// with the SET native.
+{
+    INCLUDE_PARAMS_OF_SET_AT_POINTER;
+
+    if (IS_VOID(ARG(value)) && NOT(REF(only)))
+        fail (Error_No_Value(ARG(value)));
+
+    REBVAL *paired = cast(REBVAL*, cast(REBUPT, VAL_INT64(ARG(target))));
+    Move_Value(paired, ARG(value));
+
+    Move_Value(D_OUT, ARG(value));
+    return R_OUT;
+}
+
+
 #include "tmp-mod-ffi-last.h"

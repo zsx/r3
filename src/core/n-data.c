@@ -459,7 +459,7 @@ REBNATIVE(collect_words)
 //  {Gets the value of a word or path, or values of a context.}
 //
 //      return: [<opt> any-value!]
-//          {If the source looks up to a value, that value--else void}
+//          {If the source looks up to a value, that value--else blank}
 //      source [blank! any-word! any-path! block!]
 //          {Word or path to get, or block of words or paths (blank is no-op)}
 //      /only

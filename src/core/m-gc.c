@@ -915,13 +915,16 @@ static void Mark_Root_Series(void)
         REBSER *s = cast(REBSER *, seg + 1);
         REBCNT n;
         for (n = Mem_Pools[SER_POOL].units; n > 0; --n, ++s) {
+            //
+            // !!! A smarter switch statement here could do this more
+            // optimally...see the sweep code for an example.
+            //
             if (IS_FREE_NODE(s))
                 continue;
-
-            assert(NOT(Is_Rebser_Marked(s))); // can't be marked yet
-
             if (NOT(s->header.bits & NODE_FLAG_ROOT))
                 continue;
+            if (s->header.bits & NODE_FLAG_MARKED)
+                continue; // this can happen if a previous root marked it
 
             // If something is marked as a root, then it has its contents
             // GC managed...even if it is not itself a candidate for GC.
@@ -957,7 +960,8 @@ static void Mark_Root_Series(void)
                 // might be executed with the pairing as the OUT slot (since
                 // it is memory guaranteed not to relocate)
                 //
-                Mark_Rebser_Only(s);
+                if (GET_SER_FLAG(s, NODE_FLAG_MANAGED))
+                    Mark_Rebser_Only(s); // mark node only if managed
                 Queue_Mark_Value_Deep(key);
                 if (NOT_END(paired))
                     Queue_Mark_Value_Deep(paired);
