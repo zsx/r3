@@ -227,7 +227,7 @@ process-module: func [
     assert-no-blank-inside mod/definitions
     assert-no-blank-inside mod/depends
     if block? mod/libraries [assert-no-blank-inside mod/libraries]
-    assert-no-blank-inside mod/cflags
+    if block? mod/cflags [assert-no-blank-inside mod/cflags]
     ret: make rebmake/object-library-class [
         name: mod/name
         depends: map-each s (append reduce [mod/source] opt mod/depends) [
@@ -1338,7 +1338,8 @@ for-each ext builtin-extensions [
 
         if mod/ldflags [
             ;dump mod/ldflags
-            assert-no-blank-inside mod/ldflags
+
+            if block? mod/ldflags [assert-no-blank-inside mod/ldflags]
             append app-config/ldflags mod/ldflags
         ]
 
