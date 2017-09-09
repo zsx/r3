@@ -185,18 +185,6 @@ enum Reb_Param_Class {
 //
 #define TYPESET_FLAG_UNBINDABLE TYPESET_FLAG(1)
 
-// !!! <durable> is the working name for the property of a function
-// argument or local to have its data survive after the call is over.
-// Much of the groundwork has been laid to allow this to be specified
-// individually for each argument, but the feature currently is "all
-// or nothing"--and implementation-wise corresponds to what R3-Alpha
-// called CLOSURE!, with the deep-copy-per-call that entails.
-//
-// Hence if this property is applied, it will be applied to *all* of
-// a function's arguments.
-//
-#define TYPESET_FLAG_DURABLE TYPESET_FLAG(2)
-
 // !!! This does not need to be on the typeset necessarily.  See the
 // VARARGS! type for what this is, which is a representation of the
 // capture of an evaluation position. The type will also be checked but
@@ -206,7 +194,7 @@ enum Reb_Param_Class {
 // a VARARGS! type are different things.  (A function may accept a
 // variadic number of VARARGS! values, for instance.)
 //
-#define TYPESET_FLAG_VARIADIC TYPESET_FLAG(3)
+#define TYPESET_FLAG_VARIADIC TYPESET_FLAG(2)
 
 // !!! In R3-Alpha, there were only 8 type-specific bits...with the
 // remaining bits "reserved for future use".  This goes over the line
@@ -219,7 +207,7 @@ enum Reb_Param_Class {
 // ordinary argument hit the end (e.g. the trick used for `>> help` when
 // the arity is 1 usually as `>> help foo`)
 //
-#define TYPESET_FLAG_ENDABLE TYPESET_FLAG(4)
+#define TYPESET_FLAG_ENDABLE TYPESET_FLAG(3)
 
 // Operations when typeset is done with a bitset (currently all typesets)
 

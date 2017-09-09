@@ -137,14 +137,6 @@ make-action: func [
 
     ;; dump [spec]
 
-    ; Insert <durable> into the spec.  This is based on the belief that
-    ; indefinite duration is a fair user expectation without having to ask.
-    ; Consider the legitimacy of:
-    ;
-    ;    foo: function [x] [y: x * 2 | return func [z] [x + y + z]
-    ;
-    append new-spec <durable>
-
     ; Gather the SET-WORD!s in the body, excluding the collected ANY-WORD!s
     ; that should not be considered.  Note that COLLECT is not defined by
     ; this point in the bootstrap.
@@ -181,9 +173,7 @@ make-action: func [
         )
     |
         (var: void) ;-- everything below this line clears var
-        fail ;-- failing here means rolling over to next rule (<durable>)
-    |
-        <durable> ;-- don't add to new-spec as we already added it
+        fail ;-- failing here means rolling over to next rule
     |
         <local>
         any [set var: word! (other: _) opt set other: group! (
@@ -222,11 +212,7 @@ make-action: func [
             string! ;-- skip over as commentary
         ]
     |
-        ; While <static> is a well-known computer science term, it is an
-        ; un-intuitive word.  <has> is Ren-C's preference in mezzanine or
-        ; official code, relating it to the HAS object constructor.
-        ;
-        [<has> | <static>] (
+        <static> (
             unless statics [
                 statics: copy []
             ]

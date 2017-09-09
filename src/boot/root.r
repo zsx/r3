@@ -33,7 +33,6 @@ ellipsis-tag    ; FUNC+PROC use as alternative to [[]] to mark varargs
 opt-tag         ; FUNC+PROC use as alternative to _ to mark optional void? args
 end-tag         ; FUNC+PROC use as alternative to | to mark endable args
 local-tag       ; marks the beginning of a list of "pure locals"
-durable-tag     ; !!! In progress - argument word lookup survives call ending
 
 ;; !!! See notes on FUNCTION-META in %sysobj.r
 

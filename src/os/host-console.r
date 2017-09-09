@@ -45,7 +45,7 @@ echo: procedure [
     'instruction [file! string! block! word!]
         {File or template with * substitution, or command: [ON OFF RESET].}
 
-    <has>
+    <static>
     target ([%echo * %.txt])
     form-target
     sub ("")
@@ -171,7 +171,7 @@ host-console: function [
     focus-frame [blank! frame!]
         {If at a breakpoint, the function frame where the breakpoint was hit}
 
-    <has>
+    <static>
 
     RE_SCAN_INVALID (2000)
     RE_SCAN_MISSING (2001)

@@ -161,7 +161,7 @@ math: function [
     ; binding information into something that's not the function body itself
     ; isn't implemented.
 
-    <has>
+    <static>
 
     slash (to-lit-word first [ / ])
 

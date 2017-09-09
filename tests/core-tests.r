@@ -26,7 +26,11 @@
 %datatypes/bitset.test.reb
 %datatypes/block.test.reb
 %datatypes/char.test.reb
-%datatypes/closure.test.reb
+
+; CLOSURE is not supported for the moment
+; https://forum.rebol.info/t/234
+;%datatypes/closure.test.reb
+
 %datatypes/datatype.test.reb
 %datatypes/date.test.reb
 %datatypes/decimal.test.reb

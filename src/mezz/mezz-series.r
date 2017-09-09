@@ -220,7 +220,7 @@ reword: function [
     output [any-string! binary!]
         "The buffer series (modified)"
 
-    <has>
+    <static>
 
     ; Note: this list should be the same as above with delimiters, with
     ; BLOCK! excluded.

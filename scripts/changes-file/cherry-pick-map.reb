@@ -141,7 +141,7 @@ fail "Simple error"
     type: 'Added
     related: ["47aef8a" "9fb973c" "0dff611"]
     trello: https://trello.com/c/IyxPieNa/
-    summary: {<in>, <with>, <static> / <has> function specs}
+    summary: {<in>, <with>, <static> function specs}
 ] ;  <in>, <with>, <static> function specs...plus defaults 
 
 

@@ -262,6 +262,17 @@ op?: func [dummy:] [
     ] 'dummy
 ]
 
+clos: closure: func [dummy:] [
+    fail/where [
+        {One feature of R3-Alpha's CLOSURE! is now available in all FUNCTION!}
+        {which is to specifically distinguish variables in recursions.  The}
+        {other feature of indefinite lifetime of "leaked" args and locals is}
+        {under review.  If one wishes to create an OBJECT! on each function}
+        {call and bind the body into that object, that is still possible--but}
+        {specialized support for the feature is not implemented at present.}
+    ] 'dummy
+]
+
 
 ; The legacy PRIN construct is replaced by PRINT/ONLY SPACED
 ;
@@ -428,36 +439,6 @@ apply: adapt 'apply [
     if not maybe [set-word! bar! blank!] first def [
         fail {APPLY takes frame def block (or see r3-alpha-apply)}
     ]
-]
-
-
-; In Ren-C, FUNCTION's variables have indefinite extent (aka <durable>), and
-; the body is specifically bound to those variables.  (There is no dynamic
-; binding in Ren-C)
-;
-closure: func [
-    return: [function!]
-    spec
-    body
-][
-    function compose [
-        return: [<opt> any-value!]
-        (spec)
-    ] body
-]
-
-; FUNC variables are not durable by default, it must be specified explicitly.
-;
-clos: func [
-    "Defines a closure function."
-
-    return: [function!]
-    spec [block!]
-        {Help string (opt) followed by arg words (and opt type and string)}
-    body [block!]
-        "The body block of the function"
-][
-    func compose [<durable> (spec)] body
 ]
 
 closure!: :function!

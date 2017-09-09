@@ -13,12 +13,6 @@
 ; No structural equivalence for function!
 ; Uses FUNC instead of make function! so the test is compatible.
 [not equal? func [] [] func [] []]
-; reflexivity test for closure!
-; Uses CLOSURE to make the test compatible.
-[equal? a-value: closure [] [] :a-value]
-; No structural equivalence for closure!
-; Uses CLOSURE to make the test compatible.
-[not equal? closure [] [] closure [] []]
 [equal? a-value: #{00} a-value]
 ; binary!
 ; Same contents

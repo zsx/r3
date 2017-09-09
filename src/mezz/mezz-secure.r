@@ -17,7 +17,7 @@ secure: function [
     'policy [<opt> word! lit-word! block!]
         "Set single or multiple policies (or HELP)"
 
-    <has>
+    <static>
 
     ; Permanent values and sub-functions of SECURE:
 

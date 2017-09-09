@@ -56,7 +56,7 @@ disable-user-includes: procedure [
     /inline headers [block!] {Block of filenames to inline if seen}
     /stdio {Disable stdio.h}
     <local> name line-iter line pos
-    <has>
+    <static>
     open-include (charset {"<"})
     close-include (charset {">"})
 ] [

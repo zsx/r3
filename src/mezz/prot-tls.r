@@ -79,7 +79,7 @@ make-tls-error: func [
 parse-asn: function [
     data [binary!]
 
-    <has>
+    <static>
 
     universal-tags ([
         eoc
@@ -203,7 +203,7 @@ parse-asn: function [
 get-next-read-state: function [
     ctx [object!]
 
-    <has>
+    <static>
 
     read-proto-states ([
         client-hello [server-hello]
@@ -226,7 +226,7 @@ get-next-read-state: function [
 get-next-write-state: function [
     ctx [object!]
 
-    <has>
+    <static>
 
     write-proto-states ([
         server-hello-done [client-key-exchange]
@@ -525,7 +525,7 @@ decrypt-data: function [
 parse-protocol: function [
     data [binary!]
     
-    <has>
+    <static>
 
     protocol-types ([
         20 change-cipher-spec
@@ -550,7 +550,7 @@ parse-messages: function [
     ctx [object!]
     proto [object!]
 
-    <has>
+    <static>
 
     message-types ([
         0 hello-request

@@ -384,7 +384,7 @@ gcc: make compiler-class [
         <with>
         version
         exec-file
-        <has>
+        <static>
         digit (charset "0123456789")
     ][
         version: copy ""
@@ -1757,7 +1757,7 @@ visual-studio: make generator-class [
 
     find-stack-size: function [
         ldflags [block!]
-        <has>
+        <static>
         digit (charset "0123456789")
     ][
         size: _

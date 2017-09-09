@@ -134,7 +134,7 @@ load-cherry-pick-map: does [map lock load %cherry-pick-map.reb]
 notable?: function [
     {Is this a notable change?}
     c [block!] {Commit-log block}
-    <has>
+    <static>
         cherry-pick (load-cherry-pick-map)
         related (make block! 0)
 ][

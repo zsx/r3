@@ -454,7 +454,7 @@ unless 'Windows = first system/platform [
 
     hijack 'locale function [
         type [word!]
-        <has>
+        <static>
         iso-639 (iso-639-table)
         iso-3166 (iso-3166-table)
     ][

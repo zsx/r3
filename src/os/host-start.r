@@ -238,7 +238,7 @@ host-start: function [
     boot-exts [block! blank!]
         {Extensions (modules) loaded at boot}
     <with> host-prot
-    <has>
+    <static>
         o (system/options) ;-- shorthand since options are often read/written
 ][
     ; Currently there is just one monolithic "initialize all schemes", e.g.

@@ -11,13 +11,6 @@
 ]
 ; no structural equality for function!
 [not strict-equal? func [] [] func [] []]
-; reflexivity test for closure!
-[
-    a-value: closure [] []
-    strict-equal? :a-value :a-value
-]
-; no structural equality for closure!
-[not strict-equal? closure [] [] closure [] []]
 ; binary!
 [strict-equal? #{00} #{00}]
 ; binary versus bitset

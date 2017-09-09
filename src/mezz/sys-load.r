@@ -105,7 +105,7 @@ load-header: function [
     /required
         "Script header is required"
 
-    <has>
+    <static>
     non-ws (make bitset! [not 1 - 32])
 ][
     ; This function decodes the script header from the script body.
@@ -534,7 +534,7 @@ load-ext-module: function [
             /body
             code [block!]
                 "Equivalent rebol code"
-            <has>
+            <static>
             index (-1)
         ] compose [
             index: index + 1

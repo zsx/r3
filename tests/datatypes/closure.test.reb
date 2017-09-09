@@ -293,3 +293,50 @@
     ; drop the index position (there is no index slot in the body series).
     ; A copy must be made -or- series forced to be at their head.
 ]
+
+; TESTS THAT CAME FROM OTHER FILES THAT STILL USED CLOSURE
+
+; object cloning
+; bug#2049
+[
+    o: make object! [n: 'o f: closure [] [n]]
+    p: make o [n: 'p]
+    'p = p/f
+]
+
+; reflexivity test for closure!
+; Uses CLOSURE to make the test compatible.
+[equal? a-value: closure [] [] :a-value]
+
+; No structural equivalence for closure!
+; Uses CLOSURE to make the test compatible.
+[not equal? closure [] [] closure [] []]
+
+; reflexivity test for closure!
+[
+    a-value: closure [] []
+    same? :a-value :a-value
+]
+
+; no structural equality for closure!
+[not same? closure [] [] closure [] []]
+
+; reflexivity test for closure!
+[
+    a-value: closure [] []
+    strict-equal? :a-value :a-value
+]
+
+; no structural equality for closure!
+[not strict-equal? closure [] [] closure [] []]
+
+; bug#1549
+; BIND works 'as expected' in closure body
+[
+    b1: [self]
+    f: closure [/local b2] [
+        b2: [self]
+        same? first b2 first bind/copy b1 'b2
+    ]
+    f
+]

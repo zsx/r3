@@ -72,13 +72,6 @@
     o3: make o1 o2
     2 == o3/f
 ]
-; object cloning
-; bug#2049
-[
-    o: make object! [n: 'o f: closure [] [n]]
-    p: make o [n: 'p]
-    'p = p/f
-]
 ; appending to objects
 ; bug#1979
 [

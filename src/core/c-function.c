@@ -178,8 +178,6 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     }
 #endif
 
-    REBOOL durable = FALSE;
-
     REBDSP dsp_orig = DSP;
     assert(DS_TOP == DS_AT(dsp_orig));
 
@@ -262,20 +260,6 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             }
             else if (0 == Compare_String_Vals(item, ROOT_LOCAL_TAG, TRUE)) {
                 mode = SPEC_MODE_LOCAL;
-            }
-            else if (0 == Compare_String_Vals(item, ROOT_DURABLE_TAG, TRUE)) {
-                //
-                // <durable> is currently a lesser version of what it
-                // hopes to be, but signals what R3-Alpha called CLOSURE!
-                // semantics.  Indicating that a typeset is durable in
-                // the low-level will need to be done with some notation
-                // that doesn't use "keywords"--perhaps a #[true] or a
-                // #[false] picked up on by the typeset.
-                //
-                // !!! Enforce only at the head, if it's going to be
-                // applying to everything??
-                //
-                durable = TRUE;
             }
             else
                 fail (Error_Bad_Func_Def_Core(item, VAL_SPECIFIER(spec)));
@@ -529,14 +513,6 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         default:
             fail (Error_Bad_Func_Def_Core(item, VAL_SPECIFIER(spec)));
         }
-
-        // !!! This is a lame way of setting the durability, because it means
-        // that there's no way a user with just `make function!` could do it.
-        // However, it's a step closer to the solution and eliminating the
-        // FUNCTION!/CLOSURE! distinction.
-        //
-        if (durable)
-            SET_VAL_FLAG(typeset, TYPESET_FLAG_DURABLE);
     }
 
     Drop_Frame(f);

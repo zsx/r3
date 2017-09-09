@@ -203,7 +203,6 @@ Script: [
     frame-already-used: [{Frame currently in use by a function call} :arg1]
     frame-not-on-stack: {Frame is no longer running on the stack}
 
-    recursive-varargs:  {VARARGS! chained into itself (maybe try <durable>?)}
     varargs-no-stack:   {Call originating VARARGS! has finished running}
     varargs-make-only:  {MAKE *shared* BLOCK! supported on VARARGS! (not TO)}
     varargs-no-look:    {VARARGS! may only lookahead by 1 if "hard quoted"}

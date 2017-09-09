@@ -287,16 +287,6 @@ inline static REBOOL IS_FUNCTION_HIJACKER(const RELVAL *v)
     { return LOGICAL(VAL_FUNC_DISPATCHER(v) == &Hijacker_Dispatcher); }
 
 
-// !!! At the moment functions are "all durable" or "none durable" w.r.t. the
-// survival of their arguments and locals after the call.
-//
-inline static REBOOL IS_FUNC_DURABLE(REBFUN *f) {
-    return LOGICAL(
-        FUNC_NUM_PARAMS(f) != 0
-        && GET_VAL_FLAG(FUNC_PARAM(f, 1), TYPESET_FLAG_DURABLE)
-    );
-}
-
 // Native values are stored in an array at boot time.  This is a convenience
 // accessor for getting the "FUNC" portion of the native--e.g. the paramlist.
 // It should compile to be as efficient as fetching any global pointer.

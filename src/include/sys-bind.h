@@ -348,13 +348,20 @@ inline static REBVAL *Get_Var_Core(
 
     if (CTX_VARS_UNAVAILABLE(context)) {
         //
-        // Currently if a context has a stack component, then the vars
-        // are "all stack"...so when that level is popped, all the vars
-        // will be unavailable.  There is a <durable> mechanism, but that
-        // makes all the variables come from an ordinary pool-allocated
-        // series.  Hybrid approaches which have "some stack and some
-        // durable" will be possible in the future, as a context can
-        // mechanically have both stackvars and a dynamic data pointer.
+        // Currently the storage for variables in a function frame are all
+        // located on the chunk stack.  So when that level is popped, all the
+        // vars will be unavailable.
+        //
+        // Historically the system became involved with something known as a
+        // CLOSURE!, which used non-stack storage (like an OBJECT!) for all of
+        // its arguments and locals.  One aspect of closures was that
+        // recursions could uniquely identify their bindings (which is now a
+        // feature of all functions).  But the other aspect was indefinite
+        // lifetime of word bindings "leaked" after the closure was finished.
+        //
+        // The idea of allowing a single REBSER node to serve for both a
+        // durable portion and a stack-lifetime portion of a FRAME! is on the
+        // table, but not currently implemented.
 
         if (flags & GETVAR_END_IF_UNAVAILABLE)
             return m_cast(REBVAL*, END); // only const callers should use
