@@ -13,7 +13,3 @@ toolset: compose [
 ldflags: cflags: reduce [
     unspaced ["--sysroot=" tool-prefix/platforms/android-19/arch-arm]
 ]
-
-extensions: [
-    - ODBC _
-]

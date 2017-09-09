@@ -11,6 +11,13 @@ extensions: [
     ;[+|-|*] ext [modules]
     ;- uuid _
     ;* png _ ;[Lodepng]
+
+    ; FFI and ODBC have dependencies outside of what's available on a stock
+    ; standard C compiler with POSIX or Win32.  Disable these extensions by
+    ; default.  (Review the general policy for default inclusions.)
+    ;
+    - FFI _
+    - ODBC _
 ]
 
 ; use ./r3-make
@@ -36,7 +43,11 @@ rigorous: no
 
 static: no
 pkg-config: get-env "PKGCONFIG" ;path to pkg-config, or default
-with-ffi: 'dynamic
+
+; The original default for WITH-FFI was 'dynamic, but this would cause it to
+; try building the FFI on all configurations.
+;
+with-ffi: no
 
 odbc-requires-ltdl: no
 
