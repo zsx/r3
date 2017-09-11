@@ -59,7 +59,7 @@ struct Reb_Array {
 // them type incompatible for most purposes, some operations require treating
 // one kind of pointer as the other (and they are both Reb_Series)
 //
-#if defined(__cplusplus) && __cplusplus >= 201103L
+#if !defined(NDEBUG) && defined(__cplusplus) && __cplusplus >= 201103L
     template <class T>
     inline REBARR *ARR(T *p) {
         static_assert(
@@ -68,10 +68,19 @@ struct Reb_Array {
             || std::is_same<T, REBSER>::value,
             "ARR works on: void*, REBNOD*, REBSER*"
         );
-        REBSER *s = cast(REBSER*, p);
-        assert(NOT_SER_FLAG(s, NODE_FLAG_FREE));
-        assert(ALL_SER_FLAGS(s, NODE_FLAG_NODE | SERIES_FLAG_ARRAY));
-        return cast(REBARR*, s);
+
+        // This is only in unoptimized builds, so code it as carefully as
+        // possible...no local variables, use reinterpret_cast and not cast(),
+        // and test bit flags all at once.
+        // 
+        assert(
+            (NODE_FLAG_NODE | SERIES_FLAG_ARRAY)
+            == (reinterpret_cast<REBSER*>(p)->header.bits & (
+                NODE_FLAG_NODE | SERIES_FLAG_ARRAY // good!
+                | NODE_FLAG_FREE | NODE_FLAG_CELL | NODE_FLAG_END // bad!
+            ))
+        );
+        return reinterpret_cast<REBARR*>(p);
     }
 #else
     #define ARR(p) \
@@ -85,18 +94,21 @@ struct Reb_Array {
 // debug builds).  A fully constructed array should always have an END
 // marker in its tail slot, which is one past the last position that is
 // valid for writing a full REBVAL.
+//
+// Use plain C cast because this is called so often that cast() or SER() will
+// slow down the C++ debug build too much.
 
 inline static RELVAL *ARR_AT(REBARR *a, REBCNT n)
-    { return SER_AT(RELVAL, SER(a), (n)); }
+    { return SER_AT(RELVAL, (REBSER*)a, (n)); }
 
 inline static RELVAL *ARR_HEAD(REBARR *a)
-    { return SER_HEAD(RELVAL, SER(a)); }
+    { return SER_HEAD(RELVAL, (REBSER*)a); }
 
 inline static RELVAL *ARR_TAIL(REBARR *a)
-    { return SER_TAIL(RELVAL, SER(a)); }
+    { return SER_TAIL(RELVAL, (REBSER*)a); }
 
 inline static RELVAL *ARR_LAST(REBARR *a)
-    { return SER_LAST(RELVAL, SER(a)); }
+    { return SER_LAST(RELVAL, (REBSER*)a); }
 
 // As with an ordinary REBSER, a REBARR has separate management of its length
 // and its terminator.  Many routines seek to choose the precise moment to

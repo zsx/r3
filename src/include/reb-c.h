@@ -429,6 +429,39 @@ typedef unsigned long   REBUPT;     // unsigned counterpart of void*
     #define REBOOL DUMMYBOOL
     #define FALSE cast(struct Bool_Dummy*, 0x6466AE99)
     #define TRUE cast(struct Bool_Dummy*, 0x0421BD75)
+
+    #if defined(__cplusplus) && __cplusplus >= 201103L
+        //
+        // In the C++ build, we can help reduce confusion by making sure that
+        // LOGICAL and NOT are only applied to integral types.  Using it on
+        // pointers to test for NULL is somewhat unclear for readability
+        // at the callsite, and one doesn't want it on floating point.
+        //
+        // Note: This winds up taking a significant percentage of the time
+        // if used in all C++ debug builds, so only enforce it when doing the
+        // full STRICT_BOOL_COMPILER_TEST
+        //
+        template <typename T>
+        inline static REBOOL LOGICAL(T x) {
+            static_assert(
+                std::is_same<T, REBOOL>::value || std::is_integral<T>::value,
+                "LOGICAL(x) can only be used on integral types"
+            );
+            return x ? TRUE : FALSE;
+        }
+        template <typename T>
+        inline static REBOOL NOT(T x) {
+            static_assert(
+                std::is_same<T, REBOOL>::value || std::is_integral<T>::value,
+                "NOT(x) can only be used on integral types"
+            );
+            return x ? FALSE : TRUE;
+        }
+    #else
+        // dummy substitutions
+        #define LOGICAL(x) cast(struct Bool_Dummy*, 0x10200304)
+        #define NOT(x) cast(struct Bool_Dummy*, 0x03041020)
+    #endif
 #else
     #if (defined(FALSE) && (!FALSE)) && (defined(TRUE) && TRUE)
 
@@ -475,32 +508,7 @@ typedef unsigned long   REBUPT;     // unsigned counterpart of void*
         //
         #error "Bad TRUE and FALSE definitions in compiler environment"
     #endif
-#endif
 
-#if defined(__cplusplus) && __cplusplus >= 201103L
-    //
-    // In the C++ build, we can help reduce confusion by making sure that
-    // LOGICAL and NOT are only applied to integral types.  Using it on
-    // pointers to test if they are NULL is somewhat unclear for readability
-    // at the callsite, and one certainly doesn't want it on floating point.
-    //
-    template <typename T>
-    inline static REBOOL LOGICAL(T x) {
-        static_assert(
-            std::is_same<T, REBOOL>::value || std::is_integral<T>::value,
-            "LOGICAL(x) can only be used on integral types"
-        );
-        return x ? TRUE : FALSE;
-    }
-    template <typename T>
-    inline static REBOOL NOT(T x) {
-        static_assert(
-            std::is_same<T, REBOOL>::value || std::is_integral<T>::value,
-            "NOT(x) can only be used on integral types"
-        );
-        return x ? FALSE : TRUE;
-    }
-#else
     #define LOGICAL(x) \
         ((x) ? TRUE : FALSE)
     #define NOT(x) \

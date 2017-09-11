@@ -767,7 +767,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         REBVAL *dest = SINK(ARR_HEAD(types_varlist)); // "rootvar"
         VAL_RESET_HEADER(dest, REB_FRAME);
         dest->payload.any_context.varlist = types_varlist; // canon FRAME!
-        dest->payload.any_context.phase = AS_FUNC(paramlist);
+        dest->payload.any_context.phase = FUN(paramlist);
         INIT_BINDING(dest, UNBOUND);
 
         ++dest;
@@ -837,7 +837,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         REBVAL *dest = SINK(ARR_HEAD(notes_varlist)); // "rootvar"
         VAL_RESET_HEADER(dest, REB_FRAME);
         dest->payload.any_context.varlist = notes_varlist; // canon FRAME!
-        dest->payload.any_context.phase = AS_FUNC(paramlist);
+        dest->payload.any_context.phase = FUN(paramlist);
         INIT_BINDING(dest, UNBOUND);
 
         ++dest;
@@ -1094,7 +1094,7 @@ done_caching:;
     assert(NOT_SER_FLAG(paramlist, SERIES_FLAG_FILE_LINE));
     assert(NOT_SER_FLAG(body_holder, SERIES_FLAG_FILE_LINE));
 
-    return AS_FUNC(paramlist);
+    return FUN(paramlist);
 }
 
 
@@ -1665,7 +1665,7 @@ void Clonify_Function(REBVAL *value)
         Copy_Rerelativized_Array_Deep_Managed(
             VAL_ARRAY(FUNC_BODY(original_fun)),
             original_fun,
-            AS_FUNC(paramlist)
+            FUN(paramlist)
         )
     );
     VAL_INDEX(body) = 0;

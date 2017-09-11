@@ -559,7 +559,7 @@ static void Queue_Mark_Opt_Value_Deep(const RELVAL *v)
         // been passed through any parameter.
         //
         if (v->payload.varargs.facade != NULL)
-            Queue_Mark_Function_Deep(AS_FUNC(v->payload.varargs.facade));
+            Queue_Mark_Function_Deep(FUN(v->payload.varargs.facade));
 
         Queue_Mark_Binding_Deep(v);
         break; }

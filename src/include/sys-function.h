@@ -39,20 +39,25 @@ struct Reb_Func {
 
 #if !defined(NDEBUG) && defined(__cplusplus) && __cplusplus >= 201103L
     template <class T>
-    inline REBFUN *AS_FUNC(T *p) {
+    inline REBFUN *FUN(T *p) {
         static_assert(
             std::is_same<T, void>::value
             || std::is_same<T, REBNOD>::value
             || std::is_same<T, REBSER>::value
             || std::is_same<T, REBARR>::value,
-            "AS_FUNC works on: void*, REBNOD*, REBSER*, REBARR*"
+            "FUN() works on: void*, REBNOD*, REBSER*, REBARR*"
         );
-        REBARR *paramlist = cast(REBARR*, p);
-        assert(GET_SER_FLAG(paramlist, ARRAY_FLAG_PARAMLIST));
-        return cast(REBFUN*, paramlist);
+        assert(
+            (NODE_FLAG_NODE | SERIES_FLAG_ARRAY | ARRAY_FLAG_PARAMLIST)
+            == (reinterpret_cast<REBSER*>(p)->header.bits & (
+                NODE_FLAG_NODE | SERIES_FLAG_ARRAY | ARRAY_FLAG_PARAMLIST
+                | NODE_FLAG_FREE | NODE_FLAG_CELL | NODE_FLAG_END // bad!
+            ))
+        );
+        return reinterpret_cast<REBFUN*>(p);
     }
 #else
-    #define AS_FUNC(p) \
+    #define FUN(p) \
         cast(REBFUN*, (p))
 #endif
 
@@ -126,7 +131,7 @@ inline static REBCTX *FUNC_META(REBFUN *f) {
 // always have a FUNCTION! value in its 0 slot as the underlying function.
 //
 inline static REBFUN *FUNC_UNDERLYING(REBFUN *f) {
-    return AS_FUNC(ARR_HEAD(FUNC_FACADE(f))->payload.function.paramlist);
+    return FUN(ARR_HEAD(FUNC_FACADE(f))->payload.function.paramlist);
 }
 
 inline static REBCTX *FUNC_EXEMPLAR(REBFUN *f) {
@@ -232,7 +237,7 @@ inline static REBRIN *FUNC_ROUTINE(REBFUN *f) {
 
 inline static REBFUN *VAL_FUNC(const RELVAL *v) {
     assert(IS_FUNCTION(v));
-    return AS_FUNC(v->payload.function.paramlist);
+    return FUN(v->payload.function.paramlist);
 }
 
 inline static REBARR *VAL_FUNC_PARAMLIST(const RELVAL *v)

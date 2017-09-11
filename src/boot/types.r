@@ -32,12 +32,20 @@ REBOL [
         easier not to forget the importance of the order by keeping the
         macros here.
     }
-    Macros: {    
+    Macros: {
+        // We use VAL_TYPE_RAW() for checking the bindable flag because it
+        // is called *extremely often*; the extra debug checks in VAL_TYPE()
+        // make it prohibitively more expensive than a simple check of a
+        // flag, while these tests are very fast.
+
         #define Is_Bindable(v) \
-            (VAL_TYPE(v) < REB_BAR)
+            (VAL_TYPE_RAW(v) < REB_BAR)
 
         #define Not_Bindable(v) \
-            (VAL_TYPE(v) >= REB_BAR)
+            (VAL_TYPE_RAW(v) >= REB_BAR)
+
+        // For other checks, we pay the cost in the debug build of all the
+        // associated baggage that VAL_TYPE() carries over VAL_TYPE_RAW()
 
         #define IS_ANY_VALUE(v) \
             LOGICAL(VAL_TYPE(v) != REB_MAX_VOID)

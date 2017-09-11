@@ -77,29 +77,28 @@ inline static REBCTX *CTX(void *p) {
     return cast(REBCTX*, a);
 }
 
-inline static REBARR *CTX_VARLIST(REBCTX *c) {
-    return &c->varlist;
-}
+#define CTX_VARLIST(c) \
+    (&(c)->varlist)
 
 
 // There may not be any dynamic or stack allocation available for a stack
 // allocated context, and in that case it will have to come out of the
-// REBSER node data itself.
+// REBSER node data itself.  This is called very often, so use a raw C cast
+// and not cast() or KNOWN(), which slow down the debug build.
 //
-inline static REBVAL *CTX_VALUE(REBCTX *c) {
-    return GET_SER_INFO(CTX_VARLIST(c), CONTEXT_INFO_STACK)
-        ? KNOWN(&SER(CTX_VARLIST(c))->content.values[0])
-        : KNOWN(ARR_HEAD(CTX_VARLIST(c))); // not a RELVAL
-}
+#define CTX_VALUE(c) \
+    ((REBVAL*)ARR_HEAD(CTX_VARLIST(c)))
 
-inline static REBARR *CTX_KEYLIST_RAW(REBCTX *c) {
-    return SER(CTX_VARLIST(c))->link.keylist;
-}
+#define CTX_KEYLIST_RAW(c) \
+    ((REBSER*)CTX_VARLIST(c))->link.keylist
 
+// CTX_KEYLIST is called often, and it's worth it to make it as fast as
+// possible--even in an unoptimized build.  Use VAL_TYPE_RAW, plain C cast.
+//
 inline static REBARR *CTX_KEYLIST(REBCTX *c) {
-    RELVAL *v = CTX_VALUE(c);
+    REBVAL *v = CTX_VALUE(c);
 
-    if (NOT(IS_FRAME(v))) {
+    if (VAL_TYPE_RAW(v) != REB_FRAME) {
         //
         // Ordinarily, we want to use the keylist pointer that is stored in
         // the misc field of the varlist.
@@ -117,7 +116,7 @@ inline static REBARR *CTX_KEYLIST(REBCTX *c) {
     //
     // Note: FUNC_FACADE and VAL_FUNC_PARAMLIST macros not defined yet
     //
-    return cast(REBSER*, v->payload.any_context.phase)->misc.facade;
+    return ((REBSER*)v->payload.any_context.phase)->misc.facade;
 }
 
 static inline void INIT_CTX_KEYLIST_SHARED(REBCTX *c, REBARR *keylist) {

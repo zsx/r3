@@ -1357,7 +1357,7 @@ inline static void SET_GOB(RELVAL *v, REBGOB *g) {
 // the same function if it contains any instances of such relative words.
 //
 inline static REBOOL IS_RELATIVE(const RELVAL *v) {
-    if (IS_UNREADABLE_IF_DEBUG(v) || Not_Bindable(v))
+    if (Not_Bindable(v)) // uses VAL_TYPE_RAW(), don't check unreadable blank
         return FALSE;
     return LOGICAL(v->extra.binding->header.bits & ARRAY_FLAG_PARAMLIST);
 }
@@ -1399,12 +1399,24 @@ inline static REBCTX *VAL_SPECIFIC_COMMON(const RELVAL *v) {
 // Use for: "invalid conversion from 'Reb_Value*' to 'Reb_Specific_Value*'"
 
 inline static const REBVAL *const_KNOWN(const RELVAL *value) {
-    assert(IS_TRASH_DEBUG(value) || IS_END(value) || IS_SPECIFIC(value));
+    assert(IS_END(value) || IS_SPECIFIC(value));
     return cast(const REBVAL*, value); // we asserted it's actually specific
 }
 
 inline static REBVAL *KNOWN(RELVAL *value) {
-    assert(IS_TRASH_DEBUG(value) || IS_END(value) || IS_SPECIFIC(value));
+    //
+    // Trash is tolerated for KNOWN() because it is often used to indicate
+    // a cell which may be targeted for writing or reading, which when read
+    // can't be relative.  This only applies to mutable slots, so it's *not*
+    // tolerated in the const_KNOWN() case.
+    //
+    // Because this is called so often, though, we speed it up and don't do
+    // a full trash-validity or end-validity check.  Just check the bits.
+    //
+    assert(
+        (value->header.bits & (NODE_FLAG_END | NODE_FLAG_FREE)) != 0
+        || IS_SPECIFIC(value)
+    );
     return cast(REBVAL*, value); // we asserted it's actually specific
 }
 
