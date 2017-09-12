@@ -1186,23 +1186,13 @@ reevaluate:;
             }
             else {
                 // Varargs are odd, because the type checking doesn't
-                // actually check the type of the parameter--it's always
-                // a VARARGS!.  Also since the "types accepted" are a lie
-                // (an [integer! <...>] takes VARARGS!, not INTEGER!) then
-                // an "honest" parameter has to be made to give the error.
+                // actually check the types inside the parameter--it always
+                // has to be a VARARGS!.
                 //
-                if (!IS_VARARGS(f->arg)) {
-                    DECLARE_LOCAL (honest_param);
-                    Init_Typeset(
-                        honest_param,
-                        FLAGIT_KIND(REB_VARARGS), // actually expected
-                        VAL_PARAM_SPELLING(f->param)
-                    );
-
-                    fail (Error_Arg_Type(
-                        FRM_LABEL(f), honest_param, VAL_TYPE(f->arg))
-                    );
-                }
+                if (!IS_VARARGS(f->arg))
+                    fail (Error_Not_Varargs(
+                        FRM_LABEL(f), f->param, VAL_TYPE(f->arg)
+                    ));
 
                 // While "checking" the variadic argument we actually re-stamp
                 // it with this parameter and frame's signature.  It reuses

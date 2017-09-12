@@ -1180,6 +1180,48 @@ REBCTX *Error_No_Memory(REBCNT bytes)
 
 
 //
+//  Error_No_Relative: C
+//
+REBCTX *Error_No_Relative_Core(const RELVAL *any_word)
+{
+    DECLARE_LOCAL (unbound);
+    Init_Any_Word(
+        unbound,
+        VAL_TYPE(any_word),
+        VAL_WORD_SPELLING(any_word)
+    );
+
+    return Error_No_Relative_Raw(unbound);
+}
+
+
+//
+//  Error_Not_Varargs: C
+//
+REBCTX *Error_Not_Varargs(
+    REBSTR *label,
+    const RELVAL *param,
+    enum Reb_Kind kind
+){
+    assert(GET_VAL_FLAG(param, TYPESET_FLAG_VARIADIC));
+    assert(kind != REB_VARARGS);
+
+    // Since the "types accepted" are a lie (an [integer! <...>] takes
+    // VARARGS! when fulfilled in a frame directly, not INTEGER!) then
+    // an "honest" parameter has to be made to give the error.
+    //
+    DECLARE_LOCAL (honest_param);
+    Init_Typeset(
+        honest_param,
+        FLAGIT_KIND(REB_VARARGS), // actually expected
+        VAL_PARAM_SPELLING(param)
+    );
+
+    fail (Error_Arg_Type(label, honest_param, kind));
+}
+
+
+//
 //  Error_Invalid_Arg_Core: C
 //
 // This error is pretty vague...it's just "invalid argument"

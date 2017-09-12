@@ -366,14 +366,7 @@ inline static REBVAL *Get_Var_Core(
         if (flags & GETVAR_END_IF_UNAVAILABLE)
             return m_cast(REBVAL*, END); // only const callers should use
 
-        DECLARE_LOCAL (unbound);
-        Init_Any_Word(
-            unbound,
-            VAL_TYPE(any_word),
-            VAL_WORD_SPELLING(any_word)
-        );
-
-        fail (Error_No_Relative_Raw(unbound));
+        fail (Error_No_Relative_Core(any_word));
     }
 
     REBCNT i = VAL_WORD_INDEX(any_word);
