@@ -1778,7 +1778,7 @@ REB_R Unchecked_Dispatcher(REBFRM *f)
     if (Do_At_Throws(
         f->out,
         VAL_ARRAY(body),
-        VAL_INDEX(body),
+        0, // VAL_INDEX(body) asserted 0 above
         AS_SPECIFIER(f)
     )){
         return R_OUT_IS_THROWN;
@@ -1803,7 +1803,7 @@ REB_R Voider_Dispatcher(REBFRM *f)
     if (Do_At_Throws(
         f->out,
         VAL_ARRAY(body),
-        VAL_INDEX(body),
+        0, // VAL_INDEX(body) asserted 0 above
         AS_SPECIFIER(f)
     )){
         return R_OUT_IS_THROWN;
@@ -1828,7 +1828,7 @@ REB_R Returner_Dispatcher(REBFRM *f)
     if (Do_At_Throws(
         f->out,
         VAL_ARRAY(body),
-        VAL_INDEX(body),
+        0, // VAL_INDEX(body) asserted 0 above
         AS_SPECIFIER(f)
     )){
         return R_OUT_IS_THROWN;

@@ -530,7 +530,7 @@ inline static REBIXO Do_Array_At_Core(
 
     Init_Endlike_Header(&f->flags, flags); // see notes on definition
 
-    f->gotten = END; // so ET_WORD and ET_GET_WORD do their own Get_Var
+    f->gotten = END; // so REB_WORD and REB_GET_WORD do their own Get_Var
 
     Push_Frame_Core(f);
     (*PG_Do)(f);
