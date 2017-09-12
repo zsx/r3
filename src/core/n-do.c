@@ -57,30 +57,13 @@ REBNATIVE(eval)
 
     REBFRM *f = frame_; // implicit parameter to every dispatcher/native
 
+    // The REEVALUATE instructions explicitly understand that the value to
+    // do reevaluation of is held in the frame's f->cell.  (It would be unsafe
+    // to evaluate something held in f->out.)
+    //
     Move_Value(&f->cell, ARG(value));
 
-    // Save the prefetched f->value for what would be the usual next
-    // item (including if it was an END marker) into f->pending.
-    // Then make f->value the address of the eval result.
-    //
-    // Since the evaluation result is a REBVAL and not a RELVAL, it
-    // is specific.  This means the `f->specifier` (which can only
-    // specify values from the source array) won't ever be applied
-    // to it, since it only comes into play for IS_RELATIVE values.
-    //
-    f->pending = f->value;
-    SET_FRAME_VALUE(f, &f->cell); // SPECIFIED
-    f->eval_type = VAL_TYPE(f->value);
-
-    // The f->gotten (if any) was the fetch for the f->value we just
-    // put in pending...not the f->value we just set.  Not only is
-    // it more expensive to hold onto that cache than to lose it,
-    // but an eval can do anything...so the f->gotten might wind
-    // up being completely different after the eval.  So forget it.
-    //
-    f->gotten = END;
-
-    return REF(only) ? R_REEVALUATE_ONLY : R_REEVALUATE;
+    return REF(only) ? R_REEVALUATE_CELL_ONLY : R_REEVALUATE_CELL;
 }
 
 

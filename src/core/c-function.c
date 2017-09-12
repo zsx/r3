@@ -1057,7 +1057,7 @@ done_caching:;
     }
     else {
         // Because a dispatcher can update the phase and swap in the next
-        // function with R_REEVALUATE, consistency checking isn't easily
+        // function with R_REDO_XXX, consistency checking isn't easily
         // done on whether the exemplar is "compatible" (and there may be
         // dispatcher forms which intentionally muck with the exemplar to
         // be incompatible, but these don't exist yet.)  So just check it's
@@ -2050,7 +2050,7 @@ REB_R Apply_Def_Or_Exemplar(
     f->index = 0;
     f->source.array = EMPTY_ARRAY;
     f->specifier = SPECIFIED;
-    f->pending = NULL;
+    TRASH_POINTER_IF_DEBUG(f->pending);
 
     f->dsp_orig = DSP;
 

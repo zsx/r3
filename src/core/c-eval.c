@@ -263,7 +263,7 @@ static inline void Link_Vararg_Param_To_Frame(REBFRM *f, REBOOL make) {
 //     Needed if f->source is an array (can be garbage if it's a C va_list)
 //
 //     f->pending
-//     Must be VA_LIST_PENDING if source is a va_list, else starts out NULL
+//     Must be NULL if source is a va_list, else next value to be fetched
 //
 //     f->specifier
 //     Resolver for bindings of values in f->source, SPECIFIED if all resolved
@@ -323,6 +323,30 @@ do_next:;
     START_NEW_EXPRESSION_MAY_THROW(f, goto finished);
     // ^-- sets args_evaluate, do_count, Ctrl-C may abort
 
+    const RELVAL *current;
+    const REBVAL *current_gotten;
+
+    // We attempt to reuse any lookahead fetching done with Get_Var.  In the
+    // general case, this is not going to be possible, e.g.:
+    //
+    //     obj: make object! [x: 10]
+    //     foo: does [append obj [y: 20]]
+    //     do in obj [foo x]
+    //
+    // Consider the lookahead fetch for `foo x`.  It will get x to f->gotten,
+    // and see that it is not a lookback function.  But then when it runs foo,
+    // the memory location where x had been found before may have moved due
+    // to expansion.  Basically any function call invalidates f->gotten, as
+    // does obviously any Fetch_Next_In_Frame (because the position changes)
+    //
+    // !!! Review how often gotten has hits vs. misses, and what the benefit
+    // of the feature actually is.
+
+    current = f->value; // <-- DO_COUNT_BREAKPOINT landing spot
+    current_gotten = f->gotten;
+    f->gotten = END;
+    Fetch_Next_In_Frame(f);
+
 reevaluate:;
     //
     // ^-- doesn't advance expression index, so `eval x` starts with `eval`
@@ -339,30 +363,6 @@ reevaluate:;
     // frame one unit that f->value is the *next* value, and a local variable
     // called "current" holds the current head of the expression that the
     // switch will be processing.
-    //
-    // Additionally, it attempts to reuse any lookahead fetching done with
-    // Get_Var.  In the general case, this is not going to be possible, e.g.:
-    //
-    //     obj: make object! [x: 10]
-    //     foo: does [append obj [y: 20]]
-    //     do in obj [foo x]
-    //
-    // Consider the lookahead fetch for `foo x`.  It will get x to f->gotten,
-    // and see that it is not a lookback function.  But then when it runs foo,
-    // the memory location where x had been found before may have moved due
-    // to expansion.  Basically any function call invalidates f->gotten, as
-    // does obviously any Fetch_Next_In_Frame (because the position changes)
-    //
-    // !!! Review how often gotten has hits vs. misses, and what the benefit
-    // of the feature actually is.
-
-    const RELVAL *current;
-    const REBVAL *current_gotten;
-
-    current = f->value; // <-- DO_COUNT_BREAKPOINT landing spot
-    current_gotten = f->gotten;
-    f->gotten = END;
-    Fetch_Next_In_Frame(f);
 
     // !!! We never want to do infix processing if the args aren't evaluating
     // (e.g. arguments in a va_list from a C function calling into Rebol)
@@ -1405,17 +1405,32 @@ reevaluate:;
             SET_END(f->out);
             goto redo_unchecked;
 
-        case R_REEVALUATE:
+        case R_REEVALUATE_CELL:
             args_evaluate = TRUE; // unnecessary?
-            Drop_Function_Args_For_Frame(f);
-            CLEAR_FRAME_LABEL(f);
-            goto reevaluate; // we don't move index!
+            goto prep_for_reevaluate;
 
-        case R_REEVALUATE_ONLY:
+        case R_REEVALUATE_CELL_ONLY:
             args_evaluate = FALSE;
+            goto prep_for_reevaluate;
+
+        prep_for_reevaluate: {
+            current = &f->cell;
+            f->eval_type = VAL_TYPE(current);
+            current_gotten = END;
+
+            // The f->gotten (if any) was the fetch for f->value, not what we
+            // just put in current.  We conservatively clear this cache:
+            // assume for instance that f->value is a WORD! that looks up to
+            // a value which is in f->gotten, and then f->cell contains a
+            // zero-arity function which changes the value of that word.  It
+            // might be possible to finesse use of this cache and clear it
+            // only if such cases occur, but for now don't take chances.
+            //
+            f->gotten = END;
+
             Drop_Function_Args_For_Frame(f);
             CLEAR_FRAME_LABEL(f);
-            goto reevaluate; // we don't move index!
+            goto reevaluate; } // we don't move index!
 
         case R_UNHANDLED: // internal use only, shouldn't be returned
             assert(FALSE);

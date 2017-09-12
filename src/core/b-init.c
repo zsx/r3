@@ -775,8 +775,6 @@ static void Init_Root_Vars(void)
     Init_Logic(&PG_True_Value[0], TRUE);
     TRASH_CELL_IF_DEBUG(&PG_True_Value[1]);
 
-    Prep_Non_Stack_Cell(&PG_Va_List_Pending);
-
     // We can't actually put an end value in the middle of a block, so we poke
     // this one into a program global.  It is not legal to bit-copy an
     // END (you always use SET_END), so we can make it unwritable.

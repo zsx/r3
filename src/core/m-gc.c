@@ -1110,7 +1110,12 @@ static void Mark_Frame_Stack_Deep(void)
         // earlier in the recycle process (don't want to create new arrays
         // once the recycling has started...)
         //
-        assert(f->pending != VA_LIST_PENDING);
+    #if !defined(NDEBUG)
+        if (f->flags.bits & DO_FLAG_APPLYING)
+            assert(IS_POINTER_TRASH_DEBUG(f->pending));
+        else
+            assert(f->pending != NULL); // should live in f->source.array
+    #endif
 
         ASSERT_ARRAY_MANAGED(f->source.array);
         Queue_Mark_Array_Deep(f->source.array);

@@ -188,7 +188,7 @@ static REBOOL Subparse_Throws(
     f->source.array = VAL_ARRAY(rules);
     f->index = VAL_INDEX(rules) + 1;
 
-    f->pending = NULL;
+    f->pending = f->value + 1;
     f->gotten = END;
 
 #if defined(NDEBUG)

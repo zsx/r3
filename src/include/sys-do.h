@@ -195,7 +195,7 @@ inline static void Push_Frame_At(
     f->gotten = END; // tells ET_WORD and ET_GET_WORD they must do a get
     f->index = index + 1;
     f->specifier = specifier;
-    f->pending = NULL;
+    f->pending = f->value + 1;
 
     // The goal of pushing a frame is to reuse it for several sequential
     // operations, when not using DO_FLAG_TO_END.  This is found in operations
@@ -230,47 +230,41 @@ inline static void Drop_Frame(REBFRM *f)
 }
 
 
-#define VA_LIST_PENDING \
-    cast(const RELVAL*, &PG_Va_List_Pending)
-
-
 //
 // Fetch_Next_In_Frame() (see notes above)
 //
-// This routine is optimized assuming the common case is that values are
-// being read out of an array.  Whether to read out of a C va_list or to use
-// a "virtual" next value (e.g. an old value saved by EVAL) are both indicated
-// by f->pending, hence a NULL test of that can be executed quickly.
-//
 inline static void Fetch_Next_In_Frame(REBFRM *f) {
-    //
-    // If f->value is pointing to f->cell, it's possible that it may wind up
-    // with an END in it between fetches if f->cell gets reused (as in when
-    // arguments are pushed for a function)
-    //
-    assert(NOT_END(f->value) || f->value == &f->cell);
+    assert(NOT_END(f->value)); // caller should test for END first
+    assert(f->gotten == END); // is fetched f->value, we'd be invalidating it!
 
-    assert(f->gotten == END); // we'd be invalidating it!
+    if (f->pending != NULL) {
+        assert(NOT(f->flags.bits & DO_FLAG_VA_LIST));
 
-    if (f->pending == NULL) {
-        SET_FRAME_VALUE(f, ARR_AT(f->source.array, f->index));
+        // We assume the ->pending value lives in the source array, and can
+        // just be incremented since the array has SERIES_INFO_HOLD while it
+        // is being executed hence won't be relocated or modified.  This
+        // means the release build doesn't need to call ARR_AT().
+        //
+        assert(f->pending == ARR_AT(f->source.array, f->index));
+        SET_FRAME_VALUE(f, f->pending);
+        ++f->pending;
         ++f->index;
     }
-    else if (f->pending == VA_LIST_PENDING) {
+    else {
+        assert(f->flags.bits & DO_FLAG_VA_LIST);
+
         SET_FRAME_VALUE(f, va_arg(*f->source.vaptr, const REBVAL*));
         assert(
-            IS_END(f->value)
-            || (IS_VOID(f->value) && (f->flags.bits & DO_FLAG_NO_ARGS_EVALUATE))
-            || !IS_RELATIVE(f->value)
+            IS_END(f->value) ||
+            (IS_VOID(f->value) && (f->flags.bits & DO_FLAG_NO_ARGS_EVALUATE))
+            || NOT(IS_RELATIVE(f->value))
         );
+
+        // We know addresses on the data stack are unstable during evaluation,
+        // but what about addresses into unlocked arrays?  This assert should
+        // perhaps be strengthened.
+        //
         assert(NOT(IN_DATA_STACK_DEBUG(f->value)));
-    }
-    else {
-        SET_FRAME_VALUE(f, f->pending);
-        if (f->flags.bits & DO_FLAG_VA_LIST)
-            f->pending = VA_LIST_PENDING;
-        else
-            f->pending = NULL;
     }
 }
 
@@ -474,7 +468,7 @@ inline static REBIXO DO_NEXT_MAY_THROW(
 
     Init_Endlike_Header(&f->flags, DO_FLAG_NORMAL);
 
-    f->pending = NULL;
+    f->pending = f->value + 1;
     f->gotten = END;
 
     SET_END(out);
@@ -513,12 +507,14 @@ inline static REBIXO Do_Array_At_Core(
     if (opt_first) {
         SET_FRAME_VALUE(f, opt_first);
         f->index = index;
+        f->pending = ARR_AT(array, index);
     }
     else {
         // Do_Core() requires caller pre-seed first value, always
         //
         SET_FRAME_VALUE(f, ARR_AT(array, index));
         f->index = index + 1;
+        f->pending = f->value + 1;
     }
 
     if (IS_END(f->value)) {
@@ -535,7 +531,6 @@ inline static REBIXO Do_Array_At_Core(
     Init_Endlike_Header(&f->flags, flags); // see notes on definition
 
     f->gotten = END; // so ET_WORD and ET_GET_WORD do their own Get_Var
-    f->pending = NULL;
 
     Push_Frame_Core(f);
     (*PG_Do)(f);
@@ -664,8 +659,8 @@ inline static void Reify_Va_To_Array_In_Frame(
 
     f->flags.bits &= ~cast(REBUPT, DO_FLAG_VA_LIST);
 
-    assert(f->pending == VA_LIST_PENDING);
-    f->pending = NULL;
+    assert(f->pending == NULL);
+    f->pending = f->value + 1;
 
     assert(NOT(FRM_IS_VALIST(f))); // no longer a va_list fed frame
 }
@@ -733,7 +728,7 @@ inline static REBIXO Do_Va_Core(
     f->source.vaptr = vaptr;
     f->gotten = END; // so REB_WORD and REB_GET_WORD do their own Get_Var
     f->specifier = SPECIFIED; // va_list values MUST be full REBVAL* already
-    f->pending = VA_LIST_PENDING;
+    f->pending = NULL; // only varargs-based frames have NULL for pending
 
     Init_Endlike_Header(&f->flags, flags | DO_FLAG_VA_LIST); // see notes
 

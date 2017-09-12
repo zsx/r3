@@ -113,8 +113,8 @@ enum Reb_Result {
     // argument during that evaluation, so it writes into the frame's
     // "eval cell".
     //
-    R_REEVALUATE,
-    R_REEVALUATE_ONLY,
+    R_REEVALUATE_CELL,
+    R_REEVALUATE_CELL_ONLY,
 
     // This is a signal that isn't accepted as a return value from a native,
     // so it can be used by common routines that return REB_R values and need

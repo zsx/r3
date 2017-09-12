@@ -347,11 +347,11 @@ REB_R Apply_Core_Traced(REBFRM * const f)
             assert(FALSE); // shouldn't be possible for final phase
             break;
 
-        case R_REEVALUATE:
+        case R_REEVALUATE_CELL:
             Debug_Fmt("..."); // it's EVAL, should we print f->out ?
             break;
 
-        case R_REEVALUATE_ONLY:
+        case R_REEVALUATE_CELL_ONLY:
             Debug_Fmt("..."); // it's EVAL/ONLY, should we print f->out ?
             break;
 

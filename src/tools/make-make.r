@@ -831,6 +831,7 @@ switch/default user-config/debug [
     pathology [
         cfg-symbols: true
         append app-config/definitions ["NDEBUG"]
+        append app-config/cflags "-g"
         app-config/debug: off
     ]
 ][
