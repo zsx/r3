@@ -49,7 +49,7 @@ REBINT CT_Map(const RELVAL *a, const RELVAL *b, REBINT mode)
 // Capacity is measured in key-value pairings.
 // A hash series is also created.
 //
-static REBMAP *Make_Map(REBCNT capacity)
+REBMAP *Make_Map(REBCNT capacity)
 {
     REBARR *pairlist = Make_Array_Core(capacity * 2, ARRAY_FLAG_PAIRLIST);
     SER(pairlist)->link.hashlist = Make_Hash_Sequence(capacity);
@@ -280,7 +280,7 @@ void Expand_Hash(REBSER *ser)
 //
 // RETURNS: the index to the VALUE or zero if there is none.
 //
-static REBCNT Find_Map_Entry(
+REBCNT Find_Map_Entry(
     REBMAP *map,
     const RELVAL *key,
     REBSPC *key_specifier,

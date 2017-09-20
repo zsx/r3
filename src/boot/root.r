@@ -37,3 +37,8 @@ local-tag       ; marks the beginning of a list of "pure locals"
 ;; !!! See notes on FUNCTION-META in %sysobj.r
 
 function-meta
+
+;; As an interim way of having a MAP! that a C hook can poke performance stats
+;; into which is known to the garbage collector
+
+stats-map

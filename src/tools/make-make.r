@@ -825,12 +825,15 @@ switch/default user-config/debug [
         append app-config/ldflags <gnu:-fsanitize=address>
     ]
 
-    ; This is the case we really don't like; bugs that only show up in the
-    ; non-debug build.  It's the case you need symbols in a release build
+    ; Because it has symbols but no debugging, the callgrind option can also
+    ; be used when trying to find bugs that only appear in the debug build.
+    ; A special CALLGRIND native is included which allows metrics gathering
+    ; to be selectively turned on and off.
     ;
-    pathology [
+    callgrind [
         cfg-symbols: true
         append app-config/definitions ["NDEBUG"]
+        append app-config/definitions ["INCLUDE_CALLGRIND_NATIVE"]
         append app-config/cflags "-g"
         app-config/debug: off
     ]

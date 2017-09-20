@@ -283,18 +283,15 @@ void OS_Get_Time(REBVAL *out)
 // Note: Requires high performance timer.
 //      Q: If not found, use timeGetTime() instead ?!
 //
-i64 OS_Delta_Time(i64 base, int flags)
+i64 OS_Delta_Time(i64 base)
 {
-    UNUSED(flags);
-
-    LARGE_INTEGER freq;
     LARGE_INTEGER time;
-
     if (!QueryPerformanceCounter(&time))
         OS_Crash(cb_cast("Missing resource"), cb_cast("High performance timer"));
 
     if (base == 0) return time.QuadPart; // counter (may not be time)
 
+    LARGE_INTEGER freq;
     QueryPerformanceFrequency(&freq);
 
     return ((time.QuadPart - base) * 1000) / (freq.QuadPart / 1000);

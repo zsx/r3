@@ -482,7 +482,7 @@ REBINT OS_Wait(REBCNT millisec, REBCNT res)
 
     // printf("OS_Wait %d\n", millisec);
 
-    base = OS_Delta_Time(0, 0); // start timing
+    base = OS_Delta_Time(0); // start timing
 
     // Setup for timing:
     CLEARS(&req);
@@ -494,7 +494,7 @@ REBINT OS_Wait(REBCNT millisec, REBCNT res)
     if (OS_Poll_Devices()) return -1;
 
     // Nothing, so wait for period of time
-    delta = (REBCNT)OS_Delta_Time(base, 0)/1000 + res;
+    delta = cast(REBCNT, OS_Delta_Time(base)) / 1000 + res;
     if (delta >= millisec) return 0;
     millisec -= delta;  // account for time lost above
     req.length = millisec;

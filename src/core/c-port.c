@@ -212,7 +212,7 @@ REBINT Awake_System(REBARR *ports, REBOOL only)
 //
 REBOOL Wait_Ports(REBARR *ports, REBCNT timeout, REBOOL only)
 {
-    REBI64 base = OS_DELTA_TIME(0, 0);
+    REBI64 base = OS_DELTA_TIME(0);
     REBCNT time;
     REBCNT wt = 1;
     REBCNT res = (timeout >= 1000) ? 0 : 16;  // OS dependent?
@@ -265,7 +265,7 @@ REBOOL Wait_Ports(REBARR *ports, REBCNT timeout, REBOOL only)
 
         if (timeout != ALL_BITS) {
             // Figure out how long that (and OS_WAIT) took:
-            time = (REBCNT)(OS_DELTA_TIME(base, 0)/1000);
+            time = cast(REBCNT, OS_DELTA_TIME(base) / 1000);
             if (time >= timeout) break;   // done (was dt = 0 before)
             else if (wt > timeout - time) // use smaller residual time
                 wt = timeout - time;
@@ -277,7 +277,7 @@ REBOOL Wait_Ports(REBARR *ports, REBCNT timeout, REBOOL only)
         OS_WAIT(wt, res);
     }
 
-    //time = (REBCNT)OS_DELTA_TIME(base, 0);
+    //time = (REBCNT)OS_DELTA_TIME(base);
     //Print("dt: %d", time);
 
     return FALSE; // timeout

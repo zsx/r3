@@ -364,18 +364,10 @@ inline static REBOOL Do_Next_In_Subframe_Throws(
     // It should not be necessary to use a subframe unless there is meaningful
     // state which would be overwritten in the parent frame.  For the moment,
     // that only happens if a function call is in effect.  Otherwise, it is
-    // more efficient to use Do_Next_In_Frame_Throws().
+    // more efficient to call Do_Next_In_Frame_Throws(), or the also lighter
+    // Do_Next_In_Mid_Frame_Throws() used by REB_SET_WORD and REB_SET_PATH.
     //
-    // !!! Note: It is currently the case that SET-WORD! and SET-PATH! also
-    // generate a new frame, in order that lookback quoting can find them.
-    // This method is being reviewed in order to generalize it, hopefully
-    // saving on frame creations in the process.
-    //
-    assert(
-        parent->eval_type == REB_FUNCTION
-        || parent->eval_type == REB_SET_WORD
-        || parent->eval_type == REB_SET_PATH
-    );
+    assert(parent->eval_type == REB_FUNCTION);
 
     DECLARE_FRAME (child);
 
@@ -394,9 +386,6 @@ inline static REBOOL Do_Next_In_Subframe_Throws(
     Push_Frame_Core(child);
     (*PG_Do)(child);
     Drop_Frame_Core(child);
-
-    // !!! `print 1 + 2 <| print 1 + 7` wishes to print 3 and then 8, rather
-    // than print 8 and then evaluate...(is that good?)
 
     assert(
         (child->flags.bits & DO_FLAG_VA_LIST)
@@ -474,7 +463,7 @@ inline static REBIXO DO_NEXT_MAY_THROW(
     SET_END(out);
     f->out = out;
 
-    Push_Frame_Core(f);    
+    Push_Frame_Core(f);
     (*PG_Do)(f);
     Drop_Frame_Core(f); // Drop_Frame() requires f->eval_type to be REB_0
 
@@ -947,7 +936,7 @@ inline static REBOOL Run_Branch_Throws(
         //
         // Someone who knows what they are doing can bypass this check with
         // the only flag.  e.g. `var: 3 | if/only condition var`.  (They could
-        // also just use `condition ? var`)
+        // also just use `condition ?? var`)
         //
         if (NOT(only) && NOT_VAL_FLAG(branch, VALUE_FLAG_UNEVALUATED))
             fail (Error_Non_Block_Branch_Raw(branch));

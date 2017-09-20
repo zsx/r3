@@ -47,6 +47,7 @@ core: [
     d-legacy.c
     d-print.c
     d-stack.c
+    d-stats.c
     d-trace.c
 
     ; (F)???

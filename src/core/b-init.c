@@ -823,6 +823,17 @@ static void Init_Root_Vars(void)
     //
     Init_Unreadable_Blank(ROOT_FUNCTION_META);
 
+    // !!! Putting the stats map in the root object is a temporary solution
+    // to allowing a native coded routine to have a static which is guarded
+    // by the GC.  While it might seem better to move the stats into a
+    // mostly usermode implementation that hooks apply, this could preclude
+    // doing performance analysis on boot--when it would be too early for
+    // most user code to be running.  It may be that the debug build has
+    // this form of mechanism that can diagnose boot, while release builds
+    // rely on a usermode stats module.
+    //
+    Init_Map(ROOT_STATS_MAP, Make_Map(10));
+
     TERM_ARRAY_LEN(root, ROOT_MAX);
     ASSERT_ARRAY(root);
     MANAGE_ARRAY(root);
@@ -1140,7 +1151,7 @@ void Startup_Core(void)
     Startup_StdIO();
 
     Assert_Basics();
-    PG_Boot_Time = OS_DELTA_TIME(0, 0);
+    PG_Boot_Time = OS_DELTA_TIME(0);
 
 #ifndef NDEBUG
     // This might call Debug_Str, which depends on StdIO, and must be called after Start_StdIO;
