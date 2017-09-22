@@ -585,27 +585,53 @@ REBNATIVE(set_meta)
 //
 //  Copy_Context_Core: C
 //
-// R3-Alpha hadn't factored out a routine to copy objects, it was just in the
-// COPY action.  This is a basic factoring of that, which had the ability to
-// specify what types would be copied and whether they would be done deeply.
+// Copying a generic context is not as simple as getting the original varlist
+// and duplicating that.  For instance, a "live" FRAME! context (e.g. one
+// which is created by a function call on the stack) has to have its "vars"
+// (the args and locals) copied from the chunk stack.  Several other things
+// have to be touched up to ensure consistency of the rootval and the
+// relevant ->link and ->misc fields in the series node.
 //
 REBCTX *Copy_Context_Core(REBCTX *original, REBOOL deep, REBU64 types)
 {
-    REBARR *varlist = Copy_Array_Shallow(CTX_VARLIST(original), SPECIFIED);
-    SET_SER_FLAG(varlist, ARRAY_FLAG_VARLIST);
+    if (CTX_VARS_UNAVAILABLE(original))
+        fail ("Cannot copy a context with unavailable vars"); // !!! improve
+
+    REBARR *varlist = Make_Array(CTX_LEN(original) + 1);
+    REBVAL *dest = KNOWN(ARR_HEAD(varlist)); // all context vars are SPECIFIED
 
     // The type information and fields in the rootvar (at head of the varlist)
-    // are filled in because it's a copy, but the varlist needs to be updated
-    // in the copy to the one just created.
+    // get filled in with a copy, but the varlist needs to be updated in the
+    // copied rootvar to the one just created.
     //
-    ARR_HEAD(varlist)->payload.any_context.varlist = varlist;
+    Move_Value(dest, CTX_VALUE(original));
+    dest->payload.any_context.varlist = varlist;
+
+    ++dest;
+
+    // Now copy the actual vars in the context, from wherever they may be
+    // (might be in an array, or might be in the chunk stack for FRAME!)
+    //
+    REBVAL *src = CTX_VARS_HEAD(original);
+    for (; NOT_END(src); ++src, ++dest)
+        Move_Value(dest, src);
+
+    SET_SER_FLAG(varlist, ARRAY_FLAG_VARLIST);
 
     REBCTX *copy = CTX(varlist); // now a well-formed context
 
     // Reuse the keylist of the original.  (If the context of the source or
     // the copy are expanded, the sharing is unlinked and a copy is made).
+    // This goes into the ->link field of the REBSER node.
     //
     INIT_CTX_KEYLIST_SHARED(copy, CTX_KEYLIST(original));
+
+    // A FRAME! in particular needs to know if it points back to a stack
+    // frame.  The pointer is NULLed out when the stack level completes.
+    // If we're copying a frame here, we know it's not running.
+    //
+    if (CTX_TYPE(original) == REB_FRAME)
+        SER(varlist)->misc.f = NULL;
 
     if (types != 0) {
         Clonify_Values_Len_Managed(
