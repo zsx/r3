@@ -43,10 +43,10 @@
 //   the invariants in each section are made clear with comments and asserts.
 //
 // * The evaluator only moves forward, and it consumes exactly one element
-//   from the input at a time.  This input may be a source where the index
-//   needs to be tracked and care taken to contain the index within its
-//   boundaries in the face of change (e.g. a mutable ARRAY).  Or it may be
-//   an entity which tracks its own position on each fetch (e.g. a C va_list)
+//   from the input at a time.  This input must be locked read-only for the
+//   duration of the execution.  At the moment it can be an array tracked by
+//   index and incrementation, or it may be a C va_list which tracks its own
+//   position on each fetch through a forward-only iterator.
 //
 
 #include "sys-core.h"
@@ -190,7 +190,7 @@ static inline void Link_Vararg_Param_To_Frame(REBFRM *f, REBOOL make) {
 // But all the other values that f->refine can hold are read-only pointers
 // that signal something about the argument gathering state:
 //
-// * If VOID_CELL, then refinements are being skipped and the arguments
+// * If NULL, then refinements are being skipped and the arguments
 //   that follow should not be written to.
 //
 // * If BLANK_VALUE, this is an arg to a refinement that was not used in
@@ -210,9 +210,12 @@ static inline void Link_Vararg_Param_To_Frame(REBFRM *f, REBOOL make) {
 //   left-hand argument of a lookback operation.  After that fulfillment,
 //   it will be transitioned to EMPTY_BLOCK.
 //
-// Because of how this lays out, IS_TRUTHY() can be used to
-// determine if an argument should be type checked normally...while
-// IS_FALSEY() means that the arg's bits must be set to void.
+// Because of how this lays out, IS_TRUTHY() can be used to determine if an
+// argument should be type checked normally...while IS_FALSEY() means that the
+// arg's bits must be set to void.  Since the skipping-refinement-args case
+// doesn't write to arguments at all, it doesn't get to the point where the
+// decision of type checking needs to be made...so using NULL for that means
+// the comparison is a little bit faster.
 //
 // These special values are all pointers to read-only cells, but are cast to
 // mutable in order to be held in the same pointer that might write to a
@@ -221,7 +224,7 @@ static inline void Link_Vararg_Param_To_Frame(REBFRM *f, REBOOL make) {
 //
 
 #define SKIPPING_REFINEMENT_ARGS \
-    m_cast(REBVAL*, VOID_CELL)
+    NULL // NULL comparison is generally faster than to arbitrary pointer
 
 #define ARG_TO_UNUSED_REFINEMENT \
     m_cast(REBVAL*, BLANK_VALUE)
@@ -511,8 +514,7 @@ reevaluate:;
     switch (f->eval_type) {
 
     case REB_0:
-        assert(FALSE); // internal type.
-        break;
+        panic ("REB_0 encountered in Do_Core"); // internal type, never DO it
 
 //==//////////////////////////////////////////////////////////////////////==//
 //
