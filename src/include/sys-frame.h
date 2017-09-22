@@ -408,49 +408,60 @@ inline static void Push_Function(
         cast(const char*, Frame_Label_Or_Anonymous_UTF8(f));
 #endif
 
+    f->original = f->phase = fun;
+
     f->binding = binding; // e.g. how a RETURN knows where to return to
 
-    // The underlying function is whose parameter list must be enumerated.
-    // Even though this underlying function can have more arguments than the
-    // original "interface" function being called, any parameters more
-    // than in that interface won't be gathered at the callsite because they
-    // will not contain END markers.
+    // The underlying function is who the frame is *ultimately* being built
+    // for.  This underlying function can have more arguments than the
+    // original "interface" function being called.  Consider that even if you
+    // make a specialization of APPEND that no longer has any parameters,
+    // eventually the C code for REBNATIVE(append) will be executed to do
+    // the work.  And it will expect the ARG() and REF() macros to find the
+    // right arguments at the right indices.
     //
     // The "facade" is the interface this function uses, which must have the
     // same number of arguments and be compatible with the underlying
-    // function.  A facade might be a coherent paramlist, but it might just
-    // *look* like a paramlist, with the underlying function in slot 0.
+    // function.  But it may accept more limited data types than the layers
+    // underneath, or change the parameter conventions (e.g. from normal to
+    // quoted).  A facade might be a valid paramlist, but it might just
+    // *look* like a paramlist, with the underlying function in slot 0 instead
+    // of a canon value which points back to itself.
     //
     REBCNT num_args = FUNC_FACADE_NUM_PARAMS(fun);
 
-    // We start by allocating the data for the args and locals on the chunk
-    // stack.  However, this can be "promoted" into being the data for a
-    // frame context if it becomes necessary to refer to the variables
-    // via words or an object value.  That object's data will still be this
-    // chunk, but the chunk can be freed...so the words can't be looked up.
+    // Allocate the data for the args and locals on the chunk stack.  The
+    // addresses of these values will be stable for the duration of the
+    // function call, but the pointers will be invalid after that point.
     //
-    // Note that chunks implicitly have an END at the end; no need to
-    // put one there.
-    //
-    f->varlist = NULL;
     f->args_head = Push_Value_Chunk_Of_Length(num_args);
     assert(CHUNK_LEN_FROM_VALUES(f->args_head) == num_args);
+    assert(IS_END(f->args_head + num_args)); // guaranteed by chunk stack
 
-    // Note: A previous optimization would use the frame's evaluation cell
-    // for the argument in the case of an arity-1 function.  While this
-    // avoided a chunk stack allocation, it complicates the nature of
-    // looking backwards for a VALUE_FLAG_STACK's frame by introducing a
-    // new parameter layout.  It also caused the code to branch more on both
-    // the push and drop side, and made that cell unavailable for 1-argument
-    // functions to use as a temporary.  So the "optimization" was removed.
-
+    // Each layer of specialization of a function can only add specializaitons
+    // of arguments which have not been specialized already.  For efficiency,
+    // the act of specialization merges all the underlying layers of
+    // specialization together.  This means only the outermost specialization
+    // is needed to fill all the specialized slots contributed by later phases.
+    //
     REBCTX *exemplar = FUNC_EXEMPLAR(fun);
     if (exemplar)
         f->special = CTX_VARS_HEAD(exemplar);
     else
-        f->special = m_cast(REBVAL*, END); // literal pointer used as test
+        f->special = NULL;
 
-    f->original = f->phase = fun;
+    // A REBFRM* for a function call may-or-may-not need an associated REBCTX*
+    // dynamically allocated.  Whether it does or not depends on if bindings
+    // to the args or locals wind up "leaking" into slots that have a lifetime
+    // longer than the stack level of that REBFRM* (which would include any
+    // indefinite-extent object variables or slots in arrays).  It can also
+    // be necessary to create that REBCTX if the user tries to create a
+    // FRAME! value for the function call, with similar rules about lifetime.
+    //
+    // Move_Value() and Derelativize() contain the logic that generates this
+    // varlist on demand, but start out assuming one is not needed.
+    //
+    f->varlist = NULL;
 
     // Make sure the person who pushed the function correctly sets the
     // f->refine to either ORDINARY_ARG or LOOKBACK_ARG after this call.

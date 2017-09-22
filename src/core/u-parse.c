@@ -218,8 +218,8 @@ static REBOOL Subparse_Throws(
 
     f->param = END; // informs infix lookahead
     f->arg = m_cast(REBVAL*, END);
-    f->refine = m_cast(REBVAL*, END);
-    f->special = m_cast(REBVAL*, END);
+    f->refine = NULL;
+    f->special = NULL;
 
     Push_Frame_Core(f); // checks for C stack overflow
 

@@ -2113,7 +2113,7 @@ REB_R Apply_Def_Or_Exemplar(
             // f->special was initialized to the applicable exemplar by
             // Push_Function()
             //
-            if (f->special == END)
+            if (f->special == NULL)
                 Init_Void(f->arg);
             else {
                 //

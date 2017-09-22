@@ -572,10 +572,24 @@ reevaluate:;
         // the spec) and the actual arguments (in the call frame) using
         // pointer incrementation.
         //
-        // f->special is used to either step through a list of specialized
-        // values (with void as a signal of no specialization), to step
-        // through the arguments if they are just being type checked, or
-        // END otherwise.
+        // At this point, f->special can be set to:
+        //
+        // * NULL to indicate ordinary argument fulfillment for all the
+        //   relevant args, refinements, and refinement args of the function
+        //
+        // * f->args_head, in order to indicate that the arguments should
+        //   only be type-checked.  The f->special pointer is incremented
+        //   along so that at each point `f->special == f->arg` will be
+        //   a valid test for this intent.
+        //
+        // * some other pointer to an array of REBVAL which is the same
+        //   length as the argument list.  This indicates that any non-void
+        //   values in that array should be used in lieu of an ordinary
+        //   argument...e.g. that argument has been "specialized".
+        //
+        // Hence one can say `if (f->special != NULL) ++f->special`, and
+        // not need an extra branch to differentiate the second two intents
+        // if there is no need to differentiate them.
         //
         // If arguments are actually being fulfilled into the slots, those
         // slots start out as trash.  Yet the GC has access to the frame list,
@@ -600,7 +614,6 @@ reevaluate:;
 
         f->arg = f->args_head;
         f->param = FUNC_FACADE_HEAD(f->phase);
-        // f->special is END, f->args_head, or first specialized value
 
         // We want the frame's "scratch" cell to be GC safe during a live
         // function call.
@@ -658,7 +671,7 @@ reevaluate:;
                     break;
                 }
 
-                if (f->special != END) {
+                if (f->special != NULL) {
                     if (f->special == f->arg) {
                         //
                         // We're just checking the values already in the
@@ -778,7 +791,7 @@ reevaluate:;
             case PARAM_CLASS_LOCAL:
                 Prep_Stack_Cell(f->arg);
                 Init_Void(f->arg); // faster than checking bad specializations
-                if (f->special != END)
+                if (f->special != NULL)
                     ++f->special;
                 goto continue_arg_loop;
 
@@ -796,7 +809,7 @@ reevaluate:;
 
                 INIT_BINDING(f->arg, f); // may reify later
 
-                if (f->special != END)
+                if (f->special != NULL)
                     ++f->special; // specialization being overwritten is right
                 goto continue_arg_loop;
 
@@ -814,7 +827,7 @@ reevaluate:;
 
                 INIT_BINDING(f->arg, f); // may reify later
 
-                if (f->special != END)
+                if (f->special != NULL)
                     ++f->special; // specialization being overwritten is right
                 goto continue_arg_loop;
 
@@ -833,12 +846,12 @@ reevaluate:;
 
                 Prep_Stack_Cell(f->arg);
 
-                if (f->special != END)
+                if (f->special != NULL)
                     ++f->special;
                 goto continue_arg_loop;
             }
 
-            if (f->special != END) {
+            if (f->special != NULL) {
                 if (f->special == f->arg) {
                     //
                     // Just running the loop to verify arguments/refinements...
@@ -1192,10 +1205,9 @@ reevaluate:;
         }
 
         // If there was a specialization of the arguments, it should have
-        // been marched to an end cell...or just be the unwritable canon END
-        // node to start with
+        // been marched to an end cell...or just be the NULL it started with
         //
-        assert(IS_END(f->special));
+        assert(f->special == NULL || IS_END(f->special));
 
         // While having the rule that arg terminates isn't strictly necessary,
         // it is a useful tool...and implicit termination makes it as cheap
@@ -1225,7 +1237,7 @@ reevaluate:;
             }
 
             if (VAL_TYPE(DS_TOP) == REB_0_PICKUP) {
-                assert(f->special == END); // no specialization "pickups"
+                assert(f->special == NULL); // no specialization "pickups"
                 f->param = DS_TOP->payload.pickup.param;
                 f->refine = f->arg = DS_TOP->payload.pickup.arg;
                 assert(IS_LOGIC(f->refine) && VAL_LOGIC(f->refine));

@@ -1162,11 +1162,21 @@ static void Mark_Frame_Stack_Deep(void)
             // value while a function is running, currently.  (A more
             // important purpose may come up...)
 
-            if (NOT_END(f->refine) && Is_Value_Managed(f->refine))
+            if (
+                f->refine != NULL
+                && NOT_END(f->refine)
+                && Is_Value_Managed(f->refine)
+            ){
                 Queue_Mark_Opt_Value_Deep(f->refine);
+            }
 
-            if (NOT_END(f->special) && Is_Value_Managed(f->special))
+            if (
+                f->special != NULL
+                && NOT_END(f->special)
+                && Is_Value_Managed(f->special)
+            ){
                 Queue_Mark_Opt_Value_Deep(f->special);
+            }
         }
 
         // We need to GC protect the values in the args no matter what,
