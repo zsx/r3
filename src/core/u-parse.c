@@ -233,7 +233,8 @@ static REBOOL Subparse_Throws(
     // "reified" the frame into a FRAME!, which means it would now be using
     // the f->data.context field.
     //
-    Drop_Function_Args_For_Frame_Core(f, TRUE);
+    const REBOOL drop_chunks = TRUE;
+    Drop_Function_Core(f, drop_chunks);
 
     Drop_Frame_Core(f);
 

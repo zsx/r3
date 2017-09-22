@@ -232,20 +232,6 @@ inline static const REBYTE* Frame_Label_Or_Anonymous_UTF8(REBFRM *f) {
     return cb_cast("[anonymous]");
 }
 
-// It's helpful when looking in the debugger to be able to look at a frame
-// and see a cached string for the function it's running (if there is one).
-// The release build only considers the frame symbol valid for FUNCTION!s
-//
-inline static void SET_FRAME_LABEL(REBFRM *f, REBSTR *opt_label) {
-    assert(f->eval_type == REB_FUNCTION);
-    f->opt_label = opt_label;
-#if !defined(NDEBUG)
-    f->label_debug =
-        cast(const char*, Frame_Label_Or_Anonymous_UTF8(f));
-#endif
-}
-
-
 inline static void SET_FRAME_VALUE(REBFRM *f, const RELVAL *value) {
     f->value = value;
 
@@ -403,11 +389,25 @@ inline static void Enter_Native(REBFRM *f) {
 // function or the specialization's exemplar frame, those properties are
 // cached during the creation process.
 //
-inline static void Push_Args_For_Underlying_Func(
+inline static void Push_Function(
     REBFRM *f,
-    REBFUN *original,
+    REBSTR *opt_label,
+    REBFUN *fun,
     REBSPC *binding
 ){
+    f->eval_type = REB_FUNCTION;
+
+    f->opt_label = opt_label; // label is always trash if no function running
+
+#if !defined(NDEBUG)
+    //
+    // It's helpful when looking in the debugger to be able to look at a frame
+    // and see a cached string for the function it's running.
+    //
+    f->label_debug =
+        cast(const char*, Frame_Label_Or_Anonymous_UTF8(f));
+#endif
+
     f->binding = binding; // e.g. how a RETURN knows where to return to
 
     // The underlying function is whose parameter list must be enumerated.
@@ -421,7 +421,7 @@ inline static void Push_Args_For_Underlying_Func(
     // function.  A facade might be a coherent paramlist, but it might just
     // *look* like a paramlist, with the underlying function in slot 0.
     //
-    REBCNT num_args = FUNC_FACADE_NUM_PARAMS(original);
+    REBCNT num_args = FUNC_FACADE_NUM_PARAMS(fun);
 
     // We start by allocating the data for the args and locals on the chunk
     // stack.  However, this can be "promoted" into being the data for a
@@ -444,13 +444,18 @@ inline static void Push_Args_For_Underlying_Func(
     // the push and drop side, and made that cell unavailable for 1-argument
     // functions to use as a temporary.  So the "optimization" was removed.
 
-    REBCTX *exemplar = FUNC_EXEMPLAR(original);
+    REBCTX *exemplar = FUNC_EXEMPLAR(fun);
     if (exemplar)
         f->special = CTX_VARS_HEAD(exemplar);
     else
         f->special = m_cast(REBVAL*, END); // literal pointer used as test
 
-    f->original = f->phase = original;
+    f->original = f->phase = fun;
+
+    // Make sure the person who pushed the function correctly sets the
+    // f->refine to either ORDINARY_ARG or LOOKBACK_ARG after this call.
+    //
+    TRASH_POINTER_IF_DEBUG(f->refine);
 }
 
 
@@ -463,7 +468,7 @@ inline static void Push_Args_For_Underlying_Func(
 // because there are other clients of the chunk stack that may be running.
 // Hence the chunks will be freed by the error trap helper.
 //
-inline static void Drop_Function_Args_For_Frame_Core(
+inline static void Drop_Function_Core(
     REBFRM *f,
     REBOOL drop_chunks
 ){

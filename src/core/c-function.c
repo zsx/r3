@@ -2032,7 +2032,7 @@ REB_R Apply_Def_Or_Exemplar(
     REBVAL *out,
     REBFUN *fun,
     REBNOD *binding,
-    REBSTR *label,
+    REBSTR *opt_label,
     REBNOD *def_or_exemplar // REBVAL of a def block, or REBARR varlist
 ){
     DECLARE_FRAME (f);
@@ -2040,9 +2040,6 @@ REB_R Apply_Def_Or_Exemplar(
     f->out = out;
     TRASH_POINTER_IF_DEBUG(f->gotten); // shouldn't be looked at (?)
     f->binding = binding;
-
-    f->eval_type = REB_FUNCTION;
-    SET_FRAME_LABEL(f, label);
 
     // We pretend our "input source" has ended.
     //
@@ -2071,9 +2068,8 @@ REB_R Apply_Def_Or_Exemplar(
     SNAP_STATE(&f->state_debug);
 #endif
 
+    Push_Function(f, opt_label, fun, binding);
     f->refine = m_cast(REBVAL*, END);
-
-    Push_Args_For_Underlying_Func(f, fun, binding);
 
     if (NOT(def_or_exemplar->header.bits & NODE_FLAG_CELL)) {
         //
@@ -2115,7 +2111,7 @@ REB_R Apply_Def_Or_Exemplar(
             Prep_Stack_Cell(f->arg);
 
             // f->special was initialized to the applicable exemplar by
-            // Push_Args_For_Underlying_Func()
+            // Push_Function()
             //
             if (f->special == END)
                 Init_Void(f->arg);

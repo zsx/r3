@@ -390,4 +390,31 @@ void Do_Core_Exit_Checks_Debug(REBFRM *f) {
         ASSERT_VALUE_MANAGED(f->out);
 }
 
+
+//
+//  Do_Core_Function_Checks_Debug: C
+//
+// Push_Args_For_Underlying_Function() should have been called before this
+// point, and it should have set:
+//
+//     f->original, f->phase, f->args_head, f->special
+//     f->opt_label, f->label_debug (in debug build)
+//
+void Do_Core_Function_Checks_Debug(REBFRM *f) {
+    assert(f->eval_type == REB_FUNCTION);
+
+    // There may be refinements pushed to the data stack to process, if
+    // the call originated from a path dispatch.
+    //
+    assert(DSP >= f->dsp_orig);
+
+    assert(
+        f->opt_label == NULL
+        || GET_SER_FLAG(f->opt_label, SERIES_FLAG_UTF8_STRING)
+    );
+#if !defined(NDEBUG)
+    assert(NOT(IS_POINTER_TRASH_DEBUG(f->label_debug)));
+#endif
+}
+
 #endif

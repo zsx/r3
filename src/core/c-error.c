@@ -313,8 +313,10 @@ ATTRIBUTE_NO_RETURN void Fail_Core(const void *p)
     //
     REBFRM *f = FS_TOP;
     while (f != Saved_State->frame) {
-        if (Is_Function_Frame(f))
-            Drop_Function_Args_For_Frame_Core(f, FALSE); // don't drop chunks
+        if (Is_Function_Frame(f)) {
+            const REBOOL drop_chunks = FALSE;
+            Drop_Function_Core(f, drop_chunks);
+        }
 
         // See notes in Do_Va_Core() about how it is required by C standard
         // to call va_end() after va_start().  If we longjmp past the point

@@ -143,12 +143,18 @@ static inline REBOOL Start_New_Expression_Throws(REBFRM *f) {
         } while (FALSE)
 #endif
 
-static inline void Drop_Function_Args_For_Frame(REBFRM *f) {
-    Drop_Function_Args_For_Frame_Core(f, TRUE);
+static inline void Drop_Function(REBFRM *f) {
+    assert(NOT(THROWN(f->out)));
+
+    const REBOOL drop_chunks = TRUE;
+    Drop_Function_Core(f, drop_chunks);
 }
 
-static inline void Abort_Function_Args_For_Frame(REBFRM *f) {
-    Drop_Function_Args_For_Frame(f);
+static inline void Abort_Function(REBFRM *f) {
+    assert(THROWN(f->out));
+
+    const REBOOL drop_chunks = TRUE;
+    Drop_Function_Core(f, drop_chunks);
 
     // If a function call is aborted, there may be pending refinements (if
     // in the gathering phase) or functions (if running a chainer) on the
@@ -285,13 +291,14 @@ void Do_Core(REBFRM * const f)
 
     REBOOL args_evaluate; // set on every iteration (varargs do, EVAL/ONLY...)
 
-    // APPLY and a DO of a FRAME! both use this same code path.
+    // APPLY and a DO of a FRAME! both use process_function.
     //
     if (f->flags.bits & DO_FLAG_APPLYING) {
-        f->eval_type = REB_FUNCTION;
         args_evaluate = NOT(f->flags.bits & DO_FLAG_NO_ARGS_EVALUATE);
+
         f->refine = ORDINARY_ARG; // "APPLY infix" not supported
-        goto do_function_arglist_in_progress;
+        assert(IS_END(f->out));
+        goto process_function;
     }
 
     // Some initialized bit pattern is needed to check to see if a
@@ -412,10 +419,16 @@ reevaluate:;
                 //
                 //     foo: ('quote) -> [print quote]
                 //
-                f->eval_type = REB_FUNCTION;
-                SET_FRAME_LABEL(f, VAL_WORD_SPELLING(current));
+                Push_Function(
+                    f,
+                    VAL_WORD_SPELLING(current),
+                    VAL_FUNC(current_gotten),
+                    VAL_BINDING(current_gotten)
+                );
+
                 f->refine = ORDINARY_ARG;
-                goto do_function_in_current_gotten;
+                assert(IS_END(f->out));
+                goto process_function;
             }
         }
         else if (
@@ -465,8 +478,12 @@ reevaluate:;
                 f->gotten, VALUE_FLAG_ENFIXED | FUNC_FLAG_QUOTES_FIRST_ARG
             )
         ){
-            f->eval_type = REB_FUNCTION;
-            SET_FRAME_LABEL(f, VAL_WORD_SPELLING(f->value));
+            Push_Function(
+                f,
+                VAL_WORD_SPELLING(f->value),
+                VAL_FUNC(f->gotten),
+                VAL_BINDING(f->gotten)
+            );
 
             // The protocol for lookback is that the lookback argument is
             // consumed from the f->out slot.  It will ultimately wind up
@@ -488,15 +505,12 @@ reevaluate:;
             SET_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED);
         #endif
 
-            current_gotten = f->gotten; // the function
-
             // We don't want the WORD! that invoked the function to act like
             // an argument, so we have to advance the frame once more.
             //
             f->gotten = END;
             Fetch_Next_In_Frame(f);
-
-            goto do_function_in_current_gotten;
+            goto process_function;
         }
     }
 
@@ -525,82 +539,71 @@ reevaluate:;
 // being retriggered via EVAL
 //
 // Most function evaluations are triggered from a SWITCH on a WORD! or PATH!,
-// which jumps in at the `do_function_in_current_gotten` label.
+// which jumps in at the `process_function` label.
 //
 //==//////////////////////////////////////////////////////////////////////==//
 
     case REB_FUNCTION: // literal function in a block
-        current_gotten = const_KNOWN(current);
-        SET_FRAME_LABEL(f, NULL); // nameless literal
+        Push_Function(
+            f,
+            NULL, // no label, nameless literal function direct in source
+            VAL_FUNC(current),
+            VAL_BINDING(current)
+        );
 
-        if (GET_VAL_FLAG(current_gotten, VALUE_FLAG_ENFIXED)) {
-            //
-            // f->out can't be trash, but it can be an END.
-            //
-            f->refine = LOOKBACK_ARG;
-        }
-        else {
-            SET_END(f->out); // clear out previous result (needs GC-safe data)
-            f->refine = ORDINARY_ARG;
-        }
+        // It should not be possible to encounter a literal FUNCTION! value
+        // with the enfix bit set, as this bit can only be retrieved from
+        // words that are assigned in contexts via SET/ENFIX.
+        //
+        assert(NOT_VAL_FLAG(current, VALUE_FLAG_ENFIXED));
 
-    do_function_in_current_gotten:
-        assert(IS_FUNCTION(current_gotten));
-        assert(f->eval_type == REB_FUNCTION);
+        SET_END(f->out); // clear out previous result (needs GC-safe data)
+        f->refine = ORDINARY_ARG;
+
+    //==////////////////////////////////////////////////////////////////==//
+    //
+    // FUNCTION! ARGUMENT FULFILLMENT AND/OR TYPE CHECKING PROCESS
+    //
+    //==////////////////////////////////////////////////////////////////==//
+
+        // This one processing loop is able to handle ordinary function
+        // invocation, specialization, and type checking of an already filled
+        // function frame.  It walks through both the formal parameters (in
+        // the spec) and the actual arguments (in the call frame) using
+        // pointer incrementation.
+        //
+        // f->special is used to either step through a list of specialized
+        // values (with void as a signal of no specialization), to step
+        // through the arguments if they are just being type checked, or
+        // END otherwise.
+        //
+        // If arguments are actually being fulfilled into the slots, those
+        // slots start out as trash.  Yet the GC has access to the frame list,
+        // so it can examine f->arg and avoid trying to protect the random
+        // bits that haven't been fulfilled yet.
+        //
+        // Based on the parameter type, it may be necessary to "consume" an
+        // expression from values that come after the invocation point.  But
+        // not all params will consume arguments for all calls.
+
+    process_function:
         TRASH_POINTER_IF_DEBUG(current); // shouldn't be used below
+        TRASH_POINTER_IF_DEBUG(current_gotten);
 
-        // There may be refinements pushed to the data stack to process, if
-        // the call originated from a path dispatch.
-        //
-        assert(DSP >= f->dsp_orig);
-
-    //==////////////////////////////////////////////////////////////////==//
-    //
-    // FUNCTION! NORMAL ARGUMENT FULFILLMENT PROCESS
-    //
-    //==////////////////////////////////////////////////////////////////==//
-
-        // We assume you can enumerate both the formal parameters (in the
-        // spec) and the actual arguments (in the call frame) using pointer
-        // incrementation, that they are both terminated by END, and
-        // that there are an equal number of values in both.
-        //
-        // Push_Args sets f->original, f->phase, f->args_head, f->special
-        //
-        Push_Args_For_Underlying_Func(
-            f, VAL_FUNC(current_gotten), VAL_BINDING(current_gotten)
-        );
-
-    do_function_arglist_in_progress:
-
-        assert(
-            f->opt_label == NULL
-            || GET_SER_FLAG(f->opt_label, SERIES_FLAG_UTF8_STRING)
-        );
     #if !defined(NDEBUG)
-        assert(f->label_debug != NULL); // SET_FRAME_LABEL sets (C debugging)
+        Do_Core_Function_Checks_Debug(f);
+        assert(
+            (f->refine == ORDINARY_ARG && IS_END(f->out))
+            || f->refine == LOOKBACK_ARG
+        ); // ORDINARY_ARG and LOOKBACK_ARG are local to this file
     #endif
-
-        // Now that we have extracted f->phase, we do not have to worry that
-        // f->value might have lived in f->cell.eval.  We can't overwrite
-        // f->out during the argument evaluations, in case that is holding the
-        // first argument to an infix function, so f->cell gets used for
-        // temporary evaluations up until the point the function gets called.
-
-        assert(f->refine == ORDINARY_ARG || f->refine == LOOKBACK_ARG);
 
         f->arg = f->args_head;
         f->param = FUNC_FACADE_HEAD(f->phase);
         // f->special is END, f->args_head, or first specialized value
 
-        // Same as check before switch.  (do_function_arglist_in_progress:
-        // might have a goto from another point, so we check it again here)
-        //
-        assert(IS_END(f->out) || f->refine == LOOKBACK_ARG);
-
-        // We want the frame's "scratch" cell to be GC safe.  Note this can
-        // only be done after extracting the function properties, as "gotten"
-        // may be f->cell.
+        // We want the frame's "scratch" cell to be GC safe during a live
+        // function call.
         //
         // !!! Might it be possible to avoid this initialization if the cell
         // was used to calculate a temporary or eval, and only initialize it
@@ -608,28 +611,6 @@ reevaluate:;
         // having natives take for granted that it's IS_END() has value.
         //
         SET_END(&f->cell);
-
-    //==////////////////////////////////////////////////////////////////==//
-    //
-    // FUNCTION! NORMAL ARGUMENT FULFILLMENT LOOP
-    //
-    //==////////////////////////////////////////////////////////////////==//
-
-        // This loop goes through the parameter and argument slots.  Though
-        // the argument slots must be protected from garbage collection once
-        // they are filled, they start out uninitialized.  (The GC has access
-        // to the frame list, so it can examine f->arg and avoid trying to
-        // protect slots that come after it.)
-        //
-        // Based on the parameter type, it may be necessary to "consume" an
-        // expression from values that come after the invocation point.  But
-        // not all params will consume arguments for all calls.
-        //
-        // This one body of code to is able to handle both function
-        // specialization and ordinary invocation.  f->special is used to
-        // either step through a list of specialized values (with void as a
-        // signal of no specialization), to step through the arguments if
-        // they are just being type checked, or END otherwise.
 
         enum Reb_Param_Class pclass; // gotos would cross it if inside loop
 
@@ -977,7 +958,7 @@ reevaluate:;
                     if (IS_QUOTABLY_SOFT(f->out)) {
                         if (Eval_Value_Throws(f->arg, f->out)) {
                             Move_Value(f->out, f->arg);
-                            Abort_Function_Args_For_Frame(f);
+                            Abort_Function(f);
                             goto finished;
                         }
                     }
@@ -1062,7 +1043,7 @@ reevaluate:;
                     DO_FLAG_FULFILLING_ARG
                 )){
                     Move_Value(f->out, f->arg);
-                    Abort_Function_Args_For_Frame(f);
+                    Abort_Function(f);
                     goto finished;
                 }
                 break;
@@ -1084,7 +1065,7 @@ reevaluate:;
                     DO_FLAG_NO_LOOKAHEAD | DO_FLAG_FULFILLING_ARG
                 )){
                     Move_Value(f->out, f->arg);
-                    Abort_Function_Args_For_Frame(f);
+                    Abort_Function(f);
                     goto finished;
                 }
                 break;
@@ -1108,7 +1089,7 @@ reevaluate:;
                 Prep_Stack_Cell(f->arg);
                 if (Eval_Value_Core_Throws(f->arg, f->value, f->specifier)) {
                     Move_Value(f->out, f->arg);
-                    Abort_Function_Args_For_Frame(f);
+                    Abort_Function(f);
                     goto finished;
                 }
 
@@ -1264,7 +1245,7 @@ reevaluate:;
 
     //==////////////////////////////////////////////////////////////////==//
     //
-    // FUNCTION! ARGUMENTS NOW GATHERED, DISPATCH CALL
+    // FUNCTION! ARGUMENTS NOW GATHERED, DISPATCH PHASE
     //
     //==////////////////////////////////////////////////////////////////==//
 
@@ -1283,7 +1264,7 @@ reevaluate:;
         // includes argument arrays being fulfilled).  This offers extra
         // perks, because it means a recycle/torture will catch you if you
         // try to Do_Core into movable memory...*and* a native can tell if it
-        // has written the out slot yet or not (e.g. WHILE/? refinement).
+        // has written the out slot yet or not.
         //
         assert(IS_END(f->out));
         assert(f->out->header.bits & VALUE_FLAG_STACK);
@@ -1353,7 +1334,7 @@ reevaluate:;
             else {
                 // Stay THROWN and let stack levels above try and catch
                 //
-                Abort_Function_Args_For_Frame(f);
+                Abort_Function(f);
                 goto finished;
             }
             break; }
@@ -1382,10 +1363,10 @@ reevaluate:;
             break;
 
         case R_REDO_CHECKED:
-            SET_END(f->out);
             f->special = f->args_head;
             f->refine = ORDINARY_ARG; // no gathering, but need for assert
-            goto do_function_arglist_in_progress;
+            SET_END(f->out);
+            goto process_function;
 
         case R_REDO_UNCHECKED:
             //
@@ -1419,7 +1400,7 @@ reevaluate:;
             //
             f->gotten = END;
 
-            Drop_Function_Args_For_Frame(f);
+            Drop_Function(f);
             goto reevaluate; } // we don't move index!
 
         case R_UNHANDLED: // internal use only, shouldn't be returned
@@ -1480,7 +1461,7 @@ reevaluate:;
             Move_Value(fun, DS_TOP);
 
             if (Apply_Only_Throws(f->out, TRUE, fun, &f->cell, END)) {
-                Abort_Function_Args_For_Frame(f);
+                Abort_Function(f);
                 goto finished;
             }
 
@@ -1492,7 +1473,7 @@ reevaluate:;
         // this frame that could be even more optimal.  However, having the
         // original function still on the stack helps make errors clearer.
         //
-        Drop_Function_Args_For_Frame(f);
+        Drop_Function(f);
         break;
 
 //==//////////////////////////////////////////////////////////////////////==//
@@ -1517,17 +1498,20 @@ reevaluate:;
 
     do_word_in_current_unchecked:
         if (IS_FUNCTION(current_gotten)) { // before IS_VOID() is common case
-            f->eval_type = REB_FUNCTION;
-            SET_FRAME_LABEL(f, VAL_WORD_SPELLING(current));
+            Push_Function(
+                f,
+                VAL_WORD_SPELLING(current),
+                VAL_FUNC(current_gotten),
+                VAL_BINDING(current_gotten)
+            );
 
-            if (GET_VAL_FLAG(current_gotten, VALUE_FLAG_ENFIXED)) {
+            if (GET_VAL_FLAG(current_gotten, VALUE_FLAG_ENFIXED))
                 f->refine = LOOKBACK_ARG;
-                goto do_function_in_current_gotten;
+            else {
+                f->refine = ORDINARY_ARG;
+                SET_END(f->out);
             }
-
-            SET_END(f->out);
-            f->refine = ORDINARY_ARG;
-            goto do_function_in_current_gotten;
+            goto process_function;
         }
 
         if (IS_VOID(current_gotten)) // need `:x` if `x` is unset
@@ -1697,22 +1681,16 @@ reevaluate:;
             fail (Error_No_Value_Core(current, f->specifier));
 
         if (IS_FUNCTION(f->out)) {
-            f->eval_type = REB_FUNCTION;
-            SET_FRAME_LABEL(f, opt_label); // NULL label means anonymous
+            Push_Function(
+                f,
+                opt_label, // NULL label means anonymous
+                VAL_FUNC(f->out),
+                VAL_BINDING(f->out)
+            );
 
-            // object/func or func/refinements or object/func/refinement
-            //
-            // Because we passed in a label symbol, the path evaluator was
-            // willing to assume we are going to invoke a function if it
-            // is one.  Hence it left any potential refinements on data stack.
-            //
-            assert(DSP >= f->dsp_orig);
-
-            Move_Value(&f->cell, f->out);
-            current_gotten = KNOWN(&f->cell);
-            SET_END(f->out);
             f->refine = ORDINARY_ARG; // paths are never enfixed (for now)
-            goto do_function_in_current_gotten;
+            SET_END(f->out);
+            goto process_function;
         }
 
         CLEAR_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED);
@@ -2072,8 +2050,6 @@ reevaluate:;
             goto do_word_in_current;
         }
 
-        f->eval_type = REB_FUNCTION;
-
         if (GET_VAL_FLAG(f->gotten, VALUE_FLAG_ENFIXED)) {
             if (GET_VAL_FLAG(f->gotten, FUNC_FLAG_QUOTES_FIRST_ARG)) {
                 //
@@ -2132,25 +2108,34 @@ reevaluate:;
                 // don't want to defer, e.g. a #tight argument or a normal
                 // one which is not being requested in the context of
                 // parameter fulfillment.  We want to reuse the f->out
-                //
-                SET_FRAME_LABEL(f, VAL_WORD_SPELLING(f->value));
+
+                Push_Function(
+                    f,
+                    VAL_WORD_SPELLING(f->value),
+                    VAL_FUNC(f->gotten),
+                    VAL_BINDING(f->gotten)
+                );
                 f->refine = LOOKBACK_ARG;
-                current = f->value;
-                current_gotten = f->gotten;
+
                 f->gotten = END;
-                Fetch_Next_In_Frame(f);
-                goto do_function_in_current_gotten;
+                Fetch_Next_In_Frame(f); // advances f->value
+                goto process_function;
             }
         }
         else {
-            SET_END(f->out);
-            SET_FRAME_LABEL(f, VAL_WORD_SPELLING(f->value));
+            Push_Function(
+                f,
+                VAL_WORD_SPELLING(f->value),
+                VAL_FUNC(f->gotten),
+                VAL_BINDING(f->gotten)
+            );
+
             f->refine = ORDINARY_ARG;
-            current = f->value;
-            current_gotten = f->gotten;
+            SET_END(f->out);
+
             f->gotten = END;
-            Fetch_Next_In_Frame(f);
-            goto do_function_in_current_gotten;
+            Fetch_Next_In_Frame(f); // advances f->value
+            goto process_function;
         }
     }
 
