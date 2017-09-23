@@ -130,12 +130,10 @@
 // To formalize this rule, these definitions will help catch uses of <stdio.h>
 // in the release build, and give a hopefully informative error.
 //
-#ifdef NDEBUG
-    #if !defined(REN_C_STDIO_OK)
-        #define printf dont_include_stdio_h
-        #define fprintf dont_include_stdio_h
-        #define putc dont_include_stdio_h
-    #endif
+#if defined(NDEBUG) && !defined(REN_C_STDIO_OK)
+    #define printf dont_include_stdio_h
+    #define fprintf dont_include_stdio_h
+    #define putc dont_include_stdio_h
 #else
     // Desire to not bake in <stdio.h> notwithstanding, in debug builds it
     // can be convenient (or even essential) to have access to stdio.  This

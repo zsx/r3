@@ -834,6 +834,7 @@ switch/default user-config/debug [
         cfg-symbols: true
         append app-config/definitions ["NDEBUG"]
         append app-config/definitions ["INCLUDE_CALLGRIND_NATIVE"]
+        append app-config/definitions ["REN_C_STDIO_OK"] ;; for debugging
         append app-config/cflags "-g"
         app-config/debug: off
     ]

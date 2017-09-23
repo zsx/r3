@@ -924,6 +924,9 @@ REBNATIVE(for_each)
 
 struct Remove_Each_State {
     REBVAL *data;
+    REBSER *series;
+    REBARR *body_copy;
+    REBCTX *context;
     REBCNT start;
     REB_MOLD *mo;
 };
@@ -943,17 +946,14 @@ struct Remove_Each_State {
 //
 static inline REBCNT Finalize_Remove_Each(struct Remove_Each_State *res)
 {
-    REBVAL *data = res->data;
-    REBSER *series = VAL_SERIES(data);
-
-    assert(GET_SER_INFO(series, SERIES_INFO_HOLD));
-    CLEAR_SER_INFO(series, SERIES_INFO_HOLD);
+    assert(GET_SER_INFO(res->series, SERIES_INFO_HOLD));
+    CLEAR_SER_INFO(res->series, SERIES_INFO_HOLD);
 
     REBCNT count = 0;
-    if (ANY_ARRAY(data)) {
-        REBCNT len = VAL_LEN_HEAD(data);
+    if (ANY_ARRAY(res->data)) {
+        REBCNT len = VAL_LEN_HEAD(res->data);
 
-        RELVAL *dest = VAL_ARRAY_AT(data);
+        RELVAL *dest = VAL_ARRAY_AT(res->data);
         RELVAL *src = dest;
 
         for (; NOT_END(dest); ++dest, ++src) {
@@ -963,7 +963,7 @@ static inline REBCNT Finalize_Remove_Each(struct Remove_Each_State *res)
                 ++count;
             }
             if (IS_END(src)) {
-                TERM_ARRAY_LEN(VAL_ARRAY(data), len);
+                TERM_ARRAY_LEN(VAL_ARRAY(res->data), len);
                 return count;
             }
             *dest = *src; // same array--one of the few places we can do this
@@ -972,18 +972,18 @@ static inline REBCNT Finalize_Remove_Each(struct Remove_Each_State *res)
         // If we get here, there were no removals, and length is unchanged.
         //
         assert(count == 0);
-        assert(len == VAL_LEN_HEAD(data));
+        assert(len == VAL_LEN_HEAD(res->data));
     }
-    else if (IS_BINARY(data)) {
+    else if (IS_BINARY(res->data)) {
         //
         // If there was a BREAK, THROW, or fail() we need the remaining data
         //
-        REBCNT orig_len = VAL_LEN_HEAD(data);
+        REBCNT orig_len = VAL_LEN_HEAD(res->data);
         assert(res->start <= orig_len);
         for (; res->start != orig_len; ++res->start) {
             Append_Codepoint_Raw(
                 res->mo->series,
-                cast(REBUNI, BIN_HEAD(series)[res->start])
+                cast(REBUNI, BIN_HEAD(res->series)[res->start])
             );
         }
 
@@ -998,46 +998,190 @@ static inline REBCNT Finalize_Remove_Each(struct Remove_Each_State *res)
         if (NOT(BYTE_SIZE(popped)))
             panic ("Internal error in REMOVE-EACH, non-BYTE-SIZE BINARY!");
 
-        assert(SER_LEN(popped) <= VAL_LEN_HEAD(data));
-        count = VAL_LEN_HEAD(data) - SER_LEN(popped);
+        assert(SER_LEN(popped) <= VAL_LEN_HEAD(res->data));
+        count = VAL_LEN_HEAD(res->data) - SER_LEN(popped);
 
         // We want to swap out the data properties of the series, so the
         // identity of the incoming series is kept but now with different
         // underlying data.
         //
-        Swap_Series_Content(popped, VAL_SERIES(data));
+        Swap_Series_Content(popped, VAL_SERIES(res->data));
 
         Free_Series(popped); // now frees the incoming series underlying data
     }
     else {
-        assert(ANY_STRING(data));
+        assert(ANY_STRING(res->data));
 
         // If there was a BREAK, THROW, or fail() we need the remaining data
         //
-        REBCNT orig_len = VAL_LEN_HEAD(data);
+        REBCNT orig_len = VAL_LEN_HEAD(res->data);
         assert(res->start <= orig_len);
+
         for (; res->start != orig_len; ++res->start) {
             Append_Codepoint_Raw(
                 res->mo->series,
-                GET_ANY_CHAR(series, res->start)
+                GET_ANY_CHAR(res->series, res->start)
             );
         }
 
         REBSER *popped = Pop_Molded_String(res->mo);
 
-        assert(SER_LEN(popped) <= VAL_LEN_HEAD(data));
-        count = VAL_LEN_HEAD(data) - SER_LEN(popped);
+        assert(SER_LEN(popped) <= VAL_LEN_HEAD(res->data));
+        count = VAL_LEN_HEAD(res->data) - SER_LEN(popped);
 
         // We want to swap out the data properties of the series, so the
         // identity of the incoming series is kept but now with different
         // underlying data.
         //
-        Swap_Series_Content(popped, VAL_SERIES(data));
+        Swap_Series_Content(popped, VAL_SERIES(res->data));
 
         Free_Series(popped); // now frees the incoming series underlying data
     }
 
     return count;
+}
+
+
+// For unfortunate reasons, any automatic (local) variables which change
+// state after a setjmp may be clobbered by a longjmp.  This is because they
+// might get stored in registers, and that applies to struct fields too.
+// The general way to get around this is to wrap your setjmp code in a
+// function which takes the mutated variables as a parameter set up in the
+// calling function's address space.
+//
+static REB_R Remove_Each_Core(REBFRM *frame_, struct Remove_Each_State *res)
+{
+    struct Reb_State state;
+    REBCTX *error;
+
+    PUSH_TRAP(&error, &state);
+
+    // The first time through the following code 'error' will be NULL, but...
+    // `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
+
+    if (error != NULL) {
+        //
+        // Currently, if a fail() happens during the iteration, any removals
+        // which were indicated will be enacted before propagating failure.
+        //
+        Finalize_Remove_Each(res);
+
+        fail (error); // Trap happened, so no trap in effect; this propagates
+    }
+
+    // Set a bit saying we are iterating the series, which will disallow
+    // mutations (including a nested REMOVE-EACH) until completion or failure.
+    // This flag will be cleaned up by Finalize_Remove_Each(), which is run
+    // even if there is a fail().
+    //
+    SET_SER_INFO(res->series, SERIES_INFO_HOLD);
+
+    REBOOL stop = FALSE;
+    REBCNT index = res->start; // declare here, avoid longjmp clobber warnings
+
+    REBCNT len = SER_LEN(res->series); // temp read-only, this won't change
+    while (index < len && NOT(stop)) {
+        assert(res.start == index);
+
+        REBVAL *var = CTX_VAR(res->context, 1);
+        for (; NOT_END(var); ++var) {
+            if (index == len) {
+                //
+                // The second iteration here needs x = #"c" and y as void.
+                //
+                //     data: copy "abc"
+                //     remove-each [x y] data [...]
+                //
+                Init_Void(var);
+                continue; // the `for` loop setting variables
+            }
+
+            if (ANY_ARRAY(res->data))
+                Derelativize(
+                    var,
+                    VAL_ARRAY_AT_HEAD(res->data, index),
+                    VAL_SPECIFIER(res->data)
+                );
+            else if (IS_BINARY(res->data))
+                Init_Integer(var, cast(REBI64, BIN_HEAD(res->series)[index]));
+            else {
+                assert(ANY_STRING(res->data));
+                Init_Char(var, GET_ANY_CHAR(res->series, index));
+            }
+            ++index;
+        }
+
+        if (Do_At_Throws(D_CELL, res->body_copy, 0, SPECIFIED)) {
+            if (!Catching_Break_Or_Continue(D_CELL, &stop)) {
+                //
+                // A non-loop throw, we should be bubbling up.
+                //
+                DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
+                Finalize_Remove_Each(res);
+                Move_Value(D_OUT, D_CELL);
+                return R_OUT_IS_THROWN;
+            }
+
+            if (stop) {
+                //
+                // BREAK - D_CELL may not be void if /WITH refinement used
+            }
+            else {
+                // CONTINUE - D_CELL may not be void if /WITH refinement used
+            }
+        }
+
+        if (ANY_ARRAY(res->data)) {
+            if (IS_VOID(D_CELL) || IS_FALSEY(D_CELL)) {
+                res->start = index;
+                continue; // keep requested, don't mark for culling
+            }
+
+            do {
+                assert(res->start <= len);
+                VAL_ARRAY_AT_HEAD(res->data, res->start)->header.bits
+                    |= NODE_FLAG_MARKED;
+                ++res->start;
+            } while (res->start != index);
+        }
+        else {
+            if (NOT(IS_VOID(D_CELL)) && IS_TRUTHY(D_CELL)) {
+                res->start = index;
+                continue; // remove requested, don't save to buffer
+            }
+
+            do {
+                assert(res->start <= len);
+                Append_Codepoint_Raw(
+                   res->mo->series,
+                   IS_BINARY(res->data)
+                       ? cast(REBUNI, BIN_HEAD(res->series)[res->start])
+                       : GET_ANY_CHAR(res->series, res->start)
+                );
+                ++res->start;
+            } while (res->start != index);
+        }
+    }
+
+    // We get here on normal completion or a BREAK
+    // THROW will return above, fail() takes the `error != NULL` branch
+
+    DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
+
+    // Finalize may need to process residual data in the case of BREAK
+    // It knows this based on res.start < len
+    //
+    assert((stop && res->start <= len) || (!stop && res->start == len));
+    REBCNT removals = Finalize_Remove_Each(res);
+
+    if (stop) {
+        //
+        // !!! Should the return conventions of REMOVE-EACH honor the
+        // "loop protocol" where a broken loop returns BLANK!?
+    }
+
+    Init_Integer(D_OUT, removals);
+    return R_OUT;
 }
 
 
@@ -1060,22 +1204,26 @@ REBNATIVE(remove_each)
 {
     INCLUDE_PARAMS_OF_REMOVE_EACH;
 
-    REBVAL *data = ARG(data);
+    struct Remove_Each_State res;
+    res.data = ARG(data);
 
     // !!! Currently there is no support for VECTOR!, or IMAGE! (what would
     // that even *mean*?) yet these are in the ANY-SERIES! typeset.
     //
-    if (NOT(ANY_ARRAY(data) || ANY_STRING(data) || IS_BINARY(data)))
-        fail (data); // invalid arg
+    if (NOT(
+        ANY_ARRAY(res.data) || ANY_STRING(res.data) || IS_BINARY(res.data)
+    )){
+        fail (res.data); // invalid arg
+    }
 
     // Check the series for whether it is read only, in which case we should
     // not be running a REMOVE-EACH on it.  This check for permissions applies
     // even if the REMOVE-EACH turns out to be a no-op.
     //
-    REBSER *series = VAL_SERIES(data);
-    FAIL_IF_READ_ONLY_SERIES(series);
+    res.series = VAL_SERIES(res.data);
+    FAIL_IF_READ_ONLY_SERIES(res.series);
 
-    if (VAL_INDEX(data) >= SER_LEN(series)) {
+    if (VAL_INDEX(res.data) >= SER_LEN(res.series)) {
         //
         // If index is past the series end, then there's nothing removable.
         //
@@ -1091,9 +1239,8 @@ REBNATIVE(remove_each)
     // memory or a poorly formed ARG(vars) that it doesn't try to finalize
     // the REMOVE-EACH, as `res` is not ready yet.
     //
-    REBCTX *context;
-    REBARR *body_copy = Copy_Body_Deep_Bound_To_New_Context(
-        &context,
+    res.body_copy = Copy_Body_Deep_Bound_To_New_Context(
+        &res.context,
         ARG(vars),
         ARG(body)
     );
@@ -1101,15 +1248,13 @@ REBNATIVE(remove_each)
     // Both must be kept safe from GC, so store them in the argument slots
     // that have had their information extracted and aren't needed anymore.
     //
-    Init_Object(ARG(vars), context); // keep GC safe
-    Init_Block(ARG(body), body_copy); // keep GC safe
+    Init_Object(ARG(vars), res.context); // keep GC safe
+    Init_Block(ARG(body), res.body_copy); // keep GC safe
 
-    struct Remove_Each_State res;
-    res.data = data;
-    res.start = VAL_INDEX(data); // avoid finalize uninitialized use warnings
+    res.start = VAL_INDEX(res.data);
 
     REB_MOLD mold_struct;
-    if (ANY_ARRAY(data)) {
+    if (ANY_ARRAY(res.data)) {
         //
         // We're going to use NODE_FLAG_MARKED on the elements of data's
         // array for those items we wish to remove later.
@@ -1141,137 +1286,9 @@ REBNATIVE(remove_each)
         Push_Mold(res.mo);
     }
 
-    struct Reb_State state;
-    REBCTX *error;
-
-    PUSH_TRAP(&error, &state);
-
-    // The first time through the following code 'error' will be NULL, but...
-    // `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
-
-    if (error != NULL) {
-        //
-        // Currently, if a fail() happens during the iteration, any removals
-        // which were indicated will be enacted before propagating failure.
-        //
-        Finalize_Remove_Each(&res);
-
-        fail (error); // Trap happened, so no trap in effect; this propagates
-    }
-
-    // Set a bit saying we are iterating the series, which will disallow
-    // mutations (including a nested REMOVE-EACH) until completion or failure.
-    // This flag will be cleaned up by Finalize_Remove_Each(), which is run
-    // even if there is a fail().
+    // See remarks on longjmp clobbering for why another function is needed.
     //
-    SET_SER_INFO(series, SERIES_INFO_HOLD);
-
-    REBOOL stop = FALSE;
-    REBCNT index = res.start; // declare here, avoid longjmp clobber warnings
-
-    REBCNT len = SER_LEN(series); // series temp read-only, this won't change
-    while (index < len && NOT(stop)) {
-        assert(res.start == index);
-
-        REBVAL *var = CTX_VAR(context, 1);
-        for (; NOT_END(var); ++var) {
-            if (index == len) {
-                //
-                // The second iteration here needs x = #"c" and y as void.
-                //
-                //     data: copy "abc"
-                //     remove-each [x y] data [...]
-                //
-                Init_Void(var);
-                continue; // the `for` loop setting variables
-            }
-
-            if (ANY_ARRAY(data))
-                Derelativize(
-                    var,
-                    VAL_ARRAY_AT_HEAD(data, index),
-                    VAL_SPECIFIER(data)
-                );
-            else if (IS_BINARY(data))
-                Init_Integer(var, cast(REBI64, BIN_HEAD(series)[index]));
-            else {
-                assert(ANY_STRING(data));
-                Init_Char(var, GET_ANY_CHAR(series, index));
-            }
-            ++index;
-        }
-
-        if (Do_At_Throws(D_CELL, body_copy, 0, SPECIFIED)) {
-            if (!Catching_Break_Or_Continue(D_CELL, &stop)) {
-                //
-                // A non-loop throw, we should be bubbling up.
-                //
-                DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
-                Finalize_Remove_Each(&res);
-                Move_Value(D_OUT, D_CELL);
-                return R_OUT_IS_THROWN;
-            }
-
-            if (stop) {
-                //
-                // BREAK - D_CELL may not be void if /WITH refinement used
-            }
-            else {
-                // CONTINUE - D_CELL may not be void if /WITH refinement used
-            }
-        }
-
-        if (ANY_ARRAY(data)) {
-            if (IS_VOID(D_CELL) || IS_FALSEY(D_CELL)) {
-                res.start = index;
-                continue; // keep requested, don't mark for culling
-            }
-
-            do {
-                assert(res.start <= len);
-                VAL_ARRAY_AT_HEAD(data, res.start)->header.bits
-                    |= NODE_FLAG_MARKED;
-                ++res.start;
-            } while (res.start != index);
-        }
-        else {
-            if (NOT(IS_VOID(D_CELL)) && IS_TRUTHY(D_CELL)) {
-                res.start = index;
-                continue; // remove requested, don't save to buffer
-            }
-
-            do {
-                assert(res.start <= len);
-                Append_Codepoint_Raw(
-                   res.mo->series,
-                   IS_BINARY(data)
-                       ? cast(REBUNI, BIN_HEAD(series)[res.start])
-                       : GET_ANY_CHAR(series, res.start)
-                );
-                ++res.start;
-            } while (res.start != index);
-        }
-    }
-
-    // We get here on normal completion or a BREAK
-    // THROW will return above, fail() takes the `error != NULL` branch
-
-    DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
-
-    // Finalize may need to process residual data in the case of BREAK
-    // It knows this based on res.start < len
-    //
-    assert((stop && res.start <= len) || (!stop && res.start == len));
-    REBCNT removals = Finalize_Remove_Each(&res);
-
-    if (stop) {
-        //
-        // !!! Should the return conventions of REMOVE-EACH honor the
-        // "loop protocol" where a broken loop returns BLANK!?
-    }
-
-    Init_Integer(D_OUT, removals);
-    return R_OUT;
+    return Remove_Each_Core(frame_, &res);
 }
 
 
