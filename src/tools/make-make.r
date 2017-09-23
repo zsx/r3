@@ -826,17 +826,25 @@ switch/default user-config/debug [
     ]
 
     ; Because it has symbols but no debugging, the callgrind option can also
-    ; be used when trying to find bugs that only appear in the debug build.
-    ; A special CALLGRIND native is included which allows metrics gathering
-    ; to be selectively turned on and off.
+    ; be used when trying to find bugs that only appear in release builds or
+    ; higher optimization levels.
     ;
     callgrind [
         cfg-symbols: true
         append app-config/definitions ["NDEBUG"]
-        append app-config/definitions ["INCLUDE_CALLGRIND_NATIVE"]
         append app-config/definitions ["REN_C_STDIO_OK"] ;; for debugging
-        append app-config/cflags "-g"
-        app-config/debug: off
+        append app-config/cflags "-g" ;; for symbols
+        app-config/debug: off 
+
+        ; A special CALLGRIND native is included which allows metrics
+        ; gathering to be turned on and off.  Needs <valgrind/callgrind.h>
+        ; which should be installed when you install the valgrind package.
+        ;
+        ; To start valgrind in a mode where it's not gathering at the outset:
+        ;
+        ; valgrind --tool=callgrind --dump-instr=yes --collect-atstart=no ./r3
+        ;
+        append app-config/definitions ["INCLUDE_CALLGRIND_NATIVE"]
     ]
 ][
     fail ["unrecognized debug setting:" user-config/debug]

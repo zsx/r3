@@ -1081,7 +1081,7 @@ static REB_R Remove_Each_Core(REBFRM *frame_, struct Remove_Each_State *res)
 
     REBCNT len = SER_LEN(res->series); // temp read-only, this won't change
     while (index < len && NOT(stop)) {
-        assert(res.start == index);
+        assert(res->start == index);
 
         REBVAL *var = CTX_VAR(res->context, 1);
         for (; NOT_END(var); ++var) {
