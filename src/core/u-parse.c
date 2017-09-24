@@ -191,15 +191,28 @@ static REBOOL Subparse_Throws(
     f->pending = f->value + 1;
     f->gotten = END;
 
+    Init_Endlike_Header(&f->flags, 0); // implicitly terminate f->cell
+
+    Push_Frame_Core(f); // checks for C stack overflow
+    Push_Function(
+        f,
+        Canon(SYM_SUBPARSE),
+        NAT_FUNC(subparse),
+        UNBOUND
+    );
+
+    f->param = END; // informs infix lookahead
+    f->arg = m_cast(REBVAL*, END);
+    f->refine = NULL;
+    f->special = NULL;
+
 #if defined(NDEBUG)
-    f->args_head = Push_Value_Chunk_Of_Length(2);
+    assert(FUNC_NUM_PARAMS(NAT_FUNC(subparse)) == 2);
 #else
-    f->args_head = Push_Value_Chunk_Of_Length(3); // real RETURN: for natives
+    assert(FUNC_NUM_PARAMS(NAT_FUNC(subparse)) == 3);
     Prep_Stack_Cell(&f->args_head[2]);
     Init_Void(&f->args_head[2]);
 #endif
-
-    f->varlist = NULL;
 
     Prep_Stack_Cell(&f->args_head[0]);
     Derelativize(&f->args_head[0], input, input_specifier);
@@ -210,18 +223,7 @@ static REBOOL Subparse_Throws(
     Prep_Stack_Cell(&f->args_head[1]);
     Init_Integer(&f->args_head[1], find_flags);
 
-    f->opt_label = Canon(SYM_SUBPARSE);
-    f->eval_type = REB_FUNCTION;
-    f->original = f->phase = NAT_FUNC(subparse);
-
-    Init_Endlike_Header(&f->flags, 0); // implicitly terminate f->cell
-
-    f->param = END; // informs infix lookahead
-    f->arg = m_cast(REBVAL*, END);
-    f->refine = NULL;
-    f->special = NULL;
-
-    Push_Frame_Core(f); // checks for C stack overflow
+    f->varlist = NULL;
 
     SET_END(&f->cell); // GC requires some initialization of cell
 

@@ -379,7 +379,7 @@ repush:
             fail (Error_Multiple_Do_Errors_Raw(arg1, arg2));
         }
 
-        f->eval_type = REB_0; // invariant of Do_Next_In_Frame
+        Recover_Frame(f); // Frames otherwise not ready to use after a FAIL
 
         assert(IS_END(thrown_name));
         Init_Error(arg_or_error, error);

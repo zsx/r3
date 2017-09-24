@@ -205,12 +205,11 @@ REBARR *Make_Paramlist_Managed_May_Fail(
 
     REBOOL refinement_seen = FALSE;
 
-    DECLARE_FRAME (f);
-    Push_Frame(f, spec);
+    const RELVAL *value = VAL_ARRAY_AT(spec);
 
-    while (NOT_END(f->value)) {
-        const RELVAL *item = f->value; // "faked", e.g. <return> => RETURN:
-        Fetch_Next_In_Frame(f); // go ahead and consume next
+    while (NOT_END(value)) {
+        const RELVAL *item = value; // "faked", e.g. <return> => RETURN:
+        ++value; // go ahead and consume next
 
     //=//// STRING! FOR FUNCTION DESCRIPTION OR PARAMETER NOTE ////////////=//
 
@@ -514,8 +513,6 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             fail (Error_Bad_Func_Def_Core(item, VAL_SPECIFIER(spec)));
         }
     }
-
-    Drop_Frame(f);
 
     // Go ahead and flesh out the TYPESET! BLOCK! STRING! triples.
     //
@@ -2039,7 +2036,6 @@ REB_R Apply_Def_Or_Exemplar(
 
     f->out = out;
     TRASH_POINTER_IF_DEBUG(f->gotten); // shouldn't be looked at (?)
-    f->binding = binding;
 
     // We pretend our "input source" has ended.
     //
@@ -2049,14 +2045,8 @@ REB_R Apply_Def_Or_Exemplar(
     f->specifier = SPECIFIED;
     TRASH_POINTER_IF_DEBUG(f->pending);
 
-    f->dsp_orig = DSP;
-
     Init_Endlike_Header(&f->flags, DO_FLAG_APPLYING);
 
-    // !!! We have to push a call here currently because prior to specific
-    // binding, the stack gets walked to resolve variables.   Hence in the
-    // apply case, Do_Core doesn't do its own push to the frame stack.
-    //
     Push_Frame_Core(f);
 
 #if !defined(NDEBUG)
@@ -2069,7 +2059,7 @@ REB_R Apply_Def_Or_Exemplar(
 #endif
 
     Push_Function(f, opt_label, fun, binding);
-    f->refine = m_cast(REBVAL*, END);
+    f->refine = NULL;
 
     if (NOT(def_or_exemplar->header.bits & NODE_FLAG_CELL)) {
         //

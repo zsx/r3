@@ -79,12 +79,6 @@ void Dump_Frame_Location(REBFRM *f)
         Reify_Va_To_Array_In_Frame(f, truncated);
     }
 
-    if (f->pending && NOT_END(f->pending)) {
-        assert(IS_SPECIFIC(f->pending));
-        printf("EVAL in progress, so next will be...\n");
-        PROBE(const_KNOWN(f->pending));
-    }
-
     if (IS_END(f->value)) {
         printf("...then Dump_Frame_Location() at end of array\n");
     }
@@ -177,11 +171,7 @@ void Do_Core_Entry_Checks_Debug(REBFRM *f)
     assert(f->flags.bits & NODE_FLAG_END);
     assert(NOT(f->flags.bits & NODE_FLAG_CELL));
 
-    TRASH_POINTER_IF_DEBUG(f->opt_label);
-
 #if !defined(NDEBUG)
-    TRASH_POINTER_IF_DEBUG(f->label_debug);
-
     if (
         NOT(FRM_IS_VALIST(f))
         && GET_SER_FLAG(f->source.array, SERIES_FLAG_FILE_LINE)
@@ -220,9 +210,10 @@ static void Do_Core_Shared_Checks_Debug(REBFRM *f) {
 #ifdef BALANCE_CHECK_EVERY_EVALUATION_STEP
     ASSERT_STATE_BALANCED(&f->state_debug);
 #endif
+
     assert(f == FS_TOP);
     assert(f->state_debug.top_chunk == TG_Top_Chunk);
-    /* assert(DSP == f->dsp_orig); */ // !!! not true now with push SET-WORD!
+    assert(DSP == f->dsp_orig);
 
     if (f->flags.bits & DO_FLAG_VA_LIST)
         assert(f->index == TRASHED_INDEX);
@@ -247,7 +238,7 @@ static void Do_Core_Shared_Checks_Debug(REBFRM *f) {
     }
 
     // We only have a label if we are in the middle of running a function,
-    // and if we're not running a function then f->phase should be trash.
+    // and if we're not running a function then f->phase should be NULL.
     //
     assert(f->phase == NULL);
     assert(IS_POINTER_TRASH_DEBUG(f->opt_label));
@@ -359,7 +350,7 @@ void Do_Core_Exit_Checks_Debug(REBFRM *f) {
     //
     // To keep from slowing down the debug build too much, this is not put in
     // the shared checks.  But if it fires and it's hard to figure out which
-    // exact cycle caused the problem, re-add it in the shared checks.
+    // exact cycle caused the problem, see BALANCE_CHECK_EVERY_EVALUATION_STEP
     //
     ASSERT_STATE_BALANCED(&f->state_debug);
 
@@ -388,33 +379,6 @@ void Do_Core_Exit_Checks_Debug(REBFRM *f) {
 
     if (NOT(THROWN(f->out)))
         ASSERT_VALUE_MANAGED(f->out);
-}
-
-
-//
-//  Do_Core_Function_Checks_Debug: C
-//
-// Push_Args_For_Underlying_Function() should have been called before this
-// point, and it should have set:
-//
-//     f->original, f->phase, f->args_head, f->special
-//     f->opt_label, f->label_debug (in debug build)
-//
-void Do_Core_Function_Checks_Debug(REBFRM *f) {
-    assert(f->eval_type == REB_FUNCTION);
-
-    // There may be refinements pushed to the data stack to process, if
-    // the call originated from a path dispatch.
-    //
-    assert(DSP >= f->dsp_orig);
-
-    assert(
-        f->opt_label == NULL
-        || GET_SER_FLAG(f->opt_label, SERIES_FLAG_UTF8_STRING)
-    );
-#if !defined(NDEBUG)
-    assert(NOT(IS_POINTER_TRASH_DEBUG(f->label_debug)));
-#endif
 }
 
 #endif

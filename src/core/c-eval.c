@@ -289,6 +289,15 @@ void Do_Core(REBFRM * const f)
     REBUPT do_count = f->do_count_debug = TG_Do_Count; // snapshot start tick
 #endif
 
+    // Capture the data stack pointer on entry.  Refinements are pushed to
+    // the stack and need to be checked if any are not processed.  Also things
+    // like the CHAIN dispatcher uses it to queue pending functions.  This
+    // cannot be done in Push_Frame(), because some routines (like Reduce_XXX)
+    // reuse the frame across multiple calls and accrue stack state, and that
+    // stack state should be skipped when considering the usages in Do_Core()
+    //
+    f->dsp_orig = DSP;
+
     REBOOL args_evaluate; // set on every iteration (varargs do, EVAL/ONLY...)
 
     // APPLY and a DO of a FRAME! both use process_function.
@@ -301,14 +310,7 @@ void Do_Core(REBFRM * const f)
         goto process_function;
     }
 
-    // Some initialized bit pattern is needed to check to see if a
-    // function call is actually in progress, or if eval_type is just
-    // REB_FUNCTION but doesn't have valid args/state.  The phase is a
-    // good choice because it is only affected by the function call case,
-    // see Is_Function_Frame_Fulfilling().
-    //
     f->eval_type = VAL_TYPE(f->value);
-    f->phase = NULL;
 
 #if !defined(NDEBUG)
     SNAP_STATE(&f->state_debug); // to make sure stack balances, etc.
@@ -321,12 +323,6 @@ void Do_Core(REBFRM * const f)
     // also are passed by way of the out slot.
     //
     assert(NOT(IS_TRASH_DEBUG(f->out)));
-
-    // Capture the data stack pointer on entry (used by debug checks, but
-    // also refinements are pushed to stack and need to be checked if there
-    // are any that are not processed)
-    //
-    f->dsp_orig = DSP;
 
 do_next:;
 
@@ -604,13 +600,15 @@ reevaluate:;
         TRASH_POINTER_IF_DEBUG(current); // shouldn't be used below
         TRASH_POINTER_IF_DEBUG(current_gotten);
 
-    #if !defined(NDEBUG)
-        Do_Core_Function_Checks_Debug(f);
         assert(
             (f->refine == ORDINARY_ARG && IS_END(f->out))
             || f->refine == LOOKBACK_ARG
         ); // ORDINARY_ARG and LOOKBACK_ARG are local to this file
-    #endif
+
+        // There may be refinements pushed to the data stack to process, if
+        // the call originated from a path dispatch.
+        //
+        assert(DSP >= f->dsp_orig);
 
         f->arg = f->args_head;
         f->param = FUNC_FACADE_HEAD(f->phase);

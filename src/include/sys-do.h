@@ -158,6 +158,19 @@ inline static void Push_Frame_Core(REBFRM *f)
             f->flags.bits |= DO_FLAG_TOOK_FRAME_HOLD;
         }
     }
+
+    // Some initialized bit pattern is needed to check to see if a
+    // function call is actually in progress, or if eval_type is just
+    // REB_FUNCTION but doesn't have valid args/state.  The phase is a
+    // good choice because it is only affected by the function call case,
+    // see Is_Function_Frame_Fulfilling().
+    //
+    f->phase = NULL;
+
+    TRASH_POINTER_IF_DEBUG(f->opt_label);
+#if !defined(NDEBUG)
+    TRASH_POINTER_IF_DEBUG(f->label_debug);
+#endif
 }
 
 inline static void UPDATE_EXPRESSION_START(REBFRM *f) {
@@ -172,13 +185,6 @@ inline static void Drop_Frame_Core(REBFRM *f) {
     assert(TG_Frame_Stack == f);
     TG_Frame_Stack = f->prior;
 }
-
-
-//
-// Code that walks across Rebol arrays and performs evaluations must consider
-// that arbitrary user code may disrupt the array being enumerated.  If the
-// array is to expand, it might have a different data pointer entirely.
-//
 
 inline static void Push_Frame_At(
     REBFRM *f,
@@ -227,6 +233,21 @@ inline static void Drop_Frame(REBFRM *f)
 {
     assert(f->eval_type == REB_0);
     Drop_Frame_Core(f);
+}
+
+// The experimental native DO-ALL tries to recover a frame that experienced
+// a FAIL.  This captures what things one needs to reset to make that work.
+//
+inline static void Recover_Frame(REBFRM *f)
+{
+    assert(f == FS_TOP);
+    f->eval_type = REB_0;
+    f->phase = NULL;
+
+    TRASH_POINTER_IF_DEBUG(f->opt_label);
+#if !defined(NDEBUG)
+    TRASH_POINTER_IF_DEBUG(f->label_debug);
+#endif
 }
 
 
@@ -312,7 +333,7 @@ inline static REBOOL Do_Next_Mid_Frame_Throws(REBFRM *f) {
     REBFLGS prior_flags = f->flags.bits;
     Init_Endlike_Header(&f->flags, DO_FLAG_NORMAL); // e.g. no DO_FLAG_TO_END
 
-    REBDSP prior_dsp_orig = f->dsp_orig;
+    REBDSP prior_dsp_orig = f->dsp_orig; // Do_Core() overwrites on entry
 #if !defined(NDEBUG)
     assert(f->state_debug.dsp == f->dsp_orig);
 #endif

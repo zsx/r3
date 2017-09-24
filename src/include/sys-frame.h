@@ -397,7 +397,12 @@ inline static void Push_Function(
 ){
     f->eval_type = REB_FUNCTION;
 
-    f->opt_label = opt_label; // label is always trash if no function running
+    assert(
+        opt_label == NULL
+        || GET_SER_FLAG(opt_label, SERIES_FLAG_UTF8_STRING)
+    );
+    assert(IS_POINTER_TRASH_DEBUG(f->opt_label)); // only valid w/REB_FUNCTION
+    f->opt_label = opt_label;
 
 #if !defined(NDEBUG)
     //
