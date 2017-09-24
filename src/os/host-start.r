@@ -841,6 +841,8 @@ console!: make object! [
     ]
 
     shortcuts: make object! compose/deep [
+        d: [dump]
+        h: [help]
         q: [quit]
         list-shortcuts: [print system/console/shortcuts]
         changes: [

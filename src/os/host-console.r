@@ -309,18 +309,13 @@ host-console: function [
             bind code focus-frame
         ]
 
-        ; There is a question of how it should be decided whether the code
-        ; in the CONSOLE should be locked as read-only or not.  It may be a
-        ; configuration switch, as it also may be an option for a module or
-        ; a special type of function which does not lock its source.
-        ;
-        lock code
-
-        if all [1 = length-of code | shortcut: select repl/shortcuts code/1] [
+        if shortcut: select repl/shortcuts code/1 [
             ;
-            ; One word shortcuts.  Built-ins are:
+            ; Shortcuts.  Built-ins are:
             ;
-            ;     q => quit
+            ;     d => [dump]
+            ;     h => [help]
+            ;     q => [quit]
             ;
             if all [bound? code/1 | set? code/1] [
                 ;
@@ -330,14 +325,22 @@ host-console: function [
                 ;
                 repl/print-warning [
                     (uppercase to-string code/1)
-                        "interpreted by console as:" form shortcut
+                        "interpreted by console as:" form :shortcut
                 ]
                 repl/print-warning [
                     "use" form to-get-word code/1 "to get variable."
                 ]
             ]
-            code: shortcut
+            take code
+            insert code shortcut
         ]
+
+        ; There is a question of how it should be decided whether the code
+        ; in the CONSOLE should be locked as read-only or not.  It may be a
+        ; configuration switch, as it also may be an option for a module or
+        ; a special type of function which does not lock its source.
+        ;
+        lock code
     ]
 
     code: repl/dialect-hook code
