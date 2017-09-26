@@ -528,29 +528,14 @@ inline static void Drop_Function_Core(
     }
 
     assert(GET_SER_FLAG(f->varlist, SERIES_FLAG_ARRAY));
-
-    if (NOT(IS_ARRAY_MANAGED(f->varlist))) {
-        //
-        // It's an array, but hasn't become managed yet...either because
-        // it couldn't be (args still being fulfilled, may have bad cells) or
-        // didn't need to be (no Context_For_Frame_May_Reify_Managed).  We
-        // can just free it.
-        //
-        assert(IS_POINTER_TRASH_DEBUG(SER(f->varlist)->misc.f));
-        Free_Array(f->varlist);
-        goto finished;
-    }
+    ASSERT_ARRAY_MANAGED(f->varlist);
 
     // The varlist is going to outlive this call, so the frame correspondence
     // in it needs to be cleared out, so callers will know the frame is dead.
     //
     assert(SER(f->varlist)->misc.f == f);
     SER(f->varlist)->misc.f = NULL;
-
-    // The varlist might have been for indefinite extent variables, or it
-    // might be a stub holder for a stack context.
-
-    ASSERT_ARRAY_MANAGED(f->varlist);
+    assert(GET_SER_FLAG(f->varlist, ARRAY_FLAG_VARLIST));
 
     if (NOT_SER_INFO(f->varlist, CONTEXT_INFO_STACK)) {
         //
@@ -565,7 +550,6 @@ inline static void Drop_Function_Core(
     // It's reified but has its data pointer into the chunk stack, which
     // means we have to free it and mark the array inaccessible.
 
-    assert(GET_SER_FLAG(f->varlist, ARRAY_FLAG_VARLIST));
     assert(NOT_SER_INFO(f->varlist, SERIES_INFO_HAS_DYNAMIC));
 
     assert(NOT_SER_INFO(f->varlist, SERIES_INFO_INACCESSIBLE));

@@ -811,7 +811,11 @@ switch/default user-config/debug [
         app-config/debug: on
     ]
     asserts [
-        app-config/debug: on
+        ; /debug should only affect the "-g -g3" symbol inclusions in rebmake.
+        ; To actually turn off asserts or other checking features, NDEBUG must
+        ; be defined.
+        ;
+        app-config/debug: off
     ]
     symbols [
         cfg-symbols: true
@@ -834,7 +838,7 @@ switch/default user-config/debug [
         append app-config/definitions ["NDEBUG"]
         append app-config/definitions ["REN_C_STDIO_OK"] ;; for debugging
         append app-config/cflags "-g" ;; for symbols
-        app-config/debug: off 
+        app-config/debug: off
 
         ; A special CALLGRIND native is included which allows metrics
         ; gathering to be turned on and off.  Needs <valgrind/callgrind.h>
