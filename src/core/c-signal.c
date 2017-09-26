@@ -141,13 +141,24 @@ REBOOL Do_Signals_Throws(REBVAL *out)
         //
         CLR_SIGNAL(SIG_INTERRUPT);
 
+        if (PG_Breakpoint_Hook == NULL)
+            fail (Error_Host_No_Breakpoint_Raw());
+
         // !!! This can recurse, which may or may not be a bad thing.  But
         // if the garbage collector and such are going to run during this
         // execution, the signal mask has to be turned back on.  Review.
         //
         Eval_Sigmask = saved_mask;
-        if (Do_Breakpoint_Throws(out, TRUE, VOID_CELL, FALSE))
-            return TRUE;
+
+        const REBOOL interrupted = TRUE;
+        const REBVAL *default_value = VOID_CELL;
+        const REBOOL do_default = FALSE;
+
+        if ((*PG_Breakpoint_Hook)(
+            out, interrupted, default_value, do_default
+        )){
+            return TRUE; // threw
+        }
 
         // !!! What to do with something like a Ctrl-C-based breakpoint
         // session that does something like `resume/with 10`?  This gets

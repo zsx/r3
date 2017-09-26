@@ -105,11 +105,7 @@ PVAR REBARR* PG_Empty_Array; // optimization of VAL_ARRAY(EMPTY_BLOCK)
 // when implemented that way. Needs research!!!!
 PVAR REBFLGS Eval_Signals;   // Signal flags
 
-// Hook called when BREAKPOINT is hit.  It will return TRUE if the breakpoint
-// is quitting, or FALSE if it is continuing.  (Note that if one is HALTing,
-// then it won't return at all...because that is done via longjmp.)
-//
-PVAR REBBRK PG_Breakpoint_Quitting_Hook;
+PVAR REBBRK PG_Breakpoint_Hook; // hook called to spawn the debugger
 
 // !!! See bad hack in %t-port.c that uses this for the moment.
 //

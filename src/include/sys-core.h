@@ -367,8 +367,18 @@ enum {
 };
 
 
-// Breakpoint hook callback
-typedef REBOOL (*REBBRK)(REBVAL *instruction_out, REBOOL interrupted);
+// Breakpoint hook callback, signature:
+//
+//     REBOOL Do_Breakpoint_Throws(
+//         REBVAL *out,
+//         REBOOL interrupted, // Ctrl-C (as opposed to a BREAKPOINT)
+//         const REBVAL *default_value,
+//         REBOOL do_default
+//      );
+//
+// Typically, the handler will be set up to dispatch back into the REPL.
+//
+typedef REBOOL (*REBBRK)(REBVAL *, REBOOL, const REBVAL*, REBOOL);
 
 
 // Flags used for Protect functions

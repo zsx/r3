@@ -156,14 +156,14 @@ echo: procedure [
 host-console: function [
     {Implements one Print-and-Read step of a Read-Eval-Print-Loop (REPL).}
 
-    return: [block! error!]
-        {Code to run or syntax error in the string input that tried to LOAD}
+    return: [block!]
+        {Code to run (to correctly exit the REPL loop, have this run QUIT)}
 
     last-result [<opt> any-value!]
         {The result from the last time HOST-CONSOLE ran to display (if any)}
 
-    last-failed [logic!]
-        {TRUE if the last-result is an ERROR! that FAILed vs just a result}
+    last-failed [blank! logic! bar!]
+        {BLANK! initially, TRUE if last-result is FAILed ERROR!, BAR! if HALT}
 
     focus-level [blank! integer!]
         {If at a breakpoint, the integer index of how deep the stack was}
@@ -180,40 +180,52 @@ host-console: function [
 ][
     ; CONSOLE is an external object for skinning the behaviour & appearance
     ;
-    ; /cycle - updates internal counter and print greeting on first rotation (ie. once)
-    ;
     repl: system/console
-    repl/cycle
-
-    source: copy {} ;-- source code potentially built of multiple lines
-
-    ; The LOADed and bound code.  It's initialized to empty block so that if
-    ; there is no input text (just newline at a prompt) , it will be treated
-    ; as DO [].
-    ;
-    code: copy []
 
     ; Output the last evaluation result if there was one.  MOLD it unless it
     ; was an actual error that FAILed.
     ;
     case [
-        not set? 'last-result [
-            ; Do nothing
+        blank? last-failed [
+            ;
+            ; First time running, hasn't had a chance to fail yet.  Each
+            ; recursion in the debugger also starts a new REPL without a
+            ; prior last result available.
+
+            if not focus-frame [
+                repl/print-greeting
+            ] else [
+                ;
+                ; Internally there is a known difference between whether an
+                ; interruption came from a Ctrl-C or a BREAKPOINT or PAUSE
+                ; instruction...but this is not currently passed through as
+                ; information to the console.  Should it be?  Also, this
+                ; should be skinnable.
+
+                print [
+                    "** Execution Interrupted"
+                        "(see BACKTRACE, DEBUG, and RESUME)"
+                ]
+            ]
+        ]
+
+        bar? last-failed [
+            ;
+            ; !!! This used to say "[escape]".  Should be skinnable, but what
+            ; should the default be?
+            ;
+            print "[interrupted by Ctrl-C or HALT instruction]"
         ]
 
         last-failed [
             assert [error? :last-result]
             repl/print-error last-result
-
-            unless system/state/last-error [
-                repl/print-info "Note: use WHY for more error information"
-            ]
-
-            system/state/last-error: last-result
         ]
     ] else [
-        repl/last-result: mold :last-result
-        repl/print-result
+        if set? 'last-result [
+            repl/last-result: mold :last-result
+            repl/print-result
+        ]
     ]
 
     repl/print-gap
@@ -233,14 +245,22 @@ host-console: function [
 
     repl/print-prompt
 
+    source: copy {} ;-- source code potentially built of multiple lines
+
+    ; The LOADed and bound code.  It's initialized to empty block so that if
+    ; there is no input text (just newline at a prompt) , it will be treated
+    ; as DO [].
+    ;
+    code: copy []
+
     forever [ ;-- gather potentially multi-line input
 
         line: repl/input-hook input     ;--  pre-processor hook
         if empty? line [
-            ;
-            ; if empty line, result is whatever's in `code`, even ERROR!
-            ;
-            break
+            if block? code [break]
+            
+            repl/print-error (ensure error! code)
+            return [] ;-- No-Op execution, just cycles the prompt
         ]
 
         append source line
@@ -253,7 +273,7 @@ host-console: function [
             code: load/all source
             assert [block? code]
 
-        ] func [error] [
+        ] func [error <with> return] [
             ;
             ; If loading the string gave back an error, check to see if it
             ; was the kind of error that comes from having partial input
@@ -295,53 +315,54 @@ host-console: function [
                     ;
                 ]
             ]
+
+            repl/print-error error
+            return [] ;-- No-Op execution, just cycles the prompt
         ]
 
         break ;-- Exit FOREVER if no additional input to be gathered
     ]
 
-    if not error? code [
-        assert [block? code]
+    assert [block? code]
 
-        ; If we're focused on a debug frame, try binding into it
-        ;
-        if focus-frame [
-            bind code focus-frame
-        ]
-
-        if shortcut: select repl/shortcuts first code [
-            ;
-            ; Shortcuts.  Built-ins are:
-            ;
-            ;     d => [dump]
-            ;     h => [help]
-            ;     q => [quit]
-            ;
-            if all [bound? code/1 | set? code/1] [
-                ;
-                ; Help confused user who might not know about the shortcut not
-                ; panic by giving them a message.  Reduce noise for the casual
-                ; shortcut by only doing so a bound variable exists.
-                ;
-                repl/print-warning [
-                    (uppercase to-string code/1)
-                        "interpreted by console as:" form :shortcut
-                ]
-                repl/print-warning [
-                    "use" form to-get-word code/1 "to get variable."
-                ]
-            ]
-            take code
-            insert code shortcut
-        ]
-
-        ; There is a question of how it should be decided whether the code
-        ; in the CONSOLE should be locked as read-only or not.  It may be a
-        ; configuration switch, as it also may be an option for a module or
-        ; a special type of function which does not lock its source.
-        ;
-        lock code
+    ; If we're focused on a debug frame, try binding into it
+    ;
+    if focus-frame [
+        bind code focus-frame
     ]
+
+    if shortcut: select repl/shortcuts first code [
+        ;
+        ; Shortcuts.  Built-ins are:
+        ;
+        ;     d => [dump]
+        ;     h => [help]
+        ;     q => [quit]
+        ;
+        if all [bound? code/1 | set? code/1] [
+            ;
+            ; Help confused user who might not know about the shortcut not
+            ; panic by giving them a message.  Reduce noise for the casual
+            ; shortcut by only doing so a bound variable exists.
+            ;
+            repl/print-warning [
+                (uppercase to-string code/1)
+                    "interpreted by console as:" form :shortcut
+            ]
+            repl/print-warning [
+                "use" form to-get-word code/1 "to get variable."
+            ]
+        ]
+        take code
+        insert code shortcut
+    ]
+
+    ; There is a question of how it should be decided whether the code
+    ; in the CONSOLE should be locked as read-only or not.  It may be a
+    ; configuration switch, as it also may be an option for a module or
+    ; a special type of function which does not lock its source.
+    ;
+    lock code
 
     code: repl/dialect-hook code
     return code

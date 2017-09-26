@@ -702,6 +702,16 @@ available-modules: reduce [
         ; to build the FFI module, you need to also set WITH-FFI (though
         ; setting WITH-FFI alone will not get you the module)
     ]
+
+    mod-debugger: make module-class [
+        name: 'Debugger
+        source: %debugger/mod-debugger.c
+        includes: copy [
+            %../src/extensions/debugger
+        ]
+        depends: [
+        ]
+    ]
 ]
 
 ;dump mod-uuid
@@ -792,6 +802,15 @@ available-extensions: reduce [
         ]
         source: %ffi/ext-ffi.c
         init: %ffi/ext-ffi-init.reb
+    ]
+
+    ext-debugger: make extension-class [
+        name: 'Debugger
+        modules: reduce [
+            mod-debugger
+        ]
+        source: %debugger/ext-debugger.c
+        init: %debugger/ext-debugger-init.reb
     ]
 ]
 

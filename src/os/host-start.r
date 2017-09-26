@@ -745,7 +745,20 @@ comment [
     ]
 
     proto-skin/name: any [proto-skin/name | "default"]
+
     system/console: proto-skin
+
+    ; Make the error hook store the error as the last one printed, so the
+    ; WHY command can access it.  Also inform people of the existence of
+    ; the WHY function on the first error delivery.
+    ;
+    proto-skin/print-error: adapt :proto-skin/print-error [
+        unless system/state/last-error [
+            system/console/print-info "Note: use WHY for error information"
+        ]
+
+        system/state/last-error: e
+    ]
 
     ;
     ; banner time
@@ -781,6 +794,13 @@ comment [
         ]
     ]
 
+    ; Just to get things started, tell the debugger extension to use the
+    ; same console function that the top level uses.
+    ;
+    if find system/contexts/user 'init-debugger [
+        system/contexts/user/init-debugger :host-console
+    ]
+
     ; Rather than have the host C code look up the CONSOLE function by name, it
     ; is returned as a function value from calling the start.  It's a bit of
     ; a hack, and might be better with something like the SYS_FUNC table that
@@ -798,15 +818,7 @@ console!: make object! [
     repl: true      ;-- used to identify this as a console! object (quack!)
     loaded?:  false ;-- if true then this is a loaded (external) skin
     updated?: false ;-- if true then console! object found in loaded skin
-    counter: 0
     last-result: _  ;-- last evaluated result (sent by HOST-CONSOLE)
-
-    ; Called on every line of input by HOST-CONSOLE in %os/host-console.r
-    ;
-    cycle: does [
-        if zero? counter [print-greeting] ;-- only load skin on first cycle
-        counter: ++ 1
-    ]
 
     ;; APPEARANCE (can be overridden)
 
@@ -819,7 +831,7 @@ console!: make object! [
     print-prompt:   proc []  [print/only prompt]
     print-result:   proc []  [print unspaced [result last-result]]
     print-warning:  proc [s] [print unspaced [warning reduce s]]
-    print-error:    proc [e] [print e]
+    print-error:    proc [e [error!]] [print e]
     print-info:     proc [s] [print [info space space reduce s]]
     print-greeting: proc []  [boot-print greeting]
     print-gap:      proc []  [print-newline]
