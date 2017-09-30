@@ -309,7 +309,7 @@ host-console: function [
             bind code focus-frame
         ]
 
-        if shortcut: select repl/shortcuts code/1 [
+        if shortcut: select repl/shortcuts first code [
             ;
             ; Shortcuts.  Built-ins are:
             ;
