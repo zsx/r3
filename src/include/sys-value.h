@@ -684,6 +684,11 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
 // that is one past the range of valid REB_XXX values in the enumeration
 // created for the actual types.
 //
+// Note: For some narrow purposes, it may be useful to quickly test a value
+// which is potentially void as "falsey" like BLANK! and LOGIC! false, so
+// it is given VALUE_FLAG_FALSEY to facilitate a fast test for that.  But
+// usual tests for truth in conditionals specifically prohibit voids.
+//
 
 #define VOID_CELL \
     c_cast(const REBVAL*, &PG_Void_Cell[0])
@@ -692,7 +697,10 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
     LOGICAL(VAL_TYPE(v) == REB_MAX_VOID)
 
 #define Init_Void(v) \
-    VAL_RESET((v), REB_MAX_VOID, 0)
+    VAL_RESET((v), REB_MAX_VOID, VALUE_FLAG_FALSEY) // see note above!
+
+#define IS_VOID_OR_FALSEY(v) \
+    GET_VAL_FLAG((v), VALUE_FLAG_FALSEY)
 
 
 //=////////////////////////////////////////////////////////////////////////=//

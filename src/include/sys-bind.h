@@ -343,6 +343,10 @@ inline static REBVAL *Get_Var_Core(
         // UNBOUND: No variable location to retrieve.
 
         assert(binding == UNBOUND);
+
+        if (flags & GETVAR_END_IF_UNAVAILABLE)
+            return m_cast(REBVAL*, END); // only const callers should use
+
         fail (Error_Not_Bound_Raw(any_word));
     }
 
