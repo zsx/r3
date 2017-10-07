@@ -409,12 +409,6 @@ script:
       fi
     - echo ${R3_EXIT_STATUS}
 
-    # Clean Android elf executable
-    - |
-      if [[ ${OS_ID} = "0.13.2" || ${OS_ID} = "0.13.1" ]]; then
-          $ANDROID_NDK/android-elf-cleaner r3
-      fi
-
     # Delete the obj file directory so we don't upload those to S3
     #
     - rm -rf objs
