@@ -552,12 +552,18 @@ REBINT PD_Array(REBPVS *pvs)
         n = Int32(pvs->picker) + VAL_INDEX(pvs->value) - 1;
     }
     else if (IS_WORD(pvs->picker)) {
-        n = Find_Word_In_Array(
-            VAL_ARRAY(pvs->value),
-            VAL_INDEX(pvs->value),
-            VAL_WORD_CANON(pvs->picker)
-        );
-        if (cast(REBCNT, n) != NOT_FOUND) n++;
+        //
+        // Linear search to find ANY-WORD! matching the canon.
+
+        REBSTR *canon = VAL_WORD_CANON(pvs->picker);
+        RELVAL *item = VAL_ARRAY_AT(pvs->value);
+        REBCNT index = VAL_INDEX(pvs->value);
+        for (; NOT_END(item); ++item, ++index) {
+            if (ANY_WORD(item) && canon == VAL_WORD_CANON(item)) {
+                n = index + 1;
+                break;
+            }
+        }
     }
     else if (IS_LOGIC(pvs->picker)) {
         //

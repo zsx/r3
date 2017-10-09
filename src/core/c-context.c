@@ -1270,35 +1270,17 @@ REBCNT Find_Canon_In_Context(REBCTX *context, REBSTR *canon, REBOOL always)
 //
 //  Select_Canon_In_Context: C
 //
-// Search a frame looking for the given word symbol and
-// return the value for the word. Locate it by matching
-// the canon word identifiers. Return NULL if not found.
+// Search a context's keylist looking for the given canon symbol, and return
+// the value for the word.  Return NULL if the canon is not found.
 //
-REBVAL *Select_Canon_In_Context(REBCTX *context, REBSTR *sym)
+REBVAL *Select_Canon_In_Context(REBCTX *context, REBSTR *canon)
 {
-    REBCNT n = Find_Canon_In_Context(context, sym, FALSE);
-    if (n == 0) return NULL;
+    const REBOOL always = FALSE;
+    REBCNT n = Find_Canon_In_Context(context, canon, always);
+    if (n == 0)
+        return NULL;
 
     return CTX_VAR(context, n);
-}
-
-
-//
-//  Find_Word_In_Array: C
-//
-// Find word (of any type) in an array of values with linear search.
-//
-REBCNT Find_Word_In_Array(REBARR *array, REBCNT index, REBSTR *sym)
-{
-    RELVAL *value;
-
-    for (; index < ARR_LEN(array); index++) {
-        value = ARR_AT(array, index);
-        if (ANY_WORD(value) && sym == VAL_WORD_CANON(value))
-            return index;
-    }
-
-    return NOT_FOUND;
 }
 
 
@@ -1354,9 +1336,7 @@ REBVAL *Get_Typed_Field(
 //
 void Startup_Collector(void)
 {
-    // Temporary block used while scanning for frame words:
-    // "just holds typesets, no GC behavior" (!!! until typeset symbols or
-    // embedded tyeps are GC'd...!)
+    // Temporary block used while scanning for words.
     //
     // Note that the logic inside Collect_Keylist managed assumes it's at
     // least 2 long to hold the rootkey (SYM_0) and a possible SYM_SELF

@@ -67,7 +67,6 @@ static inline void CATCH_THROWN(REBVAL *arg_out, REBVAL *thrown) {
     //
     // Note: arg_out and thrown may be the same pointer
     //
-    assert(NOT_END(thrown));
     assert(THROWN(thrown));
     CLEAR_VAL_FLAG(thrown, VALUE_FLAG_THROWN);
 
