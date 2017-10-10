@@ -540,7 +540,7 @@ void Shuffle_Block(REBVAL *value, REBOOL secure)
 //
 REBINT PD_Array(REBPVS *pvs)
 {
-    REBINT n = 0;
+    REBCNT n = NOT_FOUND; // -1
 
     /* Issues!!!
         a/1.3
@@ -589,7 +589,7 @@ REBINT PD_Array(REBPVS *pvs)
         );
     }
 
-    if (n < 0 || cast(REBCNT, n) >= VAL_LEN_HEAD(pvs->value)) {
+    if (n == NOT_FOUND || n >= VAL_LEN_HEAD(pvs->value)) {
         if (pvs->opt_setval)
             fail (Error_Bad_Path_Select(pvs));
 
