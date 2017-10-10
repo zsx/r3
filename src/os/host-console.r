@@ -258,8 +258,8 @@ host-console: function [
         line: repl/input-hook input     ;--  pre-processor hook
         if empty? line [
             if block? code [break]
-            
-            repl/print-error (ensure error! code)
+
+            repl/print-error (really error! code)
             return [] ;-- No-Op execution, just cycles the prompt
         ]
 

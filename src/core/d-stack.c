@@ -303,7 +303,7 @@ REBNATIVE(function_of)
 
     // The phase contains the paramlist of the actual function (the context is
     // the keylist of the *underlying* function).
-    // 
+    //
     // But to get the function REBVAL, the phase has to be combined with the
     // binding of the FRAME! value.  Otherwise you'd know (for instance) that
     // you had a RETURN, but you wouldn't know where to return *from*.

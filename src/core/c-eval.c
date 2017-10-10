@@ -1109,7 +1109,7 @@ reevaluate:;
 
             default:
                 assert(FALSE);
-        }
+            }
 
     //=//// TYPE CHECKING FOR (MOST) ARGS AT END OF ARG LOOP //////////////=//
 

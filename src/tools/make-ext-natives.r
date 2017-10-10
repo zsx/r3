@@ -77,7 +77,7 @@ proto-parser/emit-fileheader: func [header] [module-header: header]
 c-natives: make block! 128
 unsorted-buffer: make string! 20000
 proto-parser/emit-proto: :emit-native-proto
-    
+
 the-file: c-src ;-- global used for comments in the native emitter
 
 proto-parser/process source.text
