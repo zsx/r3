@@ -1484,14 +1484,29 @@ prep: make rebmake/entry-class [
     ]
 ]
 
-;print mold prep/commands
+; dump prep/commands
 
-folders: copy [%objs/ %objs/generic/]
-if find? [linux android osx] system-config/os-base [append folders [%objs/posix/]]
-if find? [android] system-config/os-base [append folders [%objs/linux/]]
-append folders join-of %objs/ [system-config/os-base #"/"]
+; Analyze what directories were used in this build's entry from %file-base.r
+; to add those obj folders.  So if the `%generic/host-memory.c` is listed,
+; this will make sure `%objs/generic/` is in there.
+;
+folders: copy [%objs/]
+for-each file os-file-block [
+    ;
+    ; For better or worse, original R3-Alpha didn't use FILE! in %file-base.r
+    ; for filenames.  Note that `+` markers should be removed by this point.
+    ;
+    assert [any [word? file | path? file]]
+    file: join-of %objs/ file
+    assert [file? file]
 
+    path: first split-path file
+    if not find folders path [
+        append folders path
+    ]
+]
 add-new-obj-folders ext-objs folders
+
 ;print ["ext-objs: (" length ext-objs ")" mold ext-objs]
 ;print ["app-config/ldflags:" mold app-config/ldflags]
 app: make rebmake/application-class [
