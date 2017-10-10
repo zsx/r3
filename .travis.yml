@@ -1,188 +1,361 @@
 #
-# .travis.yaml contains YAML-formatted (http://www.yaml.org/) build
-# instructions for continuous integration via Travis CI
-# (http://docs.travis-ci.com/).
+# .travis.yaml contains YAML-formatted (http://www.yaml.org/) instructions
+# for building Rebol for continuous integration via Travis CI:
+#
+# http://docs.travis-ci.com/
+#
+# Several platforms and compilers are used to try and give a breadth of
+# testing for portability.  Also if the build process is successful with no
+# errors, then the resulting binaries are deployed to an S3 instance:
+#
+# https://docs.travis-ci.com/user/deployment/s3/
+#
+# Those files are indexed by a Rebol script to generate an HTML download page.
+# The generation is currently run manually when interesting new versions are
+# available, and published here:
+#
+# http://metaeducation.s3.amazonaws.com/index.html
 #
 
+#
+# Note: "The suggested syntax for YAML files is to use 2 spaces for
+# indentation, but YAML will follow whatever indentation system that the
+# individual file uses."
+#
+# http://yaml.org/spec/1.2/spec.html#id2777534
+#
+# For this file, follow the convention that list items (started with dash)
+# are indented two spaces from their container key, and then all members of
+# the list are at the same indentation level of two spaces after that dash.
+#
 
 notifications:
-    email: false
+  email: false # committers are keeping an eye on failures, supposedly :-/
 
 
-language: c
-
-
-matrix:
-    include: 
-        # OSX x64, debug, g++
-        #
-        # !!! Can't do all warnings as errors, because the switch for
-        # files that end in .c as c++ ("-x c++") is deprecated for some overly
-        # prescriptive and annoying reason.
-        #
-        - os: osx
-          osx_image: xcode8.2
-          language: cpp
-          env: CONFIG=generic-c++.r OS_ID=0.2.40 DEBUG=asserts STANDARD=c++14 RIGOROUS=no STATIC=no FFI="dynamic" ODBC_REQUIRES_LTDL="no"
-
-        # OSX x64, debug, gcc
-        #
-        # TCC currently doesn't quite support OSX yet
-        #
-        # !!! Also, does not honor GCC's static linking flag for libc.
-        #
-        - os: osx
-          osx_image: xcode8.2
-          language: c
-          env: CONFIG=generic.r OS_ID=0.2.40 DEBUG=asserts STANDARD=c99 RIGOROUS=no STATIC=no FFI="dynamic" ODBC_REQUIRES_LTDL="no"
-
-        # OSX x64, release, gcc
-        #
-        # !!! Again, does not honor static linking switch.
-        #
-        - os: osx
-          language: c
-          env: CONFIG=generic.r OS_ID=0.2.40 DEBUG=none STANDARD=c RIGOROUS=no STATIC=no FFI="dynamic" ODBC_REQUIRES_LTDL="no"
-
-        # Linux x86, release, gcc
-        #
-        - os: linux
-          dist: precise #libltdl-dev:i386 can't be installed on trusty, and we want to have more variations.
-          sudo: required #The container based will be retired soon.
-          language: c
-          env: CONFIG=generic.r OS_ID=0.4.4 DEBUG=none STANDARD=gnu89 RIGOROUS=yes STATIC=yes TCC=i386-tcc ARCH_CFLAGS=-m32 FFI="dynamic" ODBC_REQUIRES_LTDL="yes"
-          addons:
-              apt:
-                  packages:
-                      - gcc-multilib
-                      - unixodbc-dev:i386
-                        # for makeinfo, required to build FFI
-                      - texinfo
-
-        # Linux x64, debug, g++
-        #
-        # !!! Note this binary does not support c++11 completely, it's an old
-        # gcc 4.6
-        #
-        - os: linux
-          dist: trusty #gcc on Ubuntu 12.04 does not support sanitizers
-          sudo: false #Force new container-based infrastructure.
-          language: cpp
-          env: CONFIG=generic-c++.r OS_ID=0.4.40 DEBUG=asserts STANDARD=c++0x RIGOROUS=yes STATIC=yes TCC=tcc FFI="dynamic" ODBC_REQUIRES_LTDL="no"
-          addons:
-              apt:
-                  packages:
-                      - g++-multilib
-                      - unixodbc-dev
-                        # for makeinfo, required to build FFI
-                      - texinfo
-
-        # Linux x64, release, gcc
-        #
-        - os: linux
-          sudo: false #Force new container-based infrastructure.
-          language: c
-          env: CONFIG=generic.r OS_ID=0.4.40 DEBUG=none STANDARD=gnu99 RIGOROUS=yes STATIC=yes TCC=tcc FFI="dynamic" ODBC_REQUIRES_LTDL="no"
-          addons:
-              apt:
-                  packages:
-                      - gcc-multilib
-                      - unixodbc-dev
-                        # for makeinfo, required to build FFI
-                      - texinfo
-
-        # Windows x86, release, gcc
-        #
-        # !!! There is currently an issue where TCC is causing a panic on
-        # startup for this configuration.  The bug seems very sensitive to
-        # build settings, so no debug-friendly version has been found at time
-        # of writing:
-        #
-        # https://github.com/metaeducation/ren-c/issues/603
-        #
-        # For the moment the following is taken out of the `env` line in order
-        # to get a working x86 windows build.
-        #
-        #     TCC=i386-win32-tcc TCC_CPP_EXTRA_FLAGS='-I../external/tcc/win32/include -DPVAR=TVAR -DTVAR="extern __attribute__((dllimport))"'
-        #
-        - os: linux
-          sudo: false #Force new container-based infrastructure.
-          language: c
-          env: CONFIG=mingw-x86.r OS_ID=0.3.1 DEBUG=none TOOLS=i686-w64-mingw32- STANDARD=c RIGOROUS=yes STATIC=yes HOST=i686-w64-mingw32 ARCH_CFLAGS=-m32 FFI="dynamic" ODBC_REQUIRES_LTDL="no"
-          addons:
-              apt:
-                  packages:
-                      - binutils-mingw-w64-i686
-                      - gcc-mingw-w64-i686
-                      - mingw-w64
-                        # for makeinfo, required to build FFI
-                      - texinfo
-        
-        # Windows x64, debug, gcc
-        #
-        - os: linux
-          sudo: false #Force new container-based infrastructure.
-          language: c
-          env: CONFIG=mingw-x64.r OS_ID=0.3.40 DEBUG=asserts TOOLS=x86_64-w64-mingw32- STANDARD=c RIGOROUS=yes STATIC=yes TCC=x86_64-win32-tcc TCC_CPP_EXTRA_FLAGS='-I../external/tcc/win32/include -DPVAR=TVAR -DTVAR="extern __attribute__((dllimport))"' HOST=x86_64-w64-mingw32 FFI="dynamic" ODBC_REQUIRES_LTDL="no"
-          addons:
-              apt:
-                  packages:
-                      - binutils-mingw-w64-i686
-                      - gcc-mingw-w64-i686
-                      - mingw-w64
-
-        # Windows x64, debug, g++
-        #
-        # !!! Note this binary does not support c++11 or above
-        #
-        - os: linux
-          sudo: false #Force new container-based infrastructure.
-          language: cpp
-          env: CONFIG=mingw-x64-c++.r OS_ID=0.3.40 DEBUG=asserts TOOLS=x86_64-w64-mingw32- STANDARD=c++ RIGOROUS=yes STATIC=yes TCC=x86_64-win32-tcc TCC_CPP_EXTRA_FLAGS='-I../external/tcc/win32/include -DPVAR=TVAR -DTVAR="extern __attribute__((dllimport))"' HOST=x86_64-w64-mingw32 FFI="dynamic" ODBC_REQUIRES_LTDL="no"
-          addons:
-              apt:
-                  packages:
-                      - binutils-mingw-w64-x86-64
-                      - g++-mingw-w64-x86-64
-                      - mingw-w64
-        
-        # Android5, debug, gcc
-        #
-        - os: linux
-          dist: trusty #gcc on Ubuntu 12.04 does not support sanitizers
-          sudo: false #Force new container-based infrastructure.
-          language: c
-          env: CONFIG=android5-arm.r OS_ID=0.13.2 DEBUG=asserts STANDARD=c RIGOROUS=yes STATIC=yes HOST=arm-eabi FFI="no" ODBC_REQUIRES_LTDL="no"
-
-        # Android5, release, gcc
-        #
-        - os: linux
-          dist: trusty #gcc on Ubuntu 12.04 does not support sanitizers
-          sudo: false #Force new container-based infrastructure.
-          language: c
-          env: CONFIG=android5-arm.r OS_ID=0.13.2 DEBUG=none STANDARD=c RIGOROUS=yes STATIC=yes HOST=arm-eabi FFI="no" ODBC_REQUIRES_LTDL="no"
-
+# Each configured travis instance has its own customized environment variables
+# to give it unique behavior.  But there are also global environment keys,
+# available to the overall Travis process itself (e.g. deployment)
+#
+# https://docs.travis-ci.com/user/environment-variables/#Global-Variables
+#
 env:
-    global:
-         #
-         # travis encrypt AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
-         #
-         - secure: "Bex3tqrlsnv+t3+AJu6nG8bcbfHXeBNWIUUdcEeyB8gWnWnVuBsC5hTw9cUhEWJchJSsV4LeWVL51harzOQRntszyfjeNvPQozCXbTQVGd1tn5Rpt1QKN9VBK007c+ERj9L8JzFkM2HdeVusYY4Bz5tI883DSJkydyJpJp21mG9i8a17bqJsgBW0JmMsMsdv1ilaeb8/Luo8bn0ObIWTTz+4/6RF4XU9UcWLH7I4HlGb3qufR9chWCX7jTT0SLRkEgfudr+KVrY4xIspiPlVwrKvagnOTFcYLxN4JpGOgn1rnCcOxsWo4kE4dwgXZvEn8W2HJmJhzhAHDLkF0S7YhIDQaScJLwSVECI9xu68V5siWdyhzyrSb2K7V8Mtzryjzq1QueCrRRTj7XLY7sx5OxeP//RVMY0Poil5DdB84nI1wezzmT1kj7dkc1Fr1ZqdYSEfCZNd1v+DeRmAf/N70xUyx1tSxAHD96kjDM3lGILIrlt9RLWdeT0BqxQxzaKCowPVgfztH0nzPcoe1DfNfIhG9mEdjeJfLC7hAgc9Dn0KTo/oSwX/TBsTavV+6SPxH1D4q1xVdY9p4G2hS/N1xaqf7ys4DQOPwWZwvhujwGtto4fy7VMvDtX7jI6++0dJe+baG0DetlHvUGKzWpBJgk02k3mREH+9Ui8f7T9vn8Y="
-         
-         # travis encrypt AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
-         #
-         - secure: "IlBRG9mRM0BDtb9ZJDKl4QVRjs/e3KxvjEdVS9e8+PlGq+xMDVGQdje9WOED/bhTcoAYabhLKkXY8YZg6rlVj4ecyjjmZRfPA4D9YVMVHZVNldLX9Ed79Kv95dTvFdn6xl9Tbk/CEqtxfDwcN2hZqv9M3TXN2+sKzny6p4ENc8O7sz0Stb4GyFgPdWSIs4SZv/r8/feMgWiUx+q1NFFarMmFsLtKVuiPIyoU6fGW1zZPyh10jKuhi9GYBStcMHIWqvU+9+jbqchMJT1t/1fyEf0fJokNMH2KXCVDbsu7nKhaVZbIxirLdZNicKfzype1uRgzAB/Crpup+TwnINd17HPSqjCnqntuS+pO0mIRcXVhNSE8TG9S8x4N0pgtKYHKyfAjElmjLwPfoMhu5VlZishn6heeUALbQ7y44YwWwG8EoW4PnRFIGg7V4EjlHJkcmDhJWrZX2hVvSGJ72lFhHXFMcr+VKhXWlmK97XdFAz/c/LlSyyrmKtIE6W5kwhJC8bbrpETA/wQ9pP3WEVY28bka24LqI1g0hiDn7cyXae7Ikss36Y8eB/9/00EovCPHw1o+dyenXI10Q8+yorQ42xrjo1bXuYRohCvI+FmV4XFLkJ+c6wDTSKhJTcUhZsQva2F0ipeyqhGQQGkLiZ8BvdoSPHHBx2odikgho9VQZ48="
- 
-         - AWS_S3_BUCKET_NAME: "metaeducation"
+  global:
+    #
+    # travis encrypt AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
+    #
+    - secure: "Bex3tqrlsnv+t3+AJu6nG8bcbfHXeBNWIUUdcEeyB8gWnWnVuBsC5hTw9cUhEWJchJSsV4LeWVL51harzOQRntszyfjeNvPQozCXbTQVGd1tn5Rpt1QKN9VBK007c+ERj9L8JzFkM2HdeVusYY4Bz5tI883DSJkydyJpJp21mG9i8a17bqJsgBW0JmMsMsdv1ilaeb8/Luo8bn0ObIWTTz+4/6RF4XU9UcWLH7I4HlGb3qufR9chWCX7jTT0SLRkEgfudr+KVrY4xIspiPlVwrKvagnOTFcYLxN4JpGOgn1rnCcOxsWo4kE4dwgXZvEn8W2HJmJhzhAHDLkF0S7YhIDQaScJLwSVECI9xu68V5siWdyhzyrSb2K7V8Mtzryjzq1QueCrRRTj7XLY7sx5OxeP//RVMY0Poil5DdB84nI1wezzmT1kj7dkc1Fr1ZqdYSEfCZNd1v+DeRmAf/N70xUyx1tSxAHD96kjDM3lGILIrlt9RLWdeT0BqxQxzaKCowPVgfztH0nzPcoe1DfNfIhG9mEdjeJfLC7hAgc9Dn0KTo/oSwX/TBsTavV+6SPxH1D4q1xVdY9p4G2hS/N1xaqf7ys4DQOPwWZwvhujwGtto4fy7VMvDtX7jI6++0dJe+baG0DetlHvUGKzWpBJgk02k3mREH+9Ui8f7T9vn8Y="
 
+    # travis encrypt AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
+    #
+    - secure: "IlBRG9mRM0BDtb9ZJDKl4QVRjs/e3KxvjEdVS9e8+PlGq+xMDVGQdje9WOED/bhTcoAYabhLKkXY8YZg6rlVj4ecyjjmZRfPA4D9YVMVHZVNldLX9Ed79Kv95dTvFdn6xl9Tbk/CEqtxfDwcN2hZqv9M3TXN2+sKzny6p4ENc8O7sz0Stb4GyFgPdWSIs4SZv/r8/feMgWiUx+q1NFFarMmFsLtKVuiPIyoU6fGW1zZPyh10jKuhi9GYBStcMHIWqvU+9+jbqchMJT1t/1fyEf0fJokNMH2KXCVDbsu7nKhaVZbIxirLdZNicKfzype1uRgzAB/Crpup+TwnINd17HPSqjCnqntuS+pO0mIRcXVhNSE8TG9S8x4N0pgtKYHKyfAjElmjLwPfoMhu5VlZishn6heeUALbQ7y44YwWwG8EoW4PnRFIGg7V4EjlHJkcmDhJWrZX2hVvSGJ72lFhHXFMcr+VKhXWlmK97XdFAz/c/LlSyyrmKtIE6W5kwhJC8bbrpETA/wQ9pP3WEVY28bka24LqI1g0hiDn7cyXae7Ikss36Y8eB/9/00EovCPHw1o+dyenXI10Q8+yorQ42xrjo1bXuYRohCvI+FmV4XFLkJ+c6wDTSKhJTcUhZsQva2F0ipeyqhGQQGkLiZ8BvdoSPHHBx2odikgho9VQZ48="
+ 
+    - AWS_S3_BUCKET_NAME: "metaeducation"
+
+
+# All Travis instances in the following "matrix" will run the same `script:`
+# code (found later on in the file).  However, each instance has environment
+# variables which can guide that script to behave differently.
+#
+matrix:
+  include: 
+    # OSX x64, debug, g++
+    #
+    # !!! Can't do all warnings as errors, because in clang the switch for
+    # files that end in .c as c++ ("-x c++") is deprecated for some overly
+    # prescriptive and annoying reason.
+    #
+    - os: osx
+      osx_image: xcode8.2 # try an older XCode (on OS X 10.12)
+      language: cpp
+      env:
+        - CONFIG=generic-c++.r
+        - OS_ID=0.2.40
+        - DEBUG=asserts
+        - STANDARD=c++14
+        - RIGOROUS=no
+        - STATIC=no
+        - FFI="dynamic"
+        - ODBC_REQUIRES_LTDL="no"
+
+    # OSX x64, debug, gcc
+    #
+    # TCC currently doesn't quite support OSX yet
+    #
+    # !!! Also, does not honor GCC's static linking flag for libc.
+    #
+    - os: osx
+      osx_image: xcode9.1 # try a newer XCode (on OS X 10.12)
+      language: c
+      env:
+        - CONFIG=generic.r
+        - OS_ID=0.2.40
+        - DEBUG=asserts
+        - STANDARD=c99
+        - RIGOROUS=no
+        - STATIC=no
+        - FFI="dynamic"
+        - ODBC_REQUIRES_LTDL="no"
+
+    # OSX x64, release, gcc
+    #
+    # !!! Again, does not honor static linking switch.
+    #
+    - os: osx
+      osx_image: xcode7.3 # try an older XCode and OS X image (OS X 10.11)
+      language: c
+      env:
+        - CONFIG=generic.r
+        - OS_ID=0.2.40
+        - DEBUG=none
+        - STANDARD=c
+        - RIGOROUS=no
+        - STATIC=no
+        - FFI="dynamic"
+        - ODBC_REQUIRES_LTDL="no"
+
+    # Linux x86, release, gcc
+    #
+    # Note that this uses the older "precise" distribution, instead of the
+    # new default of "trusty".  In addition to providing some more build
+    # variations for testing, `libltdl-dev:i386` won't install on trusty.
+    # (also, gcc on Ubuntu 12.04 does not support sanitizers)
+    #
+    - os: linux
+      dist: precise # see above
+      sudo: required # "containers will be retired soon"
+      language: c
+      env:
+        - CONFIG=generic.r
+        - OS_ID=0.4.4
+        - DEBUG=none
+        - STANDARD=gnu89
+        - RIGOROUS=yes
+        - STATIC=yes
+        - TCC=i386-tcc
+        - ARCH_CFLAGS=-m32
+        - FFI="dynamic"
+        - ODBC_REQUIRES_LTDL="yes"
+      addons:
+        apt:
+          packages:
+            - gcc-multilib
+            - unixodbc-dev:i386
+            - texinfo # for makeinfo, required to build FFI
+
+    # Linux x64, debug, g++
+    #
+    # !!! Note this binary does not support c++11 completely, it's an old
+    # gcc 4.6
+    #
+    - os: linux
+      dist: trusty
+      sudo: false # force new container-based infrastructure.
+      language: cpp
+      env:
+        - CONFIG=generic-c++.r
+        - OS_ID=0.4.40
+        - DEBUG=asserts
+        - STANDARD=c++0x
+        - RIGOROUS=yes
+        - STATIC=yes
+        - TCC=tcc
+        - FFI="dynamic"
+        - ODBC_REQUIRES_LTDL="no"
+      addons:
+        apt:
+          packages:
+            - g++-multilib
+            - unixodbc-dev
+            - texinfo # for makeinfo, required to build FFI
+
+    # Linux x64, release, gcc
+    #
+    - os: linux
+      sudo: false # force new container-based infrastructure
+      language: c
+      env:
+        - CONFIG=generic.r
+        - OS_ID=0.4.40
+        - DEBUG=none
+        - STANDARD=gnu99
+        - RIGOROUS=yes
+        - STATIC=yes
+        - TCC=tcc
+        - FFI="dynamic"
+        - ODBC_REQUIRES_LTDL="no"
+      addons:
+        apt:
+          packages:
+            - gcc-multilib
+            - unixodbc-dev
+            - texinfo # for makeinfo, required to build FFI
+
+    # Windows x86, release, gcc
+    #
+    # !!! There is currently an issue where TCC is causing a panic on
+    # startup for this configuration.  The bug seems very sensitive to
+    # build settings, so no debug-friendly version has been found at time
+    # of writing:
+    #
+    # https://github.com/metaeducation/ren-c/issues/603
+    #
+    # For the moment the following are taken out of the `env:` line in
+    # order to get a working x86 Windows build.
+    #
+    #   - TCC=i386-win32-tcc
+    #   - TCC_CPP_EXTRA_FLAGS='-I../external/tcc/win32/include -DPVAR=TVAR -DTVAR="extern __attribute__((dllimport))"'
+    #
+    - os: linux
+      sudo: false # force new container-based infrastructure.
+      language: c
+      env:
+        - CONFIG=mingw-x86.r
+        - OS_ID=0.3.1
+        - DEBUG=none
+        - TOOLS=i686-w64-mingw32- # trailing hyphen is intentional
+        - STANDARD=c
+        - RIGOROUS=yes
+        - STATIC=yes
+        - HOST=i686-w64-mingw32
+        - ARCH_CFLAGS=-m32
+        - FFI="dynamic"
+        - ODBC_REQUIRES_LTDL="no"
+      addons:
+        apt:
+          packages:
+            - binutils-mingw-w64-i686
+            - gcc-mingw-w64-i686
+            - mingw-w64
+            - texinfo # for makeinfo, required to build FFI
+        
+    # Windows x64, debug, gcc
+    #
+    - os: linux
+      sudo: false # force new container-based infrastructure.
+      language: c
+      env:
+        - CONFIG=mingw-x64.r
+        - OS_ID=0.3.40
+        - DEBUG=asserts
+        - TOOLS=x86_64-w64-mingw32- # trailing hyphen is intentional
+        - STANDARD=c
+        - RIGOROUS=yes
+        - STATIC=yes
+        - TCC=x86_64-win32-tcc
+        - TCC_CPP_EXTRA_FLAGS='-I../external/tcc/win32/include -DPVAR=TVAR -DTVAR="extern __attribute__((dllimport))"'
+        - HOST=x86_64-w64-mingw32
+        - FFI="dynamic"
+        - ODBC_REQUIRES_LTDL="no"
+      addons:
+        apt:
+          packages:
+            - binutils-mingw-w64-i686
+            - gcc-mingw-w64-i686
+            - mingw-w64
+
+    # Windows x64, debug, g++
+    #
+    # !!! Note this binary does not support c++11 or above
+    #
+    - os: linux
+      sudo: false # force new container-based infrastructure
+      language: cpp
+      env:
+        - CONFIG=mingw-x64-c++.r
+        - OS_ID=0.3.40
+        - DEBUG=asserts
+        - TOOLS=x86_64-w64-mingw32- # trailing hyphen is intentional
+        - STANDARD=c++
+        - RIGOROUS=yes
+        - STATIC=yes
+        - TCC=x86_64-win32-tcc
+        - TCC_CPP_EXTRA_FLAGS='-I../external/tcc/win32/include -DPVAR=TVAR -DTVAR="extern __attribute__((dllimport))"'
+        - HOST=x86_64-w64-mingw32
+        - FFI="dynamic"
+        - ODBC_REQUIRES_LTDL="no"
+      addons:
+        apt:
+          packages:
+            - binutils-mingw-w64-x86-64
+            - g++-mingw-w64-x86-64
+            - mingw-w64
+        
+    # Android5, debug, gcc
+    #
+    - os: linux
+      dist: trusty
+      sudo: false # force new container-based infrastructure
+      language: c
+      env:
+        - CONFIG=android5-arm.r
+        - OS_ID=0.13.2
+        - DEBUG=asserts
+        - STANDARD=c
+        - RIGOROUS=yes
+        - STATIC=yes
+        - HOST=arm-eabi
+        - FFI="no"
+        - ODBC_REQUIRES_LTDL="no"
+
+    # Android5, release, gcc
+    #
+    - os: linux
+      dist: trusty
+      sudo: false # force new container-based infrastructure
+      language: c
+      env:
+        - CONFIG=android5-arm.r
+        - OS_ID=0.13.2
+        - DEBUG=none
+        - STANDARD=c
+        - RIGOROUS=yes
+        - STATIC=yes
+        - HOST=arm-eabi
+        - FFI="no"
+        - ODBC_REQUIRES_LTDL="no"
+
+
+# The install step occurs before the `script:` step runs.  The language that
+# was specified in the `matrix:` entry for each instance will guide certain
+# default tools that will be installed.  But you can add custom steps:
+#
+# https://docs.travis-ci.com/user/customizing-the-build#Customizing-the-Installation-Step
+#
+# In our case, we'd like to fetch a Rebol binary to use as the "r3-make".
+# Its job is to process C and Rebol sources to automatically generate some
+# header files and embedded Rebol code bundles used in bootstrap, as well as
+# to generate makefiles.
+#
+# !!! Originally, the Rebol that was fetched was the last r3-alpha that was
+# published on rebol.com, to ensure that it could still be used for bootstrap.
+# Conversion of the build in mid-2017 to using %rebmake.r meant that only a
+# semi-recent Ren-C could be used to run the build prep steps.  This is
+# hopefully a temporary state of affairs, and it should be ported back to
+# support R3-Alpha at some point.
+#
 install:
-    #
-    # Fetch a Rebol bootstrap binary, which is needed for building Rebol.
-    # Travis uses the last r3-alpha that was ever published on rebol.com
-    # in order to ensure that still works.
-    #
-    - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then export REBOL_TOOL=./r3-linux-x64-368bd5a ; fi
-    - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then export REBOL_TOOL=./r3-osx-x64-368bd5a-debug && brew install unixodbc ; fi
+  - |
+    if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then
+      export REBOL_TOOL=./r3-linux-x64-368bd5a
+    fi
+
+  - |
+    if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
+      export REBOL_TOOL=./r3-osx-x64-368bd5a-debug
+
+      # brew update should not be required, and adds extra time to the
+      # build...but an issue introduced in the Travis images circa October
+      # 2017 means it will fail if you don't.  If someday this isn't
+      # necessary, it should be removed.
+      #
+      # https://github.com/travis-ci/travis-ci/issues/8552
+      #
+      brew update
+
+      brew install unixodbc
+    fi
+
 
 script:
     # Nice to know what version of gcc this is
@@ -193,7 +366,12 @@ script:
     - TOP_DIR=${PWD}
     - |
       if [[ ${OS_ID} = "0.13.2" || ${OS_ID} = "0.13.1" ]]; then
-          if [ `uname -m` = x86_64 ]; then wget https://github.com/giuliolunati/android-travis/releases/download/v1.0.0/android-ndk-r13.tgz; export ANDROID_NDK=$TOP_DIR/android-ndk-r13; else exit 1; fi
+          if [ `uname -m` = x86_64 ]; then
+              wget https://github.com/giuliolunati/android-travis/releases/download/v1.0.0/android-ndk-r13.tgz
+              export ANDROID_NDK=$TOP_DIR/android-ndk-r13
+          else
+              exit 1;
+          fi
           tar zxf android-ndk-r13.tgz
           echo $PWD
           ls -dl $PWD/android-ndk-r13
