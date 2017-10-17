@@ -616,6 +616,7 @@ REBCTX *Copy_Context_Core(REBCTX *original, REBOOL deep, REBU64 types)
     for (; NOT_END(src); ++src, ++dest)
         Move_Value(dest, src);
 
+    TERM_ARRAY_LEN(varlist, CTX_LEN(original) + 1);
     SET_SER_FLAG(varlist, ARRAY_FLAG_VARLIST);
 
     REBCTX *copy = CTX(varlist); // now a well-formed context

@@ -643,7 +643,7 @@ cleanup_and_return:
     // dynamically allocated to avoid the warning.
     //
     REBOOL quitting = VAL_LOGIC(*last_failed);
-    free(last_failed);
+    free(m_cast(REBVAL**, last_failed)); // pointer to mutable in free(), C++
     assert(THROWN(instruction_out) || quitting);
     return quitting;
 }

@@ -149,7 +149,7 @@ REBNATIVE(continue)
 //
 //     x-word: none
 //     for-each x [1 2 3] [x-word: 'x | break]
-//     get x-word ;-- returns 1
+//     get x-word ;-- returns 3
 //
 // !!! Ren-C managed to avoid deep copying function bodies yet still get
 // "specific binding" by means of "relative values" (RELVALs) and specifiers.

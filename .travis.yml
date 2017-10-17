@@ -256,9 +256,17 @@ matrix:
 
     # Windows x64, debug, g++
     #
+    # There is an issue where if you do a C++ build on this toolchain in the
+    # "precise" image, that newer MinGW will give an EXE with a superfluous
+    # dependency on the pthread MinGW DLL.  It could be dealt with a number of
+    # ways, but just use the "trusty" image for now because it is easier.
+    #
+    # https://github.com/metaeducation/ren-c/issues/624
+    #
     # !!! Note this binary does not support c++11 or above
     #
     - os: linux
+      dist: trusty # see note above
       sudo: false # force new container-based infrastructure
       language: cpp
       env:

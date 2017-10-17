@@ -932,15 +932,15 @@ emit {
 // Compressed data of the native specifications.  This is uncompressed during
 // boot and executed.
 //
-extern const REBYTE Native_Specs[NAT_COMPRESSED_SIZE];
+EXTERN_C const REBYTE Native_Specs[NAT_COMPRESSED_SIZE];
 
 // Raw C function pointers for natives.
 //
-extern const REBNAT Native_C_Funcs[NUM_NATIVES];
+EXTERN_C const REBNAT Native_C_Funcs[NUM_NATIVES];
 
 // A canon FUNCTION! REBVAL of the native, accessible by the native's index #.
 //
-extern REBVAL Natives[NUM_NATIVES];
+EXTERN_C REBVAL Natives[NUM_NATIVES];
 }
 
 emit newline

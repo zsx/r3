@@ -693,7 +693,10 @@ static void Queue_Mark_Opt_Value_Deep(const RELVAL *v)
 inline static void Queue_Mark_Value_Deep(const RELVAL *v)
 {
 #if !defined(NDEBUG)
-    if (IS_VOID(v))
+    //
+    // Note: IS_VOID() would trip on unreadable blanks, which is okay for GC
+    //
+    if (VAL_TYPE_RAW(v) == REB_MAX_VOID)
         panic (v);
 #endif
     Queue_Mark_Opt_Value_Deep(v);
