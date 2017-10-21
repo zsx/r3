@@ -1142,6 +1142,12 @@ static void Mark_Frame_Stack_Deep(void)
         if (NOT_END(f->out)) // never NULL, always initialized bit pattern
             Queue_Mark_Opt_Value_Deep(f->out);
 
+        // Frame temporary cell should always contain initialized bits, as
+        // DECLARE_FRAME sets it up and no one is supposed to trash it.
+        //
+        if (NOT_END(&f->cell))
+            Queue_Mark_Opt_Value_Deep(&f->cell);
+
         if (NOT(Is_Function_Frame(f))) {
             //
             // Consider something like `eval copy quote (recycle)`, because
@@ -1150,9 +1156,6 @@ static void Mark_Frame_Stack_Deep(void)
             //
             continue;
         }
-
-        if (NOT_END(&f->cell))
-            Queue_Mark_Opt_Value_Deep(&f->cell);
 
         Queue_Mark_Function_Deep(f->phase); // never NULL
         if (f->opt_label != NULL) // will be NULL if no symbol
@@ -1206,10 +1209,25 @@ static void Mark_Frame_Stack_Deep(void)
         // then skip the cells for pending refinement arguments.
         //
         REBVAL *param = FUNC_FACADE_HEAD(f->phase);
-        REBVAL *arg = f->args_head; // may be stack or dynamic
+        REBVAL *arg = f->args_head;
         for (; NOT_END(param); ++param, ++arg) {
+            //
+            // At time of writing, all frame storage is in stack cells...not
+            // varlists.
+            //
+            assert(arg->header.bits & VALUE_FLAG_STACK);
+
             if (param == f->param) {
                 //
+                // If a GC can happen while this frame is on the stack in a
+                // function call, that means it's evaluating.  So when param
+                // and f->param match, that means we know this slot is the
+                // output slot for some other frame.  Hence it is protected by
+                // that output slot, and it also may be an END, which is not
+                // legal for any other slots.  We won't be needing to mark it.
+                //
+                assert(IS_END(f->arg) || NOT(IS_TRASH_DEBUG(f->arg)));
+
                 // If we're not doing "pickups" then the cell slots after
                 // this one have not been initialized, not even to trash.
                 // (Unless the args are living in a varlist, in which case
@@ -1218,14 +1236,9 @@ static void Mark_Frame_Stack_Deep(void)
                 if (NOT(f->doing_pickups))
                     break;
 
-                // If a GC can happen while this frame is on the stack in a
-                // function call, that means it's evaluating.  Hence when
-                // param and f->param match, that means we know this slot
-                // is the output slot for some other frame.  Hence it is
-                // protected, and it also may be an END, which is not legal
-                // for any other slots.  So don't mark this slot.  But since
-                // we are doing pickups, the ensuing slots should be
-                // initialized to something.
+                // But since we *are* doing pickups, we must have initialized
+                // all the cells to something...even to trash.  Continue and
+                // mark them.
                 //
                 continue;
             }
@@ -1236,13 +1249,11 @@ static void Mark_Frame_Stack_Deep(void)
                 // initialized bits, but left as trash until f->doing_pickups.
                 //
                 assert(IS_TRASH_DEBUG(arg)); // check more trash bits
-                assert(arg->header.bits & VALUE_FLAG_STACK);
                 continue;
             }
 
             Queue_Mark_Opt_Value_Deep(arg);
         }
-        assert(IS_END(param) ? IS_END(arg) : TRUE); // may not enforce
 
         Propagate_All_GC_Marks();
     }

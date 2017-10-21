@@ -697,7 +697,7 @@ REBNATIVE(switch)
         fail (Error_Block_Switch_Raw(value));
     }
 
-    // Frame's extra D_CELL is a temporary GC-safe location for holding
+    // SWITCH's extra D_CELL is a temporary GC-safe location for holding
     // evaluations.  Initialize it to void, as it holds the last test so that
     // `switch 9 [1 ["a"] 2 ["b"] "c"]` is "c".  (Empirically this is about
     // twice as fast as using `switch/default`, another reason to kill it.)

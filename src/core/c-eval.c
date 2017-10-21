@@ -613,15 +613,24 @@ reevaluate:;
         f->arg = f->args_head;
         f->param = FUNC_FACADE_HEAD(f->phase);
 
-        // We want the frame's "scratch" cell to be GC safe during a live
-        // function call.
+        // DECLARE_FRAME() starts out f->cell as valid GC-visible bits, and
+        // as it's used for various temporary purposes it should remain valid.
+        // But its contents could be anything, based on that temporary
+        // purpose.  Help hint functions not to try to read from it before
+        // they overwrite it with their own content.
         //
-        // !!! Might it be possible to avoid this initialization if the cell
-        // was used to calculate a temporary or eval, and only initialize it
-        // if not?  This might be more trouble than it's worth, given that
-        // having natives take for granted that it's IS_END() has value.
+        // !!! Allowing the release build to "leak" temporary cell state to
+        // natives may be bad, and there are advantages to being able to
+        // count on this being an END.  However, unless one wants to get in
+        // the habit of zeroing out all temporary state for "security" reasons
+        // then clients who call Do_Next_In_Frame() would be able to see it
+        // anyway.  For now, do the more performant thing and leak whatever
+        // is in f->cell to the function in the release build, to avoid
+        // paying for the initialization.
         //
-        SET_END(&f->cell);
+    #if !defined(NDEBUG)
+        Init_Unreadable_Blank(&f->cell);
+    #endif
 
         enum Reb_Param_Class pclass; // gotos would cross it if inside loop
 

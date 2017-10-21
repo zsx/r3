@@ -639,10 +639,18 @@ struct Reb_Frame {
 // so this macro sets that up for you, the same way DECLARE_LOCAL does.  The
 // optimizer should eliminate the extra pointer.
 //
+// Just to simplify matters, the frame cell is set to a bit pattern the GC
+// will accept.  It would need stack preparation anyway, and this simplifies
+// the invariant so that if a recycle happens before Do_Core() gets to its
+// body, it's always set to something.  Using an unreadable blank means we
+// signal to users of the frame that they can't be assured of any particular
+// value between evaluations; it's not cleared.
+//
 #define DECLARE_FRAME(name) \
     REBFRM name##struct; \
     REBFRM * const name = &name##struct; \
-    Prep_Stack_Cell(&name->cell)
+    Prep_Stack_Cell(&name->cell); \
+    Init_Unreadable_Blank(&name->cell);
 
 
 // Hookable "Rebol DO Function" and "Rebol APPLY Function".  See PG_Do and

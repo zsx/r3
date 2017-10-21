@@ -102,6 +102,7 @@
 // !!! This was the one being used, but review if it's the best choice:
 //
 // http://stackoverflow.com/questions/3385515/static-assert-in-c
+// or http://stackoverflow.com/a/809465/211160
 //
 #define static_assert_c(e) \
     do {(void)sizeof(char[1 - 2*!(e)]);} while(0)

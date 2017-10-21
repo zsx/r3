@@ -133,6 +133,7 @@ void Do_Core_Entry_Checks_Debug(REBFRM *f)
 #endif
 
     Assert_Cell_Writable(f->out, __FILE__, __LINE__);
+    assert(NOT(IS_TRASH_DEBUG(&f->cell)));
 
     // Caller should have pushed the frame, such that it is the topmost.
     // This way, repeated calls to Do_Core(), e.g. by routines like ANY []
@@ -243,6 +244,8 @@ static void Do_Core_Shared_Checks_Debug(REBFRM *f) {
     assert(f->phase == NULL);
     assert(IS_POINTER_TRASH_DEBUG(f->opt_label));
 
+    assert(NOT(IS_TRASH_DEBUG(&f->cell)));
+
     //=//// ^-- ABOVE CHECKS *ALWAYS* APPLY ///////////////////////////////=//
 
     if (IS_END(f->value))
@@ -297,14 +300,13 @@ REBUPT Do_Core_Expression_Checks_Debug(REBFRM *f) {
     //
     assert(IS_UNREADABLE_IF_DEBUG(&TG_Thrown_Arg));
 
-    // Make sure `cell` is trash in debug build if not doing a `reevaluate`.
-    // It does not have to be GC safe (for reasons explained below).  We
-    // also need to reset evaluation to normal vs. a kind of "inline quoting"
-    // in case EVAL/ONLY had enabled that.
+    // Make sure `cell` is reset in debug build if not doing a `reevaluate`.
+    //
+    // !!! Is it actually possible for f->value to equal f->cell currently?
     //
 #if !defined(NDEBUG)
     if (f->value != &f->cell)
-        TRASH_CELL_IF_DEBUG(&f->cell);
+        Init_Unreadable_Blank(&f->cell);
 #endif
 
     // Trash call variables in debug build to make sure they're not reused.

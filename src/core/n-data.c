@@ -116,8 +116,6 @@ REBNATIVE(verify)
     DECLARE_FRAME (f);
     Push_Frame(f, ARG(conditions));
 
-    DECLARE_LOCAL (temp);
-
     while (NOT_END(f->value)) {
         const RELVAL *start = f->value;
         if (Do_Next_In_Frame_Throws(D_OUT, f)) {
@@ -129,14 +127,14 @@ REBNATIVE(verify)
             continue;
 
         Init_Block(
-            temp,
+            D_CELL,
             Copy_Values_Len_Shallow(start, f->specifier, f->value - start)
         );
 
         if (IS_VOID(D_OUT))
-            fail (Error_Verify_Void_Raw(temp));
+            fail (Error_Verify_Void_Raw(D_CELL));
 
-        fail (Error_Verify_Failed_Raw(temp));
+        fail (Error_Verify_Failed_Raw(D_CELL));
     }
 
     Drop_Frame(f);
