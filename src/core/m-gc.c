@@ -1210,27 +1210,33 @@ static void Mark_Frame_Stack_Deep(void)
         for (; NOT_END(param); ++param, ++arg) {
             if (param == f->param) {
                 //
-                // If a GC can happen while this frame is on the stack in a
-                // function call, that means it's evaluating.  Hence when
-                // param and f->param match, that means we know this slot
-                // is the output slot for some other frame.  Hence it is
-                // protected, and it also may be an END, which is not legal
-                // for any other slots.  So don't mark this slot.
-                //
                 // If we're not doing "pickups" then the cell slots after
                 // this one have not been initialized, not even to trash.
                 // (Unless the args are living in a varlist, in which case
                 // protecting them here is a duplicate anyway)
                 //
-                if (f->doing_pickups)
-                    continue;
-                else
+                if (NOT(f->doing_pickups))
                     break;
+
+                // If a GC can happen while this frame is on the stack in a
+                // function call, that means it's evaluating.  Hence when
+                // param and f->param match, that means we know this slot
+                // is the output slot for some other frame.  Hence it is
+                // protected, and it also may be an END, which is not legal
+                // for any other slots.  So don't mark this slot.  But since
+                // we are doing pickups, the ensuing slots should be
+                // initialized to something.
+                //
+                continue;
             }
 
             if (arg->header.bits & NODE_FLAG_FREE) {
-                assert(arg->header.bits & NODE_FLAG_CELL);
-                assert(f->doing_pickups); // slot skipped, will be picked up
+                //
+                // Slot was skipped, e.g. out of order refinement.  It's
+                // initialized bits, but left as trash until f->doing_pickups.
+                //
+                assert(IS_TRASH_DEBUG(arg)); // check more trash bits
+                assert(arg->header.bits & VALUE_FLAG_STACK);
                 continue;
             }
 
