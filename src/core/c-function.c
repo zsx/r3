@@ -701,8 +701,12 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         //
         src = DS_AT(dsp_orig + 1) + 3;
         for (; src <= DS_TOP; src += 3, ++dest) {
-            if (!Try_Remove_Binder_Index(&binder, VAL_PARAM_CANON(src)))
+            if (
+                Remove_Binder_Index_Else_0(&binder, VAL_PARAM_CANON(src))
+                == 0
+            ){
                 assert(duplicate != NULL);
+            }
         }
 
         SHUTDOWN_BINDER(&binder);

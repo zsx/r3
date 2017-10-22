@@ -55,9 +55,15 @@ static void Bind_Values_Inner_Loop(
 
         if (type_bit & bind_types) {
             REBSTR *canon = VAL_WORD_CANON(v);
-            REBCNT n = Try_Get_Binder_Index(binder, canon);
-            if (n != 0) {
-                assert(n <= CTX_LEN(context));
+            REBINT n = Get_Binder_Index_Else_0(binder, canon);
+            if (n > 0) {
+                //
+                // A binder index of 0 should clearly not be bound.  But
+                // negative binder indices are also ignored by this process,
+                // which provides a feature of building up state about some
+                // words while still not including them in the bind.
+                //
+                assert(cast(REBCNT, n) <= CTX_LEN(context));
 
                 // We're overwriting any previous binding, which may have
                 // been relative.
@@ -218,7 +224,7 @@ static void Bind_Relative_Inner_Loop(
         assert(!IS_RELATIVE(v));
 
         if (type_bit & bind_types) {
-            REBINT n = Try_Get_Binder_Index(binder, VAL_WORD_CANON(v));
+            REBINT n = Get_Binder_Index_Else_0(binder, VAL_WORD_CANON(v));
             if (n != 0) {
                 //
                 // Word's canon symbol is in frame.  Relatively bind it.
@@ -315,7 +321,7 @@ void Rebind_Values_Deep(
             if (opt_binder != NULL) {
                 INIT_WORD_INDEX(
                     v,
-                    Try_Get_Binder_Index(opt_binder, VAL_WORD_CANON(v))
+                    Get_Binder_Index_Else_0(opt_binder, VAL_WORD_CANON(v))
                 );
             }
         }
@@ -331,4 +337,283 @@ void Rebind_Values_Deep(
             Rebind_Values_Deep(src, dst, VAL_FUNC_BODY(v), opt_binder);
         }
     }
+}
+
+
+//
+//  Virtual_Bind_Deep_To_New_Context: C
+//
+// Looping constructs which are parameterized by WORD!s to set each time
+// through the loop must copy the body in R3-Alpha's model.  For instance:
+//
+//    for-each [x y] [1 2 3] [print ["this body must be copied for" x y]]
+//
+// The reason is because the context in which X and Y live does not exist
+// prior to the execution of the FOR-EACH.  And if the body were destructively
+// rebound, then this could mutate and disrupt bindings of code that was
+// intended to be reused.
+//
+// (Note that R3-Alpha was somewhat inconsistent on the idea of being
+// sensitive about non-destructively binding arguments in this way.
+// MAKE OBJECT! purposefully mutated bindings in the passed-in block.)
+//
+// The context is effectively an ordinary object, and outlives the loop:
+//
+//     x-word: none
+//     for-each x [1 2 3] [x-word: 'x | break]
+//     get x-word ;-- returns 3
+//
+// Ren-C adds a feature of letting LIT-WORD!s be used to indicate that the
+// loop variable should be written into the existing bound variable that the
+// LIT-WORD! specified.  If all loop variables are of this form, then no
+// copy will be made.
+//
+// !!! Ren-C managed to avoid deep copying function bodies yet still get
+// "specific binding" by means of "relative values" (RELVALs) and specifiers.
+// Extending this approach is hoped to be able to avoid the deep copy, and
+// the speculative name of "virtual binding" is given to this routine...even
+// though it is actually copying.
+//
+// !!! With stack-backed contexts in Ren-C, it may be the case that the
+// chunk stack is used as backing memory for the loop, so it can be freed
+// when the loop is over and word lookups will error.
+//
+// !!! Since a copy is made at time of writing (as opposed to using a binding
+// "view" of the same underlying data), the locked status of series is not
+// mirrored.  A short term remedy might be to parameterize copying such that
+// it mirrors the locks, but longer term remedy will hopefully be better.
+//
+void Virtual_Bind_Deep_To_New_Context(
+    REBVAL *body_in_out, // input *and* output parameter
+    REBCTX **context_out,
+    const REBVAL *spec
+) {
+    assert(IS_BLOCK(body_in_out));
+
+    REBCNT num_vars = IS_BLOCK(spec) ? VAL_LEN_AT(spec) : 1;
+    if (num_vars == 0)
+        fail (spec);
+
+    const RELVAL *item;
+    REBSPC *specifier;
+    REBOOL rebinding;
+    if (IS_BLOCK(spec)) {
+        item = VAL_ARRAY_AT(spec);
+        specifier = VAL_SPECIFIER(spec);
+
+        rebinding = FALSE;
+        for (; NOT_END(item); ++item) {
+            if (IS_WORD(item))
+                rebinding = TRUE;
+            else if (NOT(IS_LIT_WORD(item))) {
+                //
+                // Better to fail here, because if we wait until we're in
+                // the middle of building the context, the managed portion
+                // (keylist) would be incomplete and tripped on by the GC if
+                // we didn't do some kind of workaround.
+                //
+                fail (Error_Invalid_Arg_Core(item, specifier));
+            }
+        }
+
+        item = VAL_ARRAY_AT(spec);
+    }
+    else {
+        item = spec;
+        specifier = SPECIFIED;
+        rebinding = IS_WORD(item);
+    }
+
+    // If we need to copy the body, do that *first*, because copying can
+    // fail() (out of memory, or cyclical recursions, etc.) and that can't
+    // happen while a binder is in effect unless we PUSH_TRAP to catch and
+    // correct for it, which has associated cost.
+    //
+    if (rebinding) {
+        //
+        // Note that this deep copy of the block isn't exactly semantically
+        // the same, because it's truncated before the index.  You cannot
+        // go BACK on it before the index.
+        //
+        Init_Block(
+            body_in_out,
+            Copy_Array_At_Deep_Managed(
+                VAL_ARRAY(body_in_out),
+                VAL_INDEX(body_in_out),
+                VAL_SPECIFIER(body_in_out)
+            )
+        );
+    }
+    else {
+        // Just leave body_in_out as it is, and make the context
+    }
+
+    // Keylists are always managed, but varlist is unmanaged by default (so
+    // it can be freed if there is a problem)
+    //
+    *context_out = Alloc_Context(REB_OBJECT, num_vars);
+
+    REBCTX *c = *context_out; // for convenience...
+
+    // We want to check for duplicates and a Binder can be used for that
+    // purpose--but note that a fail() cannot happen while binders are
+    // in effect UNLESS the BUF_COLLECT contains information to undo it!
+    // There's no BUF_COLLECT here, so don't fail while binder in effect.
+    //
+    struct Reb_Binder binder;
+    if (rebinding)
+        INIT_BINDER(&binder);
+
+    REBSTR *duplicate = NULL;
+
+    REBVAL *key = CTX_KEYS_HEAD(c);
+    REBVAL *var = CTX_VARS_HEAD(c);
+
+    REBCNT index = 1;
+    while (index <= num_vars) {
+        if (IS_WORD(item)) {
+            Init_Typeset(key, ALL_64, VAL_WORD_SPELLING(item));
+
+            // !!! For loops, nothing should be able to be aware of this
+            // synthesized variable until the loop code has initialized it
+            // with something.  However, in case any other code gets run,
+            // it can't be left trash...so we'd need it to be at least an
+            // unreadable blank.  But since this code is also shared with USE,
+            // it doesn't do any initialization...so go ahead and put void.
+            //
+            Init_Void(var);
+
+            assert(rebinding); // shouldn't get here unless we're rebinding
+
+            if (NOT(Try_Add_Binder_Index(
+                &binder, VAL_PARAM_CANON(key), index
+            ))){
+                // We just remember the first duplicate, but we go ahead
+                // and fill in all the keylist slots to make a valid array
+                // even though we plan on failing.  Duplicates count as a
+                // problem even if they are LIT-WORD! (negative index) as
+                // `for-each [x 'x] ...` is paradoxical.
+                //
+                if (duplicate == NULL)
+                    duplicate = VAL_PARAM_SPELLING(key);
+            }
+        }
+        else {
+            assert(IS_LIT_WORD(item)); // checked previously
+
+            // A LIT-WORD! indicates that we wish to use the original binding.
+            // So `for-each 'x [1 2 3] [...]` will actually set that x
+            // instead of creating a new one.
+            //
+            // !!! Enumerations in the code walks through the context varlist,
+            // setting the loop variables as they go.  It doesn't walk through
+            // the array the user gave us, so if it's a LIT-WORD! the
+            // information is lost.  Do a trick where we put the LIT-WORD!
+            // itself into the slot, and give it NODE_FLAG_MARKED...then
+            // hide it from the context and binding.
+            //
+            Init_Typeset(key, ALL_64, VAL_WORD_SPELLING(item));
+            SET_VAL_FLAGS(key, TYPESET_FLAG_HIDDEN | TYPESET_FLAG_UNBINDABLE);
+            Derelativize(var, item, specifier);
+            SET_VAL_FLAGS(var, CELL_FLAG_PROTECTED | NODE_FLAG_MARKED);
+
+            // We don't want to stop `for-each ['x 'x] ...` necessarily,
+            // because if we're saying we're using the existing binding they
+            // could be bound to different things.  But if they're not bound
+            // to different things, the last one in the list gets the final
+            // assignment.  This would be harder to check against, but at
+            // least allowing it doesn't make new objects with duplicate keys.
+            // For now, don't bother trying to use a binder or otherwise to
+            // stop it.
+            //
+            // However, `for-each [x 'x] ...` is intrinsically contradictory.
+            // So we use negative indices in the binder, which the binding
+            // process will ignore.
+            //
+            if (rebinding) {
+                REBINT stored = Get_Binder_Index_Else_0(
+                    &binder, VAL_PARAM_CANON(key)
+                );
+                if (stored > 0) {
+                    if (duplicate == NULL)
+                        duplicate = VAL_PARAM_SPELLING(key);
+                }
+                else if (stored == 0) {
+                    Add_Binder_Index(&binder, VAL_PARAM_CANON(key), -1);
+                }
+                else {
+                    assert(stored == -1);
+                }
+            }
+        }
+
+        key++;
+        var++;
+
+        ++item;
+        ++index;
+    }
+
+    TERM_ARRAY_LEN(CTX_VARLIST(c), num_vars + 1);
+    TERM_ARRAY_LEN(CTX_KEYLIST(c), num_vars + 1);
+
+    // As currently written, the loop constructs which use these contexts
+    // will hold pointers into the arrays across arbitrary user code running.
+    // If the context were allowed to expand, then this can cause memory
+    // corruption:
+    //
+    // https://github.com/rebol/rebol-issues/issues/2274
+    //
+    SET_SER_FLAG(CTX_VARLIST(c), SERIES_FLAG_DONT_RELOCATE);
+
+    if (NOT(rebinding)) {
+        ENSURE_ARRAY_MANAGED(CTX_VARLIST(c));
+        return; // nothing else needed to do
+    }
+
+    if (duplicate == NULL) {
+        //
+        // This is effectively `Bind_Values_Deep(ARR_HEAD(body_out), context)`
+        // but we want to reuse the binder we had anyway for detecting the
+        // duplicates.
+        //
+        Bind_Values_Inner_Loop(
+            &binder, VAL_ARRAY_AT(body_in_out), c, TS_ANY_WORD, 0, BIND_DEEP
+        );
+    }
+
+    // Must remove binder indexes for all words, even if about to fail
+    //
+    key = CTX_KEYS_HEAD(c);
+    var = CTX_VARS_HEAD(c); // only needed for debug, optimized out
+    for (; NOT_END(key); ++key, ++var) {
+        REBINT stored = Remove_Binder_Index_Else_0(
+            &binder, VAL_PARAM_CANON(key)
+        );
+        if (stored == 0)
+            assert(duplicate != NULL);
+        else if (stored > 0)
+            assert(NOT_VAL_FLAG(var, NODE_FLAG_MARKED));
+        else
+            assert(GET_VAL_FLAG(var, NODE_FLAG_MARKED));
+    }
+
+    SHUTDOWN_BINDER(&binder);
+
+    if (duplicate != NULL) {
+        Free_Array(CTX_VARLIST(c));
+
+        DECLARE_LOCAL (word);
+        Init_Word(word, duplicate);
+        fail (Error_Dup_Vars_Raw(word));
+    }
+
+    // !!! The binding process may or may not wind up initializing a word
+    // in the body to point into the context, which (currently) would
+    // ensure the varlist of the context is managed.  If that didn't happen,
+    // (e.g. no references in the body) it would not be managed.  Make sure
+    // the resulting context is always managed for now, and review the idea
+    // of whether binding should ensure vs. assert.
+    //
+    ENSURE_ARRAY_MANAGED(CTX_VARLIST(c));
 }

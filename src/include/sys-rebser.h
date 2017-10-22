@@ -121,10 +121,13 @@
 //
 // !!! Strictly speaking, SERIES_FLAG_NO_RELOCATE could be different
 // from fixed size... if there would be a reason to reallocate besides
-// changing size (such as memory compaction).
+// changing size (such as memory compaction).  For now, just make the two
+// equivalent but let the callsite distinguish the intent.
 //
 #define SERIES_FLAG_FIXED_SIZE \
     FLAGIT_LEFT(GENERAL_SERIES_BIT + 0)
+
+#define SERIES_FLAG_DONT_RELOCATE SERIES_FLAG_FIXED_SIZE
 
 
 //=//// SERIES_FLAG_FILE_LINE /////////////////////////////////////////////=//
@@ -310,7 +313,7 @@
 // size or values from modification.  It is the usermode analogue of
 // SERIES_INFO_FROZEN, but can be reversed.
 //
-// Note: There is a feature in PROTECT (VALUE_FLAG_PROTECTED) which protects
+// Note: There is a feature in PROTECT (CELL_FLAG_PROTECTED) which protects
 // a certain variable in a context from being changed.  It is similar, but
 // distinct.  SERIES_INFO_PROTECTED is a protection on a series itself--which
 // ends up affecting all values with that series in the payload.

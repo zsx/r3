@@ -46,9 +46,9 @@ static void Protect_Key(REBCTX *context, REBCNT index, REBFLGS flags)
     //
     if (GET_FLAG(flags, PROT_WORD)) {
         if (GET_FLAG(flags, PROT_SET))
-            SET_VAL_FLAG(var, VALUE_FLAG_PROTECTED);
+            SET_VAL_FLAG(var, CELL_FLAG_PROTECTED);
         else
-            CLEAR_VAL_FLAG(var, VALUE_FLAG_PROTECTED);
+            CLEAR_VAL_FLAG(var, CELL_FLAG_PROTECTED);
     }
 
     if (GET_FLAG(flags, PROT_HIDE)) {

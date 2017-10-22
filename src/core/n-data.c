@@ -303,17 +303,20 @@ REBNATIVE(use)
 // As it stands, the code already existed for loop bodies to do this more
 // efficiently.  The hope is that with virtual binding, such constructs will
 // become even more efficient--for loops, BIND, and USE.
+//
+// !!! Should USE allow LIT-WORD!s to mean basically a no-op, just for common
+// interface with the loops?
 {
     INCLUDE_PARAMS_OF_USE;
 
     REBCTX *context;
-    REBARR *copy = Copy_Body_Deep_Bound_To_New_Context(
-        &context,
-        ARG(vars), // similar to the "spec" of a loop, WORD! or BLOCK!
-        ARG(body)
+    Virtual_Bind_Deep_To_New_Context(
+        ARG(body), // may be replaced with rebound copy, or left the same
+        &context, // winds up managed; if no references exist, GC is ok
+        ARG(vars) // similar to the "spec" of a loop: WORD!/LIT-WORD!/BLOCK!
     );
 
-    if (Do_At_Throws(D_OUT, copy, 0, SPECIFIED)) // Will lock for GC
+    if (Do_Any_Array_At_Throws(D_OUT, ARG(body)))
         return R_OUT_IS_THROWN;
 
     return R_OUT;

@@ -520,7 +520,7 @@ static void Collect_Context_Inner_Loop(
     for (; NOT_END(value); value++) {
         if (ANY_WORD(value)) {
             REBSTR *canon = VAL_WORD_CANON(value);
-            if (Try_Get_Binder_Index(binder, canon) == 0) {
+            if (Get_Binder_Index_Else_0(binder, canon) == 0) {
                 // once per word
                 if (IS_SET_WORD(value) || (flags & COLLECT_ANY_WORD)) {
                     Add_Binder_Index(binder, canon, ARR_LEN(BUF_COLLECT));
@@ -647,7 +647,7 @@ static void Collect_Words_Inner_Loop(
     const RELVAL *value = head;
     for (; NOT_END(value); value++) {
         if (ANY_WORD(value)
-            && Try_Get_Binder_Index(binder, VAL_WORD_CANON(value)) == 0
+            && Get_Binder_Index_Else_0(binder, VAL_WORD_CANON(value)) == 0
             && (IS_SET_WORD(value) || (flags & COLLECT_ANY_WORD))
         ){
             Add_Binder_Index(binder, VAL_WORD_CANON(value), 1);
@@ -1036,7 +1036,7 @@ REBCTX *Merge_Contexts_Selfish(REBCTX *parent1, REBCTX *parent2)
     REBVAL *value = CTX_VARS_HEAD(parent2);
     for (; NOT_END(key); key++, value++) {
         // no need to search when the binding table is available
-        REBINT n = Try_Get_Binder_Index(&binder, VAL_KEY_CANON(key));
+        REBINT n = Get_Binder_Index_Else_0(&binder, VAL_KEY_CANON(key));
         assert(n != 0);
         Move_Value(CTX_VAR(merged, n), value);
     }
@@ -1144,7 +1144,7 @@ void Resolve_Context(
     if (expand && n > 0) {
         // Determine how many new words to add:
         for (key = CTX_KEYS_HEAD(target); NOT_END(key); key++)
-            if (Try_Get_Binder_Index(&binder, VAL_KEY_CANON(key)) != 0)
+            if (Get_Binder_Index_Else_0(&binder, VAL_KEY_CANON(key)) != 0)
                 --n;
 
         // Expand context by the amount required:
@@ -1162,7 +1162,7 @@ void Resolve_Context(
         if (IS_VOID(only_words))
             Add_Binder_Index(&binder, canon, n);
         else {
-            if (Try_Get_Binder_Index(&binder, canon) != 0) {
+            if (Get_Binder_Index_Else_0(&binder, canon) != 0) {
                 Remove_Binder_Index(&binder, canon);
                 Add_Binder_Index(&binder, canon, n);
             }
@@ -1174,11 +1174,11 @@ void Resolve_Context(
     var = i != 0 ? CTX_VAR(target, i) : CTX_VARS_HEAD(target);
     key = i != 0 ? CTX_KEY(target, i) : CTX_KEYS_HEAD(target);
     for (; NOT_END(key); key++, var++) {
-        REBINT m = Try_Remove_Binder_Index(&binder, VAL_KEY_CANON(key));
+        REBINT m = Remove_Binder_Index_Else_0(&binder, VAL_KEY_CANON(key));
         if (m != 0) {
             // "the remove succeeded, so it's marked as set now" (old comment)
             if (
-                NOT_VAL_FLAG(var, VALUE_FLAG_PROTECTED)
+                NOT_VAL_FLAG(var, CELL_FLAG_PROTECTED)
                 && (all || IS_VOID(var))
             ) {
                 if (m < 0) Init_Void(var); // no value in source context
@@ -1200,7 +1200,7 @@ void Resolve_Context(
         key = CTX_KEYS_HEAD(source);
         for (n = 1; NOT_END(key); n++, key++) {
             REBSTR *canon = VAL_KEY_CANON(key);
-            if (Try_Remove_Binder_Index(&binder, canon) != 0) {
+            if (Remove_Binder_Index_Else_0(&binder, canon) != 0) {
                 //
                 // Note: no protect check is needed here
                 //
@@ -1216,21 +1216,26 @@ void Resolve_Context(
         }
     }
     else {
-        // Reset bind table (do not use Collect_End):
+        // Reset bind table (do not use Collect_End).
+        //
+        // !!! Whatever this is doing, it doesn't appear to be able to assure
+        // that the keys are there.  Hence doesn't use Remove_Binder_Index()
+        // but the fault-tolerant Remove_Binder_Index_Else_0()
+        //
         if (i != 0) {
             for (key = CTX_KEY(target, i); NOT_END(key); key++)
-                Try_Remove_Binder_Index(&binder, VAL_KEY_CANON(key));
+                Remove_Binder_Index_Else_0(&binder, VAL_KEY_CANON(key));
         }
         else if (IS_BLOCK(only_words)) {
             RELVAL *word = VAL_ARRAY_AT(only_words);
             for (; NOT_END(word); word++) {
                 if (IS_WORD(word) || IS_SET_WORD(word))
-                    Try_Remove_Binder_Index(&binder, VAL_WORD_CANON(word));
+                    Remove_Binder_Index_Else_0(&binder, VAL_WORD_CANON(word));
             }
         }
         else {
             for (key = CTX_KEYS_HEAD(source); NOT_END(key); key++)
-                Try_Remove_Binder_Index(&binder, VAL_KEY_CANON(key));
+                Remove_Binder_Index_Else_0(&binder, VAL_KEY_CANON(key));
         }
     }
 

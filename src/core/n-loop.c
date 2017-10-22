@@ -129,113 +129,12 @@ REBNATIVE(continue)
 
 
 //
-//  Copy_Body_Deep_Bound_To_New_Context: C
-//
-// Looping constructs which are parameterized by WORD!s to set each time
-// through the loop must copy the body in R3-Alpha's model.  For instance:
-//
-//    for-each [x y] [1 2 3] [print ["this body must be copied for" x y]]
-//
-// The reason is because the context in which X and Y live does not exist
-// prior to the execution of the FOR-EACH.  And if the body were destructively
-// rebound, then this could mutate and disrupt bindings of code that was
-// intended to be reused.
-//
-// (Note that R3-Alpha was somewhat inconsistent on the idea of being
-// sensitive about non-destructively binding arguments in this way.
-// MAKE OBJECT! purposefully mutated bindings in the passed-in block.)
-//
-// The context is effectively an ordinary object, and outlives the loop:
-//
-//     x-word: none
-//     for-each x [1 2 3] [x-word: 'x | break]
-//     get x-word ;-- returns 3
-//
-// !!! Ren-C managed to avoid deep copying function bodies yet still get
-// "specific binding" by means of "relative values" (RELVALs) and specifiers.
-// Extending this approach is hoped to be able to avoid the deep copy.
-//
-// !!! With stack-backed contexts in Ren-C, it may be the case that the
-// chunk stack is used as backing memory for the loop, so it can be freed
-// when the loop is over and word lookups will error.
-//
-// Note that because we are copying the block in order to rebind it, the
-// ensuing loop code will `Do_At_Throws(out, body, 0);`.  Starting at
-// zero is correct because the duplicate body has already had the
-// items before its VAL_INDEX() omitted.
-//
-REBARR *Copy_Body_Deep_Bound_To_New_Context(
-    REBCTX **context_out,
-    const REBVAL *spec,
-    REBVAL *body
-) {
-    assert(IS_BLOCK(body));
-
-    REBINT num_vars = IS_BLOCK(spec) ? VAL_LEN_AT(spec) : 1;
-    if (num_vars == 0)
-        fail (spec);
-
-    REBCTX *context = Alloc_Context(REB_OBJECT, num_vars);
-    TERM_ARRAY_LEN(CTX_VARLIST(context), num_vars + 1);
-    TERM_ARRAY_LEN(CTX_KEYLIST(context), num_vars + 1);
-
-    REBVAL *key = CTX_KEYS_HEAD(context);
-    REBVAL *var = CTX_VARS_HEAD(context);
-
-    const RELVAL *item;
-    REBSPC *specifier;
-    if (IS_BLOCK(spec)) {
-        item = VAL_ARRAY_AT(spec);
-        specifier = VAL_SPECIFIER(spec);
-    }
-    else {
-        item = spec;
-        specifier = SPECIFIED;
-    }
-
-    while (num_vars-- > 0) {
-        if (!IS_WORD(item) && !IS_SET_WORD(item))
-            fail (Error_Invalid_Arg_Core(item, specifier));
-
-        Init_Typeset(key, ALL_64, VAL_WORD_SPELLING(item));
-        key++;
-
-        Init_Void(var);
-        var++;
-
-        ++item;
-    }
-
-    assert(IS_END(key)); // set above by TERM_ARRAY_LEN
-    assert(IS_END(var)); // ...same
-
-    REBARR *body_out = Copy_Array_At_Deep_Managed(
-        VAL_ARRAY(body), VAL_INDEX(body), VAL_SPECIFIER(body)
-    );
-    Bind_Values_Deep(ARR_HEAD(body_out), context);
-
-    // !!! The binding process above may or may not have initialized a word
-    // in the body to point into the context, which (currently) would
-    // ensure the varlist of the context is managed.  If that didn't happen,
-    // (e.g. no references in the body) it would not be managed.  Make sure
-    // the resulting context is always managed for now, and review the idea
-    // of whether binding should ensure vs. assert.
-    //
-    ENSURE_ARRAY_MANAGED(CTX_VARLIST(context));
-
-    *context_out = context;
-
-    return body_out;
-}
-
-
-//
 //  Loop_Series_Common: C
 //
 static REB_R Loop_Series_Common(
     REBVAL *out,
     REBVAL *var,
-    REBARR *body,
+    const REBVAL *body,
     REBVAL *start,
     REBINT ei,
     REBINT ii
@@ -258,7 +157,7 @@ static REB_R Loop_Series_Common(
         // loop bodies are copies at the moment, so fully specified; there
         // may be a point to making it more efficient by not always copying
         //
-        if (Do_At_Throws(out, body, 0, SPECIFIED)) {
+        if (Do_Any_Array_At_Throws(out, body)) {
             REBOOL stop;
             if (Catching_Break_Or_Continue(out, &stop)) {
                 if (stop)
@@ -283,7 +182,7 @@ static REB_R Loop_Series_Common(
 static REB_R Loop_Integer_Common(
     REBVAL *out,
     REBVAL *var,
-    REBARR *body,
+    const REBVAL *body,
     REBI64 start,
     REBI64 end,
     REBI64 incr
@@ -295,7 +194,7 @@ static REB_R Loop_Integer_Common(
     while ((incr > 0) ? start <= end : start >= end) {
         VAL_INT64(var) = start;
 
-        if (Do_At_Throws(out, body, 0, SPECIFIED)) {
+        if (Do_Any_Array_At_Throws(out, body)) {
             REBOOL stop;
             if (Catching_Break_Or_Continue(out, &stop)) {
                 if (stop)
@@ -325,7 +224,7 @@ static REB_R Loop_Integer_Common(
 static REB_R Loop_Number_Common(
     REBVAL *out,
     REBVAL *var,
-    REBARR *body,
+    const REBVAL *body,
     REBVAL *start,
     REBVAL *end,
     REBVAL *incr
@@ -361,7 +260,7 @@ static REB_R Loop_Number_Common(
     for (; (i > 0.0) ? s <= e : s >= e; s += i) {
         VAL_DECIMAL(var) = s;
 
-        if (Do_At_Throws(out, body, 0, SPECIFIED)) {
+        if (Do_Any_Array_At_Throws(out, body)) {
             REBOOL stop;
             if (Catching_Break_Or_Continue(out, &stop)) {
                 if (stop)
@@ -409,13 +308,12 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
         SET_END(D_CELL); // Final result is in D_CELL (last TRUE? or a BLANK!)
 
     REBCTX *context;
-    REBARR *body_copy = Copy_Body_Deep_Bound_To_New_Context(
+    Virtual_Bind_Deep_To_New_Context(
+        ARG(body), // may be updated, will still be GC safe
         &context,
-        ARG(vars),
-        ARG(body)
+        ARG(vars)
     );
     Init_Object(ARG(vars), context); // keep GC safe
-    Init_Block(ARG(body), body_copy); // keep GC safe
 
     // Currently the data stack is only used by MAP-EACH to accumulate results
     // but it's faster to just save it than test the loop mode.
@@ -474,10 +372,24 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
         REBCNT j = 0;
 
         REBVAL *key = CTX_KEY(context, 1);
-        REBVAL *var = CTX_VAR(context, 1);
+        REBVAL *pseudo_var = CTX_VAR(context, 1);
 
         // Set the FOREACH loop variables from the series:
-        for (i = 1; NOT_END(key); i++, key++, var++) {
+        for (i = 1; NOT_END(key); i++, key++, pseudo_var++) {
+            //
+            // The "var" might have come from a LIT-WORD!, which means it
+            // wants us to write into an existing variable.  Note that since
+            // these variables are fetched across running arbitrary user
+            // code, the address cannot be cached...e.g. the object it lives
+            // in might expand and invalidate the location.  (The `context`
+            // for fabricated variables is locked at fixed size.)
+            //
+            REBVAL *var;
+            if (GET_VAL_FLAG(pseudo_var, NODE_FLAG_MARKED)) {
+                assert(IS_LIT_WORD(pseudo_var));
+                var = Get_Mutable_Var_May_Fail(pseudo_var, SPECIFIED);
+            } else
+                var = pseudo_var;
 
             if (index >= tail) {
                 Init_Void(var);
@@ -589,9 +501,9 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
             index++;
         }
 
-        assert(IS_END(key) && IS_END(var));
+        assert(IS_END(key) && IS_END(pseudo_var));
 
-        if (Do_At_Throws(D_OUT, body_copy, 0, SPECIFIED)) { // copy, specified
+        if (Do_Any_Array_At_Throws(D_OUT, ARG(body))) { // may be a copy
             if (!Catching_Break_Or_Continue(D_OUT, &stop)) {
                 // A non-loop throw, we should be bubbling up
                 threw = TRUE;
@@ -721,13 +633,12 @@ REBNATIVE(for)
     INCLUDE_PARAMS_OF_FOR;
 
     REBCTX *context;
-    REBARR *body_copy = Copy_Body_Deep_Bound_To_New_Context(
+    Virtual_Bind_Deep_To_New_Context(
+        ARG(body), // may be updated, will still be GC safe
         &context,
-        ARG(word),
-        ARG(body)
+        ARG(word)
     );
     Init_Object(ARG(word), context); // keep GC safe
-    Init_Block(ARG(body), body_copy); // keep GC safe
 
     REBVAL *var = CTX_VAR(context, 1);
 
@@ -739,7 +650,7 @@ REBNATIVE(for)
         return Loop_Integer_Common(
             D_OUT,
             var,
-            body_copy,
+            ARG(body),
             VAL_INT64(ARG(start)),
             IS_DECIMAL(ARG(end))
                 ? (REBI64)VAL_DECIMAL(ARG(end))
@@ -752,7 +663,7 @@ REBNATIVE(for)
             return Loop_Series_Common(
                 D_OUT,
                 var,
-                body_copy,
+                ARG(body),
                 ARG(start),
                 VAL_INDEX(ARG(end)),
                 Int32(ARG(bump))
@@ -762,7 +673,7 @@ REBNATIVE(for)
             return Loop_Series_Common(
                 D_OUT,
                 var,
-                body_copy,
+                ARG(body),
                 ARG(start),
                 Int32s(ARG(end), 1) - 1,
                 Int32(ARG(bump))
@@ -771,7 +682,7 @@ REBNATIVE(for)
     }
 
     return Loop_Number_Common(
-        D_OUT, var, body_copy, ARG(start), ARG(end), ARG(bump)
+        D_OUT, var, ARG(body), ARG(start), ARG(end), ARG(bump)
     );
 
 }
@@ -908,8 +819,8 @@ REBNATIVE(forever)
 //
 //      return: [<opt> any-value!]
 //          {Last body result or BREAK value, will also be void if never run}
-//      'vars [word! block!]
-//          "Word or block of words to set each time (local)"
+//      'vars [word! lit-word! block!]
+//          "Word or block of words to set each time, no new var if LIT-WORD!"
 //      data [any-series! any-context! map! blank! datatype!]
 //          "The series to traverse"
 //      body [block!]
@@ -925,7 +836,7 @@ REBNATIVE(for_each)
 struct Remove_Each_State {
     REBVAL *data;
     REBSER *series;
-    REBARR *body_copy;
+    const REBVAL *body;
     REBCTX *context;
     REBCNT start;
     REB_MOLD *mo;
@@ -1111,7 +1022,7 @@ static REB_R Remove_Each_Core(REBFRM *frame_, struct Remove_Each_State *res)
             ++index;
         }
 
-        if (Do_At_Throws(D_CELL, res->body_copy, 0, SPECIFIED)) {
+        if (Do_Any_Array_At_Throws(D_CELL, res->body)) {
             if (!Catching_Break_Or_Continue(D_CELL, &stop)) {
                 //
                 // A non-loop throw, we should be bubbling up.
@@ -1239,17 +1150,13 @@ REBNATIVE(remove_each)
     // memory or a poorly formed ARG(vars) that it doesn't try to finalize
     // the REMOVE-EACH, as `res` is not ready yet.
     //
-    res.body_copy = Copy_Body_Deep_Bound_To_New_Context(
+    Virtual_Bind_Deep_To_New_Context(
+        ARG(body), // may be updated, will still be GC safe
         &res.context,
-        ARG(vars),
-        ARG(body)
+        ARG(vars)
     );
-
-    // Both must be kept safe from GC, so store them in the argument slots
-    // that have had their information extracted and aren't needed anymore.
-    //
     Init_Object(ARG(vars), res.context); // keep GC safe
-    Init_Block(ARG(body), res.body_copy); // keep GC safe
+    res.body = ARG(body);
 
     res.start = VAL_INDEX(res.data);
 
@@ -1425,26 +1332,25 @@ REBNATIVE(repeat)
         Init_Integer(value, Int64(value));
 
     REBCTX *context;
-    REBARR *copy = Copy_Body_Deep_Bound_To_New_Context(
+    Virtual_Bind_Deep_To_New_Context(
+        ARG(body),
         &context,
-        ARG(word),
-        ARG(body)
+        ARG(word)
     );
+    Init_Object(ARG(word), context); // keep GC safe
+
+    assert(CTX_LEN(context) == 1);
 
     REBVAL *var = CTX_VAR(context, 1);
-
-    Init_Object(ARG(word), context); // keep GC safe
-    Init_Block(ARG(body), copy); // keep GC safe
-
     if (ANY_SERIES(value)) {
         return Loop_Series_Common(
-            D_OUT, var, copy, value, VAL_LEN_HEAD(value) - 1, 1
+            D_OUT, var, ARG(body), value, VAL_LEN_HEAD(value) - 1, 1
         );
     }
 
     assert(IS_INTEGER(value));
 
-    return Loop_Integer_Common(D_OUT, var, copy, 1, VAL_INT64(value), 1);
+    return Loop_Integer_Common(D_OUT, var, ARG(body), 1, VAL_INT64(value), 1);
 }
 
 

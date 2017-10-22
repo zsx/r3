@@ -201,7 +201,8 @@ void Clonify_Values_Len_Managed(
     REBOOL deep,
     REBU64 types
 ) {
-    if (C_STACK_OVERFLOWING(&len)) Trap_Stack_Overflow();
+    if (C_STACK_OVERFLOWING(&len))
+        Trap_Stack_Overflow();
 
     RELVAL *v = head;
 

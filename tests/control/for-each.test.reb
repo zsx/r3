@@ -73,3 +73,70 @@
 [
     error? trap [for-each [:x] [] []]
 ]
+
+; A LIT-WORD! does not create a new variable or binding, but a WORD! does
+[
+    x: 10
+    sum: 0
+    for-each x [1 2 3] [sum: sum + x]
+    all? [x = 10 | sum = 6]
+][
+    x: 10
+    sum: 0
+    for-each 'x [1 2 3] [sum: sum + x]
+    all? [x = 3 | sum = 6]
+][
+    x: 10
+    y: 20
+    sum: 0
+    for-each ['x y] [1 2 3 4] [sum: sum + x + y]
+    all? [x = 3 | y = 20 | sum = 10]
+]
+
+; Redundancy is checked for.  LIT-WORD! redundancy is legal because those
+; words may have distinct bindings and the same spelling, and they're not
+; being fabricated.
+;
+; !!! Note that because FOR-EACH soft quotes, the COMPOSE would be interpreted
+; as the loop variable if you didn't put it in parentheses!
+[
+    #2273
+
+    x: 10
+    obj1: make object! [x: 20]
+    obj2: make object! [x: 30]
+    sum: 0
+    all? [
+        error? trap [for-each [x x] [1 2 3 4] [sum: sum + x]]
+        error? trap [
+            for-each (compose [ ;-- see above
+                x (bind quote 'x obj1)
+            ])[
+                1 2 3 4
+            ][
+                sum: sum + x
+            ]
+        ]
+        error? trap [
+            for-each (compose [ ;-- see above
+                (bind quote 'x obj2) x
+            ])[
+                1 2 3 4
+            ][
+                sum: sum + x
+            ]
+        ]
+        not error? trap [
+            for-each (compose [ ;-- see above
+                (bind quote 'x obj1) (bind quote 'x obj2)
+            ])[
+                1 2 3 4
+            ][
+                sum: sum + obj1/x + obj1/y
+            ]
+        ]
+        sum = 10
+        obj1/x = 3
+        obj2/x = 4
+    ]
+]

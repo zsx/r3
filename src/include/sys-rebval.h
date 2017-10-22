@@ -232,7 +232,7 @@
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  VALUE_FLAG_PROTECTED
+//  CELL_FLAG_PROTECTED
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -241,8 +241,14 @@
 // another location will not propagate the protectedness from the original
 // value to the copy.
 //
+// This is called a CELL_FLAG and not a VALUE_FLAG because any formatted cell
+// can be tested for it, even if it is "trash".  This means writing routines
+// that are putting data into a cell for the first time can check the bit.
+// (Series, having more than one kind of protection, put those bits in the
+// "info" so they can all be checked at once...otherwise there might be a
+// shared NODE_FLAG_PROTECTED in common.)
 
-#define VALUE_FLAG_PROTECTED \
+#define CELL_FLAG_PROTECTED \
     FLAGIT_LEFT(GENERAL_VALUE_BIT + 5)
 
 
@@ -781,8 +787,8 @@ struct Reb_Value
         | NODE_FLAG_MANAGED | VALUE_FLAG_STACK)
 
 #define CELL_MASK_COPY \
-    ~(CELL_MASK_RESET | NODE_FLAG_MARKED \
-        | VALUE_FLAG_ENFIXED | VALUE_FLAG_PROTECTED | VALUE_FLAG_UNEVALUATED)
+    ~(CELL_MASK_RESET | NODE_FLAG_MARKED | CELL_FLAG_PROTECTED \
+        | VALUE_FLAG_ENFIXED | VALUE_FLAG_UNEVALUATED)
 
 
 //=////////////////////////////////////////////////////////////////////////=//

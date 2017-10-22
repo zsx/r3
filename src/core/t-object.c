@@ -190,13 +190,13 @@ static void Append_To_Context(REBCTX *context, REBVAL *arg)
 
     // Set new values to obj words
     for (word = item; NOT_END(word); word += 2) {
-        REBCNT i = Try_Get_Binder_Index(&binder, VAL_WORD_CANON(word));
+        REBCNT i = Get_Binder_Index_Else_0(&binder, VAL_WORD_CANON(word));
         assert(i != 0);
 
         REBVAL *key = CTX_KEY(context, i);
         REBVAL *var = CTX_VAR(context, i);
 
-        if (GET_VAL_FLAG(var, VALUE_FLAG_PROTECTED))
+        if (GET_VAL_FLAG(var, CELL_FLAG_PROTECTED))
             fail (Error_Protected_Key(key));
 
         if (GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN))
@@ -487,7 +487,7 @@ REBINT PD_Context(REBPVS *pvs)
     if (pvs->opt_setval && IS_END(pvs->item + 1)) {
         FAIL_IF_READ_ONLY_CONTEXT(c);
 
-        if (GET_VAL_FLAG(CTX_VAR(c, n), VALUE_FLAG_PROTECTED))
+        if (GET_VAL_FLAG(CTX_VAR(c, n), CELL_FLAG_PROTECTED))
             fail (Error_Protected_Word_Raw(pvs->picker));
     }
 

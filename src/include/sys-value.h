@@ -1509,6 +1509,7 @@ inline static REBVAL *Move_Value(RELVAL *out, const REBVAL *v)
     );
     assert(NOT_END(v));
     ASSERT_CELL_WRITABLE(out, __FILE__, __LINE__);
+    assert(NOT(out->header.bits & CELL_FLAG_PROTECTED));
 
     out->header.bits &= CELL_MASK_RESET;
     out->header.bits |= v->header.bits & CELL_MASK_COPY;

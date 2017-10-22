@@ -148,7 +148,7 @@ inline static void Add_Binder_Index(
 }
 
 
-inline static REBINT Try_Get_Binder_Index( // 0 if not present
+inline static REBINT Get_Binder_Index_Else_0( // 0 if not present
     struct Reb_Binder *binder,
     REBSTR *canon
 ){
@@ -161,7 +161,7 @@ inline static REBINT Try_Get_Binder_Index( // 0 if not present
 }
 
 
-inline static REBINT Try_Remove_Binder_Index( // 0 if failure, else old index
+inline static REBINT Remove_Binder_Index_Else_0( // return old value if there
     struct Reb_Binder *binder,
     REBSTR *canon
 ){
@@ -192,7 +192,7 @@ inline static void Remove_Binder_Index(
     struct Reb_Binder *binder,
     REBSTR *canon
 ){
-    REBINT old_index = Try_Remove_Binder_Index(binder, canon);
+    REBINT old_index = Remove_Binder_Index_Else_0(binder, canon);
 
 #if defined(NDEBUG)
     UNUSED(old_index);
@@ -280,7 +280,7 @@ inline static REBVAL *Get_Var_Core(
             if (f->flags.bits & DO_FLAG_NATIVE_HOLD)
                 fail (Error(RE_PROTECTED_WORD, any_word)); // different error?
             
-            if (GET_VAL_FLAG(var, VALUE_FLAG_PROTECTED))
+            if (GET_VAL_FLAG(var, CELL_FLAG_PROTECTED))
                 fail (Error(RE_PROTECTED_WORD, any_word));
         }
 
@@ -316,7 +316,7 @@ inline static REBVAL *Get_Var_Core(
                 if (f->flags.bits & DO_FLAG_NATIVE_HOLD)
                     fail (Error(RE_PROTECTED_WORD, any_word)); // different?
             
-                if (GET_VAL_FLAG(var, VALUE_FLAG_PROTECTED))
+                if (GET_VAL_FLAG(var, CELL_FLAG_PROTECTED))
                     fail (Error(RE_PROTECTED_WORD, any_word));
             }
 
@@ -392,7 +392,7 @@ inline static REBVAL *Get_Var_Core(
         // The PROTECT command has a finer-grained granularity for marking
         // not just contexts, but individual fields as protected.
         //
-        if (GET_VAL_FLAG(var, VALUE_FLAG_PROTECTED))
+        if (GET_VAL_FLAG(var, CELL_FLAG_PROTECTED))
             fail (Error_Protected_Word_Raw(any_word));
 
     }
@@ -493,6 +493,7 @@ inline static REBVAL *Derelativize(
     assert(!IS_TRASH_DEBUG(v));
 
     ASSERT_CELL_WRITABLE(out, __FILE__, __LINE__);
+    assert(NOT(out->header.bits & CELL_FLAG_PROTECTED));
 
     out->header.bits &= CELL_MASK_RESET;
     out->header.bits |= v->header.bits & CELL_MASK_COPY;
