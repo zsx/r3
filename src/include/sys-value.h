@@ -1391,7 +1391,7 @@ inline static REBOOL IS_RELATIVE(const RELVAL *v) {
     return LOGICAL(v->extra.binding->header.bits & ARRAY_FLAG_PARAMLIST);
 }
 
-#if defined(__cplusplus)
+#if defined(__cplusplus) && __cplusplus >= 201103L
     //
     // Take special advantage of the fact that C++ can help catch when we are
     // trying to see if a REBVAL is specific or relative (it will always
