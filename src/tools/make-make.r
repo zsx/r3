@@ -975,7 +975,19 @@ append app-config/cflags opt switch/default user-config/rigorous [
             ; way to say you're doing a mutability cast on purpose, the
             ; warning can't be used... but assume the C++ build covers it.
             ;
-            (either cfg-cplusplus [<gnu:-Wcast-qual>] [<gnu:-Wno-cast-qual>])
+            ; !!! This is only checked by default in *release* C++ builds,
+            ; because the performance and debug-stepping impact of the
+            ; template stubs when they aren't inlined is too troublesome.
+            (
+                either all [
+                    cfg-cplusplus
+                    find app-config/definitions "NDEBUG"
+                ][
+                    <gnu:-Wcast-qual>
+                ][
+                    <gnu:-Wno-cast-qual>
+                ]
+            )
 
             ;     'bytes' bytes padding added after construct 'member_name'
             ;

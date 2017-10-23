@@ -87,10 +87,10 @@ inline static REBCTX *CTX(void *p) {
 // and not cast() or KNOWN(), which slow down the debug build.
 //
 #define CTX_VALUE(c) \
-    ((REBVAL*)ARR_HEAD(CTX_VARLIST(c)))
+    cast(REBVAL*, ARR_HEAD(CTX_VARLIST(c)))
 
 #define CTX_KEYLIST_RAW(c) \
-    ((REBSER*)CTX_VARLIST(c))->link_private.keylist
+    (cast(REBSER*, CTX_VARLIST(c))->link_private.keylist)
 
 // CTX_KEYLIST is called often, and it's worth it to make it as fast as
 // possible--even in an unoptimized build.  Use VAL_TYPE_RAW, plain C cast.

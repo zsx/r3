@@ -59,7 +59,7 @@ env:
 #
 matrix:
   include: 
-    # OSX x64, debug, g++
+    # OSX x64, debug, clang++
     #
     # !!! Can't do all warnings as errors, because in clang the switch for
     # files that end in .c as c++ ("-x c++") is deprecated for some overly
@@ -78,7 +78,7 @@ matrix:
         - FFI="dynamic"
         - ODBC_REQUIRES_LTDL="no"
 
-    # OSX x64, debug, gcc
+    # OSX x64, debug, clang
     #
     # TCC currently doesn't quite support OSX yet
     #
@@ -97,13 +97,25 @@ matrix:
         - FFI="dynamic"
         - ODBC_REQUIRES_LTDL="no"
 
-    # OSX x64, release, gcc
+    # OSX x64, release, clang++
+    #
+    # Note that this build is a *release* C++ build (the only one currently
+    # on Travis).  This exercises the cast macros which create template code,
+    # which are disabled in debug builds:
+    #
+    # http://blog.hostilefork.com/c-casts-for-the-masses/
+    #
+    # They are disabled because casting is done frequently, and when these
+    # templates aren't inlined due to debugging they slow things down and are
+    # very irritating to debug.  The syntax of `cast(type, expression)` is
+    # however desirable to use pervasively.  So it's good to exercise them in
+    # at least one build.
     #
     # !!! Again, does not honor static linking switch.
     #
     - os: osx
       osx_image: xcode7.3 # try an older XCode and OS X image (OS X 10.11)
-      language: c
+      language: cpp
       env:
         - CONFIG=generic.r
         - OS_ID=0.2.40

@@ -137,8 +137,15 @@
 //
 // http://blog.hostilefork.com/c-casts-for-the-masses/
 //
+// But debug builds don't inline functions--not even no-op ones whose sole
+// purpose is static analysis.  This means the cast macros add a headache when
+// stepping through the debugger, and also they consume a measurable amount
+// of runtime.  Hence we sacrifice cast checking in the debug builds...and the
+// release C++ builds on Travis are relied upon to do the proper optimizations
+// as well as report any static analysis errors.
+//
 
-#if !defined(__cplusplus)
+#if !defined(__cplusplus) || !defined(NDEBUG)
     /* These macros are easier-to-spot variants of the parentheses cast.
      * The 'm_cast' is when getting [M]utablity on a const is okay (RARELY!)
      * Plain 'cast' can do everything else (except remove volatile)

@@ -711,7 +711,7 @@ static REBOOL Cloak(
 
     // Decode KEY as VALUE field (binary, string, or integer)
     if (klen == 0) {
-        REBVAL *val = (REBVAL*)kp;
+        REBVAL *val = cast(REBVAL*, kp);
         REBSER *ser;
 
         switch (VAL_TYPE(val)) {

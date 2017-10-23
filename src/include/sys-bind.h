@@ -549,7 +549,7 @@ inline static REBVAL *Derelativize(
 // a RELVAL*, and then not defining it...will tell you that you do not need
 // to use Derelativize.  Juse Move_Value() if your source is a REBVAL!
 //
-#ifdef __cplusplus
+#if defined(__cplusplus) && __cplusplus >= 201103L
     REBVAL *Derelativize(RELVAL *dest, const REBVAL *v, REBSPC *specifier);
 #endif
 
