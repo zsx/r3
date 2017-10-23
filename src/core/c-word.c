@@ -264,9 +264,9 @@ REBSTR *Intern_UTF8_Managed(const REBYTE *utf8, REBCNT len)
         // synonyms are attached to the canon form with a circularly linked
         // list.  Walk the list to see if any of the synonyms are a match.
         //
-        REBSTR *synonym = canon->link.synonym;
+        REBSTR *synonym = LINK(canon).synonym;
         while (synonym != canon) {
-            assert(synonym->misc.canon == canon);
+            assert(MISC(synonym).canon == canon);
             assert(NOT_SER_INFO(synonym, STRING_INFO_CANON));
 
             // Exact match for a synonym also means no new allocation needed.
@@ -278,7 +278,7 @@ REBSTR *Intern_UTF8_Managed(const REBYTE *utf8, REBCNT len)
             // Keep checking for an exact match until a cycle is found.
             //
             assert(cmp > 0);
-            synonym = synonym->link.synonym;
+            synonym = LINK(synonym).synonym;
         }
 
         // If none of the synonyms matched, then this case variation needs
@@ -335,7 +335,7 @@ new_interning: ; // semicolon needed for statement
 
         SET_SER_INFO(intern, STRING_INFO_CANON);
 
-        intern->link.synonym = intern; // circularly linked list, empty state
+        LINK(intern).synonym = intern; // circularly linked list, empty state
 
         // Canon symbols don't need to cache a canon pointer to themselves.
         // So instead that slot is reserved for tracking associated information
@@ -347,8 +347,8 @@ new_interning: ; // semicolon needed for statement
         // for sharing (start with 2, grow to N based on the functions for
         // 2 being in place)
         //
-        intern->misc.bind_index.high = 0;
-        intern->misc.bind_index.low = 0;
+        MISC(intern).bind_index.high = 0;
+        MISC(intern).bind_index.low = 0;
 
         // leave header.bits as 0 for SYM_0 as answer to VAL_WORD_SYM()
         // Startup_Symbols() tags values from %words.r after the fact.
@@ -357,9 +357,9 @@ new_interning: ; // semicolon needed for statement
         // This is a synonym for an existing canon.  Link it into the synonyms
         // circularly linked list, and direct link the canon form.
         //
-        intern->misc.canon = canon;
-        intern->link.synonym = canon->link.synonym;
-        canon->link.synonym = intern;
+        MISC(intern).canon = canon;
+        LINK(intern).synonym = LINK(canon).synonym;
+        LINK(canon).synonym = intern;
 
         // If the canon form had a SYM_XXX for quick comparison of %words.r
         // words in C switch statements, the synonym inherits that number.
@@ -393,23 +393,23 @@ new_interning: ; // semicolon needed for statement
 //
 void GC_Kill_Interning(REBSTR *intern)
 {
-    REBSER *synonym = intern->link.synonym;
+    REBSER *synonym = LINK(intern).synonym;
 
     // Note synonym and intern may be the same here.
     //
     REBSER *temp = synonym;
-    while (temp->link.synonym != intern) {
+    while (LINK(temp).synonym != intern) {
         if (GET_SER_INFO(intern, STRING_INFO_CANON))
-            temp->misc.canon = synonym;
-        temp = temp->link.synonym;
+            MISC(temp).canon = synonym;
+        temp = LINK(temp).synonym;
     }
-    temp->link.synonym = synonym; // cut intern out of chain (or no-op)
+    LINK(temp).synonym = synonym; // cut intern out of chain (or no-op)
 
     if (NOT_SER_INFO(intern, STRING_INFO_CANON))
         return; // for non-canon forms, removing from chain is all you need
 
-    assert(intern->misc.bind_index.high == 0); // shouldn't GC during binds?
-    assert(intern->misc.bind_index.low == 0);
+    assert(MISC(intern).bind_index.high == 0); // shouldn't GC during binds?
+    assert(MISC(intern).bind_index.low == 0);
 
     REBCNT size = SER_LEN(PG_Canons_By_Hash);
     REBSTR* *canons_by_hash = SER_HEAD(REBSER*, PG_Canons_By_Hash);
@@ -441,8 +441,8 @@ void GC_Kill_Interning(REBSTR *intern)
     #endif
         canons_by_hash[hash] = synonym;
         SET_SER_INFO(synonym, STRING_INFO_CANON);
-        synonym->misc.bind_index.low = 0;
-        synonym->misc.bind_index.high = 0;
+        MISC(synonym).bind_index.low = 0;
+        MISC(synonym).bind_index.high = 0;
     }
     else {
         // This canon form must be removed from the hash table.  Ripple the
@@ -603,7 +603,7 @@ void Startup_Symbols(REBARR *words)
             name->header.bits |= FLAGUINT16_RIGHT(sym);
             assert(SAME_SYM_NONZERO(STR_SYMBOL(name), sym));
 
-            name = name->link.synonym;
+            name = LINK(name).synonym;
         } while (name != canon); // circularly linked list, stop on a cycle
     }
 

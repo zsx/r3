@@ -55,7 +55,7 @@ enum {
     VTSF64
 };
 
-#define VECT_TYPE(s) ((s)->misc.size & 0xff)
+#define VECT_TYPE(s) (MISC(s).size & 0xff)
 
 static REBCNT bit_sizes[4] = {8, 16, 32, 64};
 
@@ -316,15 +316,20 @@ void Set_Vector_Value(REBVAL *var, REBSER *series, REBCNT index)
 // bits: number of bits per unit (8, 16, 32, 64)
 // size: size of array ?
 //
-REBSER *Make_Vector(REBINT type, REBINT sign, REBINT dims, REBINT bits, REBINT size)
-{
+REBSER *Make_Vector(
+    REBINT type,
+    REBINT sign,
+    REBINT dims,
+    REBINT bits,
+    REBINT size
+){
     REBCNT len = size * dims;
     if (len > 0x7fffffff)
         fail ("vector size too big");
 
-    REBSER *ser = Make_Series_Core(len + 1, bits/8, SERIES_FLAG_POWER_OF_2);
-    CLEAR(SER_DATA_RAW(ser), (len * bits) / 8);
-    SET_SERIES_LEN(ser, len);
+    REBSER *s = Make_Series_Core(len + 1, bits / 8, SERIES_FLAG_POWER_OF_2);
+    CLEAR(SER_DATA_RAW(s), (len * bits) / 8);
+    SET_SERIES_LEN(s, len);
 
     // Store info about the vector (could be moved to flags if necessary):
     switch (bits) {
@@ -333,9 +338,10 @@ REBSER *Make_Vector(REBINT type, REBINT sign, REBINT dims, REBINT bits, REBINT s
     case 32: bits = 2; break;
     case 64: bits = 3; break;
     }
-    ser->misc.size = (dims << 8) | (type << 3) | (sign << 2) | bits;
 
-    return ser;
+    MISC(s).size = (dims << 8) | (type << 3) | (sign << 2) | bits;
+
+    return s;
 }
 
 
@@ -653,7 +659,7 @@ REBTYPE(Vector)
         }
 
         ser = Copy_Sequence(vect);
-        ser->misc.size = vect->misc.size; // attributes
+        MISC(ser).size = MISC(vect).size; // attributes
         Init_Vector(value, ser);
         break; }
 

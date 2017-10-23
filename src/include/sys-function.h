@@ -71,11 +71,10 @@ inline static REBVAL *FUNC_VALUE(REBFUN *f) {
     return SER_AT(REBVAL, SER(FUNC_PARAMLIST(f)), 0);
 }
 
-inline static REBNAT FUNC_DISPATCHER(REBFUN *f) {
-    return SER(
-        FUNC_VALUE(f)->payload.function.body_holder
-    )->misc.dispatcher;
-}
+// Note: On Windows, FUNC_DISPATCH is already defined in the header files
+//
+#define FUNC_DISPATCHER(f) \
+    (MISC(FUNC_VALUE(f)->payload.function.body_holder).dispatcher)
 
 inline static RELVAL *FUNC_BODY(REBFUN *f) {
     REBARR *body_holder = FUNC_VALUE(f)->payload.function.body_holder;
@@ -96,7 +95,7 @@ inline static REBCNT FUNC_NUM_PARAMS(REBFUN *f) {
 }
 
 inline static REBCTX *FUNC_META(REBFUN *f) {
-    return SER(FUNC_PARAMLIST(f))->link.meta;
+    return LINK(FUNC_PARAMLIST(f)).meta;
 }
 
 // *** These FUNC_FACADE fetchers are called VERY frequently, so it is best
@@ -106,7 +105,7 @@ inline static REBCTX *FUNC_META(REBFUN *f) {
 // really good reason...and seeing the impact on the debug build!!! ***
 
 #define FUNC_FACADE(f) \
-    SER(FUNC_PARAMLIST(f))->misc.facade
+    MISC(FUNC_PARAMLIST(f)).facade
 
 #define FUNC_FACADE_NUM_PARAMS(f) \
     (ARR_LEN(FUNC_FACADE(f)) - 1)
@@ -140,7 +139,7 @@ inline static REBFUN *FUNC_UNDERLYING(REBFUN *f) {
 
 inline static REBCTX *FUNC_EXEMPLAR(REBFUN *f) {
     REBCTX *exemplar = 
-        SER(FUNC_VALUE(f)->payload.function.body_holder)->link.exemplar;
+        LINK(FUNC_VALUE(f)->payload.function.body_holder).exemplar;
 
 #if !defined(NDEBUG)
     if (exemplar != NULL) {
@@ -150,11 +149,6 @@ inline static REBCTX *FUNC_EXEMPLAR(REBFUN *f) {
     return exemplar;
 }
 
-
-// Note: On Windows, FUNC_DISPATCH is already defined in the header files
-//
-#define FUNC_DISPATCHER(f) \
-    (SER(FUNC_VALUE(f)->payload.function.body_holder)->misc.dispatcher)
 
 // There is no binding information in a function parameter (typeset) so a
 // REBVAL should be okay.
@@ -260,10 +254,10 @@ inline static RELVAL *VAL_FUNC_BODY(const RELVAL *v)
     { return ARR_HEAD(v->payload.function.body_holder); }
 
 inline static REBNAT VAL_FUNC_DISPATCHER(const RELVAL *v)
-    { return SER(v->payload.function.body_holder)->misc.dispatcher; }
+    { return MISC(v->payload.function.body_holder).dispatcher; }
 
 inline static REBCTX *VAL_FUNC_META(const RELVAL *v)
-    { return SER(v->payload.function.paramlist)->link.meta; }
+    { return LINK(v->payload.function.paramlist).meta; }
 
 inline static REBOOL IS_FUNCTION_INTERPRETED(const RELVAL *v) {
     //

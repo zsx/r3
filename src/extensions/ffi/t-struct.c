@@ -76,7 +76,7 @@ static void get_scalar(
         // are to uniquely carry an ffi_type freed when they are GC'd
         //
         REBSTU *sub_stu = Alloc_Singular_Array();
-        SER(sub_stu)->link.schema = field;
+        LINK(sub_stu).schema = field;
         REBVAL *single = SINK(ARR_HEAD(sub_stu));
 
         // In this case the structure lives at an offset inside another.
@@ -1345,7 +1345,7 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
     Init_Blank(ARR_HEAD(stu));
 
     MANAGE_ARRAY(schema);
-    SER(stu)->link.schema = schema;
+    LINK(stu).schema = schema;
 
     VAL_RESET_HEADER(out, REB_STRUCT);
     out->payload.structure.stu = stu;
@@ -1515,7 +1515,7 @@ REBSTU *Copy_Struct_Managed(REBSTU *src)
     // linked manually.
     //
     REBSTU *copy = Copy_Array_Shallow(src, SPECIFIED);
-    SER(copy)->link.schema = SER(src)->link.schema;
+    LINK(copy).schema = LINK(src).schema;
 
     // Update the binary data with a copy of its sequence.
     //

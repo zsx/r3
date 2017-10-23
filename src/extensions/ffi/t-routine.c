@@ -516,7 +516,7 @@ static void ffi_to_rebol(
         out->extra.struct_offset = 0;
 
         *ARR_HEAD(stu) = *out; // save canon value
-        SER(stu)->link.schema = top;
+        LINK(stu).schema = top;
         MANAGE_ARRAY(stu);
 
         assert(STU_DATA_HEAD(stu) == BIN_HEAD(data));
@@ -1188,8 +1188,8 @@ REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec, ffi_abi abi) {
 
     SET_SER_FLAG(paramlist, ARRAY_FLAG_PARAMLIST);
     MANAGE_ARRAY(paramlist);
-    SER(paramlist)->link.meta = NULL;
-    SER(paramlist)->misc.facade = paramlist;
+    LINK(paramlist).meta = NULL;
+    MISC(paramlist).facade = paramlist;
 
     REBFUN *fun = Make_Function(
         paramlist,

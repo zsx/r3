@@ -315,8 +315,8 @@ REBNATIVE(typechecker)
 
     // for now, no help...use REDESCRIBE
 
-    SER(paramlist)->link.meta = NULL;
-    SER(paramlist)->misc.facade = paramlist;
+    LINK(paramlist).meta = NULL;
+    MISC(paramlist).facade = paramlist;
 
     REBFUN *fun = Make_Function(
         paramlist,
@@ -441,7 +441,7 @@ REBNATIVE(chain)
     Init_Void(CTX_VAR(meta, STD_CHAINED_META_CHAINEE_NAMES));
 
     MANAGE_ARRAY(CTX_VARLIST(meta));
-    SER(paramlist)->link.meta = meta;
+    LINK(paramlist).meta = meta;
 
     REBFUN *fun = Make_Function(
         paramlist,
@@ -534,7 +534,7 @@ REBNATIVE(adapt)
         );
 
     MANAGE_ARRAY(CTX_VARLIST(meta));
-    SER(paramlist)->link.meta = meta;
+    LINK(paramlist).meta = meta;
 
     REBFUN *fun = Make_Function(
         paramlist,
@@ -635,14 +635,13 @@ REBNATIVE(hijack)
         // directly.  This is a reasonably common case, and especially
         // common when putting the originally hijacked function back.
 
-        SER(victim_paramlist)->misc.facade =
-            SER(hijacker_paramlist)->misc.facade;
-        SER(victim->payload.function.body_holder)->link.exemplar =
-            SER(hijacker->payload.function.body_holder)->link.exemplar;
+        MISC(victim_paramlist).facade = MISC(hijacker_paramlist).facade;
+        LINK(victim->payload.function.body_holder).exemplar =
+            LINK(hijacker->payload.function.body_holder).exemplar;
 
         *VAL_FUNC_BODY(victim) = *VAL_FUNC_BODY(hijacker);
-        SER(victim->payload.function.body_holder)->misc.dispatcher =
-            SER(hijacker->payload.function.body_holder)->misc.dispatcher;
+        MISC(victim->payload.function.body_holder).dispatcher =
+            MISC(hijacker->payload.function.body_holder).dispatcher;
     }
     else {
         // A mismatch means there could be someone out there pointing at this
@@ -656,7 +655,7 @@ REBNATIVE(hijack)
         // needs to do a new function call.
         //
         Move_Value(VAL_FUNC_BODY(victim), hijacker);
-        SER(victim->payload.function.body_holder)->misc.dispatcher =
+        MISC(victim->payload.function.body_holder).dispatcher =
             &Hijacker_Dispatcher;
     }
 
@@ -664,8 +663,7 @@ REBNATIVE(hijack)
     //
     // !!! Should this add a note about the hijacking?
     //
-    SER(victim_paramlist)->link.meta =
-        SER(hijacker_paramlist)->link.meta;
+    LINK(victim_paramlist).meta = LINK(hijacker_paramlist).meta;
 
     Move_Value(D_OUT, victim);
     INIT_BINDING(D_OUT, VAL_BINDING(hijacker));
@@ -747,7 +745,7 @@ REBNATIVE(tighten)
     // Hence updates to the title/parameter-descriptions/etc. of the tightened
     // function will affect the original, and vice-versa.
     //
-    SER(paramlist)->link.meta = FUNC_META(original);
+    LINK(paramlist).meta = FUNC_META(original);
 
     MANAGE_ARRAY(paramlist);
 

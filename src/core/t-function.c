@@ -223,7 +223,7 @@ REBTYPE(Function)
         );
         ARR_HEAD(proxy_paramlist)->payload.function.paramlist
             = proxy_paramlist;
-        SER(proxy_paramlist)->link.meta = VAL_FUNC_META(value);
+        LINK(proxy_paramlist).meta = VAL_FUNC_META(value);
         SET_SER_FLAG(proxy_paramlist, ARRAY_FLAG_PARAMLIST);
 
         // If the function had code, then that code will be bound relative

@@ -241,7 +241,7 @@ inline static REBVAL *STU_VALUE(REBSTU *stu) {
     VAL_STRUCT_INACCESSIBLE(STU_VALUE(stu))
 
 inline static REBFLD *STU_SCHEMA(REBSTU *stu) {
-    REBFLD *schema = SER(stu)->link.schema;
+    REBFLD *schema = LINK(stu).schema;
     assert(FLD_IS_STRUCT(schema));
     return schema;
 }

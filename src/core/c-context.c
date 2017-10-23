@@ -99,7 +99,7 @@ REBCTX *Alloc_Context(enum Reb_Kind kind, REBCNT capacity)
         0 // No keylist flag, but we don't want line numbers
     );
     Init_Blank(Alloc_Tail_Array(keylist));
-    SER(keylist)->link.meta = NULL; // GC sees meta object, must init
+    LINK(keylist).meta = NULL; // GC sees meta object, must init
 
     // varlists link keylists via REBSER.misc field, sharable hence managed
 
@@ -135,11 +135,11 @@ REBOOL Expand_Context_Keylist_Core(REBCTX *context, REBCNT delta)
         //
         // Keylists are only typesets, so no need for a specifier.
 
-        REBCTX *meta = SER(keylist)->link.meta; // preserve meta object
+        REBCTX *meta = LINK(keylist).meta; // preserve meta object
 
         keylist = Copy_Array_Extra_Shallow(keylist, SPECIFIED, delta);
 
-        SER(keylist)->link.meta = meta;
+        LINK(keylist).meta = meta;
 
         MANAGE_ARRAY(keylist);
         INIT_CTX_KEYLIST_UNIQUE(context, keylist);
@@ -366,7 +366,7 @@ REBARR *Grab_Collected_Keylist_Managed(REBCTX *prior)
         MANAGE_ARRAY(keylist);
     }
 
-    SER(keylist)->link.meta = NULL; // clear meta object (GC sees this)
+    LINK(keylist).meta = NULL; // clear meta object (GC sees this)
 
     return keylist;
 }
@@ -402,11 +402,11 @@ void Collect_Keys_End(struct Reb_Binder *binder)
         // For now just zero it out based on the collect buffer.
         //
         assert(
-            canon->misc.bind_index.high != 0
-            || canon->misc.bind_index.low != 0
+            MISC(canon).bind_index.high != 0
+            || MISC(canon).bind_index.low != 0
         );
-        canon->misc.bind_index.high = 0;
-        canon->misc.bind_index.low = 0;
+        MISC(canon).bind_index.high = 0;
+        MISC(canon).bind_index.low = 0;
     }
 
     SET_ARRAY_LEN_NOTERM(BUF_COLLECT, 0);
@@ -1002,7 +1002,7 @@ REBCTX *Merge_Contexts_Selfish(REBCTX *parent1, REBCTX *parent2)
     REBARR *keylist = Copy_Array_Shallow(BUF_COLLECT, SPECIFIED);
     MANAGE_ARRAY(keylist);
     Init_Blank(ARR_HEAD(keylist)); // Currently no rootkey usage
-    SER(keylist)->link.meta = NULL;
+    LINK(keylist).meta = NULL;
 
     REBARR *varlist = Make_Array_Core(ARR_LEN(keylist), ARRAY_FLAG_VARLIST);
     REBCTX *merged = CTX(varlist);

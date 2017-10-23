@@ -567,8 +567,8 @@ void Set_Location_Of_Error(
             break;
         }
         if (f != NULL) {
-            Init_Word(&vars->file, SER(f->source.array)->link.filename);
-            Init_Integer(&vars->line, SER(f->source.array)->misc.line);
+            Init_Word(&vars->file, LINK(f->source.array).filename);
+            Init_Integer(&vars->line, MISC(f->source.array).line);
         }
     }
 }

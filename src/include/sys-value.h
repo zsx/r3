@@ -1267,10 +1267,10 @@ inline static void SET_EVENT_KEY(RELVAL *v, REBCNT k, REBCNT c) {
     (QUAD_HEAD(s) + (QUAD_LEN(s) * 4))
 
 #define IMG_WIDE(s) \
-    ((s)->misc.area.wide)
+    (MISC(s).area.wide)
 
 #define IMG_HIGH(s) \
-    ((s)->misc.area.high)
+    (MISC(s).area.high)
 
 #define IMG_DATA(s) \
     SER_DATA_RAW(s)

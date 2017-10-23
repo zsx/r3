@@ -178,9 +178,9 @@ void Do_Core_Entry_Checks_Debug(REBFRM *f)
         && GET_SER_FLAG(f->source.array, SERIES_FLAG_FILE_LINE)
     ){
         f->file_debug = cast(
-            const char*, STR_HEAD(SER(f->source.array)->link.filename)
+            const char*, STR_HEAD(LINK(f->source.array).filename)
         );
-        f->line_debug = SER(f->source.array)->misc.line;
+        f->line_debug = MISC(f->source.array).line;
     }
     else {
         f->file_debug = "(no file info)";

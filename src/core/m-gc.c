@@ -133,7 +133,7 @@ static inline void Mark_Rebser_Only(REBSER *s)
     assert(NOT_SER_FLAG(s, SERIES_FLAG_ARRAY));
 
     if (s->header.bits & SERIES_FLAG_FILE_LINE)
-        s->link.filename->header.bits |= NODE_FLAG_MARKED;
+        LINK(s).filename->header.bits |= NODE_FLAG_MARKED;
     s->header.bits |= NODE_FLAG_MARKED;
 }
 
@@ -209,7 +209,7 @@ inline static void Queue_Mark_Array_Deep(REBARR *a) {
     assert(NOT_SER_FLAG(a, ARRAY_FLAG_PAIRLIST));
 
     if (GET_SER_FLAG(a, SERIES_FLAG_FILE_LINE))
-        SER(a)->link.filename->header.bits |= NODE_FLAG_MARKED;
+        LINK(a).filename->header.bits |= NODE_FLAG_MARKED;
 
     Queue_Mark_Array_Subclass_Deep(a);
 }
@@ -379,7 +379,7 @@ static void Queue_Mark_Opt_Value_Deep(const RELVAL *v)
         // facade is "fronting for" in the head slot.  The facade must always
         // hold the same number of parameters as the underlying function.
         //
-        REBARR *facade = SER(FUNC_PARAMLIST(func))->misc.facade;
+        REBARR *facade = MISC(FUNC_PARAMLIST(func)).facade;
         assert(IS_FUNCTION(ARR_HEAD(facade)));
         REBARR *underlying = ARR_HEAD(facade)->payload.function.paramlist;
         if (underlying != facade) {
@@ -414,8 +414,8 @@ static void Queue_Mark_Opt_Value_Deep(const RELVAL *v)
         assert(
             NOT_SER_INFO(spelling, STRING_INFO_CANON)
             || (
-                spelling->misc.bind_index.high == 0
-                && spelling->misc.bind_index.low == 0
+                MISC(spelling).bind_index.high == 0
+                && MISC(spelling).bind_index.low == 0
             )
         );
 
@@ -653,7 +653,7 @@ static void Queue_Mark_Opt_Value_Deep(const RELVAL *v)
 
         // The schema is the hierarchical description of the struct.
         //
-        REBFLD *schema = SER(stu)->link.schema;
+        REBFLD *schema = LINK(stu).schema;
         Queue_Mark_Array_Deep(schema);
 
         // The data series needs to be marked.  It needs to be marked
@@ -764,15 +764,15 @@ static void Propagate_All_GC_Marks(void)
             REBARR *body_holder = v->payload.function.body_holder;
             Queue_Mark_Singular_Array(body_holder);
 
-            REBCTX *exemplar = SER(body_holder)->link.exemplar;
+            REBCTX *exemplar = LINK(body_holder).exemplar;
             if (exemplar != NULL)
                 Queue_Mark_Context_Deep(exemplar);
 
-            REBCTX *meta = SER(a)->link.meta;
+            REBCTX *meta = LINK(a).meta;
             if (meta != NULL)
                 Queue_Mark_Context_Deep(meta);
 
-            REBARR *facade = SER(a)->misc.facade;
+            REBARR *facade = MISC(a).facade;
             Queue_Mark_Array_Subclass_Deep(facade);
 
             assert(IS_FUNCTION(v));
@@ -785,11 +785,11 @@ static void Propagate_All_GC_Marks(void)
             // because of the potential for overflowing the C stack with calls
             // to Queue_Mark_Context_Deep.
 
-            REBARR *keylist = SER(a)->link.keylist;
+            REBARR *keylist = LINK(a).keylist;
             assert(keylist == CTX_KEYLIST_RAW(CTX(a)));
             Queue_Mark_Array_Subclass_Deep(keylist); // might be paramlist
 
-            REBCTX *meta = SER(keylist)->link.meta;
+            REBCTX *meta = LINK(keylist).meta;
             if (meta != NULL)
                 Queue_Mark_Context_Deep(meta);
 
@@ -809,7 +809,7 @@ static void Propagate_All_GC_Marks(void)
             // seemed to be a source of bugs, but it may be added again...in
             // which case the hashlist may be NULL.
             //
-            REBSER *hashlist = SER(a)->link.hashlist;
+            REBSER *hashlist = LINK(a).hashlist;
             assert(hashlist != NULL);
 
             Mark_Rebser_Only(hashlist);

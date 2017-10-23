@@ -2089,8 +2089,8 @@ static REBARR *Scan_Array(
             // canonizing and interning like REBSTR* does.
             //
             REBSER *s = VAL_SERIES(DS_TOP);
-            s->misc.line = ss->line;
-            s->link.filename = ss->filename;
+            MISC(s).line = ss->line;
+            LINK(s).filename = ss->filename;
             SET_SER_FLAG(s, SERIES_FLAG_FILE_LINE);
         }
 

@@ -258,7 +258,7 @@ REBNATIVE(file_of)
 
     // !!! How to tell whether it's a URL! or a FILE! ?
     //
-    Scan_File(D_OUT, STR_HEAD(s->link.filename), SER_LEN(s->link.filename));
+    Scan_File(D_OUT, STR_HEAD(LINK(s).filename), SER_LEN(LINK(s).filename));
     return R_OUT;
 }
 
@@ -281,7 +281,7 @@ REBNATIVE(line_of)
     if (NOT_SER_FLAG(s, SERIES_FLAG_FILE_LINE))
         return R_BLANK;
 
-    Init_Integer(D_OUT, s->misc.line);
+    Init_Integer(D_OUT, MISC(s).line);
     return R_OUT;
 }
 

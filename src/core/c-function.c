@@ -642,7 +642,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     // trying to add any meta information that includes frames, so they do
     // not have to do this.
     //
-    SER(paramlist)->misc.facade = paramlist;
+    MISC(paramlist).facade = paramlist;
 
     if (TRUE) {
         RELVAL *dest = ARR_HEAD(paramlist); // canon function value
@@ -736,7 +736,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         MANAGE_ARRAY(CTX_VARLIST(meta));
     }
 
-    SER(paramlist)->link.meta = meta;
+    LINK(paramlist).meta = meta;
 
     // If a description string was gathered, it's sitting in the first string
     // slot, the third cell we pushed onto the stack.  Extract it if so.
@@ -1024,7 +1024,7 @@ done_caching:;
     // Having a level of indirection from the REBVAL bits themself also
     // facilitates the "Hijacker" to change multiple REBVALs behavior.
 
-    SER(body_holder)->misc.dispatcher = dispatcher;
+    MISC(body_holder).dispatcher = dispatcher;
 
     // When this function is run, it needs to push a stack frame with a
     // certain number of arguments, and do type checking and parameter class
@@ -1043,10 +1043,10 @@ done_caching:;
         // notes in Make_Paramlist_Managed_May_Fail() on why this has to be
         // pre-filled to avoid crashing on CTX_KEYLIST when making frames.
         //
-        assert(SER(paramlist)->misc.facade == paramlist);
+        assert(MISC(paramlist).facade == paramlist);
     }
     else
-        SER(paramlist)->misc.facade = opt_facade;
+        MISC(paramlist).facade = opt_facade;
 
     if (opt_exemplar == NULL) {
         //
@@ -1054,7 +1054,7 @@ done_caching:;
         // that when a REBFRM's ->special field is set there's no need to
         // check for NULL.
         //
-        SER(body_holder)->link.exemplar = NULL;
+        LINK(body_holder).exemplar = NULL;
     }
     else {
         // Because a dispatcher can update the phase and swap in the next
@@ -1068,11 +1068,10 @@ done_caching:;
         // would assert, since the function we're making is incomplete..
         //
         assert(
-            CTX_LEN(opt_exemplar)
-            == ARR_LEN(SER(paramlist)->misc.facade) - 1
+            CTX_LEN(opt_exemplar) == ARR_LEN(MISC(paramlist).facade) - 1
         );
 
-        SER(body_holder)->link.exemplar = opt_exemplar;
+        LINK(body_holder).exemplar = opt_exemplar;
     }
 
     // The meta information may already be initialized, since the native
@@ -1080,10 +1079,8 @@ done_caching:;
     // used by HELP.  If so, it must be a valid REBCTX*.  Otherwise NULL.
     //
     assert(
-        SER(paramlist)->link.meta == NULL
-        || GET_SER_FLAG(
-            CTX_VARLIST(SER(paramlist)->link.meta), ARRAY_FLAG_VARLIST
-        )
+        LINK(paramlist).meta == NULL
+        || GET_SER_FLAG(CTX_VARLIST(LINK(paramlist).meta), ARRAY_FLAG_VARLIST)
     );
 
     // Note: used to set the keys of natives as read-only so that the debugger
@@ -1137,7 +1134,7 @@ REBCTX *Make_Expired_Frame_Ctx_Managed(REBFUN *func)
     // indicates that the frame has finished running.  If it is stack-based,
     // then that also means the data values are unavailable.
     //
-    SER(varlist)->misc.f = NULL;
+    MISC(varlist).f = NULL;
 
     return expired;
 }
@@ -1441,7 +1438,7 @@ REBCTX *Make_Frame_For_Function(const REBVAL *value) {
     // Another is that it complicated the "all frames start with their values
     // on the chunk stack".  This should never become non-NULL.
     //
-    SER(varlist)->misc.f = NULL;
+    MISC(varlist).f = NULL;
 
     return CTX(varlist);
 }
@@ -1566,7 +1563,7 @@ REBOOL Specialize_Function_Throws(
         );
 
     MANAGE_ARRAY(CTX_VARLIST(meta));
-    SER(paramlist)->link.meta = meta;
+    LINK(paramlist).meta = meta;
 
     REBFUN *fun = Make_Function(
         paramlist,
@@ -1644,8 +1641,8 @@ void Clonify_Function(REBVAL *value)
 
     // !!! Meta: copy, inherit?
     //
-    SER(paramlist)->link.meta = FUNC_META(original_fun);
-    SER(paramlist)->misc.facade = paramlist;
+    LINK(paramlist).meta = FUNC_META(original_fun);
+    MISC(paramlist).facade = paramlist;
 
     REBFUN *new_fun = Make_Function(
         paramlist,

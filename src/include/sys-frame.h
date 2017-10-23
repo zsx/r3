@@ -532,8 +532,8 @@ inline static void Drop_Function_Core(
     // The varlist is going to outlive this call, so the frame correspondence
     // in it needs to be cleared out, so callers will know the frame is dead.
     //
-    assert(SER(f->varlist)->misc.f == f);
-    SER(f->varlist)->misc.f = NULL;
+    assert(MISC(f->varlist).f == f);
+    MISC(f->varlist).f = NULL;
     assert(GET_SER_FLAG(f->varlist, ARRAY_FLAG_VARLIST));
 
     if (NOT_SER_INFO(f->varlist, CONTEXT_INFO_STACK)) {

@@ -116,14 +116,14 @@ inline static REBOOL Try_Add_Binder_Index(
     assert(index != 0);
     assert(GET_SER_INFO(canon, STRING_INFO_CANON));
     if (binder->high) {
-        if (canon->misc.bind_index.high != 0)
+        if (MISC(canon).bind_index.high != 0)
             return FALSE;
-        canon->misc.bind_index.high = index;
+        MISC(canon).bind_index.high = index;
     }
     else {
-        if (canon->misc.bind_index.low != 0)
+        if (MISC(canon).bind_index.low != 0)
             return FALSE;
-        canon->misc.bind_index.low = index;
+        MISC(canon).bind_index.low = index;
     }
 
 #if !defined(NDEBUG)
@@ -155,9 +155,9 @@ inline static REBINT Get_Binder_Index_Else_0( // 0 if not present
     assert(GET_SER_INFO(canon, STRING_INFO_CANON));
 
     if (binder->high)
-        return canon->misc.bind_index.high;
+        return MISC(canon).bind_index.high;
     else
-        return canon->misc.bind_index.low;
+        return MISC(canon).bind_index.low;
 }
 
 
@@ -169,16 +169,16 @@ inline static REBINT Remove_Binder_Index_Else_0( // return old value if there
 
     REBINT old_index;
     if (binder->high) {
-        old_index = canon->misc.bind_index.high;
+        old_index = MISC(canon).bind_index.high;
         if (old_index == 0)
             return 0;
-        canon->misc.bind_index.high = 0;
+        MISC(canon).bind_index.high = 0;
     }
     else {
-        old_index = canon->misc.bind_index.low;
+        old_index = MISC(canon).bind_index.low;
         if (old_index == 0)
             return 0;
-        canon->misc.bind_index.low = 0;
+        MISC(canon).bind_index.low = 0;
     }
 
 #if !defined(NDEBUG)

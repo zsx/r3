@@ -33,12 +33,12 @@
 #define MAX_BITSET 0x7fffffff
 
 static inline REBOOL BITS_NOT(REBSER *s) {
-    assert(s->misc.negated == TRUE || s->misc.negated == FALSE);
-    return s->misc.negated;
+    assert(MISC(s).negated == TRUE || MISC(s).negated == FALSE);
+    return MISC(s).negated;
 }
 
 static inline void INIT_BITS_NOT(REBSER *s, REBOOL negated) {
-    s->misc.negated = negated;
+    MISC(s).negated = negated;
 }
 
 

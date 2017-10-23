@@ -893,8 +893,8 @@ REBSER *Make_Series_Core(REBCNT capacity, REBYTE wide, REBUPT flags)
     s->guard = cast(int*, malloc(sizeof(*s->guard)));
     free(s->guard);
 
-    TRASH_POINTER_IF_DEBUG(s->link.keylist);
-    TRASH_POINTER_IF_DEBUG(s->misc.canon);
+    TRASH_POINTER_IF_DEBUG(LINK(s).trash);
+    TRASH_POINTER_IF_DEBUG(MISC(s).trash);
 
     // It's necessary to have another value in order to round out the size of
     // the pool node so pointer-aligned entries are given out, so might as well
@@ -1575,7 +1575,7 @@ void GC_Kill_Series(REBSER *s)
             RELVAL *v = ARR_HEAD(ARR(s));
             if (NOT_END(v) && IS_HANDLE(v)) {
                 if (v->extra.singular == ARR(s)) {
-                    (s->misc.cleaner)(KNOWN(v));
+                    (MISC(s).cleaner)(KNOWN(v));
                 }
             }
         }
@@ -1585,7 +1585,8 @@ void GC_Kill_Series(REBSER *s)
     s->info.bits = 0; // makes it look like width is 0
 #endif
 
-    TRASH_POINTER_IF_DEBUG(s->link.keylist);
+    TRASH_POINTER_IF_DEBUG(MISC(s).trash);
+    TRASH_POINTER_IF_DEBUG(LINK(s).trash);
 
     Free_Node(SER_POOL, s);
 

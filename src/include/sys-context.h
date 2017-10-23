@@ -90,7 +90,7 @@ inline static REBCTX *CTX(void *p) {
     ((REBVAL*)ARR_HEAD(CTX_VARLIST(c)))
 
 #define CTX_KEYLIST_RAW(c) \
-    ((REBSER*)CTX_VARLIST(c))->link.keylist
+    ((REBSER*)CTX_VARLIST(c))->link_private.keylist
 
 // CTX_KEYLIST is called often, and it's worth it to make it as fast as
 // possible--even in an unoptimized build.  Use VAL_TYPE_RAW, plain C cast.
@@ -114,19 +114,21 @@ inline static REBARR *CTX_KEYLIST(REBCTX *c) {
     // phase changes, a fixed value can't be put into the keylist...that is
     // just the keylist of the underlying function.
     //
-    // Note: FUNC_FACADE and VAL_FUNC_PARAMLIST macros not defined yet
+    // Note: FUNC_FACADE and VAL_FUNC_PARAMLIST macros not defined yet.  Also
+    // uses low level access since this is called so much...less "safe" than
+    // SER() or MISC() but worth it for this case.
     //
-    return ((REBSER*)v->payload.any_context.phase)->misc.facade;
+    return ((REBSER*)v->payload.any_context.phase)->misc_private.facade;
 }
 
 static inline void INIT_CTX_KEYLIST_SHARED(REBCTX *c, REBARR *keylist) {
     SET_SER_INFO(keylist, SERIES_INFO_SHARED_KEYLIST);
-    SER(CTX_VARLIST(c))->link.keylist = keylist;
+    LINK(CTX_VARLIST(c)).keylist = keylist;
 }
 
 static inline void INIT_CTX_KEYLIST_UNIQUE(REBCTX *c, REBARR *keylist) {
     assert(NOT_SER_INFO(keylist, SERIES_INFO_SHARED_KEYLIST));
-    SER(CTX_VARLIST(c))->link.keylist = keylist;
+    LINK(CTX_VARLIST(c)).keylist = keylist;
 }
 
 // Navigate from context to context components.  Note that the context's
@@ -162,7 +164,7 @@ inline static REBVAL *CTX_KEYS_HEAD(REBCTX *c) {
 
 inline static REBFRM *CTX_FRAME_IF_ON_STACK(REBCTX *c) {
     assert(IS_FRAME(CTX_VALUE(c)));
-    REBFRM *f = SER(CTX_VARLIST(c))->misc.f;
+    REBFRM *f = MISC(CTX_VARLIST(c)).f;
     assert(
         f == NULL
         || (
@@ -221,7 +223,7 @@ inline static REBCTX *CTX_META(REBCTX *c) {
     // or paramlists is not fully articulated (can every object have a unique
     // meta pointer?  If so it must be on the varlist.
     //
-    return SER(CTX_KEYLIST_RAW(c))->link.meta;
+    return LINK(CTX_KEYLIST_RAW(c)).meta;
 }
 
 #define FAIL_IF_READ_ONLY_CONTEXT(c) \
@@ -299,16 +301,14 @@ inline static void INIT_VAL_CONTEXT(REBVAL *v, REBCTX *c) {
     CTX_KEY(VAL_CONTEXT(v), (n))
 
 inline static REBCTX *VAL_CONTEXT_META(const RELVAL *v) {
-    return SER(
-        CTX_KEYLIST_RAW(CTX(v->payload.any_context.varlist))
-    )->link.meta;
+    return LINK(CTX_KEYLIST_RAW(CTX(v->payload.any_context.varlist))).meta;
 }
 
 #define VAL_CONTEXT_KEY_SYM(v,n) \
     CTX_KEY_SYM(VAL_CONTEXT(v), (n))
 
 inline static void INIT_CONTEXT_META(REBCTX *c, REBCTX *m) {
-    SER(CTX_KEYLIST_RAW(c))->link.meta = m;
+    LINK(CTX_KEYLIST_RAW(c)).meta = m;
 }
 
 inline static REBVAL *CTX_FRAME_FUNC_VALUE(REBCTX *c) {

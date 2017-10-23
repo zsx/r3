@@ -572,7 +572,7 @@ REBNATIVE(set_meta)
     REBVAL *value = ARG(value);
 
     if (IS_FUNCTION(value))
-        SER(VAL_FUNC_PARAMLIST(value))->link.meta = meta;
+        LINK(VAL_FUNC_PARAMLIST(value)).meta = meta;
     else {
         assert(ANY_CONTEXT(value));
         INIT_CONTEXT_META(VAL_CONTEXT(value), meta);
@@ -632,7 +632,7 @@ REBCTX *Copy_Context_Core(REBCTX *original, REBOOL deep, REBU64 types)
     // If we're copying a frame here, we know it's not running.
     //
     if (CTX_TYPE(original) == REB_FRAME)
-        SER(varlist)->misc.f = NULL;
+        MISC(varlist).f = NULL;
 
     if (types != 0) {
         Clonify_Values_Len_Managed(

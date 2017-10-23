@@ -32,15 +32,15 @@
 //
 
 inline static void *LIB_FD(REBLIB *l) {
-    return SER(l)->misc.fd; // file descriptor
+    return MISC(l).fd; // file descriptor
 }
 
 inline static REBOOL IS_LIB_CLOSED(REBLIB *l) {
-    return LOGICAL(SER(l)->misc.fd == NULL);
+    return LOGICAL(MISC(l).fd == NULL);
 }
 
 inline static REBCTX *VAL_LIBRARY_META(const RELVAL *v) {
-    return SER(v->payload.library.singular)->link.meta;
+    return LINK(v->payload.library.singular).meta;
 }
 
 inline static REBLIB *VAL_LIBRARY(const RELVAL *v) {

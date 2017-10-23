@@ -53,7 +53,7 @@ inline static REBARR *MAP_PAIRLIST(REBMAP *m) {
 }
 
 #define MAP_HASHLIST(m) \
-    (SER(MAP_PAIRLIST(m))->link.hashlist)
+    (LINK(MAP_PAIRLIST(m)).hashlist)
 
 #define MAP_HASHES(m) \
     SER_HEAD(MAP_HASHLIST(m))

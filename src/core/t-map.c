@@ -52,7 +52,7 @@ REBINT CT_Map(const RELVAL *a, const RELVAL *b, REBINT mode)
 REBMAP *Make_Map(REBCNT capacity)
 {
     REBARR *pairlist = Make_Array_Core(capacity * 2, ARRAY_FLAG_PAIRLIST);
-    SER(pairlist)->link.hashlist = Make_Hash_Sequence(capacity);
+    LINK(pairlist).hashlist = Make_Hash_Sequence(capacity);
 
     return MAP(pairlist);
 }

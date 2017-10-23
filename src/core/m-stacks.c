@@ -321,7 +321,7 @@ REBCTX *Context_For_Frame_May_Reify_Managed(REBFRM *f)
     rootvar->payload.any_context.phase = f->phase;
     INIT_BINDING(rootvar, f->binding);
 
-    SER(f->varlist)->misc.f = f;
+    MISC(f->varlist).f = f;
 
     // A reification of a frame for native code should not allow changing
     // the values out from under it, because that could cause it to crash
@@ -330,7 +330,7 @@ REBCTX *Context_For_Frame_May_Reify_Managed(REBFRM *f)
     // running...which should not stop FRM_ARG from working in the native
     // itself, but should stop modifications from user code.
     //
-    SER(CTX_VARLIST(c))->misc.f = f;
+    MISC(CTX_VARLIST(c)).f = f;
     if (f->flags.bits & DO_FLAG_NATIVE_HOLD)
         SET_SER_INFO(f->varlist, SERIES_INFO_HOLD);
 
