@@ -310,6 +310,24 @@ inline static REBARR *Alloc_Singular_Array_Core(REBUPT flags) {
 #define Copy_Array_Extra_Shallow(a,s,e) \
     Copy_Array_At_Extra_Shallow((a), 0, (s), (e))
 
+// See TS_NOT_COPIED for the default types excluded from being deep copied
+//
+inline static REBARR* Copy_Array_At_Extra_Deep_Managed(
+    REBARR *original,
+    REBCNT index,
+    REBSPC *specifier,
+    REBCNT extra
+){
+    return Copy_Array_Core_Managed(
+        original,
+        index, // at
+        specifier,
+        ARR_LEN(original), // tail
+        extra, // extra
+        TRUE, // deep
+        TS_SERIES & ~TS_NOT_COPIED // types
+    );
+}
 
 #define Free_Array(a) \
     Free_Series(SER(a))

@@ -82,7 +82,7 @@ inline static RELVAL *FUNC_BODY(REBFUN *f) {
     // speed this up over ARR_HEAD() since function bodies are always singular
     //
     assert(NOT_SER_INFO(body_holder, SERIES_INFO_HAS_DYNAMIC));
-    return &SER(body_holder)->content.values[0];
+    return cast(RELVAL*, &SER(body_holder)->content.values[0]);
 }
 
 inline static REBVAL *FUNC_PARAM(REBFUN *f, REBCNT n) {

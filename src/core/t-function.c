@@ -239,9 +239,10 @@ REBTYPE(Function)
             FUNC_EXEMPLAR(VAL_FUNC(value)) // not changing the specialization
         );
 
-        // A new body_holder was created inside Make_Function().
+        // A new body_holder was created inside Make_Function().  Rare case
+        // where we can bit-copy a possibly-relative value.
         //
-        *FUNC_BODY(proxy) = *VAL_FUNC_BODY(value);
+        Blit_Cell(FUNC_BODY(proxy), VAL_FUNC_BODY(value));
 
         Move_Value(D_OUT, FUNC_VALUE(proxy));
         D_OUT->extra.binding = VAL_BINDING(value);

@@ -57,37 +57,17 @@ REBARR *Copy_Array_At_Extra_Shallow(
     REBCNT len = ARR_LEN(original);
 
     if (index > len)
-        return Make_Array_For_Copy(0);
+        return Make_Array_For_Copy(extra);
 
     len -= index;
 
-    REBARR *copy = Make_Array_For_Copy(len + extra + 1);
+    REBARR *copy = Make_Array_For_Copy(len + extra);
 
-    if (specifier == SPECIFIED) {
-        //
-        // We can just bit-copy a fully specified array.  By its definition
-        // it may not contain any RELVALs.  But in the debug build, double
-        // check that...
-        //
-    #if !defined(NDEBUG)
-        RELVAL *check = ARR_AT(original, index);
-        REBCNT count = 0;
-        for (; count < len; ++count)
-            assert(IS_SPECIFIC(check));
-    #endif
-
-        memcpy(ARR_HEAD(copy), ARR_AT(original, index), len * sizeof(REBVAL));
-    }
-    else {
-        // Any RELVALs will have to be handled.  Review if a memcpy with
-        // a touch-up phase is faster, or if there is any less naive way.
-        //
-        RELVAL *src = ARR_AT(original, index);
-        REBVAL *dest = KNOWN(ARR_HEAD(copy));
-        REBCNT count = 0;
-        for (; count < len; ++count, ++dest, ++src)
-            Derelativize(dest, src, specifier);
-    }
+    RELVAL *src = ARR_AT(original, index);
+    REBVAL *dest = KNOWN(ARR_HEAD(copy));
+    REBCNT count = 0;
+    for (; count < len; ++count, ++dest, ++src)
+        Derelativize(dest, src, specifier);
 
     TERM_ARRAY_LEN(copy, len);
 
@@ -115,23 +95,11 @@ REBARR *Copy_Array_At_Max_Shallow(
 
     REBARR *copy = Make_Array_For_Copy(max + 1);
 
-    if (specifier == SPECIFIED) {
-    #if !defined(NDEBUG)
-        REBCNT count = 0;
-        const RELVAL *check = ARR_AT(original, index);
-        for (; count < max; ++count, ++check) {
-            assert(IS_SPECIFIC(check));
-        }
-    #endif
-        memcpy(ARR_HEAD(copy), ARR_AT(original, index), max * sizeof(REBVAL));
-    }
-    else {
-        REBCNT count = 0;
-        const RELVAL *src = ARR_AT(original, index);
-        RELVAL *dest = ARR_HEAD(copy);
-        for (; count < max; ++count, ++src, ++dest)
-            Derelativize(dest, src, specifier);
-    }
+    REBCNT count = 0;
+    const RELVAL *src = ARR_AT(original, index);
+    RELVAL *dest = ARR_HEAD(copy);
+    for (; count < max; ++count, ++src, ++dest)
+        Derelativize(dest, src, specifier);
 
     TERM_ARRAY_LEN(copy, max);
 
@@ -155,23 +123,11 @@ REBARR *Copy_Values_Len_Extra_Skip_Shallow_Core(
 ) {
     REBARR *array = Make_Array_Core(len + extra + 1, flags);
 
-    if (specifier == SPECIFIED && skip == 1) {
-    #if !defined(NDEBUG)
-        REBCNT count = 0;
-        const RELVAL *check = head;
-        for (; count < len; ++count, ++check) {
-            assert(IS_SPECIFIC(check));
-        }
-    #endif
-        memcpy(ARR_HEAD(array), head, len * sizeof(REBVAL));
-    }
-    else {
-        REBCNT count = 0;
-        const RELVAL *src = head;
-        RELVAL *dest = ARR_HEAD(array);
-        for (; count < len; ++count, src += skip, ++dest)
-            Derelativize(dest, src, specifier);
-    }
+    REBCNT count = 0;
+    const RELVAL *src = head;
+    RELVAL *dest = ARR_HEAD(array);
+    for (; count < len; ++count, src += skip, ++dest)
+        Derelativize(dest, src, specifier);
 
     TERM_ARRAY_LEN(array, len);
 
@@ -309,41 +265,40 @@ void Clonify_Values_Len_Managed(
 
 
 //
-//  Copy_Array_Core_Managed: C
+//  Copy_Array_Core_Managed_Inner_Loop: C
 //
-// Copy a block, copy specified values, deeply if indicated.
 //
-// The resulting series will already be under GC management,
-// and hence cannot be freed with Free_Series().
-//
-REBARR *Copy_Array_Core_Managed(
+static REBARR *Copy_Array_Core_Managed_Inner_Loop(
     REBARR *original,
     REBCNT index,
     REBSPC *specifier,
     REBCNT tail,
-    REBCNT extra,
+    REBCNT extra, // currently no one uses--would it also apply deep (?)
     REBOOL deep,
     REBU64 types
-) {
-    REBARR *copy;
+){
+    assert(index <= tail && tail <= ARR_LEN(original));
 
-    if (index > tail) index = tail;
+    REBCNT len = tail - index;
 
-    if (index > ARR_LEN(original)) {
-        copy = Make_Array_For_Copy(extra);
-        MANAGE_ARRAY(copy);
-    }
-    else {
-        copy = Copy_Values_Len_Extra_Shallow(
-            ARR_AT(original, index), specifier, tail - index, extra
+    // Currently we start by making a shallow copy and then adjust it
+
+    REBARR *copy = Make_Array_For_Copy(len + extra);
+
+    RELVAL *src = ARR_AT(original, index);
+    REBVAL *dest = KNOWN(ARR_HEAD(copy));
+    REBCNT count = 0;
+    for (; count < len; ++count, ++dest, ++src)
+        Derelativize(dest, src, specifier);
+
+    TERM_ARRAY_LEN(copy, len);
+
+    MANAGE_ARRAY(copy);
+
+    if (types != 0)
+        Clonify_Values_Len_Managed(
+            ARR_HEAD(copy), SPECIFIED, ARR_LEN(copy), deep, types
         );
-        MANAGE_ARRAY(copy);
-
-        if (types != 0) // the copy above should have specified top level
-            Clonify_Values_Len_Managed(
-                ARR_HEAD(copy), SPECIFIED, ARR_LEN(copy), deep, types
-            );
-    }
 
 #if !defined(NDEBUG)
     //
@@ -363,33 +318,40 @@ REBARR *Copy_Array_Core_Managed(
 
 
 //
-//  Copy_Array_At_Extra_Deep_Managed: C
+//  Copy_Array_Core_Managed: C
 //
-// Deep copy an array, including all series (strings, blocks,
-// parens, objects...) excluding images, bitsets, maps, etc.
-// The set of exclusions is the typeset TS_NOT_COPIED.
+// Copy a block, copy specified values, deeply if indicated.
 //
-// The resulting array will already be under GC management,
-// and hence cannot be freed with Free_Series().
+// To avoid having to do a second deep walk to add managed bits on all series,
+// the resulting array will already be deeply under GC management, and hence
+// cannot be freed with Free_Series().
 //
-// Note: If this were declared as a macro it would use the
-// `array` parameter more than once, and have to be in all-caps
-// to warn against usage with arguments that have side-effects.
-//
-REBARR *Copy_Array_At_Extra_Deep_Managed(
+REBARR *Copy_Array_Core_Managed(
     REBARR *original,
     REBCNT index,
     REBSPC *specifier,
-    REBCNT extra
-) {
-    REBARR *copy = Copy_Array_Core_Managed(
+    REBCNT tail,
+    REBCNT extra,
+    REBOOL deep,
+    REBU64 types
+){
+    if (index > tail) // !!! should this be asserted?
+        index = tail;
+
+    if (index > ARR_LEN(original)) { // should this be asserted?
+        REBARR *copy = Make_Array_For_Copy(extra);
+        MANAGE_ARRAY(copy);
+        return copy;
+    }
+
+    REBARR *copy = Copy_Array_Core_Managed_Inner_Loop(
         original,
-        index, // at
+        index,
         specifier,
-        ARR_LEN(original), // tail
-        extra, // extra
-        TRUE, // deep
-        TS_SERIES & ~TS_NOT_COPIED // types
+        tail,
+        extra,
+        deep,
+        types
     );
 
     return copy;
@@ -423,26 +385,33 @@ REBARR *Copy_Rerelativized_Array_Deep_Managed(
     RELVAL *dest = ARR_HEAD(copy);
 
     for (; NOT_END(src); ++src, ++dest) {
-        if (!IS_RELATIVE(src)) {
-            *dest = *src;
+        if (NOT(IS_RELATIVE(src))) {
+            Move_Value(dest, KNOWN(src));
             continue;
         }
 
+        // All relative values under a sub-block must be relative to the
+        // same function.
+        //
         assert(VAL_RELATIVE(src) == before);
+
+        Move_Value_Header(dest, src);
+
         if (ANY_ARRAY(src)) {
-            *dest = *src; // !!! could copy just fields not overwritten
             dest->payload.any_series.series = SER(
                 Copy_Rerelativized_Array_Deep_Managed(
                     VAL_ARRAY(src), before, after
                 )
             );
+            dest->payload.any_series.index = src->payload.any_series.index;
             INIT_BINDING(dest, after); // relative binding
         }
         else {
             assert(ANY_WORD(src));
-            *dest = *src; // !!! could copy just fields not overwritten
+            dest->payload.any_word = src->payload.any_word;
             INIT_BINDING(dest, after);
         }
+
     }
 
     TERM_ARRAY_LEN(copy, ARR_LEN(original));

@@ -544,7 +544,12 @@ union Reb_Series_Content {
     //
     // (See NODE_FLAG_END and NODE_FLAG_CELL for how this is done.)
     //
-    RELVAL values[1];
+    // We do not use a RELVAL here, because it would rule out making simple
+    // assignments of one series's content to another, as the assignment
+    // operator is disabled in the C++ build.  But the value may be relative
+    // or specific.
+    //
+    struct Reb_Cell values[1];
 };
 
 

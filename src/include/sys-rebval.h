@@ -259,15 +259,44 @@
     (GENERAL_VALUE_BIT + 6)
 
 
-// Technically speaking, this only needs to use 6 bits of the rightmost byte
-// to store the type.  So using a full byte wastes 2 bits.  However, the
-// performance advantage of not needing to mask to do VAL_TYPE() is worth
-// it...also there may be a use for 256 types (even though the type bitsets
-// are only 64-bits at the moment)
+//=////////////////////////////////////////////////////////////////////////=//
 //
-#define HEADERIZE_KIND(kind) \
-    FLAGBYTE_RIGHT(kind)
+//  Cell Reset and Copy Masks
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// It's important for operations that write to cells not to overwrite *all*
+// the bits in the header, because some of those bits give information about
+// the nature of the cell's storage and lifetime.  Similarly, if bits are
+// being copied from one cell to another, those header bits must be masked
+// out to avoid corrupting the information in the target cell.
+//
+// !!! Future optimizations may put the integer stack level of the cell in
+// the header in the unused 32 bits for the 64-bit build.  That would also
+// be kept in this mask.
+//
+// Additionally, operations that copy need to not copy any of those bits that
+// are owned by the cell, plus additional bits that would be reset in the
+// cell if overwritten but not copied.  For now, this is why `foo: :+` does
+// not make foo an enfixed operation.
+//
+// Note that this will clear NODE_FLAG_FREE, so it should be checked by the
+// debug build before resetting.
+//
+// Note also that NODE_FLAG_MARKED usage is a relatively new concept, e.g.
+// to allow REMOVE-EACH to mark values in a locked series as to which should
+// be removed when the enumeration is finished.  This *should* not be able
+// to interfere with the GC, since userspace arrays don't use that flag with
+// that meaning, but time will tell if it's a good idea to reuse the bit.
+//
 
+#define CELL_MASK_RESET \
+    (NODE_FLAG_NODE | NODE_FLAG_CELL \
+        | NODE_FLAG_MANAGED | VALUE_FLAG_STACK)
+
+#define CELL_MASK_COPY \
+    ~(CELL_MASK_RESET | NODE_FLAG_MARKED | CELL_FLAG_PROTECTED \
+        | VALUE_FLAG_ENFIXED | VALUE_FLAG_UNEVALUATED)
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -610,14 +639,14 @@ struct Reb_All {
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  VALUE CELL DEFINITION (`struct Reb_Value`)
+//  VALUE CELL DEFINITION (`struct Reb_Cell`)
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// The value is defined to have the header, "extra", and payload.  Having
-// the header come first is taken advantage of by the trick for allowing
-// a single REBUPT-sized value (32-bit on 32 bit builds, 64-bit on 64-bit
-// builds) be examined to determine if a value is an END marker or not.
+// Each value cell has a header, "extra", and payload.  Having the header come
+// first is taken advantage of by the trick for allowing a single REBUPT-sized
+// value (32-bit on 32 bit builds, 64-bit on 64-bit builds) be examined to
+// determine if a value is an END marker or not.
 //
 // Conceptually speaking, one might think of the "extra" as being part of
 // the payload.  But it is broken out into a separate union.  This is because
@@ -743,7 +772,7 @@ union Reb_Value_Payload {
     struct Reb_Pickup pickup;
 };
 
-struct Reb_Value
+struct Reb_Cell
 {
     struct Reb_Header header;
     union Reb_Value_Extra extra;
@@ -753,51 +782,11 @@ struct Reb_Value
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  Cell Reset and Copy Masks
+//  RELATIVE AND SPECIFIC VALUES (difference enforced in C++ build only)
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// It's important for operations that write to cells not to overwrite *all*
-// the bits in the header, because some of those bits give information about
-// the nature of the cell's storage and lifetime.  Similarly, if bits are
-// being copied from one cell to another, those header bits must be masked
-// out to avoid corrupting the information in the target cell.
-//
-// !!! Future optimizations may put the integer stack level of the cell in
-// the header in the unused 32 bits for the 64-bit build.  That would also
-// be kept in this mask.
-//
-// Additionally, operations that copy need to not copy any of those bits that
-// are owned by the cell, plus additional bits that would be reset in the
-// cell if overwritten but not copied.  For now, this is why `foo: :+` does
-// not make foo an enfixed operation.
-//
-// Note that this will clear NODE_FLAG_FREE, so it should be checked by the
-// debug build before resetting.
-//
-// Note also that NODE_FLAG_MARKED usage is a relatively new concept, e.g.
-// to allow REMOVE-EACH to mark values in a locked series as to which should
-// be removed when the enumeration is finished.  This *should* not be able
-// to interfere with the GC, since userspace arrays don't use that flag with
-// that meaning, but time will tell if it's a good idea to reuse the bit.
-//
-
-#define CELL_MASK_RESET \
-    (NODE_FLAG_NODE | NODE_FLAG_CELL \
-        | NODE_FLAG_MANAGED | VALUE_FLAG_STACK)
-
-#define CELL_MASK_COPY \
-    ~(CELL_MASK_RESET | NODE_FLAG_MARKED | CELL_FLAG_PROTECTED \
-        | VALUE_FLAG_ENFIXED | VALUE_FLAG_UNEVALUATED)
-
-
-//=////////////////////////////////////////////////////////////////////////=//
-//
-//  REBVAL ("fully specified" value) and RELVAL ("possibly relative" value)
-//
-//=////////////////////////////////////////////////////////////////////////=//
-//
-// A relative value is the identical struct to Reb_Value, but is allowed to
+// A RELVAL is an equivalent struct layout to to REBVAL, but is allowed to
 // have the relative bit set.  Hence a relative value pointer can point to a
 // specific value, but a relative word or array cannot be pointed to by a
 // plain REBVAL*.  The RELVAL-vs-REBVAL distinction is purely commentary
@@ -816,10 +805,39 @@ struct Reb_Value
 // to be combined with any relative words that are seen later.
 //
 
-#define REB_MAX_VOID REB_MAX // there is no VOID! datatype, use REB_MAX
+#if defined(__cplusplus) && __cplusplus >= 201103L
+    //
+    // Since a RELVAL may be either specific or relative, there's not a whole
+    // lot to check in the C++ build.  However, it does disable bitwise
+    // copying or assignment...one must use Derelativize() or Blit_Cell().
+    //
+    struct Reb_Relative_Value : public Reb_Cell
+    {
+        // This cannot have any custom constructors or destructors; relative
+        // values are found in unions and structures in places that
+        // non-trivial construction is disallowed.  We must use the C++11
+        // `= default` feature to request "trivial" construction.
+        //
+        Reb_Relative_Value () = default;
 
-#ifdef __cplusplus
-    struct Reb_Specific_Value : public Reb_Value {
+        // Overwriting one RELVAL* with another RELVAL* cannot be done with
+        // a direct assignment, such as `*dest = *src;`
+        //
+        // Note that "= delete" only works in C++11.  We'd run into trouble
+        // if we tried to just make the copy constructor private, because
+        // there'd have to be a public constructor candidate...and we can't
+        // have any constructors in this class.
+    private:
+        Reb_Relative_Value (Reb_Relative_Value const & other) = delete;
+        void operator= (Reb_Relative_Value const &rhs) = delete;
+    };
+
+
+    // Reb_Specific_Value inherits from Reb_Relative_Value in C++, and hence
+    // you can pass a REBVAL to any function that takes a RELVAL, but not
+    // vice-versa.
+    //
+    struct Reb_Specific_Value : public Reb_Relative_Value {
     #if !defined(NDEBUG)
         //
         // In C++11, it is now formally legal to add constructors to types
@@ -829,25 +847,18 @@ struct Reb_Value
         //     http://stackoverflow.com/a/7189821/211160
         //
         // No required functionality should be implemented via the constructor
-        // but optional debug features can be added.
+        // as the C build must have the same feature set as the C++ one.
+        // But optional debug features can be added.  (Since most REBVAL* are
+        // produced by casts using KNOWN(), it's not clear exactly what use
+        // those would be.)
         //
-        Reb_Specific_Value () {
-        }
+        Reb_Specific_Value () {}
 
         // The destructor checks that all REBVALs wound up with NODE_FLAG_CELL
         // set on them.  This would be done by DECLARE_LOCAL () if a stack
         // value, and by the Make_Series() construction for SERIES_FLAG_ARRAY.
         //
-        ~Reb_Specific_Value() {
-            assert(header.bits & NODE_FLAG_CELL);
-
-            enum Reb_Kind kind = cast(enum Reb_Kind, RIGHT_8_BITS(header.bits));
-            assert(
-                header.bits & NODE_FLAG_FREE
-                    ? kind == REB_MAX_VOID + 1
-                    : kind <= REB_MAX_VOID
-            );
-        }
+        ~Reb_Specific_Value(); // defined in %c-value.c
 
         // Overwriting one REBVAL* with another REBVAL* cannot be done with
         // a direct assignment, such as `*dest = *src;`  Instead one is
@@ -857,13 +868,9 @@ struct Reb_Value
         // array) then special handling is necessary to make sure any stack
         // constrained pointers are "reified" 
         //
-        // !!! Note that "= delete" only works in C++11, and can be achieved
-        // less clearly but still work just by making assignment and copying
-        // constructors private.
     private:
-        Reb_Specific_Value (Reb_Specific_Value const & other);
-        void operator= (Reb_Specific_Value const &rhs);
+        Reb_Specific_Value (Reb_Specific_Value const & other) = delete;
+        void operator= (Reb_Specific_Value const &rhs) = delete;
     #endif
     };
 #endif
-

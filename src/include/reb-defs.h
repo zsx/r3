@@ -47,13 +47,17 @@
 // must be included *after* %sys-value.h
 //
 #ifdef REB_DEF
-    struct Reb_Value;
-    #define RELVAL struct Reb_Value // maybe IS_RELATIVE()
+    struct Reb_Cell;
 
-    #ifdef __cplusplus
-        #define REBVAL struct Reb_Specific_Value // guaranteed IS_SPECIFIC()
+    #if  !defined(__cplusplus) || __cplusplus < 201103L
+        #define RELVAL struct Reb_Cell
+        #define REBVAL struct Reb_Cell
     #else
-        #define REBVAL struct Reb_Value // IS_SPECIFIC(), unchecked
+        struct Reb_Relative_Value;
+        #define RELVAL struct Reb_Relative_Value // *maybe* IS_RELATIVE()
+
+        struct Reb_Specific_Value;
+        #define REBVAL struct Reb_Specific_Value // guaranteed IS_SPECIFIC()
     #endif
 
     struct Reb_Series; // Rebol series node

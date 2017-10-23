@@ -908,7 +908,7 @@ REBSER *Make_Series_Core(REBCNT capacity, REBYTE wide, REBUPT flags)
     // if the [1] slot was read.
     //
     Init_Endlike_Header(&s->info, 0); // acts as unwritable END marker
-    assert(IS_END(&s->content.values[1])); // test by using Reb_Value pointer
+    assert(IS_END(cast(RELVAL*, &s->content.values[1]))); // ^-- test that
 
     s->content.dynamic.data = NULL;
 
@@ -1073,23 +1073,6 @@ void Free_Pairing(REBVAL *paired) {
 #if !defined(NDEBUG)
     series->do_count = TG_Do_Count;
 #endif
-}
-
-
-//
-//  Swap_Underlying_Series_Data: C
-//
-void Swap_Underlying_Series_Data(REBSER *s1, REBSER *s2)
-{
-    assert(SER_WIDE(s1) == SER_WIDE(s2));
-    assert(
-        GET_SER_FLAG(s1, SERIES_FLAG_ARRAY)
-        == GET_SER_FLAG(s2, SERIES_FLAG_ARRAY)
-    );
-
-    REBSER temp = *s1;
-    *s1 = *s2;
-    *s2 = temp;
 }
 
 

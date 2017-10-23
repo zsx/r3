@@ -126,7 +126,7 @@ REBOOL Next_Path_Throws(REBPVS *pvs)
 
     case PE_SET_IF_END:
         if (pvs->opt_setval && IS_END(pvs->item + 1)) {
-            *pvs->value = *pvs->opt_setval;
+            Move_Value(pvs->value, pvs->opt_setval);
             pvs->opt_setval = NULL;
         }
         break;
@@ -630,7 +630,7 @@ REBNATIVE(poke)
     assert(dispatcher != NULL); // &PD_Fail is used instead of NULL
     switch (dispatcher(pvs)) {
     case PE_SET_IF_END:
-        *pvs->value = *pvs->opt_setval;
+        Move_Value(pvs->value, pvs->opt_setval);
         break;
 
     case PE_OK:

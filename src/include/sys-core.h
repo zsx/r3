@@ -655,12 +655,12 @@ enum Reb_Vararg_Op {
 #include "sys-series.h"
 #include "sys-binary.h"
 #include "sys-string.h"
+#include "sys-typeset.h"
 
 #include "sys-array.h"
 
 #include "sys-handle.h"
 
-#include "sys-typeset.h"
 #include "sys-context.h"
 #include "sys-function.h"
 #include "sys-word.h"

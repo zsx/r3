@@ -692,7 +692,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
             }
             else {
                 assert(flags & MKF_RETURN);
-                *dest = *definitional_return;
+                Move_Value(dest, definitional_return);
                 ++dest;
             }
         }

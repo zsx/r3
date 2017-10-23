@@ -123,6 +123,24 @@ REBCTX *VAL_SPECIFIC_Debug(const REBVAL *v)
 }
 
 
+#if defined(__cplusplus) && __cplusplus >= 201103L
+//
+// This destructor checks to make sure that any cell that was created via
+// DECLARE_LOCAL got properly initialized.
+//
+Reb_Specific_Value::~Reb_Specific_Value ()
+{
+    assert(header.bits & NODE_FLAG_CELL);
+
+    enum Reb_Kind kind = VAL_TYPE_RAW(this);
+    assert(
+        header.bits & NODE_FLAG_FREE
+            ? kind == REB_MAX_PLUS_ONE_TRASH
+            : kind <= REB_MAX_VOID
+    );
+}
+#endif
+
 //
 //  Assert_No_Relative: C
 //

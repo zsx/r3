@@ -327,7 +327,7 @@ REBNATIVE(typechecker)
         NULL // no specialization exemplar (or inherited exemplar)
     );
 
-    *FUNC_BODY(fun) = *type;
+    Move_Value(FUNC_BODY(fun), type);
 
     Move_Value(D_OUT, FUNC_VALUE(fun));
 
@@ -639,7 +639,11 @@ REBNATIVE(hijack)
         LINK(victim->payload.function.body_holder).exemplar =
             LINK(hijacker->payload.function.body_holder).exemplar;
 
-        *VAL_FUNC_BODY(victim) = *VAL_FUNC_BODY(hijacker);
+        // All function bodies should live in cells with the same underlying
+        // formatting.  Blit_Cell ensures that's the case.
+        //
+        Blit_Cell(VAL_FUNC_BODY(victim), VAL_FUNC_BODY(hijacker));
+
         MISC(victim->payload.function.body_holder).dispatcher =
             MISC(hijacker->payload.function.body_holder).dispatcher;
     }
@@ -795,9 +799,11 @@ REBNATIVE(tighten)
     );
 
     // We're reusing the original dispatcher, so we also reuse the original
-    // function body.
+    // function body.  Note that Blit_Cell ensures that the cell formatting
+    // on the source and target are the same, and it preserves relative
+    // value information (rarely what you meant, but it's meant here).
     //
-    *FUNC_BODY(fun) = *FUNC_BODY(original);
+    Blit_Cell(FUNC_BODY(fun), FUNC_BODY(original));
 
     Move_Value(D_OUT, FUNC_VALUE(fun));
 

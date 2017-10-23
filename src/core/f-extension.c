@@ -404,7 +404,7 @@ REBNATIVE(load_native)
         SET_VAL_FLAG(FUNC_VALUE(fun), FUNC_FLAG_UNLOADABLE_NATIVE);
 
     if (REF(body)) {
-        *FUNC_BODY(fun) = *ARG(code);
+        Move_Value(FUNC_BODY(fun), ARG(code));
     }
     Move_Value(D_OUT, FUNC_VALUE(fun));
     return R_OUT;

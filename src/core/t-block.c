@@ -519,9 +519,11 @@ void Shuffle_Block(REBVAL *value, REBOOL secure)
     for (n = VAL_LEN_AT(value); n > 1;) {
         k = idx + (REBCNT)Random_Int(secure) % n;
         n--;
-        swap = data[k];
-        data[k] = data[n + idx];
-        data[n + idx] = swap;
+        swap.header = data[k].header;
+        swap.payload = data[k].payload;
+        swap.extra = data[k].extra;
+        Blit_Cell(&data[k], &data[n + idx]);
+        Blit_Cell(&data[n + idx], &swap);
     }
 }
 
@@ -968,7 +970,7 @@ REBTYPE(Array)
 
         if (REF(tail)) {
             for (; end >= cast(REBINT, index + 1); end--) {
-                if (VAL_TYPE(head + end - 1) != REB_BLANK)
+                if (NOT(IS_BLANK(head + end - 1)))
                     break;
             }
             Remove_Series(SER(array), end, ARR_LEN(array) - end);
@@ -978,19 +980,28 @@ REBTYPE(Array)
 
         if (REF(head)) {
             for (; cast(REBINT, index) < end; index++) {
-                if (VAL_TYPE(head + index) != REB_BLANK) break;
+                if (NOT(IS_BLANK((head + index))))
+                    break;
             }
             Remove_Series(SER(array), out, index - out);
         }
 
         if (NOT(REF(head) || REF(tail))) {
+            //
+            // Make the invariant for the next loop that we've passed all
+            // the non-blanks, to avoid blitting cells over themselves.
+            //
+            while (cast(REBINT, index) < end && NOT(IS_BLANK(head + index))) {
+                ++out;
+                ++index;
+            }
             for (; cast(REBINT, index) < end; index++) {
-                if (VAL_TYPE(head + index) != REB_BLANK) {
+                if (NOT(IS_BLANK(head + index))) {
                     //
                     // Rare case of legal RELVAL bit copying... from one slot
                     // in an array to another in that same array.
                     //
-                    *ARR_AT(array, out) = head[index];
+                    Blit_Cell(ARR_AT(array, out), &head[index]);
                     out++;
                 }
             }
@@ -1011,12 +1022,16 @@ REBTYPE(Array)
         if (
             index < VAL_LEN_HEAD(value)
             && VAL_INDEX(arg) < VAL_LEN_HEAD(arg)
-        ) {
+        ){
             // RELVAL bits can be copied within the same array
             //
-            RELVAL temp = *VAL_ARRAY_AT(value);
-            *VAL_ARRAY_AT(value) = *VAL_ARRAY_AT(arg);
-            *VAL_ARRAY_AT(arg) = temp;
+            RELVAL *a = VAL_ARRAY_AT(value);
+            RELVAL temp;
+            temp.header = a->header;
+            temp.payload = a->payload;
+            temp.extra = a->extra;
+            Blit_Cell(VAL_ARRAY_AT(value), VAL_ARRAY_AT(arg));
+            Blit_Cell(VAL_ARRAY_AT(arg), &temp);
         }
         Move_Value(D_OUT, D_ARG(1));
         return R_OUT;
@@ -1034,10 +1049,13 @@ REBTYPE(Array)
             //
             RELVAL *front = VAL_ARRAY_AT(value);
             RELVAL *back = front + len - 1;
-            for (len /= 2; len > 0; len--) {
-                RELVAL temp = *front;
-                *front++ = *back;
-                *back-- = temp;
+            for (len /= 2; len > 0; --len, ++front, --back) {
+                RELVAL temp;
+                temp.header = front->header;
+                temp.payload = front->payload;
+                temp.extra = front->extra;
+                Blit_Cell(front, back);
+                Blit_Cell(back, &temp);
             }
         }
         Move_Value(D_OUT, D_ARG(1));

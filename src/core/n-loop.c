@@ -867,6 +867,17 @@ static inline REBCNT Finalize_Remove_Each(struct Remove_Each_State *res)
         RELVAL *dest = VAL_ARRAY_AT(res->data);
         RELVAL *src = dest;
 
+        // avoid blitting cells onto themselves by making the first thing we do
+        // to pass up all the unmarked (kept) cells.
+        //
+        while (NOT_END(src) && NOT(src->header.bits & NODE_FLAG_MARKED)) {
+            ++src;
+            ++dest;
+        }
+
+        // If we get here, then we're either at the end or all the cells from here
+        // on are going to be moving to somewhere besides the original spot
+        //
         for (; NOT_END(dest); ++dest, ++src) {
             while (NOT_END(src) && (src->header.bits & NODE_FLAG_MARKED)) {
                 ++src;
@@ -877,7 +888,7 @@ static inline REBCNT Finalize_Remove_Each(struct Remove_Each_State *res)
                 TERM_ARRAY_LEN(VAL_ARRAY(res->data), len);
                 return count;
             }
-            *dest = *src; // same array--one of the few places we can do this
+            Blit_Cell(dest, src); // same array--rare place we can do this
         }
 
         // If we get here, there were no removals, and length is unchanged.

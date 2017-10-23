@@ -471,7 +471,7 @@ void Collect_Context_Keys(
             // keys.  If they did, what sort of rule should the typesets
             // have when being inherited?
             //
-            *collect = *key;
+            Move_Value(collect, key);
             ++collect;
         }
 

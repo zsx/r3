@@ -488,15 +488,8 @@ inline static REBVAL *Derelativize(
     RELVAL *out, // relative destinations are overwritten with specified value
     const RELVAL *v,
     REBSPC *specifier
-) {
-    assert(NOT_END(v));
-    assert(!IS_TRASH_DEBUG(v));
-
-    ASSERT_CELL_WRITABLE(out, __FILE__, __LINE__);
-    assert(NOT(out->header.bits & CELL_FLAG_PROTECTED));
-
-    out->header.bits &= CELL_MASK_RESET;
-    out->header.bits |= v->header.bits & CELL_MASK_COPY;
+){
+    Move_Value_Header(out, v);
 
     if (IS_SPECIFIC(v))
         out->extra = v->extra;

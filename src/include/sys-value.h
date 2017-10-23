@@ -362,7 +362,10 @@
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // VAL_RESET_HEADER clears out the header of *most* bits, setting it to a
-// new type.
+// new type.  The type takes up the full "rightmost" byte of the header,
+// despite the fact it only needs 6 bits.  However, the performance advantage
+// of not needing to mask to do VAL_TYPE() is worth it...also there may be a
+// use for 256 types (although type bitsets are only 64-bits at the moment)
 //
 // The value is expected to already be "pre-formatted" with the NODE_FLAG_CELL
 // bit, so that is left as-is.  It is also expected that VALUE_FLAG_STACK has
@@ -376,6 +379,15 @@
 //
 // (A fringe benefit is catching writes to other unanticipated locations.)
 //
+
+#if !defined(NDEBUG)
+    #define REB_MAX_PLUS_ONE_TRASH \
+        (REB_MAX + 1) // used in the debug build to help identify trash nodes
+#endif
+
+#define HEADERIZE_KIND(kind) \
+    FLAGBYTE_RIGHT(kind)
+
 inline static void VAL_RESET_HEADER_common( // don't call directly
     RELVAL *v,
     enum Reb_Kind kind,
@@ -386,7 +398,7 @@ inline static void VAL_RESET_HEADER_common( // don't call directly
 }
 
 #ifdef NDEBUG
-    #define ASSERT_CELL_WRITABLE(v,file,line) \
+    #define ASSERT_CELL_WRITABLE(c,file,line) \
         NOOP
 
     #define VAL_RESET_HEADER_EXTRA(v,kind,extra) \
@@ -395,11 +407,11 @@ inline static void VAL_RESET_HEADER_common( // don't call directly
     #define VAL_RESET(v,kind,extra) \
         VAL_RESET_HEADER_EXTRA((v), (kind), (extra))
 
-    #define Prep_Non_Stack_Cell(v) \
-        (v)->header.bits = NODE_FLAG_NODE | NODE_FLAG_FREE | NODE_FLAG_CELL
+    #define Prep_Non_Stack_Cell(c) \
+        (c)->header.bits = NODE_FLAG_NODE | NODE_FLAG_FREE | NODE_FLAG_CELL
 
-    #define Prep_Stack_Cell(v) \
-        (v)->header.bits = (NODE_FLAG_NODE | NODE_FLAG_FREE | NODE_FLAG_CELL \
+    #define Prep_Stack_Cell(c) \
+        (c)->header.bits = (NODE_FLAG_NODE | NODE_FLAG_FREE | NODE_FLAG_CELL \
             | VALUE_FLAG_STACK)
 #else
     inline static void Assert_Cell_Writable(
@@ -424,6 +436,11 @@ inline static void VAL_RESET_HEADER_common( // don't call directly
 
         if (NOT(v->header.bits & NODE_FLAG_CELL)) {
             printf("Non-cell passed to writing routine\n");
+            panic_at (v, file, line);
+        }
+
+        if (v->header.bits & CELL_FLAG_PROTECTED) {
+            printf("Protected cell passed to writing routine\n");
             panic_at (v, file, line);
         }
     }
@@ -473,27 +490,27 @@ inline static void VAL_RESET_HEADER_common( // don't call directly
         VAL_RESET_Debug((v), (kind), (extra), __FILE__, __LINE__)
 
     inline static void Prep_Non_Stack_Cell_Debug(
-        RELVAL *v, const char *file, int line
+        struct Reb_Cell *c, const char *file, int line
     ){
-        v->header.bits =
+        c->header.bits =
             NODE_FLAG_NODE | NODE_FLAG_FREE | NODE_FLAG_CELL
-            | HEADERIZE_KIND(REB_MAX + 1);
-        Set_Track_Payload_Debug(v, file, line);
+            | HEADERIZE_KIND(REB_MAX_PLUS_ONE_TRASH);
+        Set_Track_Payload_Debug(cast(RELVAL*, c), file, line);
     }
 
-    #define Prep_Non_Stack_Cell(v) \
-        Prep_Non_Stack_Cell_Debug((v), __FILE__, __LINE__)
+    #define Prep_Non_Stack_Cell(c) \
+        Prep_Non_Stack_Cell_Debug((c), __FILE__, __LINE__)
 
     inline static void Prep_Stack_Cell_Debug(
-        RELVAL *v, const char *file, int line
+        struct Reb_Cell *c, const char *file, int line
     ){
-        v->header.bits = NODE_FLAG_NODE | NODE_FLAG_FREE | NODE_FLAG_CELL
-            | HEADERIZE_KIND(REB_MAX + 1) | VALUE_FLAG_STACK;
-        Set_Track_Payload_Debug(v, file, line);
+        c->header.bits = NODE_FLAG_NODE | NODE_FLAG_FREE | NODE_FLAG_CELL
+            | HEADERIZE_KIND(REB_MAX_PLUS_ONE_TRASH) | VALUE_FLAG_STACK;
+        Set_Track_Payload_Debug(cast(RELVAL*, c), file, line);
     }
 
-    #define Prep_Stack_Cell(v) \
-        Prep_Stack_Cell_Debug((v), __FILE__, __LINE__)
+    #define Prep_Stack_Cell(c) \
+        Prep_Stack_Cell_Debug((c), __FILE__, __LINE__)
 #endif
 
 #define VAL_RESET_HEADER(v,t) \
@@ -536,7 +553,8 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
         ASSERT_CELL_WRITABLE(v, file, line);
 
         v->header.bits &= CELL_MASK_RESET;
-        v->header.bits |= NODE_FLAG_FREE | HEADERIZE_KIND(REB_MAX + 1);
+        v->header.bits |= NODE_FLAG_FREE
+            | HEADERIZE_KIND(REB_MAX_PLUS_ONE_TRASH);
 
         Set_Track_Payload_Debug(v, file, line);
     }
@@ -549,7 +567,7 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
         if (NOT(v->header.bits & NODE_FLAG_FREE))
             return FALSE;
         assert(LEFT_8_BITS(v->header.bits) == TRASH_CELL_BYTE); // bad UTF-8
-        assert(VAL_TYPE_RAW(v) == REB_MAX + 1);
+        assert(VAL_TYPE_RAW(v) == REB_MAX_PLUS_ONE_TRASH);
         return TRUE;
     }
 #endif
@@ -689,6 +707,9 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
 // it is given VALUE_FLAG_FALSEY to facilitate a fast test for that.  But
 // usual tests for truth in conditionals specifically prohibit voids.
 //
+
+#define REB_MAX_VOID \
+    REB_MAX // there is no VOID! datatype, use REB_MAX
 
 #define VOID_CELL \
     c_cast(const REBVAL*, &PG_Void_Cell[0])
@@ -1487,6 +1508,20 @@ inline static void INIT_BINDING(RELVAL *v, void *p) {
     v->extra.binding = binding;
 }
 
+inline static void Move_Value_Header(RELVAL *out, const RELVAL *v)
+{
+    assert(out != v); // usually a sign of a mistake; not worth supporting
+    assert(
+        (v->header.bits & (NODE_FLAG_CELL | NODE_FLAG_NODE))
+        && NOT(v->header.bits & (NODE_FLAG_END | NODE_FLAG_FREE))
+    );
+
+    ASSERT_CELL_WRITABLE(out, __FILE__, __LINE__);
+
+    out->header.bits &= CELL_MASK_RESET;
+    out->header.bits |= v->header.bits & CELL_MASK_COPY;
+}
+
 
 // !!! Because you cannot assign REBVALs to one another (e.g. `*dest = *src`)
 // a function is used.  The reason that a function is used is because this
@@ -1501,18 +1536,7 @@ inline static void INIT_BINDING(RELVAL *v, void *p) {
 //
 inline static REBVAL *Move_Value(RELVAL *out, const REBVAL *v)
 {
-    assert(out != v); // usually a sign of a mistake; not worth supporting
-
-    assert(
-        ALL_VAL_FLAGS(v, NODE_FLAG_CELL | NODE_FLAG_NODE)
-        && NOT_VAL_FLAG(v, NODE_FLAG_FREE)
-    );
-    assert(NOT_END(v));
-    ASSERT_CELL_WRITABLE(out, __FILE__, __LINE__);
-    assert(NOT(out->header.bits & CELL_FLAG_PROTECTED));
-
-    out->header.bits &= CELL_MASK_RESET;
-    out->header.bits |= v->header.bits & CELL_MASK_COPY;
+    Move_Value_Header(out, v);
 
     out->payload = v->payload; // payloads cannot hold references to stackvars
 
@@ -1580,6 +1604,36 @@ inline static REBVAL *Move_Value(RELVAL *out, const REBVAL *v)
 }
 
 
+// Generally speaking, you cannot take a RELVAL from one cell and copy it
+// blindly into another...it needs to be Derelativize()'d.  This routine is
+// for the rare cases where it's legal, e.g. shuffling a cell from one place
+// in an array to another cell in the same array.
+//
+inline static void Blit_Cell(RELVAL *out, const RELVAL *v)
+{
+    assert(out != v); // usually a sign of a mistake; not worth supporting
+    assert(
+        (v->header.bits & (NODE_FLAG_CELL | NODE_FLAG_NODE))
+        && NOT(v->header.bits & (NODE_FLAG_END | NODE_FLAG_FREE))
+    );
+
+    ASSERT_CELL_WRITABLE(out, __FILE__, __LINE__);
+
+    // Examine just the cell's preparation bits.  Are they identical?  If so,
+    // we are not losing any information by blindly copying the header in
+    // the release build.
+    //
+    assert(
+        (out->header.bits & CELL_MASK_RESET)
+        == (v->header.bits & CELL_MASK_RESET)
+    );
+
+    out->header = v->header;
+    out->payload = v->payload;
+    out->extra = v->extra;
+}
+
+
 //
 // Rather than allow a REBVAL to be declared plainly as a local variable in
 // a C function, this macro provides a generic "constructor-like" hook.
@@ -1596,6 +1650,6 @@ inline static REBVAL *Move_Value(RELVAL *out, const REBVAL *v)
 //
 #define DECLARE_LOCAL(name) \
     REBSER name##_pair; \
-    *cast(RELVAL*, &name##_pair) = *BLANK_VALUE; /* => tbd: FS_TOP FRAME! */ \
+    Prep_Stack_Cell(cast(REBVAL*, &name##_pair)); /* tbd: FS_TOP FRAME! */ \
     REBVAL * const name = cast(REBVAL*, &name##_pair) + 1; \
     Prep_Stack_Cell(name)

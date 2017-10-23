@@ -179,7 +179,7 @@ REBINT Find_Key_Hashed(
         hash = zombie;
         n = hashes[hash];
         // new key overwrite zombie
-        *ARR_AT(array, (n - 1) * wide) = *key;
+        Derelativize(ARR_AT(array, (n - 1) * wide), key, specifier);
     }
     // Append new value the target series:
     if (mode > 1) {

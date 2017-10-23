@@ -147,7 +147,7 @@ static void Assert_Basics(void)
     // reading, so there's little danger of hitting this unless there's
     // a big change.
     //
-    assert(REB_MAX + 1 < 256);
+    assert(REB_MAX_PLUS_ONE_TRASH < 256);
 
     // Make sure tricks for "internal END markers" are lined up as expected.
     //
@@ -629,7 +629,7 @@ static REBARR *Startup_Natives(REBARR *boot_natives)
             ++item;
             if (!IS_BLOCK(body))
                 panic (body);
-            *FUNC_BODY(fun) = *body;
+            Move_Value(FUNC_BODY(fun), body);
         }
 
         Prep_Non_Stack_Cell(&Natives[n]);
