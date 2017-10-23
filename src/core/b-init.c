@@ -902,7 +902,7 @@ static void Init_System_Object(
         0 == CT_Context(
             Get_System(SYS_STANDARD, STD_FUNCTION_META),
             ROOT_FUNCTION_META,
-            TRUE
+            1 // "strict equality"
         )
     );
 

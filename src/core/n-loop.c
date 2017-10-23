@@ -1493,6 +1493,8 @@ inline static REB_R While_Until_Core(REBFRM *frame_, REBOOL trigger)
         }
 
     } while (TRUE);
+
+    DEAD_END;
 }
 
 

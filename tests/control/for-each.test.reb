@@ -132,7 +132,7 @@
             ])[
                 1 2 3 4
             ][
-                sum: sum + obj1/x + obj1/y
+                sum: sum + obj1/x + obj2/x
             ]
         ]
         sum = 10

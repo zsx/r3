@@ -797,6 +797,8 @@ static REBCNT Prescan_Token(SCAN_STATE *ss)
             break;
         }
     }
+
+    DEAD_END;
 }
 
 
@@ -1611,6 +1613,8 @@ static REBINT Scan_Head(SCAN_STATE *ss)
             break;
         }
     }
+
+    DEAD_END;
 }
 
 
