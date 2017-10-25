@@ -1361,7 +1361,7 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
     }
     out->extra.struct_offset = 0;
 
-    *ARR_HEAD(stu) = *out;
+    Move_Value(ARR_HEAD(stu), out);
     MANAGE_ARRAY(stu);
 }
 

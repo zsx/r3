@@ -1420,8 +1420,11 @@ REBNATIVE(subparse)
 
             REBSYM cmd = VAL_CMD(P_RULE);
             if (cmd != SYM_0) {
-                if (!IS_WORD(P_RULE))
-                    fail (Error_Parse_Command_Raw(P_RULE)); // COPY: :THRU ...
+                if (NOT(IS_WORD(P_RULE))) { // COPY: :THRU ...
+                    DECLARE_LOCAL (non_word);
+                    Derelativize(non_word, P_RULE, P_RULE_SPECIFIER);
+                    fail (Error_Parse_Command_Raw(non_word));
+                }
 
                 if (cmd <= SYM_BREAK) { // optimization
 
@@ -1452,11 +1455,17 @@ REBNATIVE(subparse)
                     set_or_copy_pre_rule:
                         FETCH_NEXT_RULE_MAYBE_END(f);
 
-                        if (!(IS_WORD(P_RULE) || IS_SET_WORD(P_RULE)))
-                            fail (Error_Parse_Variable_Raw(P_RULE));
+                        if (NOT(IS_WORD(P_RULE) || IS_SET_WORD(P_RULE))) {
+                            DECLARE_LOCAL (bad_var);
+                            Derelativize(bad_var, P_RULE, P_RULE_SPECIFIER);
+                            fail (Error_Parse_Variable_Raw(bad_var));
+                        }
 
-                        if (VAL_CMD(P_RULE))
-                            fail (Error_Parse_Command_Raw(P_RULE));
+                        if (VAL_CMD(P_RULE)) { // set set [...]
+                            DECLARE_LOCAL (keyword);
+                            Derelativize(keyword, P_RULE, P_RULE_SPECIFIER);
+                            fail (Error_Parse_Command_Raw(keyword));
+                        }
 
                         set_or_copy_word = P_RULE;
                         FETCH_NEXT_RULE_MAYBE_END(f);
@@ -1633,8 +1642,11 @@ REBNATIVE(subparse)
                 if (IS_GET_WORD(P_RULE)) {
                     DECLARE_LOCAL (temp);
                     Copy_Opt_Var_May_Fail(temp, P_RULE, P_RULE_SPECIFIER);
-                    if (!ANY_SERIES(temp)) // #1263
-                        fail (Error_Parse_Series_Raw(P_RULE));
+                    if (!ANY_SERIES(temp)) { // #1263
+                        DECLARE_LOCAL (non_series);
+                        Derelativize(non_series, P_RULE, P_RULE_SPECIFIER);
+                        fail (Error_Parse_Series_Raw(non_series));
+                    }
                     Set_Parse_Series(f, temp);
 
                     // !!! `continue` is used here without any post-"match"
@@ -1703,7 +1715,7 @@ REBNATIVE(subparse)
                 // but note the positions being returned and checked aren't
                 // prepared for this, they only exchange numbers ATM (!!!)
                 //
-                if (!ANY_SERIES(save))
+                if (NOT(ANY_SERIES(save)))
                     fail (Error_Parse_Series_Raw(save));
 
                 Set_Parse_Series(f, save);

@@ -515,7 +515,7 @@ static void ffi_to_rebol(
         out->payload.structure.data = data;
         out->extra.struct_offset = 0;
 
-        *ARR_HEAD(stu) = *out; // save canon value
+        Move_Value(ARR_HEAD(stu), out); // save canon value
         LINK(stu).schema = top;
         MANAGE_ARRAY(stu);
 

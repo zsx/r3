@@ -534,8 +534,11 @@ static void Collect_Context_Inner_Loop(
                 }
             }
             else { // Word is duplicated
-                if (flags & COLLECT_NO_DUP)
-                    fail (Error_Dup_Vars_Raw(value)); // cleans binding table
+                if (flags & COLLECT_NO_DUP) {
+                    DECLARE_LOCAL (dup);
+                    Init_Word(dup, VAL_WORD_SPELLING(value));
+                    fail (Error_Dup_Vars_Raw(dup)); // cleans binding table
+                }
             }
             continue;
         }

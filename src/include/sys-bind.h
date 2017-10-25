@@ -212,6 +212,103 @@ enum {
 };
 
 
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  COPYING RELATIVE VALUES TO SPECIFIC
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// This can be used to turn a RELVAL into a REBVAL.  If the RELVAL is indeed
+// relative and needs to be made specific to be put into the target, then the
+// specifier is used to do that.
+//
+// It is nearly as fast as just assigning the value directly in the release
+// build, though debug builds assert that the function in the specifier
+// indeed matches the target in the relative value (because relative values
+// in an array may only be relative to the function that deep copied them, and
+// that is the only kind of specifier you can use with them).
+//
+// Interface designed to line up with Move_Value()
+//
+
+inline static REBVAL *Derelativize(
+    RELVAL *out, // relative destinations are overwritten with specified value
+    const RELVAL *v,
+    REBSPC *specifier
+){
+    Move_Value_Header(out, v);
+
+    if (IS_SPECIFIC(v))
+        out->extra = v->extra;
+    else {
+        assert(ANY_WORD(v) || ANY_ARRAY(v));
+
+    #if !defined(NDEBUG)
+        if (specifier == SPECIFIED) {
+            printf("Relative item used with SPECIFIED\n");
+            panic (v);
+        }
+    #endif
+
+        if (specifier->header.bits & NODE_FLAG_CELL) {
+            REBFRM *f = cast(REBFRM*, specifier);
+
+        #if !defined(NDEBUG)
+            if (VAL_RELATIVE(v) != FRM_UNDERLYING(f)) {
+                printf("Function mismatch in specific binding (TBD)\n");
+                printf("Panic on relative value\n");
+                panic(v);
+            }
+        #endif
+
+            // !!! Very conservatively reify.  Should share logic with the
+            // innards of Move_Value().  Should specifier always be passed
+            // in writable so it can be updated too?
+            //
+            INIT_BINDING(out, Context_For_Frame_May_Reify_Managed(f));
+        }
+        else {
+        #if !defined(NDEBUG)
+            if (
+                VAL_RELATIVE(v) !=
+                VAL_FUNC(CTX_FRAME_FUNC_VALUE(CTX(specifier)))
+            ){
+                printf("Function mismatch in specific binding, expected:\n");
+                PROBE(FUNC_VALUE(VAL_RELATIVE(v)));
+                printf("Panic on relative value\n");
+                panic (v);
+            }
+        #endif
+            INIT_BINDING(out, specifier);
+        }
+    }
+
+    out->payload = v->payload;
+
+    // in case the caller had a relative value slot and wants to use its
+    // known non-relative form... this is inline, so no cost if not used.
+    //
+    return KNOWN(out);
+}
+
+
+// In the C++ build, defining this overload that takes a REBVAL* instead of
+// a RELVAL*, and then not defining it...will tell you that you do not need
+// to use Derelativize.  Juse Move_Value() if your source is a REBVAL!
+//
+#if defined(__cplusplus) && __cplusplus >= 201103L
+    REBVAL *Derelativize(RELVAL *dest, const REBVAL *v, REBSPC *specifier);
+#endif
+
+
+inline static void DS_PUSH_RELVAL(const RELVAL *v, REBSPC *specifier) {
+    ASSERT_VALUE_MANAGED(v); // would fail on END marker
+    DS_PUSH_TRASH;
+    Derelativize(DS_TOP, v, specifier);
+}
+
+
 //=////////////////////////////////////////////////////////////////////////=//
 //
 //  VARIABLE ACCESS
@@ -347,7 +444,9 @@ inline static REBVAL *Get_Var_Core(
         if (flags & GETVAR_END_IF_UNAVAILABLE)
             return m_cast(REBVAL*, END); // only const callers should use
 
-        fail (Error_Not_Bound_Raw(any_word));
+        DECLARE_LOCAL (unbound);
+        Init_Word(unbound, VAL_WORD_SPELLING(any_word));
+        fail (Error_Not_Bound_Raw(unbound));
     }
 
     if (CTX_VARS_UNAVAILABLE(context)) {
@@ -392,9 +491,11 @@ inline static REBVAL *Get_Var_Core(
         // The PROTECT command has a finer-grained granularity for marking
         // not just contexts, but individual fields as protected.
         //
-        if (GET_VAL_FLAG(var, CELL_FLAG_PROTECTED))
-            fail (Error_Protected_Word_Raw(any_word));
-
+        if (GET_VAL_FLAG(var, CELL_FLAG_PROTECTED)) {
+            DECLARE_LOCAL (unwritable);
+            Derelativize(unwritable, any_word, specifier);
+            fail (Error_Protected_Word_Raw(unwritable));
+        }
     }
 
     assert(!THROWN(var));
@@ -462,102 +563,6 @@ inline static REBSPC *Derive_Specifier(REBSPC *parent, const RELVAL *child) {
     if (IS_SPECIFIC(child))
         return VAL_SPECIFIER(const_KNOWN(child));
     return parent;
-}
-
-
-//=////////////////////////////////////////////////////////////////////////=//
-//
-//  COPYING RELATIVE VALUES TO SPECIFIC
-//
-//=////////////////////////////////////////////////////////////////////////=//
-//
-// This can be used to turn a RELVAL into a REBVAL.  If the RELVAL is indeed
-// relative and needs to be made specific to be put into the target, then the
-// specifier is used to do that.
-//
-// It is nearly as fast as just assigning the value directly in the release
-// build, though debug builds assert that the function in the specifier
-// indeed matches the target in the relative value (because relative values
-// in an array may only be relative to the function that deep copied them, and
-// that is the only kind of specifier you can use with them).
-//
-// Interface designed to line up with Move_Value()
-//
-
-inline static REBVAL *Derelativize(
-    RELVAL *out, // relative destinations are overwritten with specified value
-    const RELVAL *v,
-    REBSPC *specifier
-){
-    Move_Value_Header(out, v);
-
-    if (IS_SPECIFIC(v))
-        out->extra = v->extra;
-    else {
-        assert(ANY_WORD(v) || ANY_ARRAY(v));
-
-    #if !defined(NDEBUG)
-        if (specifier == SPECIFIED) {
-            printf("Relative item used with SPECIFIED\n");
-            panic (v);
-        }
-    #endif
-
-        if (specifier->header.bits & NODE_FLAG_CELL) {
-            REBFRM *f = cast(REBFRM*, specifier);
-
-        #if !defined(NDEBUG)
-            if (VAL_RELATIVE(v) != FRM_UNDERLYING(f)) {
-                printf("Function mismatch in specific binding (TBD)\n");
-                printf("Panic on relative value\n");
-                panic(v);
-            }
-        #endif
-
-            // !!! Very conservatively reify.  Should share logic with the
-            // innards of Move_Value().  Should specifier always be passed
-            // in writable so it can be updated too?
-            //
-            INIT_BINDING(out, Context_For_Frame_May_Reify_Managed(f));
-        }
-        else {
-        #if !defined(NDEBUG)
-            if (
-                VAL_RELATIVE(v) !=
-                VAL_FUNC(CTX_FRAME_FUNC_VALUE(CTX(specifier)))
-            ){
-                printf("Function mismatch in specific binding, expected:\n");
-                PROBE(FUNC_VALUE(VAL_RELATIVE(v)));
-                printf("Panic on relative value\n");
-                panic (v);
-            }
-        #endif
-            INIT_BINDING(out, specifier);
-        }
-    }
-
-    out->payload = v->payload;
-
-    // in case the caller had a relative value slot and wants to use its
-    // known non-relative form... this is inline, so no cost if not used.
-    //
-    return KNOWN(out);
-}
-
-
-// In the C++ build, defining this overload that takes a REBVAL* instead of
-// a RELVAL*, and then not defining it...will tell you that you do not need
-// to use Derelativize.  Juse Move_Value() if your source is a REBVAL!
-//
-#if defined(__cplusplus) && __cplusplus >= 201103L
-    REBVAL *Derelativize(RELVAL *dest, const REBVAL *v, REBSPC *specifier);
-#endif
-
-
-inline static void DS_PUSH_RELVAL(const RELVAL *v, REBSPC *specifier) {
-    ASSERT_VALUE_MANAGED(v); // would fail on END marker
-    DS_PUSH_TRASH;
-    Derelativize(DS_TOP, v, specifier);
 }
 
 

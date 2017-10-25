@@ -126,15 +126,21 @@ REBNATIVE(load_extension_helper)
                 // do some sanity checking, just to avoid crashing if
                 // system/extensions was messed up
 
-                if (!IS_OBJECT(item))
-                    fail(Error_Bad_Extension_Raw(item));
+                if (!IS_OBJECT(item)) {
+                    DECLARE_LOCAL (bad);
+                    Derelativize(bad, item, VAL_SPECIFIER(loaded_exts));
+                    fail(Error_Bad_Extension_Raw(bad));
+                }
 
                 REBCTX *item_ctx = VAL_CONTEXT(item);
-                if ((CTX_LEN(item_ctx) <= STD_EXTENSION_LIB_BASE)
+                if (
+                    CTX_LEN(item_ctx) <= STD_EXTENSION_LIB_BASE
                     || CTX_KEY_SPELLING(item_ctx, STD_EXTENSION_LIB_BASE)
                     != CTX_KEY_SPELLING(std_ext_ctx, STD_EXTENSION_LIB_BASE)
-                    ) {
-                    fail(Error_Bad_Extension_Raw(item));
+                ){
+                    DECLARE_LOCAL (bad);
+                    Derelativize(bad, item, VAL_SPECIFIER(loaded_exts));
+                    fail(Error_Bad_Extension_Raw(bad));
                 }
                 else {
                     if (IS_BLANK(CTX_VAR(item_ctx, STD_EXTENSION_LIB_BASE)))

@@ -386,18 +386,26 @@ REBNATIVE(compile)
     RELVAL *options = NULL;
     RELVAL *rundir = NULL;
 
+    REBSPC *specifier = VAL_SPECIFIER(ARG(flags));
+
     if (REF(options)) {
         RELVAL *val = VAL_ARRAY_AT(ARG(flags));
 
         for (; NOT_END(val); ++val) {
-            if (!IS_WORD(val))
-                fail (Error_Tcc_Expect_Word_Raw(val));
+            if (!IS_WORD(val)) {
+                DECLARE_LOCAL (non_word);
+                Derelativize(non_word, val, specifier);
+                fail (Error_Tcc_Expect_Word_Raw(non_word));
+            }
 
             switch (VAL_WORD_SYM(val)) {
             case SYM_INCLUDE:
                 ++val;
-                if (!(IS_BLOCK(val) || IS_FILE(val) || ANY_STRING(val)))
-                    fail (Error_Tcc_Invalid_Include_Raw(val));
+                if (!(IS_BLOCK(val) || IS_FILE(val) || ANY_STRING(val))) {
+                    DECLARE_LOCAL (include);
+                    Derelativize(include, val, specifier);
+                    fail (Error_Tcc_Invalid_Include_Raw(include));
+                }
                 inc = val;
                 break;
 
@@ -407,34 +415,48 @@ REBNATIVE(compile)
 
             case SYM_OPTIONS:
                 ++val;
-                if (!ANY_STRING(val) || !VAL_BYTE_SIZE(val))
-                    fail (Error_Tcc_Invalid_Options_Raw(val));
+                if (!ANY_STRING(val) || !VAL_BYTE_SIZE(val)) {
+                    DECLARE_LOCAL (option);
+                    Derelativize(option, val, specifier);
+                    fail (Error_Tcc_Invalid_Options_Raw(option));
+                }
                 options = val;
                 break;
 
             case SYM_RUNTIME_PATH:
                 ++val;
-                if (!(IS_FILE(val) || IS_STRING(val)))
-                    fail (Error_Tcc_Invalid_Library_Path_Raw(val));
+                if (!(IS_FILE(val) || IS_STRING(val))) {
+                    DECLARE_LOCAL (path);
+                    Derelativize(path, val, specifier);
+                    fail (Error_Tcc_Invalid_Library_Path_Raw(path));
+                }
                 rundir = val;
                 break;
 
             case SYM_LIBRARY_PATH:
                 ++val;
-                if (!(IS_BLOCK(val) || IS_FILE(val) || ANY_STRING(val)))
-                    fail (Error_Tcc_Invalid_Library_Path_Raw(val));
+                if (!(IS_BLOCK(val) || IS_FILE(val) || ANY_STRING(val))) {
+                    DECLARE_LOCAL (path);
+                    Derelativize(path, val, specifier);
+                    fail (Error_Tcc_Invalid_Library_Path_Raw(path));
+                }
                 libdir = val;
                 break;
 
             case SYM_LIBRARY:
                 ++val;
-                if (!(IS_BLOCK(val) || IS_FILE(val) || ANY_STRING(val)))
-                    fail (Error_Tcc_Invalid_Library_Raw(val));
+                if (!(IS_BLOCK(val) || IS_FILE(val) || ANY_STRING(val))) {
+                    DECLARE_LOCAL (library);
+                    Derelativize(library, val, specifier);
+                    fail (Error_Tcc_Invalid_Library_Raw(library));
+                }
                 lib = val;
                 break;
 
-            default:
-                fail (Error_Tcc_Not_Supported_Opt_Raw(val));
+            default: {
+                DECLARE_LOCAL (bad);
+                Derelativize(bad, val, specifier);
+                fail (Error_Tcc_Not_Supported_Opt_Raw(bad)); }
             }
         }
     }
@@ -650,9 +672,9 @@ REBNATIVE(compile)
         assert(IS_FUNCTION(var));
         assert(GET_VAL_FLAG(var, FUNC_FLAG_USER_NATIVE));
 
-        RELVAL *info = VAL_FUNC_BODY(var);
-        RELVAL *name = VAL_ARRAY_AT_HEAD(info, 1);
-        RELVAL *stored_state = VAL_ARRAY_AT_HEAD(info, 2);
+        REBVAL *info = KNOWN(VAL_FUNC_BODY(var));
+        REBVAL *name = KNOWN(VAL_ARRAY_AT_HEAD(info, 1));
+        REBVAL *stored_state = KNOWN(VAL_ARRAY_AT_HEAD(info, 2));
 
         REBCNT index;
         REBSER *utf8 = Temp_Bin_Str_Managed(name, &index, 0);

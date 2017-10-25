@@ -546,8 +546,26 @@ available-modules: reduce [
         name: 'LodePNG
         source: %png/mod-lodepng.c
         definitions: copy [
+            ;
+            ; Rebol already includes zlib, and LodePNG is hooked to that
+            ; copy of zlib exported as part of the internal API.
+            ;
             "LODEPNG_NO_COMPILE_ZLIB"
+
+            ; LodePNG doesn't take a target buffer pointer to compress "into".
+            ; Instead, you hook it by giving it an allocator.  The one used
+            ; by Rebol backs the memory with a series, so that the image data
+            ; may be registered with the garbage collector.
+            ;
             "LODEPNG_NO_COMPILE_ALLOCATORS"
+
+            ; With LodePNG, using C++ compilation creates a dependency on
+            ; std::vector.  This is conditional on __cplusplus, but there's
+            ; an #ifdef saying that even if you're compiling as C++ to not
+            ; do this.  It's not an interesting debug usage of C++, however,
+            ; so there's no reason to be doing it.
+            ;
+            "LODEPNG_NO_COMPILE_CPP"
         ]
         depends: [
             [

@@ -148,95 +148,93 @@ static int sig_word_num(REBSTR *canon)
 //
 static REB_R Signal_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 {
-    REBINT result;
-    REBVAL *arg;
-    REBINT len;
-    REBSER *ser;
-    REBVAL *spec;
-    REBVAL *val;
-    RELVAL *sig;
-
     REBREQ *req = Ensure_Port_State(port, RDI_SIGNAL);
     struct devreq_posix_signal *signal = DEVREQ_POSIX_SIGNAL(req);
-    spec = CTX_VAR(port, STD_PORT_SPEC);
+
+    REBVAL *spec = CTX_VAR(port, STD_PORT_SPEC);
 
     if (!IS_OPEN(req)) {
         switch (action) {
-            case SYM_READ:
-            case SYM_OPEN:
-                val = Obj_Value(spec, STD_PORT_SPEC_SIGNAL_MASK);
-                if (!IS_BLOCK(val))
-                    fail (Error_Invalid_Spec_Raw(val));
+        case SYM_READ:
+        case SYM_OPEN: {
+            REBVAL *val = Obj_Value(spec, STD_PORT_SPEC_SIGNAL_MASK);
+            if (!IS_BLOCK(val))
+                fail (Error_Invalid_Spec_Raw(val));
 
-                sigemptyset(&signal->mask);
-                for(sig = VAL_ARRAY_AT_HEAD(val, 0); NOT_END(sig); sig ++) {
-                    if (IS_WORD(sig)) {
-                        /* handle the special word "ALL" */
-                        if (VAL_WORD_SYM(sig) == SYM_ALL) {
-                            if (sigfillset(&signal->mask) < 0) {
-                                // !!! Needs better error
-                                fail (Error_Invalid_Spec_Raw(sig));
-                            }
-                            break;
-                        }
+            sigemptyset(&signal->mask);
 
-                        if (
-                            sigaddset(
-                                &signal->mask,
-                                sig_word_num(VAL_WORD_CANON(sig))
-                            ) < 0
-                        ) {
-                            fail (Error_Invalid_Spec_Raw(sig));
-                        }
-                    }
-                    else
+            RELVAL *item;
+            for (item = VAL_ARRAY_AT_HEAD(val, 0); NOT_END(item); ++item) {
+                DECLARE_LOCAL (sig);
+                Derelativize(sig, item, VAL_SPECIFIER(val));
+
+                if (NOT(IS_WORD(sig)))
+                    fail (Error_Invalid_Spec_Raw(sig));
+
+                if (VAL_WORD_SYM(sig) == SYM_ALL) {
+                    if (sigfillset(&signal->mask) < 0)
                         fail (Error_Invalid_Spec_Raw(sig));
+                    break;
                 }
 
-                if (OS_DO_DEVICE(req, RDC_OPEN))
-                    fail (Error_On_Port(RE_CANNOT_OPEN, port, req->error));
-                if (action == SYM_OPEN) {
-                    Move_Value(D_OUT, D_ARG(1)); // port
-                    return R_OUT;
+                if (
+                    sigaddset(
+                        &signal->mask,
+                        sig_word_num(VAL_WORD_CANON(sig))
+                    ) < 0
+                ){
+                    fail (Error_Invalid_Spec_Raw(sig));
                 }
-                break;
+            }
 
-            case SYM_CLOSE:
+            if (OS_DO_DEVICE(req, RDC_OPEN))
+                fail (Error_On_Port(RE_CANNOT_OPEN, port, req->error));
+            
+            if (action == SYM_OPEN) {
+                Move_Value(D_OUT, D_ARG(1)); // port
                 return R_OUT;
+            }
+            break; }
 
-            case SYM_OPEN_Q:
-                return R_FALSE;
+        case SYM_CLOSE:
+            return R_OUT;
 
-            case SYM_ON_WAKE_UP:  // allowed after a close
-                break;
+        case SYM_OPEN_Q:
+            return R_FALSE;
 
-            default:
-                fail (Error_On_Port(RE_NOT_OPEN, port, -12));
+        case SYM_ON_WAKE_UP:  // allowed after a close
+            break;
+
+        default:
+            fail (Error_On_Port(RE_NOT_OPEN, port, -12));
         }
     }
 
     switch (action) {
-        case SYM_ON_WAKE_UP:
+        case SYM_ON_WAKE_UP: {
+            //
             // Update the port object after a READ or WRITE operation.
             // This is normally called by the WAKE-UP function.
-            arg = CTX_VAR(port, STD_PORT_DATA);
+            //
+            REBVAL *arg = CTX_VAR(port, STD_PORT_DATA);
             if (req->command == RDC_READ) {
-                len = req->actual;
+                REBINT len = req->actual;
                 if (len > 0) {
                     update(signal, len, arg);
                 }
             }
-            return R_BLANK;
+            return R_BLANK; }
 
-        case SYM_READ:
+        case SYM_READ: {
             // This device is opened on the READ:
             // Issue the read request:
-            arg = CTX_VAR(port, STD_PORT_DATA);
+            REBVAL *arg = CTX_VAR(port, STD_PORT_DATA);
 
-            len = req->length = 8;
-            ser = Make_Binary(len * sizeof(siginfo_t));
+            REBINT len = req->length = 8;
+            REBSER *ser = Make_Binary(len * sizeof(siginfo_t));
             req->common.data = BIN_HEAD(ser);
-            result = OS_DO_DEVICE(req, RDC_READ);
+
+            REBINT result = OS_DO_DEVICE(req, RDC_READ);
             if (result < 0) {
                 Free_Series(ser);
                 fail (Error_On_Port(RE_READ_ERROR, port, req->error));
@@ -248,15 +246,15 @@ static REB_R Signal_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
             len = req->actual;
 
-            if (len > 0) {
-                update(signal, len, arg);
-                Free_Series(ser);
-                Move_Value(D_OUT, arg);
-                return R_OUT;
-            } else {
+            if (len <= 0) {
                 Free_Series(ser);
                 return R_BLANK;
             }
+
+            update(signal, len, arg);
+            Free_Series(ser);
+            Move_Value(D_OUT, arg);
+            return R_OUT; }
 
         case SYM_CLOSE:
             OS_DO_DEVICE(req, RDC_CLOSE);
