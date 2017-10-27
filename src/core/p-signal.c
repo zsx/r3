@@ -189,7 +189,7 @@ static REB_R Signal_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
             if (OS_DO_DEVICE(req, RDC_OPEN))
                 fail (Error_On_Port(RE_CANNOT_OPEN, port, req->error));
-            
+
             if (action == SYM_OPEN) {
                 Move_Value(D_OUT, D_ARG(1)); // port
                 return R_OUT;

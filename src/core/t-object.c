@@ -140,15 +140,19 @@ static void Append_To_Context(REBCTX *context, REBVAL *arg)
 
     RELVAL *item = VAL_ARRAY_AT(arg);
 
-    struct Reb_Binder binder;
-    INIT_BINDER(&binder);
+    struct Reb_Collector collector;
+    Collect_Start(&collector, COLLECT_ANY_WORD | COLLECT_AS_TYPESET);
 
-    Collect_Keys_Start(COLLECT_ANY_WORD);
+    // Leave the [0] slot blank while collecting (ROOTKEY/ROOTPARAM), but
+    // valid (but "unreadable") bits so that the copy will still work.
+    //
+    Init_Unreadable_Blank(ARR_HEAD(BUF_COLLECT));
+    SET_ARRAY_LEN_NOTERM(BUF_COLLECT, 1);
 
     // Setup binding table with obj words.  Binding table is empty so don't
     // bother checking for duplicates.
     //
-    Collect_Context_Keys(&binder, context, FALSE);
+    Collect_Context_Keys(&collector, context, FALSE);
 
     // Examine word/value argument block
 
@@ -159,7 +163,9 @@ static void Append_To_Context(REBCTX *context, REBVAL *arg)
 
         REBSTR *canon = VAL_WORD_CANON(word);
 
-        if (Try_Add_Binder_Index(&binder, canon, ARR_LEN(BUF_COLLECT))) {
+        if (Try_Add_Binder_Index(
+            &collector.binder, canon, ARR_LEN(BUF_COLLECT))
+        ){
             //
             // Wasn't already collected...so we added it...
             //
@@ -168,7 +174,8 @@ static void Append_To_Context(REBCTX *context, REBVAL *arg)
                 ARR_LAST(BUF_COLLECT), ALL_64, VAL_WORD_SPELLING(word)
             );
         }
-        if (IS_END(word + 1)) break; // fix bug#708
+        if (IS_END(word + 1))
+            break; // fix bug#708
     }
 
     TERM_ARRAY_LEN(BUF_COLLECT, ARR_LEN(BUF_COLLECT));
@@ -190,7 +197,9 @@ static void Append_To_Context(REBCTX *context, REBVAL *arg)
 
     // Set new values to obj words
     for (word = item; NOT_END(word); word += 2) {
-        REBCNT i = Get_Binder_Index_Else_0(&binder, VAL_WORD_CANON(word));
+        REBCNT i = Get_Binder_Index_Else_0(
+            &collector.binder, VAL_WORD_CANON(word)
+        );
         assert(i != 0);
 
         REBVAL *key = CTX_KEY(context, i);
@@ -217,10 +226,7 @@ static void Append_To_Context(REBCTX *context, REBVAL *arg)
         }
     }
 
-    // release binding table
-    Collect_Keys_End(&binder);
-
-    SHUTDOWN_BINDER(&binder);
+    Collect_End(&collector);
 }
 
 

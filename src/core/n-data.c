@@ -416,37 +416,20 @@ REBNATIVE(collect_words)
 {
     INCLUDE_PARAMS_OF_COLLECT_WORDS;
 
-    REBARR *words;
-    REBCNT modes;
-    RELVAL *values = VAL_ARRAY_AT(ARG(block));
-    RELVAL *prior_values;
-
+    REBFLGS flags;
     if (REF(set))
-        modes = COLLECT_ONLY_SET_WORDS;
+        flags = COLLECT_ONLY_SET_WORDS;
     else
-        modes = COLLECT_ANY_WORD;
+        flags = COLLECT_ANY_WORD;
 
-    if (REF(deep)) modes |= COLLECT_DEEP;
+    if (REF(deep))
+        flags |= COLLECT_DEEP;
 
-    // If ignore, then setup for it:
-    if (REF(ignore)) {
-        if (ANY_CONTEXT(ARG(hidden))) {
-            //
-            // !!! These are typesets and not words.  Is Collect_Words able
-            // to handle that?
-            //
-            prior_values = CTX_KEYS_HEAD(VAL_CONTEXT(ARG(hidden)));
-        }
-        else {
-            assert(IS_BLOCK(ARG(hidden)));
-            prior_values = VAL_ARRAY_AT(ARG(hidden));
-        }
-    }
-    else
-        prior_values = NULL;
+    UNUSED(REF(ignore)); // implied used or unused by ARG(hidden)'s voidness
 
-    words = Collect_Words(values, prior_values, modes);
-    Init_Block(D_OUT, words);
+    RELVAL *head = VAL_ARRAY_AT(ARG(block));
+
+    Init_Block(D_OUT, Collect_Unique_Words_Managed(head, flags, ARG(hidden)));
     return R_OUT;
 }
 

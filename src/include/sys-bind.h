@@ -86,13 +86,29 @@ struct Reb_Binder {
 #if !defined(NDEBUG)
     REBCNT count;
 #endif
+
+#if !defined(NDEBUG) && defined(__cplusplus)
+    //
+    // The C++ debug build can help us make sure that no binder ever fails to
+    // get an INIT_BINDER() and SHUTDOWN_BINDER() pair called on it, which
+    // would leave lingering binding values on REBSER nodes.
+    //
+    REBOOL initialized;
+    Reb_Binder () { initialized = FALSE; }
+    ~Reb_Binder () { assert(initialized == FALSE); }
+#endif
 };
 
 
 inline static void INIT_BINDER(struct Reb_Binder *binder) {
     binder->high = TRUE; //LOGICAL(SPORADICALLY(2)); sporadic?
+
 #if !defined(NDEBUG)
     binder->count = 0;
+
+    #if defined(__cplusplus)
+        binder->initialized = TRUE;
+    #endif
 #endif
 }
 
@@ -102,6 +118,10 @@ inline static void SHUTDOWN_BINDER(struct Reb_Binder *binder) {
     UNUSED(binder);
 #else
     assert(binder->count == 0);
+
+    #if defined(__cplusplus)
+        binder->initialized = FALSE;
+    #endif
 #endif
 }
 
@@ -208,9 +228,16 @@ enum {
     COLLECT_ANY_WORD = 1 << 1,
     COLLECT_DEEP = 1 << 2,
     COLLECT_NO_DUP = 1 << 3, // Do not allow dups during collection (for specs)
-    COLLECT_ENSURE_SELF = 1 << 4 // !!! Ensure SYM_SELF in context (temp)
+    COLLECT_ENSURE_SELF = 1 << 4, // !!! Ensure SYM_SELF in context (temp)
+    COLLECT_AS_TYPESET = 1 << 5
 };
 
+struct Reb_Collector {
+    REBFLGS flags;
+    REBDSP dsp_orig;
+    struct Reb_Binder binder;
+    REBCNT index;
+};
 
 
 //=////////////////////////////////////////////////////////////////////////=//

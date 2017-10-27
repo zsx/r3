@@ -82,6 +82,7 @@
     typedef struct Reb_Frame REBFRM;
 
     struct Reb_Binder; // used as argument in %tmp-funcs.h, needs forward decl
+    struct Reb_Collector; // same
 
     struct Reb_Path_Value_State;
     typedef struct Reb_Path_Value_State REBPVS;

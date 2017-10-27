@@ -292,10 +292,10 @@ REBCTX *Copy_Context_Shallow_Extra(REBCTX *src, REBCNT extra) {
 
 
 //
-//  Collect_Keys_Start: C
+//  Collect_Start: C
 //
-// Use the Bind_Table to start collecting new keys for a context.
-// Use Collect_Keys_End() when done.
+// Begin using a "binder" to start mapping canon symbol names to integer
+// indices.  Use Collect_End() to free the map.
 //
 // WARNING: This routine uses the shared BUF_COLLECT rather than
 // targeting a new series directly.  This way a context can be
@@ -303,95 +303,67 @@ REBCTX *Copy_Context_Shallow_Extra(REBCTX *src, REBCNT extra) {
 // Therefore do not call code that might call BIND or otherwise
 // make use of the Bind_Table or BUF_COLLECT.
 //
-void Collect_Keys_Start(REBFLGS flags)
+void Collect_Start(struct Reb_Collector* collector, REBFLGS flags)
 {
-    assert(ARR_LEN(BUF_COLLECT) == 0); // should be empty
-    UNUSED(flags); // not paid attention to for _Start at this time
+    collector->flags = flags;
+    collector->dsp_orig = DSP;
+    collector->index = 1;
+    INIT_BINDER(&collector->binder);
 
-    // Leave the [0] slot blank while collecting.  This will become the
-    // "rootparam" in function paramlists (where the FUNCTION! archetype
-    // value goes), the [0] slot in varlists (where the ANY-CONTEXT! archetype
-    // goes), and the [0] slot in keylists (which sometimes are FUNCTION! if
-    // it's a FRAME! context...and not yet used in other context types)
-    //
-    // The reason it is set to an unreadable blank is because if it were trash
-    // then the copy routine that grabs the varlist as a copy of this array
-    // would have to support copying trash--which they do not allow.
-    //
-    Init_Unreadable_Blank(ARR_HEAD(BUF_COLLECT));
-    SET_ARRAY_LEN_NOTERM(BUF_COLLECT, 1);
+    assert(ARR_LEN(BUF_COLLECT) == 0); // should be empty
 }
 
 
 //
-//  Grab_Collected_Keylist_Managed: C
+//  Grab_Collected_Array_Managed: C
 //
-// The BUF_COLLECT is used to gather keys, which may wind up not requiring any
-// new keys from the `prior` that was passed in.  If this is the case, then
-// that prior keylist is returned...otherwise a new one is created.
-//
-// !!! "Grab" is used because "Copy_Or_Reuse" is long, and is picked to draw
-// attention to look at the meaning.  Better short communicative name?
-//
-REBARR *Grab_Collected_Keylist_Managed(REBCTX *prior)
+REBARR *Grab_Collected_Array_Managed(struct Reb_Collector *collector)
 {
-    REBARR *keylist;
+    UNUSED(collector); // not needed at the moment
 
     // We didn't terminate as we were collecting, so terminate now.
     //
-    assert(ARR_LEN(BUF_COLLECT) >= 1); // always at least [0] for rootkey
     TERM_ARRAY_LEN(BUF_COLLECT, ARR_LEN(BUF_COLLECT));
-
-#if !defined(NDEBUG)
-    //
-    // When the key collecting is done, we may be asked to give back a keylist
-    // and when we do, if nothing was added beyond the `prior` then that will
-    // be handed back.  The array handed back will always be managed, so if
-    // we create it then it will be, and if we reuse the prior it will be.
-    //
-    if (prior) ASSERT_ARRAY_MANAGED(CTX_KEYLIST(prior));
-#endif
 
     // If no new words, prior context.  Note length must include the slot
     // for the rootkey...and note also this means the rootkey cell *may*
     // be shared between all keylists when you pass in a prior.
     //
-    if (prior && ARR_LEN(BUF_COLLECT) == CTX_LEN(prior) + 1) {
-        keylist = CTX_KEYLIST(prior);
-    }
-    else {
-        // The BUF_COLLECT should contain only typesets, so no relative values
-        //
-        keylist = Copy_Array_Shallow(BUF_COLLECT, SPECIFIED);
-        MANAGE_ARRAY(keylist);
-    }
+    // All collected values should have been fully specified.
+    //
+    REBARR *array = Copy_Array_Shallow(BUF_COLLECT, SPECIFIED);
+    MANAGE_ARRAY(array);
 
-    LINK(keylist).meta = NULL; // clear meta object (GC sees this)
-
-    return keylist;
+    return array;
 }
 
 
 //
-//  Collect_Keys_End: C
+//  Collect_End: C
 //
-// Free the Bind_Table for reuse and empty the BUF_COLLECT.
+// Reset the bind markers in the canon series nodes so they can be reused,
+// and empty the BUF_COLLECT.
 //
-void Collect_Keys_End(struct Reb_Binder *binder)
+void Collect_End(struct Reb_Collector *cl)
 {
     // We didn't terminate as we were collecting, so terminate now.
     //
-    assert(ARR_LEN(BUF_COLLECT) >= 1); // always at least [0] for rootkey
     TERM_ARRAY_LEN(BUF_COLLECT, ARR_LEN(BUF_COLLECT));
 
     // Reset binding table (note BUF_COLLECT may have expanded)
     //
-    RELVAL *key;
-    for (key = ARR_HEAD(BUF_COLLECT) + 1; NOT_END(key); key++) {
-        REBSTR *canon = VAL_KEY_CANON(key);
+    RELVAL *v =
+        (cl == NULL || cl->flags & COLLECT_AS_TYPESET)
+            ? ARR_HEAD(BUF_COLLECT) + 1
+            : ARR_HEAD(BUF_COLLECT);
+    for (; NOT_END(v); ++v) {
+        REBSTR *canon =
+            (cl == NULL || cl->flags & COLLECT_AS_TYPESET)
+                ? VAL_KEY_CANON(v)
+                : VAL_WORD_CANON(v);
 
-        if (binder != NULL) {
-            Remove_Binder_Index(binder, canon);
+        if (cl != NULL) {
+            Remove_Binder_Index(&cl->binder, canon);
             continue;
         }
 
@@ -410,6 +382,9 @@ void Collect_Keys_End(struct Reb_Binder *binder)
     }
 
     SET_ARRAY_LEN_NOTERM(BUF_COLLECT, 0);
+
+    if (cl != NULL)
+        SHUTDOWN_BINDER(&cl->binder);
 }
 
 
@@ -421,20 +396,20 @@ void Collect_Keys_End(struct Reb_Binder *binder)
 // be unique and copied in using `memcpy` as an optimization.
 //
 void Collect_Context_Keys(
-    struct Reb_Binder *binder,
+    struct Reb_Collector *cl,
     REBCTX *context,
     REBOOL check_dups
-) {
+){
+    assert(cl->flags & COLLECT_AS_TYPESET);
+
     REBVAL *key = CTX_KEYS_HEAD(context);
-    REBINT bind_index = ARR_LEN(BUF_COLLECT);
-    RELVAL *collect; // can't set until after potential expansion...
 
     // The BUF_COLLECT buffer should at least have the SYM_0 in its first slot
     // to use as a "rootkey" in the generated keylist (and also that the first
     // binding index we give out is at least 1, since 0 is used in the
     // Bind_Table to mean "word not collected yet").
     //
-    assert(bind_index >= 1);
+    assert(cl->index >= 1);
 
     // this is necessary for memcpy below to not overwrite memory BUF_COLLECT
     // does not own.  (It may make the buffer capacity bigger than necessary
@@ -448,8 +423,8 @@ void Collect_Context_Keys(
     // and now that the expansion is done, get the pointer to where we want
     // to start collecting new typesets.
     //
-    SET_ARRAY_LEN_NOTERM(BUF_COLLECT, bind_index);
-    collect = ARR_TAIL(BUF_COLLECT);
+    SET_ARRAY_LEN_NOTERM(BUF_COLLECT, cl->index);
+    RELVAL *collected = ARR_TAIL(BUF_COLLECT);
 
     if (check_dups) {
         // We're adding onto the end of the collect buffer and need to
@@ -457,7 +432,7 @@ void Collect_Context_Keys(
         //
         for (; NOT_END(key); key++) {
             REBSTR *canon = VAL_KEY_CANON(key);
-            if (NOT(Try_Add_Binder_Index(binder, canon, bind_index))) {
+            if (NOT(Try_Add_Binder_Index(&cl->binder, canon, cl->index))) {
                 //
                 // If we found the typeset's symbol in the bind table already
                 // then don't collect it in the buffer again.
@@ -465,14 +440,14 @@ void Collect_Context_Keys(
                 continue;
             }
 
-            ++bind_index;
+            ++cl->index;
 
             // !!! At the moment objects do not heed the typesets in the
             // keys.  If they did, what sort of rule should the typesets
             // have when being inherited?
             //
-            Move_Value(collect, key);
-            ++collect;
+            Move_Value(collected, key);
+            ++collected;
         }
 
         // Increase the length of BUF_COLLLECT by how far `collect` advanced
@@ -480,7 +455,7 @@ void Collect_Context_Keys(
         //
         SET_ARRAY_LEN_NOTERM(
             BUF_COLLECT,
-            ARR_LEN(BUF_COLLECT) + (collect - ARR_TAIL(BUF_COLLECT))
+            ARR_LEN(BUF_COLLECT) + (collected - ARR_TAIL(BUF_COLLECT))
         );
     }
     else {
@@ -492,13 +467,13 @@ void Collect_Context_Keys(
         // (prior to that, the tail should be on the END marker of
         // the existing content--if any)
         //
-        memcpy(collect, key, CTX_LEN(context) * sizeof(REBVAL));
+        memcpy(collected, key, CTX_LEN(context) * sizeof(REBVAL));
         SET_ARRAY_LEN_NOTERM(
             BUF_COLLECT, ARR_LEN(BUF_COLLECT) + CTX_LEN(context)
         );
 
-        for (; NOT_END(key); ++key, ++bind_index)
-            Add_Binder_Index(binder, VAL_KEY_CANON(key), bind_index);
+        for (; NOT_END(key); ++key, ++cl->index)
+            Add_Binder_Index(&cl->binder, VAL_KEY_CANON(key), cl->index);
     }
 
     // BUF_COLLECT doesn't get terminated as its being built, but it gets
@@ -507,44 +482,55 @@ void Collect_Context_Keys(
 
 
 //
-//  Collect_Context_Inner_Loop: C
+//  Collect_Inner_Loop: C
 //
-// The inner recursive loop used for Collect_Context function below.
+// The inner recursive loop used for collecting context keys or ANY-WORD!s.
 //
-static void Collect_Context_Inner_Loop(
-    struct Reb_Binder *binder,
-    const RELVAL head[],
-    REBFLGS flags
-) {
-    const RELVAL *value = head;
-    for (; NOT_END(value); value++) {
-        if (ANY_WORD(value)) {
-            REBSTR *canon = VAL_WORD_CANON(value);
-            if (Get_Binder_Index_Else_0(binder, canon) == 0) {
-                // once per word
-                if (IS_SET_WORD(value) || (flags & COLLECT_ANY_WORD)) {
-                    Add_Binder_Index(binder, canon, ARR_LEN(BUF_COLLECT));
-                    EXPAND_SERIES_TAIL(SER(BUF_COLLECT), 1);
-                    Init_Typeset(
-                        ARR_LAST(BUF_COLLECT),
-                        // Allow all datatypes but no void (initially):
-                        ~FLAGIT_KIND(REB_MAX_VOID),
-                        VAL_WORD_SPELLING(value)
-                    );
+static void Collect_Inner_Loop(struct Reb_Collector *cl, const RELVAL head[])
+{
+    const RELVAL *v = head;
+    for (; NOT_END(v); ++v) {
+        enum Reb_Kind kind = VAL_TYPE(v);
+        if (ANY_WORD_KIND(kind)) {
+            if (kind != REB_SET_WORD && NOT(cl->flags & COLLECT_ANY_WORD))
+                continue; // kind of word we're not interested in collecting
+
+            REBSTR *canon = VAL_WORD_CANON(v);
+            if (NOT(Try_Add_Binder_Index(&cl->binder, canon, cl->index))) {
+                if (cl->flags & COLLECT_NO_DUP) {
+                    DECLARE_LOCAL (duplicate);
+                    Init_Word(duplicate, VAL_WORD_SPELLING(v));
+                    fail (Error_Dup_Vars_Raw(duplicate)); // cleans bindings
                 }
+                continue; // tolerate duplicate
             }
-            else { // Word is duplicated
-                if (flags & COLLECT_NO_DUP) {
-                    DECLARE_LOCAL (dup);
-                    Init_Word(dup, VAL_WORD_SPELLING(value));
-                    fail (Error_Dup_Vars_Raw(dup)); // cleans binding table
-                }
-            }
+
+            ++cl->index;
+
+            EXPAND_SERIES_TAIL(SER(BUF_COLLECT), 1);
+            if (cl->flags & COLLECT_AS_TYPESET)
+                Init_Typeset(
+                    ARR_LAST(BUF_COLLECT),
+                    ~FLAGIT_KIND(REB_MAX_VOID), // default is all but void
+                    VAL_WORD_SPELLING(v)
+                );
+            else
+                Init_Word(ARR_LAST(BUF_COLLECT), VAL_WORD_SPELLING(v));
+
             continue;
         }
-        // Recurse into sub-blocks:
-        if (ANY_EVAL_BLOCK(value) && (flags & COLLECT_DEEP))
-            Collect_Context_Inner_Loop(binder, VAL_ARRAY_AT(value), flags);
+
+        if (NOT(cl->flags & COLLECT_DEEP))
+            continue;
+
+        // Recurse into BLOCK! and GROUP!
+        //
+        // !!! Why aren't ANY-PATH! considered?  They may have GROUP! in
+        // them which could need to be collected.  This is historical R3-Alpha
+        // behavior which is probably wrong.
+        //
+        if (kind == REB_BLOCK || kind == REB_GROUP)
+            Collect_Inner_Loop(cl, VAL_ARRAY_AT(v));
     }
 }
 
@@ -576,10 +562,17 @@ REBARR *Collect_Keylist_Managed(
     REBCTX *prior,
     REBFLGS flags // see %sys-core.h for COLLECT_ANY_WORD, etc.
 ) {
-    struct Reb_Binder binder;
-    INIT_BINDER(&binder);
+    struct Reb_Collector collector;
+    struct Reb_Collector *cl = &collector;
 
-    Collect_Keys_Start(flags);
+    assert(NOT(flags & COLLECT_AS_TYPESET)); // not optional, we add it
+    Collect_Start(cl, flags | COLLECT_AS_TYPESET);
+
+    // Leave the [0] slot blank while collecting (ROOTKEY/ROOTPARAM), but
+    // valid (but "unreadable") bits so that the copy will still work.
+    //
+    Init_Unreadable_Blank(ARR_HEAD(BUF_COLLECT));
+    SET_ARRAY_LEN_NOTERM(BUF_COLLECT, 1);
 
     if (flags & COLLECT_ENSURE_SELF) {
         if (
@@ -601,8 +594,10 @@ REBARR *Collect_Keylist_Managed(
             //
             SET_VAL_FLAG(self_key, TYPESET_FLAG_HIDDEN);
 
-            Add_Binder_Index(&binder, VAL_KEY_CANON(self_key), 1);
-            *self_index_out = 1;
+            assert(cl->index == 1);
+            Add_Binder_Index(&cl->binder, VAL_KEY_CANON(self_key), cl->index);
+            *self_index_out = cl->index;
+            ++cl->index;
             SET_ARRAY_LEN_NOTERM(BUF_COLLECT, 2); // [0] rootkey, plus SELF
         }
         else {
@@ -616,91 +611,109 @@ REBARR *Collect_Keylist_Managed(
 
     // Setup binding table with existing words, no need to check duplicates
     //
-    if (prior) Collect_Context_Keys(&binder, prior, FALSE);
+    if (prior)
+        Collect_Context_Keys(cl, prior, FALSE);
 
     // Scan for words, adding them to BUF_COLLECT and bind table:
-    Collect_Context_Inner_Loop(&binder, head, flags);
+    Collect_Inner_Loop(cl, head);
 
-    // Grab the keylist, and set its rootkey in [0] to BLANK! (CTX_KEY and
-    // CTX_VAR indexing start at 1, and [0] for the variables is an instance
-    // of the ANY-CONTEXT! value itself).
+    // If new keys were added to the collect buffer (as evidenced by a longer
+    // collect buffer than the original keylist) then make a new keylist
+    // array, otherwise reuse the original
     //
-    // !!! Usages of the rootkey for non-FRAME! contexts is open for future.
+    REBARR *keylist;
+    if (prior != NULL && ARR_LEN(CTX_KEYLIST(prior)) == ARR_LEN(BUF_COLLECT))
+        keylist = CTX_KEYLIST(prior);
+    else {
+        keylist = Grab_Collected_Array_Managed(cl);
+        LINK(keylist).meta = NULL; // clear meta object (GC sees this)
+    }
+
+    // !!! Usages of the rootkey for non-FRAME! contexts is open for future,
+    // but it's set to an unreadable blank at the moment just to make sure it
+    // doesn't get used on accident.
     //
-    REBARR *keylist = Grab_Collected_Keylist_Managed(prior);
+    assert(IS_UNREADABLE_IF_DEBUG(ARR_HEAD(keylist)));
 
-    Collect_Keys_End(&binder);
-
-    SHUTDOWN_BINDER(&binder);
+    Collect_End(cl);
     return keylist;
 }
 
 
 //
-//  Collect_Words_Inner_Loop: C
+//  Collect_Unique_Words: C
 //
-// Used for Collect_Words() after the binds table has
-// been set up.
+// Collect unique words from a block, possibly deeply...maybe just SET-WORD!s.
 //
-static void Collect_Words_Inner_Loop(
-    struct Reb_Binder *binder,
+REBARR *Collect_Unique_Words_Managed(
     const RELVAL head[],
-    REBFLGS flags
-) {
-    const RELVAL *value = head;
-    for (; NOT_END(value); value++) {
-        if (ANY_WORD(value)
-            && Get_Binder_Index_Else_0(binder, VAL_WORD_CANON(value)) == 0
-            && (IS_SET_WORD(value) || (flags & COLLECT_ANY_WORD))
-        ){
-            Add_Binder_Index(binder, VAL_WORD_CANON(value), 1);
+    REBFLGS flags, // See COLLECT_XXX
+    const REBVAL *ignore // BLOCK!, ANY-CONTEXT!, or void for none
+){
+    // We do not want to fail() during the bind at this point in time (the
+    // system doesn't know how to clean up, and the only cleanup it does
+    // assumes you were collecting for a keylist...it doesn't have access to
+    // the "ignore" bindings.)  Do a pre-pass to fail first.
 
-            REBVAL *word = Alloc_Tail_Array(BUF_COLLECT);
-            Init_Word(word, VAL_WORD_SPELLING(value));
+    RELVAL *check = VAL_ARRAY_AT(ignore);
+    for (; NOT_END(check); ++check) {
+        if (NOT(ANY_WORD(check))) {
+            DECLARE_LOCAL (non_word);
+            Derelativize(non_word, check, VAL_SPECIFIER(ignore));
+            fail (non_word);
         }
-        else if (ANY_EVAL_BLOCK(value) && (flags & COLLECT_DEEP))
-            Collect_Words_Inner_Loop(binder, VAL_ARRAY_AT(value), flags);
     }
-}
 
+    struct Reb_Collector collector;
+    struct Reb_Collector *cl = &collector;
 
-//
-//  Collect_Words: C
-//
-// Collect words from a prior block and new block.
-//
-REBARR *Collect_Words(
-    const RELVAL head[],
-    RELVAL *opt_prior_head,
-    REBFLGS flags
-) {
-    struct Reb_Binder binder;
-    INIT_BINDER(&binder);
+    assert(NOT(flags & COLLECT_AS_TYPESET)); // only used for making keylists
+    Collect_Start(cl, flags);
 
     assert(ARR_LEN(BUF_COLLECT) == 0); // should be empty
 
-    if (opt_prior_head)
-        Collect_Words_Inner_Loop(&binder, opt_prior_head, COLLECT_ANY_WORD);
-
-    REBCNT start = ARR_LEN(BUF_COLLECT);
-    Collect_Words_Inner_Loop(&binder, head, flags);
-    TERM_ARRAY_LEN(BUF_COLLECT, ARR_LEN(BUF_COLLECT));
-
-    // Reset word markers:
+    // The way words get "ignored" in the collecting process is to give them
+    // dummy bindings so it appears they've "already been collected", but
+    // not actually add them to the collection.  Then, duplicates don't cause
+    // an error...so they will just be skipped when encountered.
     //
-    RELVAL *word;
-    for (word = ARR_HEAD(BUF_COLLECT); NOT_END(word); word++)
-        Remove_Binder_Index(&binder, VAL_WORD_CANON(word));
+    if (IS_BLOCK(ignore)) {
+        RELVAL *item = VAL_ARRAY_AT(ignore);
+        for (; NOT_END(item); ++item) {
+            assert(ANY_WORD(item));
+            Add_Binder_Index(&cl->binder, VAL_WORD_CANON(item), -1);
+        }
+    }
+    else if (ANY_CONTEXT(ignore)) {
+        REBVAL *key = CTX_KEYS_HEAD(VAL_CONTEXT(ignore));
+        for (; NOT_END(key); ++key) {
+            Add_Binder_Index(&cl->binder, VAL_KEY_CANON(key), -1);
+        }
+    }
+    else
+        assert(IS_VOID(ignore));
 
-    // The words in BUF_COLLECT are newly created, and should not be bound
-    // at all... hence fully specified with no relative words
-    //
-    REBARR *array = Copy_Array_At_Max_Shallow(
-        BUF_COLLECT, start, SPECIFIED, ARR_LEN(BUF_COLLECT) - start
-    );
-    SET_ARRAY_LEN_NOTERM(BUF_COLLECT, 0);
+    Collect_Inner_Loop(cl, head);
 
-    SHUTDOWN_BINDER(&binder);
+    REBARR *array = Grab_Collected_Array_Managed(cl);
+
+    if (IS_BLOCK(ignore)) {
+        RELVAL *item = VAL_ARRAY_AT(ignore);
+        for (; NOT_END(item); ++item) {
+            assert(ANY_WORD(item));
+            Remove_Binder_Index(&cl->binder, VAL_WORD_CANON(item));
+        }
+    }
+    else if (ANY_CONTEXT(ignore)) {
+        REBVAL *key = CTX_KEYS_HEAD(VAL_CONTEXT(ignore));
+        for (; NOT_END(key); ++key) {
+            Remove_Binder_Index(&cl->binder, VAL_KEY_CANON(key));
+        }
+    }
+    else
+        assert(IS_VOID(ignore));
+
+    Collect_End(cl);
     return array;
 }
 
@@ -764,12 +777,15 @@ REBCTX *Make_Selfish_Context_Detect(
 
     REBCTX *context = CTX(varlist);
 
-    // !!! We actually don't know if the keylist coming back from
-    // Collect_Keylist_Managed was created new or reused.  Err on the safe
-    // side for now, but it could also return a result so we could know
-    // if it would be legal to call INIT_CTX_KEYLIST_UNIQUE.
+    // This isn't necessarily the clearest way to determine if the keylist is
+    // shared.  Note Collect_Keylist_Managed() isn't called from anywhere
+    // else, so it could probably be inlined here and it would be more
+    // obvious what's going on.
     //
-    INIT_CTX_KEYLIST_SHARED(context, keylist);
+    if (opt_parent != NULL && keylist == CTX_KEYLIST(opt_parent))
+        INIT_CTX_KEYLIST_SHARED(context, keylist);
+    else
+        INIT_CTX_KEYLIST_UNIQUE(context, keylist);
 
     // context[0] is an instance value of the OBJECT!/PORT!/ERROR!/MODULE!
     //
@@ -972,24 +988,32 @@ REBARR *Context_To_Array(REBCTX *context, REBINT mode)
 //
 REBCTX *Merge_Contexts_Selfish(REBCTX *parent1, REBCTX *parent2)
 {
-    struct Reb_Binder binder;
-    INIT_BINDER(&binder);
-
     assert(CTX_TYPE(parent1) == CTX_TYPE(parent2));
 
     // Merge parent1 and parent2 words.
     // Keep the binding table.
-    Collect_Keys_Start(COLLECT_ANY_WORD | COLLECT_ENSURE_SELF);
+
+    struct Reb_Collector collector;
+    Collect_Start(
+        &collector,
+        COLLECT_ANY_WORD | COLLECT_ENSURE_SELF | COLLECT_AS_TYPESET
+    );
+
+    // Leave the [0] slot blank while collecting (ROOTKEY/ROOTPARAM), but
+    // valid (but "unreadable") bits so that the copy will still work.
+    //
+    Init_Unreadable_Blank(ARR_HEAD(BUF_COLLECT));
+    SET_ARRAY_LEN_NOTERM(BUF_COLLECT, 1);
 
     // Setup binding table and BUF_COLLECT with parent1 words.  Don't bother
     // checking for duplicates, buffer is empty.
     //
-    Collect_Context_Keys(&binder, parent1, FALSE);
+    Collect_Context_Keys(&collector, parent1, FALSE);
 
     // Add parent2 words to binding table and BUF_COLLECT, and since we know
     // BUF_COLLECT isn't empty then *do* check for duplicates.
     //
-    Collect_Context_Keys(&binder, parent2, TRUE);
+    Collect_Context_Keys(&collector, parent2, TRUE);
 
     // Collect_Keys_End() terminates, but Collect_Context_Inner_Loop() doesn't.
     //
@@ -1039,7 +1063,9 @@ REBCTX *Merge_Contexts_Selfish(REBCTX *parent1, REBCTX *parent2)
     REBVAL *value = CTX_VARS_HEAD(parent2);
     for (; NOT_END(key); key++, value++) {
         // no need to search when the binding table is available
-        REBINT n = Get_Binder_Index_Else_0(&binder, VAL_KEY_CANON(key));
+        REBINT n = Get_Binder_Index_Else_0(
+            &collector.binder, VAL_KEY_CANON(key)
+        );
         assert(n != 0);
         Move_Value(CTX_VAR(merged, n), value);
     }
@@ -1061,11 +1087,11 @@ REBCTX *Merge_Contexts_Selfish(REBCTX *parent1, REBCTX *parent2)
     // Rebind the child
     //
     Rebind_Context_Deep(parent1, merged, NULL);
-    Rebind_Context_Deep(parent2, merged, &binder);
+    Rebind_Context_Deep(parent2, merged, &collector.binder);
 
     // release the bind table
     //
-    Collect_Keys_End(&binder);
+    Collect_End(&collector);
 
     // We should have gotten a SELF in the results, one way or another.
     //
@@ -1074,7 +1100,6 @@ REBCTX *Merge_Contexts_Selfish(REBCTX *parent1, REBCTX *parent2)
     assert(CTX_KEY_SYM(merged, self_index) == SYM_SELF);
     Move_Value(CTX_VAR(merged, self_index), CTX_VALUE(merged));
 
-    SHUTDOWN_BINDER(&binder);
     return merged;
 }
 
@@ -1110,15 +1135,6 @@ void Resolve_Context(
 
     REBVAL *key;
     REBVAL *var;
-
-    // !!! This function does its own version of resetting the bind table
-    // and hence the Collect_Keys_End that would be performed in the case of
-    // a `fail (Error(...))` will not properly reset it.  Because the code
-    // does array expansion it cannot guarantee a fail won't happen, hence
-    // the method needs to be reviewed to something that could properly
-    // reset in the case of an out of memory error.
-    //
-    Collect_Keys_Start(COLLECT_ONLY_SET_WORDS);
 
     REBINT n = 0;
 
@@ -1219,7 +1235,7 @@ void Resolve_Context(
         }
     }
     else {
-        // Reset bind table (do not use Collect_End).
+        // Reset bind table.
         //
         // !!! Whatever this is doing, it doesn't appear to be able to assure
         // that the keys are there.  Hence doesn't use Remove_Binder_Index()
@@ -1241,11 +1257,6 @@ void Resolve_Context(
                 Remove_Binder_Index_Else_0(&binder, VAL_KEY_CANON(key));
         }
     }
-
-    // !!! Note we explicitly do *not* use Collect_Keys_End().  See warning
-    // about errors, out of memory issues, etc. at Collect_Keys_Start()
-    //
-    SET_SERIES_LEN(SER(BUF_COLLECT), 0);  // allow reuse, no terminator
 
     SHUTDOWN_BINDER(&binder);
 }

@@ -188,7 +188,7 @@ REBOOL Trapped_Helper_Halted(struct Reb_State *s)
     // accumulated in the collect buffer.
     //
     if (ARR_LEN(BUF_COLLECT) != 0)
-        Collect_Keys_End(NULL); // !!! No binder, review implications
+        Collect_End(NULL); // !!! No binder, review implications
 
     // Free any manual series that were extant at the time of the error
     // (that were created since this PUSH_TRAP started).  This includes
