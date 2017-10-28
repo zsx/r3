@@ -213,18 +213,13 @@ inline static REBRIN *FUNC_ROUTINE(REBFUN *f) {
 
 #if !defined(NDEBUG)
     //
-    // BLANK! ("none!") for unused refinements instead of FALSE
-    // Also, BLANK! for args of unused refinements instead of not set
-    //
-    #define FUNC_FLAG_LEGACY_DEBUG FUNC_FLAG(6)
-
     // If a function is a native then it may provide return information as
     // documentation, but not want to pay for the run-time check of whether
     // the type is correct or not.  In the debug build though, it's good
     // to double-check.  So when MKF_FAKE_RETURN is used in a debug build,
     // it leaves this flag on the function.
     //
-    #define FUNC_FLAG_RETURN_DEBUG FUNC_FLAG(7)
+    #define FUNC_FLAG_RETURN_DEBUG FUNC_FLAG(6)
 #endif
 
 // These are the flags which are scanned for and set during Make_Function

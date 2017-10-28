@@ -145,14 +145,10 @@ options: construct [] [  ; Options supplied to REBOL during startup
 
     ; Legacy Behaviors Options (paid attention to only by debug builds)
 
-    lit-word-decay: false
     exit-functions-only: false
-    broken-case-semantics: false
-    refinements-blank: false
     forever-64-bit-ints: false
     print-forms-everything: false
     break-with-overrides: false
-    none-instead-of-voids: false
     dont-exit-natives: false
     paren-instead-of-group: false
     get-will-get-anything: false

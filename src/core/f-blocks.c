@@ -172,21 +172,11 @@ void Clonify_Values_Len_Managed(
         ASSERT_VALUE_MANAGED(v);
 
         if (types & FLAGIT_KIND(VAL_TYPE(v)) & TS_SERIES_OBJ) {
-        #if !defined(NDEBUG)
-            REBOOL legacy = FALSE;
-        #endif
-
+            //
             // Objects and series get shallow copied at minimum
             //
             REBSER *series;
             if (ANY_CONTEXT(v)) {
-            #if !defined(NDEBUG)
-                legacy = GET_SER_INFO(
-                    CTX_VARLIST(VAL_CONTEXT(v)),
-                    SERIES_INFO_LEGACY_DEBUG
-                );
-            #endif
-
                 assert(!IS_FRAME(v)); // !!! Don't exist yet...
                 v->payload.any_context.varlist =
                     CTX_VARLIST(Copy_Context_Shallow(VAL_CONTEXT(v)));
@@ -194,12 +184,6 @@ void Clonify_Values_Len_Managed(
             }
             else {
                 if (GET_SER_FLAG(VAL_SERIES(v), SERIES_FLAG_ARRAY)) {
-                #if !defined(NDEBUG)
-                    legacy = GET_SER_INFO(
-                        VAL_ARRAY(v), SERIES_INFO_LEGACY_DEBUG
-                    );
-                #endif
-
                     REBSPC *derived = Derive_Specifier(specifier, v);
                     series = SER(
                         Copy_Array_Shallow(VAL_ARRAY(v), derived)
@@ -217,11 +201,6 @@ void Clonify_Values_Len_Managed(
                     INIT_VAL_SERIES(v, series);
                 }
             }
-
-        #if !defined(NDEBUG)
-            if (legacy) // propagate legacy
-                SET_SER_INFO(series, SERIES_INFO_LEGACY_DEBUG);
-        #endif
 
             MANAGE_SERIES(series);
 
@@ -299,18 +278,6 @@ static REBARR *Copy_Array_Core_Managed_Inner_Loop(
         Clonify_Values_Len_Managed(
             ARR_HEAD(copy), SPECIFIED, ARR_LEN(copy), deep, types
         );
-
-#if !defined(NDEBUG)
-    //
-    // Propagate legacy flag, hence if a legacy array was loaded with
-    // `[switch 1 [2]]` in it (for instance) then when that code is used to
-    // make a function body, the `[switch 1 [2]]` in that body will also
-    // be marked legacy.  Then if it runs, the SWITCH can dispatch to return
-    // blank instead of the Ren-C behavior of returning `2`.
-    //
-    if (GET_SER_INFO(original, SERIES_INFO_LEGACY_DEBUG))
-        SET_SER_INFO(copy, SERIES_INFO_LEGACY_DEBUG);
-#endif
 
     ASSERT_NO_RELATIVE(copy, deep);
     return copy;

@@ -193,12 +193,9 @@ inline static REBVAL *CTX_KEY(REBCTX *c, REBCNT n) {
 }
 
 inline static REBVAL *CTX_VAR(REBCTX *c, REBCNT n) {
-    REBVAL *var;
     assert(n != 0 && n <= CTX_LEN(c));
     assert(GET_SER_FLAG(CTX_VARLIST(c), ARRAY_FLAG_VARLIST));
-
-    var = CTX_VARS_HEAD(c) + (n) - 1;
-
+    REBVAL *var = CTX_VARS_HEAD(c) + (n) - 1;
     assert(NOT(IS_RELATIVE(cast(RELVAL*, var))));
     return var;
 }

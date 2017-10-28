@@ -427,20 +427,6 @@
     FLAGIT_LEFT(12)
 
 
-#if !defined(NDEBUG)
-    //=//// SERIES_INFO_LEGACY_DEBUG //////////////////////////////////////=//
-    //
-    // This is a flag which is marked at the root set of the body of legacy
-    // functions.  It can be used in a dynamic examination of a call to see if
-    // it "originates from legacy code".  This is a vague concept given the
-    // ability to create blocks and run them--so functions like COPY would
-    // have to propagate the flag to make it "more accurate".  But it's good
-    // enough for casual compatibility in many cases.
-    //
-    #define SERIES_INFO_LEGACY_DEBUG \
-        FLAGIT_LEFT(13)
-#endif
-
 // ^-- STOP AT FLAGIT_LEFT(15) --^
 //
 // The rightmost 16 bits of the series info is used to store an 8 bit length

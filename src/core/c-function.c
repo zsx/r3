@@ -1316,23 +1316,6 @@ REBFUN *Make_Interpreted_Function_May_Fail(
     VAL_INDEX(body) = 0;
     INIT_BINDING(body, fun); // relative binding
 
-#if !defined(NDEBUG)
-    //
-    // If FUNC or MAKE FUNCTION! are being invoked from an array of code that
-    // has been flagged "legacy" (e.g. the body of a function created after
-    // `do <r3-legacy>` has been run) then mark the function with the setting
-    // to make refinements and args blank instead of FALSE/void...if that
-    // option is on.
-    //
-    if (
-        LEGACY_RUNNING(OPTIONS_REFINEMENTS_BLANK)
-        || GET_SER_INFO(VAL_ARRAY(spec), SERIES_INFO_LEGACY_DEBUG)
-        || GET_SER_INFO(VAL_ARRAY(code), SERIES_INFO_LEGACY_DEBUG)
-    ) {
-        SET_VAL_FLAG(FUNC_VALUE(fun), FUNC_FLAG_LEGACY_DEBUG);
-    }
-#endif
-
     // All the series inside of a function body are "relatively bound".  This
     // means that there's only one copy of the body, but the series handle
     // is "viewed" differently based on which call it represents.  Though

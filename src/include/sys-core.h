@@ -716,48 +716,18 @@ inline static void SET_SIGNAL(REBFLGS f) {
 #define BUF_UTF8        VAL_SERIES(TASK_BUF_UTF8)
 
 
-/***********************************************************************
-**
-**  Legacy Modes Checking
-**
-**      Ren/C wants to try out new things that will likely be included
-**      it the official Rebol3 release.  But it also wants transitioning
-**      to be feasible from Rebol2 and R3-Alpha, without paying that
-**      much to check for "old" modes if they're not being used.  So
-**      system/options contains flags used for enabling specific
-**      features relied upon by old code.
-**
-**      In order to keep these easements from adding to the measured
-**      performance cost in the system (and to keep them from being
-**      used for anything besides porting), they are only supported in
-**      debug builds.
-**
-***********************************************************************/
-
-#ifdef NDEBUG
-    #define SET_VOID_UNLESS_LEGACY_NONE(v) \
-        Init_Void(v) // LEGACY() only available in Debug builds
-#else
+// Most of Ren-C's backwards compatibility with R3-Alpha is attempted through
+// usermode "shim" functions.  But some things affect fundamental mechanics
+// and can't be done that way.  So in the debug build, system/options
+// contains some flags that enable the old behavior to be turned on.
+//
+// !!! These are not meant to be kept around long term.
+//
+#if !defined(NDEBUG)
     #define LEGACY(option) ( \
         (PG_Boot_Phase >= BOOT_ERRORS) \
         && IS_TRUTHY(Get_System(SYS_OPTIONS, (option))) \
     )
-
-    #define LEGACY_RUNNING(option) \
-        (LEGACY(option) && In_Legacy_Function_Debug())
-
-    // In legacy mode Ren-C still supports the old convention that IFs that
-    // don't take the true branch or a WHILE loop that never runs a body
-    // return a BLANK! value instead of no value.  See implementation notes.
-    //
-    #ifdef NDEBUG
-        #define SET_VOID_UNLESS_LEGACY_NONE(v) \
-            Init_Void(v) // LEGACY() only available in Debug builds
-    #else
-        #define SET_VOID_UNLESS_LEGACY_NONE(v) \
-            SET_VOID_UNLESS_LEGACY_NONE_Debug(v, __FILE__, __LINE__);
-    #endif
-
 #endif
 
 

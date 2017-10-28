@@ -2142,19 +2142,6 @@ array_done_relax:
     //
     MANAGE_ARRAY(result);
 
-    // In Legacy mode, it can be helpful to know if a block of code is
-    // loaded after legacy mode is turned on.  This way, for instance a
-    // SWITCH can run differently based on noticing it was dispatched from
-    // a reference living in that legacy code.
-    //
-    // !!! Currently cued by the REFINEMENTS_BLANK option which also applies
-    // to functions, but should be its own independent switch.
-    //
-#if !defined(NDEBUG)
-    if (LEGACY(OPTIONS_REFINEMENTS_BLANK))
-        SET_SER_INFO(result, SERIES_INFO_LEGACY_DEBUG);
-#endif
-
     return result;
 }
 

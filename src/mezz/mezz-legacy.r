@@ -1056,6 +1056,26 @@ set 'r3-legacy* func [<local> if-flags] [
             ]
         ])
 
+        ; R3-Alpha gave BLANK! when a refinement argument was not provided,
+        ; while Ren-C enforces this as being void (with voids not possible
+        ; to pass to refinement arguments otherwise).  This is some userspace
+        ; code to convert it.
+        ;
+        blankify-refinement-args: (procedure [f [frame!]] [
+            seen-refinement: false
+            for-each (quote any-word:) words-of function-of f [
+                if refinement? any-word [
+                    if not seen-refinement [seen-refinement: true]
+                    frame/(to-word any-word):
+                        to-value :frame/(to-word any-word)
+                    continue
+                ]
+                if not seen-refinement [continue]
+                frame/(to-word any-word):
+                    to-value :frame/(to-word any-word)
+            ]
+        ])
+
         ; R3-Alpha would tolerate blocks in the first position, which were
         ; a feature in Rebol2.  e.g. `func [[throw catch] x y][...]`.  Ren-C
         ; does not allow this.  Also, policy requires a RETURN: annotation to
@@ -1081,7 +1101,10 @@ set 'r3-legacy* func [<local> if-flags] [
             lib/func compose [
                 return: [<opt> any-value!]
                 (spec)
-            ] body
+            ] compose [
+                blankify-refinement-args frame-of 'return
+                (body)
+            ]
         ])
 
         ; The shift in Ren-C is to remove the refinements from FUNCTION.

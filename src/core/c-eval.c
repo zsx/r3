@@ -1257,11 +1257,6 @@ reevaluate:;
             assert(IS_FUNCTION(DS_TOP));
         }
 
-    #if !defined(NDEBUG)
-        if (GET_VAL_FLAG(FUNC_VALUE(f->phase), FUNC_FLAG_LEGACY_DEBUG))
-            Legacy_Convert_Function_Args(f); // BLANK!+NONE! vs. FALSE+UNSET!
-    #endif
-
     //==////////////////////////////////////////////////////////////////==//
     //
     // FUNCTION! ARGUMENTS NOW GATHERED, DISPATCH PHASE
@@ -1537,11 +1532,6 @@ reevaluate:;
             fail (Error_No_Value_Core(current, f->specifier));
 
         Move_Value(f->out, current_gotten); // no copy VALUE_FLAG_UNEVALUATED
-
-    #if !defined(NDEBUG)
-        if (LEGACY(OPTIONS_LIT_WORD_DECAY) && IS_LIT_WORD(f->out))
-            VAL_SET_TYPE_BITS(f->out, REB_WORD); // don't reset full header!
-    #endif
         break;
 
 //==//////////////////////////////////////////////////////////////////////==//
