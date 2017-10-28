@@ -284,27 +284,13 @@ REBCTX *Context_For_Frame_May_Reify_Managed(REBFRM *f)
     assert(NOT(Is_Function_Frame_Fulfilling(f)));
 
     if (f->varlist != NULL) {
-        if (GET_SER_FLAG(f->varlist, ARRAY_FLAG_VARLIST))
-            return CTX(f->varlist);
-
-        // Function call's args in an array, but it is not yet a context.
-        //
-        assert(IS_TRASH_DEBUG(ARR_AT(f->varlist, 0))); // we fill this in
-        assert(GET_SER_INFO(f->varlist, SERIES_INFO_HAS_DYNAMIC));
-        SET_SER_FLAG(f->varlist, ARRAY_FLAG_VARLIST);
-    }
-    else {
-        f->varlist = Alloc_Singular_Array_Core(ARRAY_FLAG_VARLIST);
-        SET_SER_INFO(f->varlist, CONTEXT_INFO_STACK);
+        assert(GET_SER_FLAG(f->varlist, ARRAY_FLAG_VARLIST));
+        return CTX(f->varlist);
     }
 
-    REBCTX *c = CTX(f->varlist);
-
-    // We do not Manage_Context, because we are reusing a word series here
-    // that has already been managed.  The arglist array was managed when
-    // created and kept alive by Mark_Call_Frames
-    //
-    INIT_CTX_KEYLIST_SHARED(c, FUNC_PARAMLIST(FRM_UNDERLYING(f)));
+    f->varlist = Alloc_Singular_Array_Core(ARRAY_FLAG_VARLIST);
+    SET_SER_INFO(f->varlist, CONTEXT_INFO_STACK); // NOT a SER_FLAG!
+    MISC(f->varlist).meta = NULL; // seen by GC, must initialize
 
     // When running a function frame, the arglist will be marked safe from
     // GC. It is managed because the pointer makes its way into bindings that
@@ -321,8 +307,6 @@ REBCTX *Context_For_Frame_May_Reify_Managed(REBFRM *f)
     rootvar->payload.any_context.phase = f->phase;
     INIT_BINDING(rootvar, f->binding);
 
-    MISC(f->varlist).f = f;
-
     // A reification of a frame for native code should not allow changing
     // the values out from under it, because that could cause it to crash
     // the interpreter.  (Generally speaking, modification should only be
@@ -330,23 +314,15 @@ REBCTX *Context_For_Frame_May_Reify_Managed(REBFRM *f)
     // running...which should not stop FRM_ARG from working in the native
     // itself, but should stop modifications from user code.
     //
-    MISC(CTX_VARLIST(c)).f = f;
+    LINK(f->varlist).keysource = NOD(f);
     if (f->flags.bits & DO_FLAG_NATIVE_HOLD)
         SET_SER_INFO(f->varlist, SERIES_INFO_HOLD);
 
+    REBCTX *c = CTX(f->varlist);
     ASSERT_ARRAY_MANAGED(CTX_KEYLIST(c));
     MANAGE_ARRAY(f->varlist);
 
-#if !defined(NDEBUG)
-    //
-    // Variadics will reify the varlist even when the data is not quite
-    // ready; these need special handling in the GC code for marking frames.
-    // By the time the function actually runs, the data should be good.
-    //
-    if (NOT(Is_Function_Frame_Fulfilling(f)))
-        ASSERT_CONTEXT(c);
+    ASSERT_CONTEXT(c);
     assert(NOT(CTX_VARS_UNAVAILABLE(c)));
-#endif
-
     return c;
 }

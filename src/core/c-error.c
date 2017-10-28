@@ -562,7 +562,7 @@ void Set_Location_Of_Error(
         for (; f != NULL; f = f->prior) {
             if (FRM_IS_VALIST(f))
                 continue;
-            if (NOT(GET_SER_FLAG(f->source.array, SERIES_FLAG_FILE_LINE)))
+            if (NOT_SER_FLAG(f->source.array, SERIES_FLAG_FILE_LINE))
                 continue;
             break;
         }

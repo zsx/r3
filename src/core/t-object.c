@@ -509,38 +509,27 @@ REBINT PD_Context(REBPVS *pvs)
 //
 //  {Get a reference to the "meta" object associated with a value.}
 //
-//      value [function! object! module!]
+//      value [function! any-context!]
 //  ]
 //
 REBNATIVE(meta_of)
 //
-// The first implementation of linking a "meta object" to another object
-// originates from the original module system--where it was called the
-// "module spec".  By moving it out of object REBVALs to the misc field of
-// a keylist, it becomes possible to change the meta object and have that
-// change seen by all references.
-//
-// As modules are still the first client of this meta information, it works
-// a similar way.  It is mutable by all references by default, unless
-// it is protected.
-//
-// !!! This feature is under development and expected to extend to functions
-// and possibly other types of values--both as the meta information, and
-// as being able to have the meta information.
+// See notes accompanying the `meta` field in the REBSER definition.
 {
     INCLUDE_PARAMS_OF_META_OF;
 
-    REBVAL *value = ARG(value);
+    REBVAL *v = ARG(value);
 
     REBCTX *meta;
-    if (IS_FUNCTION(value))
-        meta = VAL_FUNC_META(value);
+    if (IS_FUNCTION(v))
+        meta = VAL_FUNC_META(v);
     else {
-        assert(ANY_CONTEXT(value));
-        meta = VAL_CONTEXT_META(value);
+        assert(ANY_CONTEXT(v));
+        meta = MISC(CTX_VARLIST(VAL_CONTEXT(v))).meta;
     }
 
-    if (!meta) return R_BLANK;
+    if (meta == NULL)
+        return R_BLANK;
 
     Init_Object(D_OUT, meta);
     return R_OUT;
@@ -553,16 +542,13 @@ REBNATIVE(meta_of)
 //  {Set "meta" object associated with all references to a value.}
 //
 //      return: [<opt>]
-//      value [function! object! module!]
+//      value [function! any-context!]
 //      meta [object! blank!]
 //  ]
 //
 REBNATIVE(set_meta)
 //
-// !!! You cannot currently put meta information onto a FRAME!, because the
-// slot where the meta information would go is where the meta information
-// would live for the function--since frames use a functions "paramlist"
-// as their keylist.  Types taken are deliberately narrow for the moment.
+// See notes accompanying the `meta` field in the REBSER definition.
 {
     INCLUDE_PARAMS_OF_SET_META;
 
@@ -575,13 +561,13 @@ REBNATIVE(set_meta)
         meta = NULL;
     }
 
-    REBVAL *value = ARG(value);
+    REBVAL *v = ARG(value);
 
-    if (IS_FUNCTION(value))
-        LINK(VAL_FUNC_PARAMLIST(value)).meta = meta;
+    if (IS_FUNCTION(v))
+        MISC(VAL_FUNC_PARAMLIST(v)).meta = meta;
     else {
-        assert(ANY_CONTEXT(value));
-        INIT_CONTEXT_META(VAL_CONTEXT(value), meta);
+        assert(ANY_CONTEXT(v));
+        MISC(CTX_VARLIST(VAL_CONTEXT(v))).meta = meta;
     }
 
     return R_VOID;
@@ -638,7 +624,13 @@ REBCTX *Copy_Context_Core(REBCTX *original, REBOOL deep, REBU64 types)
     // If we're copying a frame here, we know it's not running.
     //
     if (CTX_TYPE(original) == REB_FRAME)
-        MISC(varlist).f = NULL;
+        MISC(varlist).meta = NULL;
+    else {
+        // !!! Should the meta object be copied for other context types?
+        // Deep copy?  Shallow copy?  Just a reference to the same object?
+        //
+        MISC(varlist).meta = NULL;
+    }
 
     if (types != 0) {
         Clonify_Values_Len_Managed(

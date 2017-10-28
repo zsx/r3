@@ -379,7 +379,7 @@ static void Queue_Mark_Opt_Value_Deep(const RELVAL *v)
         // facade is "fronting for" in the head slot.  The facade must always
         // hold the same number of parameters as the underlying function.
         //
-        REBARR *facade = MISC(FUNC_PARAMLIST(func)).facade;
+        REBARR *facade = LINK(FUNC_PARAMLIST(func)).facade;
         assert(IS_FUNCTION(ARR_HEAD(facade)));
         REBARR *underlying = ARR_HEAD(facade)->payload.function.paramlist;
         if (underlying != facade) {
@@ -616,7 +616,6 @@ static void Queue_Mark_Opt_Value_Deep(const RELVAL *v)
         REBVAL *archetype = CTX_VALUE(context);
         assert(CTX_TYPE(context) == VAL_TYPE(v));
         assert(VAL_CONTEXT(archetype) == context);
-        assert(VAL_CONTEXT_META(archetype) == CTX_META(context));
     #endif
 
         // Note: for VAL_CONTEXT_FRAME, the FRM_CALL is either on the stack
@@ -756,7 +755,9 @@ static void Propagate_All_GC_Marks(void)
         RELVAL *v = ARR_HEAD(a);
 
         if (GET_SER_FLAG(a, ARRAY_FLAG_PARAMLIST)) {
-            //
+            assert(IS_FUNCTION(v));
+            assert(v->extra.binding == UNBOUND); // archetypes have no binding
+
             // These queueings cannot be done in Queue_Mark_Function_Deep
             // because of the potential for overflowing the C stack with calls
             // to Queue_Mark_Function_Deep.
@@ -764,40 +765,62 @@ static void Propagate_All_GC_Marks(void)
             REBARR *body_holder = v->payload.function.body_holder;
             Queue_Mark_Singular_Array(body_holder);
 
+            REBARR *facade = LINK(a).facade;
+            Queue_Mark_Array_Subclass_Deep(facade);
+
             REBCTX *exemplar = LINK(body_holder).exemplar;
             if (exemplar != NULL)
                 Queue_Mark_Context_Deep(exemplar);
 
-            REBCTX *meta = LINK(a).meta;
+            REBCTX *meta = MISC(a).meta;
             if (meta != NULL)
                 Queue_Mark_Context_Deep(meta);
 
-            REBARR *facade = MISC(a).facade;
-            Queue_Mark_Array_Subclass_Deep(facade);
-
-            assert(IS_FUNCTION(v));
-            assert(v->extra.binding == UNBOUND); // archetypes have no binding
             ++v; // function archetype completely marked by this process
         }
         else if (GET_SER_FLAG(a, ARRAY_FLAG_VARLIST)) {
             //
+            // Currently only FRAME! uses binding
+            //
+            assert(ANY_CONTEXT(v));
+            assert(v->extra.binding == UNBOUND || VAL_TYPE(v) == REB_FRAME);
+
             // These queueings cannot be done in Queue_Mark_Context_Deep
             // because of the potential for overflowing the C stack with calls
             // to Queue_Mark_Context_Deep.
 
-            REBARR *keylist = LINK(a).keylist;
-            assert(keylist == CTX_KEYLIST_RAW(CTX(a)));
-            Queue_Mark_Array_Subclass_Deep(keylist); // might be paramlist
+            REBNOD *keysource = LINK(a).keysource;
+            if (keysource->header.bits & NODE_FLAG_CELL) {
+                //
+                // Must be a FRAME! and it must be on the stack running.  If
+                // it has stopped running, then the keylist must be set to
+                // UNBOUND which would not be a cell.
+                //
+                // There's nothing to mark for GC since the frame is on the
+                // stack, which should preserve the function paramlist.
+                //
+                assert(IS_FRAME(v));
+            }
+            else {
+                REBARR *keylist = ARR(keysource);
+                if (IS_FRAME(v)) {
+                    //
+                    // Keylist is the "facade", it may not be a paramlist but
+                    // it needs to be "paramlist shaped"...and the [0] element
+                    // has to be a FUNCTION!.
+                    //
+                    assert(IS_FUNCTION(ARR_HEAD(keylist)));
+                }
+                else {
+                    assert(NOT_SER_FLAG(keylist, ARRAY_FLAG_PARAMLIST));
+                    assert(IS_UNREADABLE_IF_DEBUG(ARR_HEAD(keylist)));
+                }
+                Queue_Mark_Array_Subclass_Deep(keylist);
+            }
 
-            REBCTX *meta = LINK(keylist).meta;
+            REBCTX *meta = MISC(a).meta;
             if (meta != NULL)
                 Queue_Mark_Context_Deep(meta);
-
-            assert(ANY_CONTEXT(v));
-
-            // Currently only FRAME! uses binding
-            //
-            assert(v->extra.binding == UNBOUND || VAL_TYPE(v) == REB_FRAME);
 
             ++v; // context archtype completely marked by this process
         }

@@ -89,21 +89,16 @@ inline static REBCTX *CTX(void *p) {
 #define CTX_VALUE(c) \
     cast(REBVAL*, ARR_HEAD(CTX_VARLIST(c)))
 
-#define CTX_KEYLIST_RAW(c) \
-    (cast(REBSER*, CTX_VARLIST(c))->link_private.keylist)
-
 // CTX_KEYLIST is called often, and it's worth it to make it as fast as
 // possible--even in an unoptimized build.  Use VAL_TYPE_RAW, plain C cast.
 //
 inline static REBARR *CTX_KEYLIST(REBCTX *c) {
-    REBVAL *v = CTX_VALUE(c);
-
-    if (VAL_TYPE_RAW(v) != REB_FRAME) {
+    if (NOT(LINK(CTX_VARLIST(c)).keysource->header.bits & NODE_FLAG_CELL)) {
         //
         // Ordinarily, we want to use the keylist pointer that is stored in
-        // the misc field of the varlist.
+        // the link field of the varlist.
         //
-        return CTX_KEYLIST_RAW(c);
+        return ARR(LINK(CTX_VARLIST(c)).keysource);
     }
 
     // If the context in question is a FRAME! value, then the ->phase
@@ -118,17 +113,20 @@ inline static REBARR *CTX_KEYLIST(REBCTX *c) {
     // uses low level access since this is called so much...less "safe" than
     // SER() or MISC() but worth it for this case.
     //
-    return ((REBSER*)v->payload.any_context.phase)->misc_private.facade;
+    assert(VAL_TYPE_RAW(CTX_VALUE(c)) == REB_FRAME);
+    return (
+        (REBSER*)CTX_VALUE(c)->payload.any_context.phase
+    )->link_private.facade;
 }
 
 static inline void INIT_CTX_KEYLIST_SHARED(REBCTX *c, REBARR *keylist) {
     SET_SER_INFO(keylist, SERIES_INFO_SHARED_KEYLIST);
-    LINK(CTX_VARLIST(c)).keylist = keylist;
+    LINK(CTX_VARLIST(c)).keysource = NOD(keylist);
 }
 
 static inline void INIT_CTX_KEYLIST_UNIQUE(REBCTX *c, REBARR *keylist) {
     assert(NOT_SER_INFO(keylist, SERIES_INFO_SHARED_KEYLIST));
-    LINK(CTX_VARLIST(c)).keylist = keylist;
+    LINK(CTX_VARLIST(c)).keysource = NOD(keylist);
 }
 
 // Navigate from context to context components.  Note that the context's
@@ -164,18 +162,22 @@ inline static REBVAL *CTX_KEYS_HEAD(REBCTX *c) {
 
 inline static REBFRM *CTX_FRAME_IF_ON_STACK(REBCTX *c) {
     assert(IS_FRAME(CTX_VALUE(c)));
-    REBFRM *f = MISC(CTX_VARLIST(c)).f;
-    assert(
-        f == NULL
-        || (
-            f->eval_type == REB_FUNCTION && f->phase != NULL
-        ) // Note: inlining of Is_Function_Frame() to break dependency
-    );
+
+    REBNOD *keysource = LINK(CTX_VARLIST(c)).keysource;
+    if (NOT(keysource->header.bits & NODE_FLAG_CELL))
+        return NULL; // not on stack...has been downgraded to paramlist/facade
+
+    REBFRM *f = cast(REBFRM*, keysource);
+
+    // Note: inlining of Is_Function_Frame() to break dependency
+    //
+    assert(f->eval_type == REB_FUNCTION && f->phase != NULL);
+
     return f;
 }
 
 inline static REBVAL *CTX_VARS_HEAD(REBCTX *c) {
-    if (NOT(GET_SER_INFO(CTX_VARLIST(c), CONTEXT_INFO_STACK)))
+    if (NOT_SER_INFO(CTX_VARLIST(c), CONTEXT_INFO_STACK))
         return KNOWN(ARR_AT(CTX_VARLIST(c), 1));
 
     REBFRM *f = CTX_FRAME_IF_ON_STACK(c);
@@ -211,19 +213,6 @@ inline static REBSTR *CTX_KEY_CANON(REBCTX *c, REBCNT n) {
 
 inline static REBSYM CTX_KEY_SYM(REBCTX *c, REBCNT n) {
     return STR_SYMBOL(CTX_KEY_SPELLING(c, n)); // should be same as canon
-}
-
-inline static REBCTX *CTX_META(REBCTX *c) {
-    //
-    // !!! CTX_KEYLIST() will return a facade based on the currently running
-    // phase for frames.  At present, facades do not carry information in
-    // their link or misc fields.  Hence this does not use CTX_KEYLIST() but
-    // rather uses the fundamental pointer in the frame.  This should be
-    // reviewed, as how the "meta" linkage works in light of shared keylists
-    // or paramlists is not fully articulated (can every object have a unique
-    // meta pointer?  If so it must be on the varlist.
-    //
-    return LINK(CTX_KEYLIST_RAW(c)).meta;
 }
 
 #define FAIL_IF_READ_ONLY_CONTEXT(c) \
@@ -300,16 +289,8 @@ inline static void INIT_VAL_CONTEXT(REBVAL *v, REBCTX *c) {
 #define VAL_CONTEXT_KEY(v,n) \
     CTX_KEY(VAL_CONTEXT(v), (n))
 
-inline static REBCTX *VAL_CONTEXT_META(const RELVAL *v) {
-    return LINK(CTX_KEYLIST_RAW(CTX(v->payload.any_context.varlist))).meta;
-}
-
 #define VAL_CONTEXT_KEY_SYM(v,n) \
     CTX_KEY_SYM(VAL_CONTEXT(v), (n))
-
-inline static void INIT_CONTEXT_META(REBCTX *c, REBCTX *m) {
-    LINK(CTX_KEYLIST_RAW(c)).meta = m;
-}
 
 inline static REBVAL *CTX_FRAME_FUNC_VALUE(REBCTX *c) {
     assert(IS_FUNCTION(CTX_ROOTKEY(c)));

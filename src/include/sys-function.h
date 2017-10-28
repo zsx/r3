@@ -95,7 +95,7 @@ inline static REBCNT FUNC_NUM_PARAMS(REBFUN *f) {
 }
 
 inline static REBCTX *FUNC_META(REBFUN *f) {
-    return LINK(FUNC_PARAMLIST(f)).meta;
+    return MISC(FUNC_PARAMLIST(f)).meta;
 }
 
 // *** These FUNC_FACADE fetchers are called VERY frequently, so it is best
@@ -105,7 +105,7 @@ inline static REBCTX *FUNC_META(REBFUN *f) {
 // really good reason...and seeing the impact on the debug build!!! ***
 
 #define FUNC_FACADE(f) \
-    MISC(FUNC_PARAMLIST(f)).facade
+    LINK(FUNC_PARAMLIST(f)).facade
 
 #define FUNC_FACADE_NUM_PARAMS(f) \
     (ARR_LEN(FUNC_FACADE(f)) - 1)
@@ -257,7 +257,7 @@ inline static REBNAT VAL_FUNC_DISPATCHER(const RELVAL *v)
     { return MISC(v->payload.function.body_holder).dispatcher; }
 
 inline static REBCTX *VAL_FUNC_META(const RELVAL *v)
-    { return LINK(v->payload.function.paramlist).meta; }
+    { return MISC(v->payload.function.paramlist).meta; }
 
 inline static REBOOL IS_FUNCTION_INTERPRETED(const RELVAL *v) {
     //

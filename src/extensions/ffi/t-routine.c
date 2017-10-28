@@ -1187,9 +1187,10 @@ REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec, ffi_abi abi) {
     INIT_BINDING(rootparam, UNBOUND);
 
     SET_SER_FLAG(paramlist, ARRAY_FLAG_PARAMLIST);
+    LINK(paramlist).facade = paramlist;
+    MISC(paramlist).meta = NULL;
+
     MANAGE_ARRAY(paramlist);
-    LINK(paramlist).meta = NULL;
-    MISC(paramlist).facade = paramlist;
 
     REBFUN *fun = Make_Function(
         paramlist,

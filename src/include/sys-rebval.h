@@ -447,7 +447,7 @@ struct Reb_Function {
     // for the function can be found (although this value is archetypal, and
     // loses the `binding` property--which must be preserved other ways)
     //
-    // The `link.meta` field of the paramlist holds a meta object (if any)
+    // The `misc.meta` field of the paramlist holds a meta object (if any)
     // that describes the function.  This is read by help.
     //
     REBARR *paramlist;
@@ -579,8 +579,8 @@ struct Reb_Handle {
 };
 
 
-// Meta information in singular->link.meta
-// File descriptor in singular->misc.fd
+// File descriptor in singular->link.fd
+// Meta information in singular->misc.meta
 //
 struct Reb_Library {
     REBARR *singular; // singular array holding this library value

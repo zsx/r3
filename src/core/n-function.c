@@ -313,10 +313,11 @@ REBNATIVE(typechecker)
 
     MANAGE_ARRAY(paramlist);
 
-    // for now, no help...use REDESCRIBE
+    LINK(paramlist).facade = paramlist;
 
-    LINK(paramlist).meta = NULL;
-    MISC(paramlist).facade = paramlist;
+    // for now, no help...use REDESCRIBE
+    //
+    MISC(paramlist).meta = NULL;
 
     REBFUN *fun = Make_Function(
         paramlist,
@@ -426,22 +427,23 @@ REBNATIVE(chain)
     SET_SER_FLAG(paramlist, ARRAY_FLAG_PARAMLIST);
     MANAGE_ARRAY(paramlist);
 
+    // Initialize the "meta" information, which is used by HELP.  Because it
+    // has a link to the "chainees", it is not necessary to copy parameter
+    // descriptions...HELP can follow the link and find the information.
+    //
     // See %sysobj.r for `chained-meta:` object template
-
-    REBVAL *std_meta = Get_System(SYS_STANDARD, STD_CHAINED_META);
-    REBCTX *meta = Copy_Context_Shallow(VAL_CONTEXT(std_meta));
-
-    Init_Void(CTX_VAR(meta, STD_CHAINED_META_DESCRIPTION)); // default
-    Init_Block(CTX_VAR(meta, STD_CHAINED_META_CHAINEES), chainees);
     //
     // !!! There could be a system for preserving names in the chain, by
     // accepting lit-words instead of functions--or even by reading the
     // GET-WORD!s in the block.  Consider for the future.
     //
+    REBVAL *std_meta = Get_System(SYS_STANDARD, STD_CHAINED_META);
+    REBCTX *meta = Copy_Context_Shallow(VAL_CONTEXT(std_meta));
+    Init_Void(CTX_VAR(meta, STD_CHAINED_META_DESCRIPTION)); // default
+    Init_Block(CTX_VAR(meta, STD_CHAINED_META_CHAINEES), chainees);
     Init_Void(CTX_VAR(meta, STD_CHAINED_META_CHAINEE_NAMES));
-
     MANAGE_ARRAY(CTX_VARLIST(meta));
-    LINK(paramlist).meta = meta;
+    MISC(paramlist).meta = meta; // must initialize before Make_Function
 
     REBFUN *fun = Make_Function(
         paramlist,
@@ -534,7 +536,7 @@ REBNATIVE(adapt)
         );
 
     MANAGE_ARRAY(CTX_VARLIST(meta));
-    LINK(paramlist).meta = meta;
+    MISC(paramlist).meta = meta;
 
     REBFUN *fun = Make_Function(
         paramlist,
@@ -635,7 +637,7 @@ REBNATIVE(hijack)
         // directly.  This is a reasonably common case, and especially
         // common when putting the originally hijacked function back.
 
-        MISC(victim_paramlist).facade = MISC(hijacker_paramlist).facade;
+        LINK(victim_paramlist).facade = LINK(hijacker_paramlist).facade;
         LINK(victim->payload.function.body_holder).exemplar =
             LINK(hijacker->payload.function.body_holder).exemplar;
 
@@ -663,11 +665,8 @@ REBNATIVE(hijack)
             &Hijacker_Dispatcher;
     }
 
-    // Proxy the meta information from the hijacker onto the paramlist
-    //
-    // !!! Should this add a note about the hijacking?
-    //
-    LINK(victim_paramlist).meta = LINK(hijacker_paramlist).meta;
+    // !!! What should be done about MISC(victim_paramlist).meta?  Leave it
+    // alone?  Add a note about the hijacking?
 
     Move_Value(D_OUT, victim);
     INIT_BINDING(D_OUT, VAL_BINDING(hijacker));
@@ -749,7 +748,7 @@ REBNATIVE(tighten)
     // Hence updates to the title/parameter-descriptions/etc. of the tightened
     // function will affect the original, and vice-versa.
     //
-    LINK(paramlist).meta = FUNC_META(original);
+    MISC(paramlist).meta = FUNC_META(original);
 
     MANAGE_ARRAY(paramlist);
 

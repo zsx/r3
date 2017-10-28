@@ -763,7 +763,7 @@ REBSER *Try_Find_Containing_Series_Debug(const void *p)
                 continue;
             }
 
-            if (NOT(GET_SER_INFO(s, SERIES_INFO_HAS_DYNAMIC))) {
+            if (NOT_SER_INFO(s, SERIES_INFO_HAS_DYNAMIC)) {
                 if (
                     p >= cast(void*, &s->content)
                     && p < cast(void*, &s->content + 1)
@@ -2076,7 +2076,7 @@ REBCNT Check_Memory_Debug(void)
             if (GET_SER_FLAG(s, NODE_FLAG_CELL))
                 continue; // a pairing
 
-            if (NOT(GET_SER_INFO(s, SERIES_INFO_HAS_DYNAMIC)))
+            if (NOT_SER_INFO(s, SERIES_INFO_HAS_DYNAMIC))
                 continue; // data lives in the series node itself
 
             if (SER_REST(s) == 0)

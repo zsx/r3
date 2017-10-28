@@ -227,7 +227,7 @@ inline static REBARR *Make_Array_Core(REBCNT capacity, REBUPT flags)
 
     assert(
         capacity <= 1
-            ? NOT(GET_SER_INFO(s, SERIES_INFO_HAS_DYNAMIC))
+            ? NOT_SER_INFO(s, SERIES_INFO_HAS_DYNAMIC)
             : GET_SER_INFO(s, SERIES_INFO_HAS_DYNAMIC)
     );
 

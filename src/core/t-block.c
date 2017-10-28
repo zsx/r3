@@ -1150,7 +1150,7 @@ void Assert_Array_Core(REBARR *a)
     //
     Assert_Series_Core(SER(a));
 
-    if (NOT(GET_SER_FLAG(a, SERIES_FLAG_ARRAY)))
+    if (NOT_SER_FLAG(a, SERIES_FLAG_ARRAY))
         panic (a);
 
     RELVAL *item = ARR_HEAD(a);

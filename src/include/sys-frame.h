@@ -526,15 +526,16 @@ inline static void Drop_Function_Core(
             goto finished;
     }
 
-    assert(GET_SER_FLAG(f->varlist, SERIES_FLAG_ARRAY));
+    assert(GET_SER_FLAG(f->varlist, SERIES_FLAG_ARRAY | ARRAY_FLAG_VARLIST));
     ASSERT_ARRAY_MANAGED(f->varlist);
 
     // The varlist is going to outlive this call, so the frame correspondence
     // in it needs to be cleared out, so callers will know the frame is dead.
+    // We substitute the paramlist of the original function the frame is for
+    // in the keysource slot.
     //
-    assert(MISC(f->varlist).f == f);
-    MISC(f->varlist).f = NULL;
-    assert(GET_SER_FLAG(f->varlist, ARRAY_FLAG_VARLIST));
+    assert(cast(REBFRM*, LINK(f->varlist).keysource) == f);
+    LINK(f->varlist).keysource = NOD(FUNC_PARAMLIST(f->original));
 
     if (NOT_SER_INFO(f->varlist, CONTEXT_INFO_STACK)) {
         //

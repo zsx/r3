@@ -82,6 +82,7 @@ REBCTX *Alloc_Context(enum Reb_Kind kind, REBCNT capacity)
         capacity + 1, // size + room for ROOTVAR
         ARRAY_FLAG_VARLIST
     );
+    MISC(varlist).meta = NULL; // GC sees meta object, must init
 
     // varlist[0] is a value instance of the OBJECT!/MODULE!/PORT!/ERROR! we
     // are building which contains this context.
@@ -92,16 +93,16 @@ REBCTX *Alloc_Context(enum Reb_Kind kind, REBCNT capacity)
     rootvar->payload.any_context.phase = NULL;
     INIT_BINDING(rootvar, UNBOUND);
 
-    // keylist[0] is the "rootkey" which we currently initialize to BLANK
+    // keylist[0] is the "rootkey" which we currently initialize to an
+    // unreadable BLANK!.  It is reserved for future use.
 
     REBARR *keylist = Make_Array_Core(
         capacity + 1, // size + room for ROOTKEY
         0 // No keylist flag, but we don't want line numbers
     );
-    Init_Blank(Alloc_Tail_Array(keylist));
-    LINK(keylist).meta = NULL; // GC sees meta object, must init
+    Init_Unreadable_Blank(Alloc_Tail_Array(keylist));
 
-    // varlists link keylists via REBSER.misc field, sharable hence managed
+    // varlists link keylists via LINK().keysource, sharable hence managed
 
     INIT_CTX_KEYLIST_UNIQUE(CTX(varlist), keylist);
     MANAGE_ARRAY(keylist);
@@ -135,11 +136,7 @@ REBOOL Expand_Context_Keylist_Core(REBCTX *context, REBCNT delta)
         //
         // Keylists are only typesets, so no need for a specifier.
 
-        REBCTX *meta = LINK(keylist).meta; // preserve meta object
-
         keylist = Copy_Array_Extra_Shallow(keylist, SPECIFIED, delta);
-
-        LINK(keylist).meta = meta;
 
         MANAGE_ARRAY(keylist);
         INIT_CTX_KEYLIST_UNIQUE(context, keylist);
@@ -147,7 +144,8 @@ REBOOL Expand_Context_Keylist_Core(REBCTX *context, REBCNT delta)
         return TRUE;
     }
 
-    if (delta == 0) return FALSE;
+    if (delta == 0)
+        return FALSE;
 
     // INIT_CTX_KEYLIST_UNIQUE was used to set this keylist in the
     // context, and no INIT_CTX_KEYLIST_SHARED was used by another context
@@ -255,15 +253,14 @@ REBCTX *Copy_Context_Shallow_Extra(REBCTX *src, REBCNT extra) {
     assert(GET_SER_FLAG(CTX_VARLIST(src), ARRAY_FLAG_VARLIST));
     ASSERT_ARRAY_MANAGED(CTX_KEYLIST(src));
 
-    REBCTX *meta = CTX_META(src); // preserve meta object (if any)
-
     // Note that keylists contain only typesets (hence no relative values),
     // and no varlist is part of a function body.  All the values here should
     // be fully specified.
     //
     REBCTX *dest;
+    REBARR *varlist;
     if (extra == 0) {
-        REBARR *varlist = Copy_Array_Shallow(CTX_VARLIST(src), SPECIFIED);
+        varlist = Copy_Array_Shallow(CTX_VARLIST(src), SPECIFIED);
         SET_SER_FLAG(varlist, ARRAY_FLAG_VARLIST);
 
         dest = CTX(varlist);
@@ -273,7 +270,7 @@ REBCTX *Copy_Context_Shallow_Extra(REBCTX *src, REBCNT extra) {
         REBARR *keylist = Copy_Array_Extra_Shallow(
             CTX_KEYLIST(src), SPECIFIED, extra
         );
-        REBARR *varlist = Copy_Array_Extra_Shallow(
+        varlist = Copy_Array_Extra_Shallow(
             CTX_VARLIST(src), SPECIFIED, extra
         );
         SET_SER_FLAG(varlist, ARRAY_FLAG_VARLIST);
@@ -285,7 +282,11 @@ REBCTX *Copy_Context_Shallow_Extra(REBCTX *src, REBCNT extra) {
 
     CTX_VALUE(dest)->payload.any_context.varlist = CTX_VARLIST(dest);
 
-    INIT_CONTEXT_META(dest, meta); // will be placed on new keylist
+    // !!! Should the new object keep the meta information, or should users
+    // have to copy that manually?  If it's copied would it be a shallow or
+    // a deep copy?
+    //
+    MISC(varlist).meta = NULL;
 
     return dest;
 }
@@ -624,10 +625,8 @@ REBARR *Collect_Keylist_Managed(
     REBARR *keylist;
     if (prior != NULL && ARR_LEN(CTX_KEYLIST(prior)) == ARR_LEN(BUF_COLLECT))
         keylist = CTX_KEYLIST(prior);
-    else {
+    else
         keylist = Grab_Collected_Array_Managed(cl);
-        LINK(keylist).meta = NULL; // clear meta object (GC sees this)
-    }
 
     // !!! Usages of the rootkey for non-FRAME! contexts is open for future,
     // but it's set to an unreadable blank at the moment just to make sure it
@@ -774,6 +773,7 @@ REBCTX *Make_Selfish_Context_Detect(
     //
     REBARR *varlist = Make_Array_Core(len, ARRAY_FLAG_VARLIST);
     TERM_ARRAY_LEN(varlist, len);
+    MISC(varlist).meta = NULL; // clear meta object (GC sees this)
 
     REBCTX *context = CTX(varlist);
 
@@ -1028,10 +1028,11 @@ REBCTX *Merge_Contexts_Selfish(REBCTX *parent1, REBCTX *parent2)
     //
     REBARR *keylist = Copy_Array_Shallow(BUF_COLLECT, SPECIFIED);
     MANAGE_ARRAY(keylist);
-    Init_Blank(ARR_HEAD(keylist)); // Currently no rootkey usage
-    LINK(keylist).meta = NULL;
+    Init_Unreadable_Blank(ARR_HEAD(keylist)); // Currently no rootkey usage
 
     REBARR *varlist = Make_Array_Core(ARR_LEN(keylist), ARRAY_FLAG_VARLIST);
+    MISC(varlist).meta = NULL; // GC sees this, it must be initialized
+
     REBCTX *merged = CTX(varlist);
     INIT_CTX_KEYLIST_UNIQUE(merged, keylist);
 

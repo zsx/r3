@@ -410,13 +410,14 @@ void Init_Any_Context_Core(
     assert(VAL_CONTEXT(archetype) == c);
 
     assert(CTX_TYPE(c) == kind);
-    if (CTX_KEYLIST(c) == NULL)
-        panic (c);
 
-    assert(GET_SER_FLAG(CTX_VARLIST(c), ARRAY_FLAG_VARLIST));
+    REBARR *varlist = CTX_VARLIST(c);
+    REBARR *keylist = CTX_KEYLIST(c);
 
-    assert(NOT_SER_FLAG(CTX_VARLIST(c), SERIES_FLAG_FILE_LINE));
-    assert(NOT_SER_FLAG(CTX_KEYLIST(c), SERIES_FLAG_FILE_LINE));
+    assert(GET_SER_FLAG(varlist, ARRAY_FLAG_VARLIST));
+
+    assert(NOT_SER_FLAG(varlist, SERIES_FLAG_FILE_LINE));
+    assert(NOT_SER_FLAG(keylist, SERIES_FLAG_FILE_LINE));
 
     if (IS_FRAME(CTX_VALUE(c)))
         assert(IS_FUNCTION(CTX_FRAME_FUNC_VALUE(c)));
@@ -424,7 +425,10 @@ void Init_Any_Context_Core(
     // !!! Currently only a context can serve as the "meta" information,
     // though the interface may expand.
     //
-    assert(CTX_META(c) == NULL || ANY_CONTEXT(CTX_VALUE(CTX_META(c))));
+    assert(
+        MISC(varlist).meta == NULL
+        || ANY_CONTEXT(CTX_VALUE(MISC(varlist).meta))
+    );
 #endif
 
     // Some contexts (stack frames in particular) start out unmanaged, and

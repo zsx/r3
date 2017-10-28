@@ -642,7 +642,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     // trying to add any meta information that includes frames, so they do
     // not have to do this.
     //
-    MISC(paramlist).facade = paramlist;
+    LINK(paramlist).facade = paramlist;
 
     if (TRUE) {
         RELVAL *dest = ARR_HEAD(paramlist); // canon function value
@@ -736,7 +736,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         MANAGE_ARRAY(CTX_VARLIST(meta));
     }
 
-    LINK(paramlist).meta = meta;
+    MISC(paramlist).meta = meta;
 
     // If a description string was gathered, it's sitting in the first string
     // slot, the third cell we pushed onto the stack.  Extract it if so.
@@ -763,6 +763,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         REBARR *types_varlist = Make_Array_Core(
             num_slots, ARRAY_FLAG_VARLIST
         );
+        MISC(types_varlist).meta = NULL; // GC sees this, must initialize
         INIT_CTX_KEYLIST_SHARED(CTX(types_varlist), paramlist);
 
         REBVAL *dest = SINK(ARR_HEAD(types_varlist)); // "rootvar"
@@ -833,6 +834,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
         REBARR *notes_varlist = Make_Array_Core(
             num_slots, ARRAY_FLAG_VARLIST
         );
+        MISC(notes_varlist).meta = NULL; // GC sees this, must initialize
         INIT_CTX_KEYLIST_SHARED(CTX(notes_varlist), paramlist);
 
         REBVAL *dest = SINK(ARR_HEAD(notes_varlist)); // "rootvar"
@@ -1043,10 +1045,10 @@ done_caching:;
         // notes in Make_Paramlist_Managed_May_Fail() on why this has to be
         // pre-filled to avoid crashing on CTX_KEYLIST when making frames.
         //
-        assert(MISC(paramlist).facade == paramlist);
+        assert(LINK(paramlist).facade == paramlist);
     }
     else
-        MISC(paramlist).facade = opt_facade;
+        LINK(paramlist).facade = opt_facade;
 
     if (opt_exemplar == NULL) {
         //
@@ -1068,7 +1070,7 @@ done_caching:;
         // would assert, since the function we're making is incomplete..
         //
         assert(
-            CTX_LEN(opt_exemplar) == ARR_LEN(MISC(paramlist).facade) - 1
+            CTX_LEN(opt_exemplar) == ARR_LEN(LINK(paramlist).facade) - 1
         );
 
         LINK(body_holder).exemplar = opt_exemplar;
@@ -1079,8 +1081,8 @@ done_caching:;
     // used by HELP.  If so, it must be a valid REBCTX*.  Otherwise NULL.
     //
     assert(
-        LINK(paramlist).meta == NULL
-        || GET_SER_FLAG(CTX_VARLIST(LINK(paramlist).meta), ARRAY_FLAG_VARLIST)
+        MISC(paramlist).meta == NULL
+        || GET_SER_FLAG(CTX_VARLIST(MISC(paramlist).meta), ARRAY_FLAG_VARLIST)
     );
 
     // Note: used to set the keys of natives as read-only so that the debugger
@@ -1118,23 +1120,22 @@ done_caching:;
 REBCTX *Make_Expired_Frame_Ctx_Managed(REBFUN *func)
 {
     REBARR *varlist = Alloc_Singular_Array_Core(ARRAY_FLAG_VARLIST);
-    SET_SER_INFO(varlist, CONTEXT_INFO_STACK);
-    Init_Blank(ARR_HEAD(varlist));
+    MISC(varlist).meta = NULL; // seen by GC, must be initialized
     MANAGE_ARRAY(varlist);
 
-    SET_SER_INFO(varlist, SERIES_INFO_INACCESSIBLE);
+    RELVAL *rootvar = ARR_HEAD(varlist);
+    VAL_RESET_HEADER(rootvar, REB_FRAME);
+    rootvar->payload.any_context.varlist = varlist;
+    rootvar->payload.any_context.phase = func;
+    INIT_BINDING(rootvar, UNBOUND); // !!! is a binding relevant?
 
-    REBCTX *expired = CTX(varlist);
-
-    INIT_CTX_KEYLIST_SHARED(expired, FUNC_PARAMLIST(func));
-
-    CTX_VALUE(expired)->payload.any_context.varlist = varlist;
-
-    // A NULL stored by the misc field of a REB_FRAME context's varlist which
+    // func stored by the link field of a REB_FRAME context's varlist which
     // indicates that the frame has finished running.  If it is stack-based,
     // then that also means the data values are unavailable.
     //
-    MISC(varlist).f = NULL;
+    REBCTX *expired = CTX(varlist);
+    SET_SER_INFOS(varlist, CONTEXT_INFO_STACK | SERIES_INFO_INACCESSIBLE);
+    INIT_CTX_KEYLIST_SHARED(expired, FUNC_PARAMLIST(func));
 
     return expired;
 }
@@ -1357,6 +1358,13 @@ REBFUN *Make_Interpreted_Function_May_Fail(
 // applications or specializations.  It reuses the keylist of the function
 // but makes a new varlist.
 //
+// Note: While it was once possible to execute a FRAME! value created with
+// `make frame! :some-func`, that had a number of problems.  One is that it
+// exposed the state of a function after its execution; since in Rebol
+// functions are allowed to mutate their arguments, it would mean you had no
+// promise you could reuse the frame after it had been used.  Another is that
+// it complicated the "all frames start with their values on the chunk stack".
+//
 REBCTX *Make_Frame_For_Function(const REBVAL *value) {
     //
     // Note that this cannot take just a REBFUN* directly, because definitional
@@ -1385,7 +1393,7 @@ REBCTX *Make_Frame_For_Function(const REBVAL *value) {
     REBARR *varlist;
     if (exemplar != NULL) {
         //
-        // Existing exemplars should already have void in the unspecialized slots.
+        // Existing exemplars already have void in the unspecialized slots.
         //
         varlist = Copy_Array_Shallow(CTX_VARLIST(exemplar), SPECIFIED);
         SET_SER_FLAGS(varlist, ARRAY_FLAG_VARLIST | SERIES_FLAG_FIXED_SIZE);
@@ -1409,36 +1417,31 @@ REBCTX *Make_Frame_For_Function(const REBVAL *value) {
         TERM_ARRAY_LEN(varlist, ARR_LEN(FUNC_PARAMLIST(func)));
     }
 
+    MISC(varlist).meta = NULL; // GC sees this, we must initialize
+
     // Fill in the rootvar information for the context canon REBVAL
     //
-    REBVAL *var = SINK(ARR_HEAD(varlist));
-    VAL_RESET_HEADER(var, REB_FRAME);
-    var->payload.any_context.varlist = varlist;
-    var->payload.any_context.phase = func;
-    INIT_BINDING(var, VAL_BINDING(value));
+    REBVAL *rootvar = SINK(ARR_HEAD(varlist));
+    VAL_RESET_HEADER(rootvar, REB_FRAME);
+    rootvar->payload.any_context.varlist = varlist;
+    rootvar->payload.any_context.phase = func;
+    INIT_BINDING(rootvar, VAL_BINDING(value));
 
-    // We have to use the keylist of the underlying function, because that
+    // We have to use the facade of the function as a keylist, because that
     // is how many values the frame has to have.  So knowing the actual
     // function the frame represents is done with the phase.  Also, for things
     // like definitional RETURN and LEAVE we had to stow the `binding` field
     // in the FRAME! REBVAL, since the single archetype paramlist does not
     // hold enough information to know where to return *to*.
     //
+    // Note that this precludes the LINK().keysource from holding a REBFRM*,
+    // since it is holding a parameter list instead.
+    //
     INIT_CTX_KEYLIST_SHARED(
         CTX(varlist),
-        FUNC_PARAMLIST(FUNC_UNDERLYING(func))
+        FUNC_FACADE(FUNC_UNDERLYING(func))
     );
     ASSERT_ARRAY_MANAGED(CTX_KEYLIST(CTX(varlist)));
-
-    // While it was once possible to execute a FRAME! value created with
-    // `make frame! :some-func`, that had a number of problems.  One is that
-    // it exposed the state of a function after its execution; since in
-    // Rebol functions are allowed to mutate their arguments, it would mean
-    // you had no promise you could reuse the frame after it had been used.
-    // Another is that it complicated the "all frames start with their values
-    // on the chunk stack".  This should never become non-NULL.
-    //
-    MISC(varlist).f = NULL;
 
     return CTX(varlist);
 }
@@ -1563,7 +1566,7 @@ REBOOL Specialize_Function_Throws(
         );
 
     MANAGE_ARRAY(CTX_VARLIST(meta));
-    LINK(paramlist).meta = meta;
+    MISC(paramlist).meta = meta;
 
     REBFUN *fun = Make_Function(
         paramlist,
@@ -1639,10 +1642,11 @@ void Clonify_Function(REBVAL *value)
     MANAGE_ARRAY(paramlist);
     ARR_HEAD(paramlist)->payload.function.paramlist = paramlist;
 
+    LINK(paramlist).facade = paramlist;
+
     // !!! Meta: copy, inherit?
     //
-    LINK(paramlist).meta = FUNC_META(original_fun);
-    MISC(paramlist).facade = paramlist;
+    MISC(paramlist).meta = FUNC_META(original_fun);
 
     REBFUN *new_fun = Make_Function(
         paramlist,

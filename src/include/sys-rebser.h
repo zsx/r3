@@ -572,22 +572,49 @@ union Reb_Series_Link {
     //
     REBSTR *filename;
 
-    // REBCTX types use this to point from the varlist (the object's
-    // values, which is the identity of the object) to the keylist.  One
-    // reason why this is stored in the REBSER node of the varlist REBARR
-    // as opposed to in the REBVAL of the ANY-CONTEXT! is so that the
-    // keylist can be changed without needing to update all the REBVALs
-    // for that object.
+    // REBCTX types use this field of their varlist (which is the identity of
+    // an ANY-CONTEXT!) to find their "keylist".  It is stored in the REBSER
+    // node of the varlist REBARR vs. in the REBVAL of the ANY-CONTEXT! so
+    // that the keylist can be changed without needing to update all the
+    // REBVALs for that object.
     //
-    // (Note: The main reason a keylist pointer needs to change--at least
-    // at the moment--is when an object instance is expanded, and the
-    // keylist needs to be disconnected from sharing with other objects.)
+    // It may be a simple REBARR* -or- in the case of the varlist of a running
+    // FRAME! on the stack, it points to a REBFRM*.  If it's a FRAME! that
+    // is not running on the stack, it will be the function paramlist of the
+    // actual phase that function is for.  Since REBFRM* all start with a
+    // REBVAL cell, this means NODE_FLAG_CELL can be used on the node to
+    // discern the case where it can be cast to a REBFRM* vs. REBARR*.
     //
-    REBARR *keylist;
+    // (Note: FRAME!s used to use a field `misc.f` to track the associated
+    // frame...but that prevented the ability to SET-META on a frame.  While
+    // that feature may not be essential, it seems awkward to not allow it
+    // since it's allowed for other ANY-CONTEXT!s.  Also, it turns out that
+    // FRAME! values have to get their keylist via the specifically applicable
+    // ->phase field anyway, and it's a faster test to check this for
+    // NODE_FLAG_CELL than to separately extract the CTX_TYPE() and treat
+    // frames differently.)
+    //
+    // It is done as a base-class REBNOD* as opposed to a union in order to
+    // not run afoul of C's rules, by which you cannot assign one member of
+    // a union and then read from another.
+    //
+    REBNOD *keysource;
 
-    // paramlists and keylists can store a "meta" object
+    // The facade is a REBARR which is a proxy for the paramlist of the
+    // underlying frame which is pushed when a function is called.  For
+    // instance, if a specialization of APPEND provides the value to
+    // append, that removes a parameter from the paramlist.  So the
+    // specialization will not have the value.  However, the frame that
+    // needs to be pushed for the call ultimately needs to have the
+    // value--so it must be pushed.
     //
-    REBCTX *meta;
+    // Originally this was done just by caching the paramlist of the
+    // "underlying" function.  However, that can be limiting if one wants
+    // to constrain the types or change the parameter classes.  The facade
+    // *can* be the the paramlist of the underlying function, but it is
+    // not necessarily.
+    //
+    REBARR *facade;
 
     // For REBSTR, circularly linked list of othEr-CaSed string forms
     //
@@ -614,6 +641,14 @@ union Reb_Series_Link {
     // user-defined types, this should be excisable from the core.
     //
     REBFLD *schema;
+
+    // For LIBRARY!, the file descriptor.  This is set to NULL when the
+    // library is not loaded.
+    //
+    // !!! As with some other types, this may not need the optimization of
+    // being in the Reb_Series node--but be handled via user defined types
+    //
+    void *fd;
 };
 
 
@@ -662,6 +697,12 @@ union Reb_Series_Misc {
         int low:16;
     } bind_index;
 
+    // FUNCTION! paramlists and ANY-CONTEXT! varlists can store a "meta"
+    // object.  It's where information for HELP is saved, and it's how modules
+    // store out-of-band information that doesn't appear in their body.
+    //
+    REBCTX *meta;
+
     // When copying arrays, it's necessary to keep a map from source series
     // to their corresponding new copied series.  This allows multiple
     // appearances of the same identities in the source to give corresponding
@@ -681,29 +722,6 @@ union Reb_Series_Misc {
     //
     REBNAT dispatcher;
 
-    // The facade is a REBARR which is a proxy for the paramlist of the
-    // underlying frame which is pushed when a function is called.  For
-    // instance, if a specialization of APPEND provides the value to
-    // append, that removes a parameter from the paramlist.  So the
-    // specialization will not have the value.  However, the frame that
-    // needs to be pushed for the call ultimately needs to have the
-    // value--so it must be pushed.
-    //
-    // Originally this was done just by caching the paramlist of the
-    // "underlying" function.  However, that can be limiting if one wants
-    // to constrain the types or change the parameter classes.  The facade
-    // *can* be the the paramlist of the underlying function, but it is
-    // not necessarily.
-    //
-    REBARR *facade;
-
-    // If this is the varlist of the REBCTX of a FRAME! series, this is
-    // the Reb_Frame pointer containing the C runtime state of the frame.
-    // If the call corresponding to the frame is no longer on the stack,
-    // then this will be NULL.
-    //
-    REBFRM *f;
-
     // some HANDLE!s use this for GC finalization
     //
     CLEANUP_FUNC cleaner;
@@ -718,14 +736,6 @@ union Reb_Series_Misc {
     // used for vectors and bitsets
     //
     REBCNT size;
-
-    // For LIBRARY!, the file descriptor.  This is set to NULL when the
-    // library is not loaded.
-    //
-    // !!! As with some other types, this may not need the optimization of
-    // being in the Reb_Series node--but be handled via user defined types
-    //
-    void *fd;
 
     // used for IMAGE!
     //
