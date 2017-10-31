@@ -159,8 +159,7 @@ static REBOOL Set_Event_Var(REBVAL *event, const REBVAL *word, const REBVAL *val
         if (NOT(IS_BLOCK(val)))
             return FALSE;
 
-        VAL_EVENT_FLAGS(event)
-            &= ~((1 << EVF_DOUBLE) | (1 << EVF_CONTROL) | (1 << EVF_SHIFT));
+        VAL_EVENT_FLAGS(event) &= ~(EVF_DOUBLE | EVF_CONTROL | EVF_SHIFT);
 
         RELVAL *item;
         for (item = VAL_ARRAY_HEAD(val); NOT_END(item); ++item) {
@@ -169,15 +168,15 @@ static REBOOL Set_Event_Var(REBVAL *event, const REBVAL *word, const REBVAL *val
 
             switch (VAL_WORD_SYM(item)) {
             case SYM_CONTROL:
-                SET_FLAG(VAL_EVENT_FLAGS(event), EVF_CONTROL);
+                VAL_EVENT_FLAGS(event) |= EVF_CONTROL;
                 break;
 
             case SYM_SHIFT:
-                SET_FLAG(VAL_EVENT_FLAGS(event), EVF_SHIFT);
+                VAL_EVENT_FLAGS(event) |= EVF_SHIFT;
                 break;
 
             case SYM_DOUBLE:
-                SET_FLAG(VAL_EVENT_FLAGS(event), EVF_DOUBLE);
+                VAL_EVENT_FLAGS(event) |= EVF_DOUBLE;
                 break;
 
             default:
@@ -304,18 +303,17 @@ static REBOOL Get_Event_Var(REBVAL *out, const RELVAL *v, REBSTR *name)
 
     case SYM_FLAGS:
         if (
-            VAL_EVENT_FLAGS(v)
-            & (1 << EVF_DOUBLE | 1 << EVF_CONTROL | 1 << EVF_SHIFT)
+            (VAL_EVENT_FLAGS(v) & (EVF_DOUBLE | EVF_CONTROL | EVF_SHIFT)) != 0
         ){
             REBARR *array = Make_Array(3);
 
-            if (GET_FLAG(VAL_EVENT_FLAGS(v), EVF_DOUBLE))
+            if (VAL_EVENT_FLAGS(v) & EVF_DOUBLE)
                 Init_Word(Alloc_Tail_Array(array), Canon(SYM_DOUBLE));
 
-            if (GET_FLAG(VAL_EVENT_FLAGS(v), EVF_CONTROL))
+            if (VAL_EVENT_FLAGS(v) & EVF_CONTROL)
                 Init_Word(Alloc_Tail_Array(array), Canon(SYM_CONTROL));
 
-            if (GET_FLAG(VAL_EVENT_FLAGS(v), EVF_SHIFT))
+            if (VAL_EVENT_FLAGS(v) & EVF_SHIFT)
                 Init_Word(Alloc_Tail_Array(array), Canon(SYM_SHIFT));
 
             Init_Block(out, array);
@@ -336,7 +334,7 @@ static REBOOL Get_Event_Var(REBVAL *out, const RELVAL *v, REBSTR *name)
         if (VAL_EVENT_TYPE(v) != EVT_DROP_FILE)
             goto is_blank;
 
-        if (!GET_FLAG(VAL_EVENT_FLAGS(v), EVF_COPIED)) {
+        if (NOT(VAL_EVENT_FLAGS(v) & EVF_COPIED)) {
             void *str = VAL_EVENT_SER(v);
 
             // !!! This modifies a const-marked values's bits, which
@@ -349,7 +347,7 @@ static REBOOL Get_Event_Var(REBVAL *out, const RELVAL *v, REBSTR *name)
             REBVAL *writable = m_cast(REBVAL*, const_KNOWN(v));
 
             VAL_EVENT_SER(writable) = Copy_Bytes(cast(REBYTE*, str), -1);
-            SET_FLAG(VAL_EVENT_FLAGS(writable), EVF_COPIED);
+            VAL_EVENT_FLAGS(writable) |= EVF_COPIED;
 
             OS_FREE(str);
         }

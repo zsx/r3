@@ -132,13 +132,15 @@ REBOOL OS_Request_File(REBRFR *fr)
     }
 
     REBOOL ret = FALSE;
-    if (os_create_file_selection(libgtk,
-                                 fr->files,
-                                 fr->len,
-                                 fr->title,
-                                 fr->dir,
-                                 GET_FLAG(fr->flags, FRF_SAVE),
-                                 GET_FLAG(fr->flags, FRF_MULTI))) {
+    if (os_create_file_selection(
+        libgtk,
+        fr->files,
+        fr->len,
+        fr->title,
+        fr->dir,
+        LOGICAL(fr->flags & FRF_SAVE),
+        LOGICAL(fr->flags & FRF_MULTI)
+    )){
         //printf("file opened returned\n");
         ret = TRUE;
     }

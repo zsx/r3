@@ -119,7 +119,7 @@ static int Poll_Default(REBDEV *dev)
 
         // Call command again:
         if (req->command < RDC_MAX) {
-            CLR_FLAG(req->flags, RRF_ACTIVE);
+            req->flags &= ~RRF_ACTIVE;
             result = dev->commands[req->command](req);
         } else {
             result = -1;    // invalid command, remove it
@@ -130,11 +130,11 @@ static int Poll_Default(REBDEV *dev)
         if (result <= 0) {
             *prior = req->next;
             req->next = 0;
-            CLR_FLAG(req->flags, RRF_PENDING);
+            req->flags &= ~RRF_PENDING;
             change = TRUE;
         } else {
             prior = &req->next;
-            if (GET_FLAG(req->flags, RRF_ACTIVE)) {
+            if (req->flags & RRF_ACTIVE) {
                 change = TRUE;
             }
         }
@@ -172,7 +172,7 @@ void Attach_Request(REBREQ **node, REBREQ *req)
     // Link the new request to end:
     *node = req;
     req->next = 0;
-    SET_FLAG(req->flags, RRF_PENDING);
+    req->flags |= RRF_PENDING;
 }
 
 
@@ -205,7 +205,7 @@ void Detach_Request(REBREQ **node, REBREQ *req)
         if (r == req) {
             *node = req->next;
             req->next = 0;
-            CLR_FLAG(req->flags, RRF_PENDING);
+            req->flags |= RRF_PENDING;
             return;
         }
         node = &r->next;
@@ -224,18 +224,17 @@ extern void Done_Device(REBUPT handle, int error);
 void Done_Device(REBUPT handle, int error)
 {
     REBINT d;
-    REBDEV *dev;
-    REBREQ **prior;
-    REBREQ *req;
-
     for (d = RDI_NET; d <= RDI_DNS; d++) {
-        dev = Devices[d];
-        prior = &dev->pending;
+        REBDEV *dev = Devices[d];
+        REBREQ **prior = &dev->pending;
+
         // Scan the pending requests, mark the one we got:
+
+        REBREQ *req;
         for (req = *prior; req; req = *prior) {
             if (cast(REBUPT, req->requestee.handle) == handle) {
                 req->error = error; // zero when no error
-                SET_FLAG(req->flags, RRF_DONE);
+                req->flags |= RRF_DONE;
                 return;
             }
             prior = &req->next;
@@ -322,13 +321,17 @@ int OS_Do_Device(REBREQ *req, REBCNT command)
 
     // Confirm device is initialized. If not, return an error or init
     // it if auto init option is set.
-    if (!GET_FLAG(dev->flags, RDF_INIT)) {
-        if (GET_FLAG(dev->flags, RDO_MUST_INIT)) {
+    if (NOT(dev->flags & RDF_INIT)) {
+        if (dev->flags & RDO_MUST_INIT) {
             req->error = RDE_NO_INIT;
             return -1;
         }
-        if (!dev->commands[RDC_INIT] || !dev->commands[RDC_INIT]((REBREQ*)dev))
-        SET_FLAG(dev->flags, RDF_INIT);
+        if (
+            !dev->commands[RDC_INIT]
+            || !dev->commands[RDC_INIT]((REBREQ*)dev)
+        ){
+            dev->flags |= RDF_INIT;
+        }
     }
 
     // Validate command:
@@ -345,7 +348,8 @@ int OS_Do_Device(REBREQ *req, REBCNT command)
     if (result > 0) Attach_Request(&dev->pending, req);
     else if (dev->pending) {
         Detach_Request(&dev->pending, req); // often a no-op
-        if (result == DR_ERROR && GET_FLAG(req->flags, RRF_ALLOC)) { // not on stack
+        if (result == DR_ERROR && LOGICAL(req->flags & RRF_ALLOC)) {
+            // not on stack
             Signal_Device(req, EVT_ERROR);
         }
     }
@@ -367,7 +371,7 @@ REBREQ *OS_Make_Devreq(int device)
 
     REBREQ *req = cast (REBREQ *, OS_ALLOC_MEM(dev->req_size));
     memset(req, 0, dev->req_size);
-    SET_FLAG(req->flags, RRF_ALLOC);
+    req->flags |= RRF_ALLOC;
     req->device = device;
 
     return req;
@@ -413,7 +417,10 @@ int OS_Poll_Devices(void)
     // Check each device:
     for (d = 0; d < RDI_MAX; d++) {
         dev = Devices[d];
-        if (dev && (dev->pending || GET_FLAG(dev->flags, RDO_AUTO_POLL))) {
+        if (
+            dev != NULL
+            && (dev->pending || LOGICAL(dev->flags & RDO_AUTO_POLL))
+        ){
             // If there is a custom polling function, use it:
             if (dev->commands[RDC_POLL]) {
                 if (dev->commands[RDC_POLL]((REBREQ*)dev)) cnt++;
@@ -448,7 +455,11 @@ int OS_Quit_Devices(int flags)
     int d;
     for (d = RDI_MAX - 1; d >= 0; d--) {
         REBDEV *dev = Devices[d];
-        if (dev && GET_FLAG(dev->flags, RDF_INIT) && dev->commands[RDC_QUIT]) {
+        if (
+            dev != NULL
+            && LOGICAL(dev->flags & RDF_INIT)
+            && dev->commands[RDC_QUIT] != NULL
+        ){
             dev->commands[RDC_QUIT](cast(REBREQ*, dev));
         }
     }

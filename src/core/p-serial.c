@@ -56,10 +56,8 @@ static REB_R Serial_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
     struct devreq_serial *serial = DEVREQ_SERIAL(req);
 
     // Actions for an unopened serial port:
-    if (!IS_OPEN(req)) {
-
+    if (NOT(req->flags & RRF_OPEN)) {
         switch (action) {
-
         case SYM_OPEN:
             arg = Obj_Value(spec, STD_PORT_SPEC_SERIAL_PATH);
             if (! (IS_FILE(arg) || IS_STRING(arg) || IS_BINARY(arg)))
@@ -139,7 +137,7 @@ static REB_R Serial_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
             if (OS_DO_DEVICE(req, RDC_OPEN))
                 fail (Error_On_Port(RE_CANNOT_OPEN, port, -12));
-            SET_OPEN(req);
+            req->flags |= RRF_OPEN;
             return R_OUT;
 
         case SYM_CLOSE:
@@ -262,9 +260,9 @@ static REB_R Serial_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         return R_TRUE;
 
     case SYM_CLOSE:
-        if (IS_OPEN(req)) {
+        if (req->flags & RRF_OPEN) {
             OS_DO_DEVICE(req, RDC_CLOSE);
-            SET_CLOSED(req);
+            req->flags &= ~RRF_OPEN;
         }
         break;
 

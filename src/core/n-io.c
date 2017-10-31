@@ -785,9 +785,9 @@ REBNATIVE(request_file)
     fr.files[0] = OS_MAKE_CH('\0');
 
     if (REF(save))
-        SET_FLAG(fr.flags, FRF_SAVE);
+        fr.flags |= FRF_SAVE;
     if (REF(multi))
-        SET_FLAG(fr.flags, FRF_MULTI);
+        fr.flags |= FRF_MULTI;
 
     if (REF(file)) {
         REBSER *ser = Value_To_OS_Path(ARG(name), TRUE);
@@ -818,7 +818,7 @@ REBNATIVE(request_file)
     }
 
     if (OS_REQUEST_FILE(&fr)) {
-        if (GET_FLAG(fr.flags, FRF_MULTI)) {
+        if (fr.flags & FRF_MULTI) {
             REBARR *array = File_List_To_Array(fr.files);
             Init_Block(D_OUT, array);
         }

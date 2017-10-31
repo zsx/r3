@@ -41,8 +41,6 @@
 
 #include "reb-host.h"
 
-#define SF_DEV_NULL 31      // local flag to mark NULL device
-
 // Temporary globals: (either move or remove?!)
 static int Std_Inp = STDIN_FILENO;
 static int Std_Out = STDOUT_FILENO;
@@ -87,7 +85,7 @@ DEVICE_CMD Quit_IO(REBREQ *dr)
 
     Close_Stdio();
 
-    CLR_FLAG(dev->flags, RDF_OPEN);
+    dev->flags &= ~RDF_OPEN;
     return DR_DONE;
 }
 
@@ -97,20 +95,18 @@ DEVICE_CMD Quit_IO(REBREQ *dr)
 //
 DEVICE_CMD Open_IO(REBREQ *req)
 {
-    REBDEV *dev;
-
-    dev = Devices[req->device];
+    REBDEV *dev = Devices[req->device];
 
     // Avoid opening the console twice (compare dev and req flags):
-    if (GET_FLAG(dev->flags, RDF_OPEN)) {
+    if (dev->flags & RDF_OPEN) {
         // Device was opened earlier as null, so req must have that flag:
-        if (GET_FLAG(dev->flags, SF_DEV_NULL))
-            SET_FLAG(req->modes, RDM_NULL);
-        SET_FLAG(req->flags, RRF_OPEN);
+        if (dev->flags & SF_DEV_NULL)
+            req->modes |= RDM_NULL;
+        req->flags |= RRF_OPEN;
         return DR_DONE; // Do not do it again
     }
 
-    if (!GET_FLAG(req->modes, RDM_NULL)) {
+    if (NOT(req->modes & RDM_NULL)) {
 
 #ifndef HAS_SMART_CONSOLE
         if (isatty(Std_Inp))
@@ -119,10 +115,10 @@ DEVICE_CMD Open_IO(REBREQ *req)
         //printf("%x\r\n", req->requestee.handle);
     }
     else
-        SET_FLAG(dev->flags, SF_DEV_NULL);
+        dev->flags |= SF_DEV_NULL;
 
-    SET_FLAG(req->flags, RRF_OPEN);
-    SET_FLAG(dev->flags, RDF_OPEN);
+    req->flags |= RRF_OPEN;
+    dev->flags |= RDF_OPEN;
 
     return DR_DONE;
 }
@@ -137,7 +133,7 @@ DEVICE_CMD Close_IO(REBREQ *req)
 
     Close_Stdio();
 
-    CLR_FLAG(dev->flags, RRF_OPEN);
+    dev->flags &= ~RRF_OPEN;
 
     return DR_DONE;
 }
@@ -156,7 +152,7 @@ DEVICE_CMD Write_IO(REBREQ *req)
 {
     long total;
 
-    if (GET_FLAG(req->modes, RDM_NULL)) {
+    if (req->modes & RDM_NULL) {
         req->actual = req->length;
         return DR_DONE;
     }
@@ -170,7 +166,7 @@ DEVICE_CMD Write_IO(REBREQ *req)
             return DR_ERROR;
         }
 
-        //if (GET_FLAG(req->flags, RRF_FLUSH)) {
+        //if (req->flags & RRF_FLUSH) {
             //FLUSH();
         //}
 
@@ -195,7 +191,7 @@ DEVICE_CMD Read_IO(REBREQ *req)
     long total = 0;
     int len = req->length;
 
-    if (GET_FLAG(req->modes, RDM_NULL)) {
+    if (req->modes & RDM_NULL) {
         req->common.data[0] = 0;
         return DR_DONE;
     }

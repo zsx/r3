@@ -41,9 +41,8 @@ typedef struct Reb_File_Requestor {
 
 // File Request Flags:
 enum {
-    FRF_MULTI,
-    FRF_SAVE,
-    FRF_KEEP,
-    FRF_MAX
+    FRF_MULTI = 1 << 0,
+    FRF_SAVE = 1 << 2,
+    FRF_KEEP = 1 << 3
 };
 

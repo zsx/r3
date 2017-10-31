@@ -43,33 +43,31 @@
 //
 static int Read_Dir(struct devreq_file *dir, REBARR *files)
 {
-    REBINT result;
-    REBCNT len;
-    REBSER *fname;
-    REBSER *name;
     struct devreq_file file;
-    REBREQ *req = AS_REBREQ(dir);
-
-    TERM_ARRAY_LEN(files, 0);
     CLEARS(&file);
 
     // Temporary filename storage; native OS API character size (REBCHR) varies
     //
-    fname = Make_Series(MAX_FILE_NAME, sizeof(REBCHR));
+    REBSER *fname = Make_Series(MAX_FILE_NAME, sizeof(REBCHR));
     file.path = SER_HEAD(REBCHR, fname);
 
-    SET_FLAG(req->modes, RFM_DIR);
-
+    REBREQ *req = AS_REBREQ(dir);
+    req->modes |= RFM_DIR;
     req->common.data = cast(REBYTE*, &file);
 
+    TERM_ARRAY_LEN(files, 0);
+
+    REBINT result;
     while (
         (result = OS_DO_DEVICE(req, RDC_READ)) == 0
-        && !GET_FLAG(req->flags, RRF_DONE)
-    ) {
-        len = OS_STRLEN(file.path);
-        if (GET_FLAG(file.devreq.modes, RFM_DIR)) len++;
-        name = Copy_OS_Str(file.path, len);
-        if (GET_FLAG(file.devreq.modes, RFM_DIR))
+        && NOT(req->flags & RRF_DONE)
+    ){
+        REBCNT len = OS_STRLEN(file.path);
+        if (file.devreq.modes & RFM_DIR)
+            ++len;
+
+        REBSER *name = Copy_OS_Str(file.path, len);
+        if (file.devreq.modes & RFM_DIR)
             SET_ANY_CHAR(name, SER_LEN(name) - 1, '/');
         Init_File(Alloc_Tail_Array(files), name);
     }
@@ -79,7 +77,7 @@ static int Read_Dir(struct devreq_file *dir, REBARR *files)
             OS_STRCHR(dir->path, '*')
             || OS_STRCHR(dir->path, '?')
         )
-    ) {
+    ){
         result = 0;  // no matches found, but not an error
     }
 
@@ -103,16 +101,13 @@ static int Read_Dir(struct devreq_file *dir, REBARR *files)
 //
 static void Init_Dir_Path(struct devreq_file *dir, REBVAL *path, REBINT wild, REBCNT policy)
 {
-    REBINT len;
-    REBSER *ser;
-    //REBYTE *flags;
-    REBREQ *req = AS_REBREQ(dir);
-
-    SET_FLAG(req->modes, RFM_DIR);
-
     // We depend on To_Local_Path giving us 2 extra chars for / and *
-    ser = Value_To_OS_Path(path, TRUE);
-    len = SER_LEN(ser);
+    //
+    REBSER *ser = Value_To_OS_Path(path, TRUE);
+    REBINT len = SER_LEN(ser);
+
+    REBREQ *req = AS_REBREQ(dir);
+    req->modes |= RFM_DIR;
     dir->path = SER_HEAD(REBCHR, ser);
 
     Secure_Port(SYM_FILE, req, path, ser);

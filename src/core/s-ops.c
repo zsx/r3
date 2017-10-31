@@ -219,7 +219,7 @@ REBSER *Temp_Bin_Str_Managed(const RELVAL *val, REBCNT *index, REBCNT *length)
             DECLARE_LOCAL (protect);
             Init_String(protect, series);
 
-            Protect_Value(protect, FLAGIT(PROT_SET));
+            Protect_Value(protect, PROT_SET);
 
             // just a string...not /DEEP...shouldn't need to Uncolor()
         }

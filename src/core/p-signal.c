@@ -153,7 +153,7 @@ static REB_R Signal_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
     REBVAL *spec = CTX_VAR(port, STD_PORT_SPEC);
 
-    if (!IS_OPEN(req)) {
+    if (NOT(req->flags & RRF_OPEN)) {
         switch (action) {
         case SYM_READ:
         case SYM_OPEN: {

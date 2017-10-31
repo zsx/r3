@@ -225,10 +225,9 @@ typedef struct rebol_scan_state {
 #define ANY_CR_LF_END(c) (!(c) || (c) == CR || (c) == LF)
 
 enum {
-    SCAN_NEXT,  // load/next feature
-    SCAN_ONLY,  // only single value (no blocks)
-    SCAN_RELAX, // no error throw
-    SCAN_MAX
+    SCAN_NEXT = 1 << 0, // load/next feature
+    SCAN_ONLY = 1 << 1, // only single value (no blocks)
+    SCAN_RELAX = 1 << 2 // no error throw
 };
 
 

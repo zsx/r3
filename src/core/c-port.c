@@ -45,8 +45,11 @@
 REBOOL Is_Port_Open(REBCTX *port)
 {
     REBVAL *state = CTX_VAR(port, STD_PORT_STATE);
-    if (!IS_BINARY(state)) return FALSE;
-    return IS_OPEN(VAL_BIN_AT(state));
+    if (!IS_BINARY(state))
+        return FALSE;
+
+    REBREQ *req = cast(REBREQ*, VAL_BIN_AT(state));
+    return LOGICAL(req->flags & RRF_OPEN);
 }
 
 
@@ -60,8 +63,11 @@ void Set_Port_Open(REBCTX *port, REBOOL open)
 {
     REBVAL *state = CTX_VAR(port, STD_PORT_STATE);
     if (IS_BINARY(state)) {
-        if (open) SET_OPEN(VAL_BIN_AT(state));
-        else SET_CLOSED(VAL_BIN_AT(state));
+        REBREQ *req = cast(REBREQ*, VAL_BIN_AT(state));
+        if (open)
+            req->flags |= RRF_OPEN; // open it
+        else
+            req->flags &= ~RRF_OPEN; // close it
     }
 }
 
@@ -91,7 +97,7 @@ REBREQ *Ensure_Port_State(REBCTX *port, REBCNT device)
         TERM_BIN_LEN(data, req_size);
 
         REBREQ *req = cast(REBREQ*, BIN_HEAD(data));
-        SET_FLAG(req->flags, RRF_ALLOC); // not on stack
+        req->flags |= RRF_ALLOC; // not on stack
         req->port = port;
         req->device = device;
         Init_Binary(state, data);
@@ -120,7 +126,8 @@ REBOOL Pending_Port(REBVAL *port)
         state = CTX_VAR(VAL_CONTEXT(port), STD_PORT_STATE);
         if (IS_BINARY(state)) {
             req = (REBREQ*)VAL_BIN(state);
-            if (!GET_FLAG(req->flags, RRF_PENDING)) return FALSE;
+            if (NOT(req->flags & RRF_PENDING))
+                return FALSE;
         }
     }
     return TRUE;
@@ -586,10 +593,10 @@ void Secure_Port(REBSYM sym_kind, REBREQ *req, REBVAL *name, REBSER *path)
 
     // Check policy integer:
     // Mask is [xxxx wwww rrrr] - each holds the action
-    if (GET_FLAG(req->modes, RFM_READ))
+    if (req->modes & RFM_READ)
         Trap_Security(flags[POL_READ], Canon(sym_kind), name);
 
-    if (GET_FLAG(req->modes, RFM_WRITE))
+    if (req->modes & RFM_WRITE)
         Trap_Security(flags[POL_WRITE], Canon(sym_kind), name);
 }
 

@@ -215,10 +215,10 @@ act_blk:
             fail (Error_Bad_Refines_Raw());
         }
 
-        if (!req) { //!!!
+        if (req == NULL) { //!!!
             req = OS_MAKE_DEVREQ(RDI_EVENT);
-            if (req) {
-                SET_OPEN(req);
+            if (req != NULL) {
+                req->flags |= RRF_OPEN;
                 OS_DO_DEVICE(req, RDC_CONNECT);     // stays queued
             }
         }
@@ -228,8 +228,8 @@ act_blk:
         OS_ABORT_DEVICE(req);
         OS_DO_DEVICE(req, RDC_CLOSE);
         // free req!!!
-        SET_CLOSED(req);
-        req = 0;
+        req->flags &= ~RRF_OPEN;
+        req = NULL;
         break;
 
     case SYM_FIND: // add it

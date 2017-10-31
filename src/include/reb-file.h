@@ -29,30 +29,29 @@
 
 // RFM - REBOL File Modes
 enum {
-    RFM_READ = 0,
-    RFM_WRITE,
-    RFM_APPEND,
-    RFM_SEEK,
-    RFM_NEW,
-    RFM_READONLY,
-    RFM_TRUNCATE,
-    RFM_RESEEK,         // file index has moved, reseek
-    RFM_NAME_MEM,       // converted name allocated in mem
-    RFM_DIR = 16,
-    RFM_MAX
+    RFM_READ = 1 << 0,
+    RFM_WRITE = 1 << 1,
+    RFM_APPEND = 1 << 2,
+    RFM_SEEK = 1 << 3,
+    RFM_NEW = 1 << 4,
+    RFM_READONLY = 1 << 5,
+    RFM_TRUNCATE = 1 << 6,
+    RFM_RESEEK = 1 << 7, // file index has moved, reseek
+    RFM_NAME_MEM = 1 << 8, // converted name allocated in mem
+    RFM_DIR = 1 << 9
 };
 
 // RFE - REBOL File Error
 enum {
-    RFE_BAD_PATH = 1,
-    RFE_NO_MODES,       // No file modes specified
-    RFE_OPEN_FAIL,      // File open failed
-    RFE_BAD_SEEK,       // Seek not supported for this file
-    RFE_NO_HANDLE,      // File struct has no handle
-    RFE_NO_SEEK,        // Seek action failed
-    RFE_BAD_READ,       // Read failed (general)
-    RFE_BAD_WRITE,      // Write failed (general)
-    RFE_DISK_FULL,      // No space on target volume
+    RFE_BAD_PATH,
+    RFE_NO_MODES, // No file modes specified
+    RFE_OPEN_FAIL, // File open failed
+    RFE_BAD_SEEK, // Seek not supported for this file
+    RFE_NO_HANDLE, // File struct has no handle
+    RFE_NO_SEEK, // Seek action failed
+    RFE_BAD_READ, // Read failed (general)
+    RFE_BAD_WRITE, // Write failed (general)
+    RFE_DISK_FULL, // No space on target volume
     RFE_MAX
 };
 

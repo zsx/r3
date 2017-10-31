@@ -121,7 +121,7 @@ void Prin_OS_String(const void *p, REBCNT len, REBFLGS opts)
     // Determine length if not provided:
     if (len == UNKNOWN) len = unicode ? Strlen_Uni(up) : LEN_BYTES(bp);
 
-    SET_FLAG(Req_SIO->flags, RRF_FLUSH);
+    Req_SIO->flags |= RRF_FLUSH;
 
     Req_SIO->actual = 0;
     Req_SIO->common.data = buf;

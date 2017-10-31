@@ -201,7 +201,7 @@ inline static void Deep_Freeze_Array(REBARR *a) {
     Protect_Series(
         SER(a),
         0, // start protection at index 0
-        FLAGIT(PROT_DEEP) | FLAGIT(PROT_SET) | FLAGIT(PROT_FREEZE)
+        PROT_DEEP | PROT_SET | PROT_FREEZE
     );
     Uncolor_Array(a);
 }

@@ -44,14 +44,14 @@ static void Protect_Key(REBCTX *context, REBCNT index, REBFLGS flags)
     // have to be modified, and hence it doesn't have to be made unique
     // from any objects that were sharing it.
     //
-    if (GET_FLAG(flags, PROT_WORD)) {
-        if (GET_FLAG(flags, PROT_SET))
+    if (flags & PROT_WORD) {
+        if (flags & PROT_SET)
             SET_VAL_FLAG(var, CELL_FLAG_PROTECTED);
         else
             CLEAR_VAL_FLAG(var, CELL_FLAG_PROTECTED);
     }
 
-    if (GET_FLAG(flags, PROT_HIDE)) {
+    if (flags & PROT_HIDE) {
         //
         // !!! For the moment, hiding is still implemented via typeset flags.
         // Since PROTECT/HIDE is something of an esoteric feature, keep it
@@ -62,7 +62,7 @@ static void Protect_Key(REBCTX *context, REBCNT index, REBFLGS flags)
 
         REBVAL *key = CTX_KEY(context, index);
 
-        if (GET_FLAG(flags, PROT_SET))
+        if (flags & PROT_SET)
             SET_VAL_FLAGS(key, TYPESET_FLAG_HIDDEN | TYPESET_FLAG_UNBINDABLE);
         else
             CLEAR_VAL_FLAGS(
@@ -96,20 +96,20 @@ void Protect_Series(REBSER *s, REBCNT index, REBFLGS flags)
     if (Is_Series_Black(s))
         return; // avoid loop
 
-    if (GET_FLAG(flags, PROT_SET)) {
-        if (GET_FLAG(flags, PROT_FREEZE)) {
-            assert(GET_FLAG(flags, PROT_DEEP));
+    if (flags & PROT_SET) {
+        if (flags & PROT_FREEZE) {
+            assert(flags & PROT_DEEP);
             SET_SER_INFO(s, SERIES_INFO_FROZEN);
         }
         else
             SET_SER_INFO(s, SERIES_INFO_PROTECTED);
     }
     else {
-        assert(!GET_FLAG(flags, PROT_FREEZE));
+        assert(NOT(flags & PROT_FREEZE));
         CLEAR_SER_INFO(s, SERIES_INFO_PROTECTED);
     }
 
-    if (NOT_SER_FLAG(s, SERIES_FLAG_ARRAY) || !GET_FLAG(flags, PROT_DEEP))
+    if (NOT_SER_FLAG(s, SERIES_FLAG_ARRAY) || NOT(flags & PROT_DEEP))
         return;
 
     Flip_Series_To_Black(s); // recursion protection
@@ -130,20 +130,21 @@ void Protect_Context(REBCTX *c, REBFLGS flags)
     if (Is_Series_Black(SER(CTX_VARLIST(c))))
         return; // avoid loop
 
-    if (GET_FLAG(flags, PROT_SET)) {
-        if (GET_FLAG(flags, PROT_FREEZE)) {
-            assert(GET_FLAG(flags, PROT_DEEP));
+    if (flags & PROT_SET) {
+        if (flags & PROT_FREEZE) {
+            assert(flags & PROT_DEEP);
             SET_SER_INFO(CTX_VARLIST(c), SERIES_INFO_FROZEN);
         }
         else
             SET_SER_INFO(CTX_VARLIST(c), SERIES_INFO_PROTECTED);
     }
     else {
-        assert(!GET_FLAG(flags, PROT_FREEZE));
+        assert(NOT(flags & PROT_FREEZE));
         CLEAR_SER_INFO(CTX_VARLIST(c), SERIES_INFO_PROTECTED);
     }
 
-    if (!GET_FLAG(flags, PROT_DEEP)) return;
+    if (NOT(flags & PROT_DEEP))
+        return;
 
     Flip_Series_To_Black(SER(CTX_VARLIST(c))); // for recursion
 
@@ -160,7 +161,7 @@ static void Protect_Word_Value(REBVAL *word, REBFLGS flags)
 {
     if (ANY_WORD(word) && IS_WORD_BOUND(word)) {
         Protect_Key(VAL_WORD_CONTEXT(word), VAL_WORD_INDEX(word), flags);
-        if (GET_FLAG(flags, PROT_DEEP)) {
+        if (flags & PROT_DEEP) {
             //
             // Ignore existing mutability state so that it may be modified.
             // Most routines should NOT do this!
@@ -180,7 +181,7 @@ static void Protect_Word_Value(REBVAL *word, REBFLGS flags)
 
         if (context != NULL) {
             Protect_Key(context, index, flags);
-            if (GET_FLAG(flags, PROT_DEEP)) {
+            if (flags & PROT_DEEP) {
                 REBVAL *var = CTX_VAR(context, index);
                 Protect_Value(var, flags);
                 Uncolor(var);
@@ -207,8 +208,10 @@ static REB_R Protect_Unprotect_Core(REBFRM *frame_, REBFLGS flags)
 
     Check_Security(Canon(SYM_PROTECT), POL_WRITE, value);
 
-    if (REF(deep)) SET_FLAG(flags, PROT_DEEP);
-    //if (REF(words)) SET_FLAG(flags, PROT_WORD);
+    if (REF(deep))
+        flags |= PROT_DEEP;
+    //if (REF(words))
+    //  flags |= PROT_WORDS;
 
     if (IS_WORD(value) || IS_PATH(value)) {
         Protect_Word_Value(value, flags); // will unmark if deep
@@ -257,18 +260,19 @@ static REB_R Protect_Unprotect_Core(REBFRM *frame_, REBFLGS flags)
                 }
 
                 Protect_Value(var, flags);
-                if (GET_FLAG(flags, PROT_DEEP))
+                if (flags & PROT_DEEP)
                     Uncolor(var);
             }
             goto return_value_arg;
         }
     }
 
-    if (GET_FLAG(flags, PROT_HIDE)) fail (Error_Bad_Refines_Raw());
+    if (flags & PROT_HIDE)
+        fail (Error_Bad_Refines_Raw());
 
     Protect_Value(value, flags);
 
-    if (GET_FLAG(flags, PROT_DEEP))
+    if (flags & PROT_DEEP)
         Uncolor(value);
 
 return_value_arg:
@@ -304,12 +308,12 @@ REBNATIVE(protect)
     UNUSED(PAR(words));
     UNUSED(PAR(values));
 
-    REBFLGS flags = FLAGIT(PROT_SET);
+    REBFLGS flags = PROT_SET;
 
     if (REF(hide))
-        SET_FLAG(flags, PROT_HIDE);
+        flags |= PROT_HIDE;
     else
-        SET_FLAG(flags, PROT_WORD); // there is no unhide
+        flags |= PROT_WORD; // there is no unhide
 
     return Protect_Unprotect_Core(frame_, flags);
 }
@@ -345,7 +349,7 @@ REBNATIVE(unprotect)
     if (REF(hide))
         fail ("Cannot un-hide an object field once hidden");
 
-    return Protect_Unprotect_Core(frame_, FLAGIT(PROT_WORD));
+    return Protect_Unprotect_Core(frame_, PROT_WORD);
 }
 
 

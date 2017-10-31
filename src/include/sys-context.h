@@ -370,7 +370,7 @@ inline static REBVAL *CTX_FRAME_FUNC_VALUE(REBCTX *c) {
 inline static void Deep_Freeze_Context(REBCTX *c) {
     Protect_Context(
         c,
-        FLAGIT(PROT_SET) | FLAGIT(PROT_DEEP) | FLAGIT(PROT_FREEZE)
+        PROT_SET | PROT_DEEP | PROT_FREEZE
     );
     Uncolor_Array(CTX_VARLIST(c));
 }

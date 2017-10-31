@@ -90,25 +90,29 @@ enum {
 // REBOL Device Flags and Options (bitnums):
 enum {
     // Status flags:
-    RDF_INIT,       // Device is initialized
-    RDF_OPEN,       // Global open (for devs that cannot multi-open)
+    RDF_INIT = 1 << 0, // Device is initialized
+    RDF_OPEN = 1 << 1, // Global open (for devs that cannot multi-open)
     // Options:
-    RDO_MUST_INIT = 16, // Do not allow auto init (manual init required)
-    RDO_AUTO_POLL,  // Poll device, even if no requests (e.g. interrupts)
-    RDO_MAX
+    RDO_MUST_INIT = 1 << 2, // Do not allow auto init (manual init required)
+    RDO_AUTO_POLL = 1 << 3 // Poll device, even if no requests (e.g. interrupts)
 };
 
 // REBOL Request Flags (bitnums):
 enum {
-    RRF_OPEN,       // Port is open
-    RRF_DONE,       // Request is done (used when extern proc changes it)
-    RRF_FLUSH,      // Flush WRITE
+    RRF_OPEN = 1 << 0, // Port is open
+    RRF_DONE = 1 << 1, // Request is done (used when extern proc changes it)
+    RRF_FLUSH = 1 << 2, // Flush WRITE
 //  RRF_PREWAKE,    // C-callback before awake happens (to update port object)
-    RRF_PENDING,    // Request is attached to pending list
-    RRF_ALLOC,      // Request is allocated, not a temp on stack
-    RRF_WIDE,       // Wide char IO
-    RRF_ACTIVE,     // Port is active, even no new events yet
-    RRF_MAX
+    RRF_PENDING = 1 << 3, // Request is attached to pending list
+    RRF_ALLOC = 1 << 4, // Request is allocated, not a temp on stack
+    RRF_WIDE = 1 << 5, // Wide char IO
+    RRF_ACTIVE = 1 << 6, // Port is active, even no new events yet
+
+    // !!! This was a "local flag to mark null device" which when not managed
+    // here was confusing.  Given the need to essentially replace the whole
+    // device model, it's clearer to keep it here.
+    //
+    SF_DEV_NULL = 1 << 31
 };
 
 // REBOL Device Errors:
@@ -121,8 +125,7 @@ enum {
 };
 
 enum {
-    RDM_NULL,       // Null device
-    RDM_MAX
+    RDM_NULL = 1 << 0 // !!! "Null device", can this just be a boolean?
 };
 
 // Serial Parity
@@ -254,11 +257,6 @@ inline static struct devreq_serial *DEVREQ_SERIAL(struct rebol_devreq *req) {
     assert(req->device == RDI_SERIAL);
     return cast(struct devreq_serial*, req);
 }
-
-// Simple macros for common OPEN? test (for some but not all ports):
-#define SET_OPEN(r)     SET_FLAG(((REBREQ*)(r))->flags, RRF_OPEN)
-#define SET_CLOSED(r)   CLR_FLAG(((REBREQ*)(r))->flags, RRF_OPEN)
-#define IS_OPEN(r)      GET_FLAG(((REBREQ*)(r))->flags, RRF_OPEN)
 
 #define OS_ENA -1
 #define OS_EINVAL -2

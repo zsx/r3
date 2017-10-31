@@ -238,7 +238,7 @@ DEVICE_CMD Write_Serial(REBREQ *req)
         Signal_Device(req, EVT_WROTE);
         return DR_DONE;
     } else {
-        SET_FLAG(req->flags, RRF_ACTIVE); /* notify OS_WAIT of activity */
+        req->flags |= RRF_ACTIVE; // notify OS_WAIT of activity
         return DR_PEND;
     }
 }

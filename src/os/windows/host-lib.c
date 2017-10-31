@@ -446,11 +446,12 @@ REBOOL OS_Request_File(REBRFR *fr)
 
     ofn.Flags = OFN_HIDEREADONLY | OFN_EXPLORER | OFN_NOCHANGEDIR; //|OFN_NONETWORKBUTTON; //;
 
-    if (GET_FLAG(fr->flags, FRF_MULTI)) ofn.Flags |= OFN_ALLOWMULTISELECT;
+    if (fr->flags & FRF_MULTI)
+        ofn.Flags |= OFN_ALLOWMULTISELECT;
 
     osDialogOpen = TRUE;
 
-    if (GET_FLAG(fr->flags, FRF_SAVE))
+    if (fr->flags & FRF_SAVE)
         ret = GetSaveFileName(&ofn);
     else
         ret = GetOpenFileName(&ofn);

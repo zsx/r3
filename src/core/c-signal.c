@@ -106,19 +106,19 @@ REBOOL Do_Signals_Throws(REBVAL *out)
 
     // "Be careful of signal loops! EG: do not PRINT from here."
 
-    if (GET_FLAG(filtered_sigs, SIG_RECYCLE)) {
+    if (filtered_sigs & SIG_RECYCLE) {
         CLR_SIGNAL(SIG_RECYCLE);
         Recycle();
     }
 
 #ifdef NOT_USED_INVESTIGATE
-    if (GET_FLAG(filtered_sigs, SIG_EVENT_PORT)) {  // !!! Why not used?
+    if (filtered_sigs & SIG_EVENT_PORT) {  // !!! Why not used?
         CLR_SIGNAL(SIG_EVENT_PORT);
         Awake_Event_Port();
     }
 #endif
 
-    if (GET_FLAG(filtered_sigs, SIG_HALT)) {
+    if (filtered_sigs & SIG_HALT) {
         //
         // Early in the booting process, it's not possible to handle Ctrl-C
         // because the error machinery has not been initialized.  There must
@@ -133,7 +133,7 @@ REBOOL Do_Signals_Throws(REBVAL *out)
         fail (VAL_CONTEXT(TASK_HALT_ERROR));
     }
 
-    if (GET_FLAG(filtered_sigs, SIG_INTERRUPT)) {
+    if (filtered_sigs & SIG_INTERRUPT) {
         //
         // Similar to the Ctrl-C halting, the "breakpoint" interrupt request
         // can't be processed early on.  The throw mechanics should panic

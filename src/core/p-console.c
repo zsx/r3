@@ -73,7 +73,7 @@ static REB_R Console_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         UNUSED(PAR(lines)); // handled in dispatcher
 
         // If not open, open it:
-        if (!IS_OPEN(req)) {
+        if (NOT(req->flags & RRF_OPEN)) {
             if (OS_DO_DEVICE(req, RDC_OPEN))
                 fail (Error_On_Port(RE_CANNOT_OPEN, port, req->error));
         }
@@ -103,16 +103,17 @@ static REB_R Console_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         break; }
 
     case SYM_OPEN: {
-        SET_OPEN(req);
+        req->flags |= RRF_OPEN;
         break; }
 
     case SYM_CLOSE:
-        SET_CLOSED(req);
+        req->flags &= ~RRF_OPEN;
         //OS_DO_DEVICE(req, RDC_CLOSE);
         break;
 
     case SYM_OPEN_Q:
-        if (IS_OPEN(req)) return R_TRUE;
+        if (req->flags & RRF_OPEN)
+            return R_TRUE;
         return R_FALSE;
 
     default:

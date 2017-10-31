@@ -72,7 +72,7 @@ static REB_R DNS_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         UNUSED(PAR(string)); // handled in dispatcher
         UNUSED(PAR(lines)); // handled in dispatcher
 
-        if (!IS_OPEN(sock)) {
+        if (NOT(sock->flags & RRF_OPEN)) {
             if (OS_DO_DEVICE(sock, RDC_OPEN))
                 fail (Error_On_Port(RE_CANNOT_OPEN, port, sock->error));
             sync = TRUE;
@@ -85,7 +85,7 @@ static REB_R DNS_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         // that scans to a tuple, at this time (currently uses a string)
         //
         if (IS_TUPLE(arg)) {
-            SET_FLAG(sock->modes, RST_REVERSE);
+            sock->modes |= RST_REVERSE;
             memcpy(&(DEVREQ_NET(sock)->remote_ip), VAL_TUPLE(arg), 4);
         }
         else if (IS_STRING(arg)) {
@@ -95,7 +95,7 @@ static REB_R DNS_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
             DECLARE_LOCAL (tmp);
             if (Scan_Tuple(tmp, BIN_AT(utf8, index), string_len) != NULL) {
-                SET_FLAG(sock->modes, RST_REVERSE);
+                sock->modes |= RST_REVERSE;
                 memcpy(&(DEVREQ_NET(sock)->remote_ip), VAL_TUPLE(tmp), 4);
             }
             else
@@ -111,7 +111,7 @@ static REB_R DNS_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         if (sync && result == DR_PEND) {
             assert(FALSE); // asynchronous R3-Alpha DNS code removed
             len = 0;
-            for (; GET_FLAG(sock->flags, RRF_PENDING) && len < 10; ++len) {
+            for (; LOGICAL(sock->flags & RRF_PENDING) && len < 10; ++len) {
                 OS_WAIT(2000, 0);
             }
             len = 1;
@@ -124,7 +124,7 @@ static REB_R DNS_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         break; }
 
     case SYM_PICK_P:  // FIRST - return result
-        if (!IS_OPEN(sock))
+        if (NOT(sock->flags & RRF_OPEN))
             fail (Error_On_Port(RE_NOT_OPEN, port, -12));
 
         len = Get_Num_From_Arg(arg); // Position
@@ -132,7 +132,7 @@ static REB_R DNS_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         if (len != 1)
             fail (Error_Out_Of_Range(arg));
 
-        assert(GET_FLAG(sock->flags, RRF_DONE)); // R3-Alpha async DNS removed
+        assert(sock->flags & RRF_DONE); // R3-Alpha async DNS removed
 
         if (sock->error) {
             OS_DO_DEVICE(sock, RDC_CLOSE);
@@ -144,7 +144,7 @@ static REB_R DNS_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
             return R_OUT; // READ action currently required to use R_OUTs
         }
 
-        if (GET_FLAG(sock->modes, RST_REVERSE)) {
+        if (sock->modes & RST_REVERSE) {
             Init_String(
                 D_OUT,
                 Copy_Bytes(sock->common.data, LEN_BYTES(sock->common.data))
@@ -182,8 +182,7 @@ static REB_R DNS_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         break;
 
     case SYM_OPEN_Q:
-        if (IS_OPEN(sock)) return R_TRUE;
-        return R_FALSE;
+        return R_FROM_BOOL(LOGICAL(sock->flags & RRF_OPEN));
 
     case SYM_ON_WAKE_UP:
         return R_BLANK;

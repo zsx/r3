@@ -67,7 +67,7 @@ DEVICE_CMD Open_Signal(REBREQ *req)
         goto error;
     }
 
-    SET_OPEN(req);
+    req->flags |= RRF_OPEN;
     Signal_Device(req, EVT_OPEN);
 
     return DR_DONE;
@@ -86,7 +86,7 @@ DEVICE_CMD Close_Signal(REBREQ *req)
     if (sigprocmask(SIG_UNBLOCK, &signal->mask, NULL) < 0) {
         goto error;
     }
-    SET_CLOSED(req);
+    req->flags &= ~RRF_OPEN;
     return DR_DONE;
 
 error:

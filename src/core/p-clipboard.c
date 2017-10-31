@@ -52,7 +52,7 @@ static REB_R Clipboard_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
                 return R_BLANK;
 
             REBINT len = req->actual;
-            if (GET_FLAG(req->flags, RRF_WIDE)) {
+            if (req->flags & RRF_WIDE) {
                 // convert to UTF8, so that it can be converted back to string!
                 Init_Binary(arg, Make_UTF8_Binary(
                     req->common.data,
@@ -91,12 +91,12 @@ static REB_R Clipboard_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         UNUSED(PAR(lines)); // handled in dispatcher
 
         // This device is opened on the READ:
-        if (!IS_OPEN(req)) {
+        if (NOT(req->flags & RRF_OPEN)) {
             if (OS_DO_DEVICE(req, RDC_OPEN))
                 fail (Error_On_Port(RE_CANNOT_OPEN, port, req->error));
         }
         // Issue the read request:
-        CLR_FLAG(req->flags, RRF_WIDE); // allow byte or wide chars
+        req->flags &= ~RRF_WIDE; // allow byte or wide chars
 
         REBINT result = OS_DO_DEVICE(req, RDC_READ);
         if (result < 0)
@@ -108,7 +108,7 @@ static REB_R Clipboard_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         arg = CTX_VAR(port, STD_PORT_DATA);
 
         REBINT len = req->actual;
-        if (GET_FLAG(req->flags, RRF_WIDE)) {
+        if (req->flags & RRF_WIDE) {
             // convert to UTF8, so that it can be converted back to string!
             Init_Binary(arg, Make_UTF8_Binary(
                 req->common.data,
@@ -150,7 +150,7 @@ static REB_R Clipboard_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
             fail (Error_Invalid_Port_Arg_Raw(arg));
 
         // This device is opened on the WRITE:
-        if (!IS_OPEN(req)) {
+        if (NOT(req->flags & RRF_OPEN)) {
             if (OS_DO_DEVICE(req, RDC_OPEN))
                 fail (Error_On_Port(RE_CANNOT_OPEN, port, req->error));
         }
@@ -179,13 +179,13 @@ static REB_R Clipboard_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
             TERM_UNI_LEN(ser, len);
             Init_String(arg, ser);
             req->common.data = cast(REBYTE*, UNI_HEAD(ser));
-            SET_FLAG(req->flags, RRF_WIDE);
+            req->flags |= RRF_WIDE;
         }
         else
         // If unicode (may be from above conversion), handle it:
         if (SER_WIDE(VAL_SERIES(arg)) == sizeof(REBUNI)) {
             req->common.data = cast(REBYTE *, VAL_UNI_AT(arg));
-            SET_FLAG(req->flags, RRF_WIDE);
+            req->flags |= RRF_WIDE;
         }
 
         // Temp!!!
@@ -228,7 +228,7 @@ static REB_R Clipboard_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         break;
 
     case SYM_OPEN_Q:
-        return R_FROM_BOOL(IS_OPEN(req));
+        return R_FROM_BOOL(LOGICAL(req->flags & RRF_OPEN));
 
     default:
         fail (Error_Illegal_Action(REB_PORT, action));

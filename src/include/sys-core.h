@@ -384,12 +384,11 @@ typedef REBOOL (*REBBRK)(REBVAL *, REBOOL, const REBVAL*, REBOOL);
 // Flags used for Protect functions
 //
 enum {
-    PROT_SET,
-    PROT_DEEP,
-    PROT_HIDE,
-    PROT_WORD,
-    PROT_FREEZE,
-    PROT_MAX
+    PROT_SET = 1 << 0,
+    PROT_DEEP = 1 << 1,
+    PROT_HIDE = 1 << 2,
+    PROT_WORD = 1 << 3,
+    PROT_FREEZE = 1 << 4
 };
 
 // Mold and form options:
@@ -435,7 +434,6 @@ enum {
     DEC_MOLD_MINIMAL = 1 << 1       // allow decimal to be integer
 };
 
-
 // Options for To_REBOL_Path
 enum {
     PATH_OPT_UNI_SRC            = 1 << 0, // whether the source series is uni
@@ -443,15 +441,6 @@ enum {
     PATH_OPT_SRC_IS_DIR         = 1 << 2
 };
 
-// Load option flags:
-enum {
-    LOAD_ALL = 0,       // Returns header along with script if present
-    LOAD_HEADER,        // Converts header to object, checks values
-    LOAD_NEXT,          // Load next value
-    LOAD_NORMAL,        // Convert header, load script
-    LOAD_REQUIRE,       // Header is required, else error
-    LOAD_MAX
-};
 
 #define TAB_SIZE 4
 
@@ -496,25 +485,23 @@ enum rebol_signals {
     // be in the middle of code that is halfway through manipulating a
     // managed series.
     //
-    SIG_RECYCLE,
+    SIG_RECYCLE = 1 << 0,
 
     // SIG_HALT means return to the topmost level of the evaluator, regardless
     // of how deep a debug stack might be.  It is the only instruction besides
     // QUIT and RESUME that can currently get past a breakpoint sandbox.
     //
-    SIG_HALT,
+    SIG_HALT = 1 << 1,
 
     // SIG_INTERRUPT indicates a desire to enter an interactive debugging
     // state.  Because the ability to manage such a state may not be
     // registered by the host, this could generate an error.
     //
-    SIG_INTERRUPT,
+    SIG_INTERRUPT = 1 << 2,
 
     // SIG_EVENT_PORT is to-be-documented
     //
-    SIG_EVENT_PORT,
-
-    SIG_MAX
+    SIG_EVENT_PORT = 1 << 3
 };
 
 // Security flags:
@@ -690,20 +677,21 @@ enum Reb_Vararg_Op {
 // Generic defines:
 #define ALIGN(s, a) (((s) + (a)-1) & ~((a)-1))
 
-#define MEM_CARE 5              // Lower number for more frequent checks
-
 #define UP_CASE(c) Upper_Cases[c]
 #define LO_CASE(c) Lower_Cases[c]
 #define IS_WHITE(c) ((c) <= 32 && (White_Chars[c]&1) != 0)
 #define IS_SPACE(c) ((c) <= 32 && (White_Chars[c]&2) != 0)
 
 inline static void SET_SIGNAL(REBFLGS f) {
-    SET_FLAG(Eval_Signals, f);
+    Eval_Signals |= f;
     Eval_Count = 1;
 }
 
-#define GET_SIGNAL(f) GET_FLAG(Eval_Signals, (f))
-#define CLR_SIGNAL(f) CLR_FLAG(Eval_Signals, (f))
+#define GET_SIGNAL(f) \
+    LOGICAL(Eval_Signals & (f))
+
+#define CLR_SIGNAL(f) \
+    cast(void, Eval_Signals &= ~(f))
 
 
 //-- Temporary Buffers
@@ -715,6 +703,9 @@ inline static void SET_SIGNAL(REBFLGS f) {
 #define UNI_BUF        VAL_SERIES(TASK_UNI_BUF)
 #define BUF_UTF8        VAL_SERIES(TASK_BUF_UTF8)
 
+enum {
+    TRACE_FLAG_FUNCTION = 1 << 0
+};
 
 // Most of Ren-C's backwards compatibility with R3-Alpha is attempted through
 // usermode "shim" functions.  But some things affect fundamental mechanics

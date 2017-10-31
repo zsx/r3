@@ -54,7 +54,7 @@ extern void Signal_Device(REBREQ *req, REBINT type);
 //
 DEVICE_CMD Open_Clipboard(REBREQ *req)
 {
-    SET_OPEN(req);
+    req->flags |= RRF_OPEN;
     return DR_DONE;
 }
 
@@ -64,7 +64,7 @@ DEVICE_CMD Open_Clipboard(REBREQ *req)
 //
 DEVICE_CMD Close_Clipboard(REBREQ *req)
 {
-    SET_CLOSED(req);
+    req->flags &= ~RRF_OPEN;
     return DR_DONE;
 }
 
@@ -115,7 +115,7 @@ DEVICE_CMD Read_Clipboard(REBREQ *req)
 
     CloseClipboard();
 
-    SET_FLAG(req->flags, RRF_WIDE);
+    req->flags |= RRF_WIDE;
     req->common.data = cast(REBYTE *, bin);
     req->actual = len * sizeof(wchar_t);
     Signal_Device(req, EVT_READ);
@@ -131,21 +131,18 @@ DEVICE_CMD Read_Clipboard(REBREQ *req)
 //
 DEVICE_CMD Write_Clipboard(REBREQ *req)
 {
-    HANDLE data;
-    REBYTE *bin;
-    REBCNT err;
     REBINT len = req->length; // in bytes
 
     req->actual = 0;
 
-    data = GlobalAlloc(GHND, len + 4);
+    HANDLE data = GlobalAlloc(GHND, len + 4);
     if (data == NULL) {
         req->error = 5;
         return DR_ERROR;
     }
 
     // Lock and copy the string:
-    bin = cast(REBYTE*, GlobalLock(data));
+    REBYTE *bin = cast(REBYTE*, GlobalLock(data));
     if (bin == NULL) {
         req->error = 10;
         return DR_ERROR;
@@ -162,7 +159,10 @@ DEVICE_CMD Write_Clipboard(REBREQ *req)
 
     EmptyClipboard();
 
-    err = !SetClipboardData(GET_FLAG(req->flags, RRF_WIDE) ? CF_UNICODETEXT : CF_TEXT, data);
+    REBCNT err = !SetClipboardData(
+        LOGICAL(req->flags & RRF_WIDE) ? CF_UNICODETEXT : CF_TEXT,
+        data
+    );
 
     CloseClipboard();
 

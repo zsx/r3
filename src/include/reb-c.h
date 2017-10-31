@@ -44,13 +44,30 @@
 //
 
 
+//=////////////////////////////////////////////////////////////////////////=//
 //
-// FEATURE TESTING MACROS
+// FEATURE TESTING AND ATTRIBUTE MACROS
 //
-// Feature testing macros were a Clang extension, but GCC added support for
-// them.  If compiler doesn't have them, default all features unavailable.
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Feature testing macros __has_builtin() and __has_feature() were originally
+// a Clang extension, but GCC added support for them.  If compiler doesn't
+// have them, default all features unavailable.
 //
 // http://clang.llvm.org/docs/LanguageExtensions.html#feature-checking-macros
+//
+// Similarly, the __attribute__ feature is not in the C++ standard and only
+// available in some compilers.  Even compilers that have __attribute__ may
+// have different individual attributes available on a case-by-case basis.
+//
+// Note: Placing the attribute after the prototype seems to lead to
+// complaints, and technically there is a suggestion you may only define
+// attributes on prototypes--not definitions:
+//
+// http://stackoverflow.com/q/23917031/211160
+//
+// Putting the attribute *before* the prototype seems to allow it on both the
+// prototype and definition in gcc, however.
 //
 
 #ifndef __has_builtin
@@ -68,9 +85,33 @@
     #define GCC_VERSION_AT_LEAST(m, n) 0
 #endif
 
+#if defined(__clang__) || GCC_VERSION_AT_LEAST(2, 5)
+    #define ATTRIBUTE_NO_RETURN __attribute__ ((noreturn))
+#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+    #define ATTRIBUTE_NO_RETURN _Noreturn
+#elif defined(_MSC_VER)
+    #define ATTRIBUTE_NO_RETURN __declspec(noreturn)
+#else
+    #define ATTRIBUTE_NO_RETURN
+#endif
 
+#if __has_builtin(__builtin_unreachable) || GCC_VERSION_AT_LEAST(4, 5)
+    #define DEAD_END __builtin_unreachable()
+#elif defined(_MSC_VER)
+    __declspec(noreturn) static inline void msvc_unreachable(void) {
+        while (TRUE) { }
+    }
+    #define DEAD_END msvc_unreachable()
+#else
+    #define DEAD_END
+#endif
+
+
+//=////////////////////////////////////////////////////////////////////////=//
 //
-// TYPE TRAITS
+// INCLUDE TYPE_TRAITS IN C++11 AND ABOVE
+//
+//=////////////////////////////////////////////////////////////////////////=//
 //
 // One of the most powerful tools you can get from allowing a C codebase to
 // compile as C++ comes from type_traits:
@@ -89,8 +130,11 @@
 #endif
 
 
+//=////////////////////////////////////////////////////////////////////////=//
 //
-// STATIC ASSERT
+// STATIC ASSERT FOR CHECKING COMPILE-TIME CONDITIONS IN C
+//
+//=////////////////////////////////////////////////////////////////////////=//
 //
 // Some conditions can be checked at compile-time, instead of deferred to a
 // runtime assert.  This macro triggers an error message at compile time.
@@ -104,12 +148,20 @@
 // http://stackoverflow.com/questions/3385515/static-assert-in-c
 // or http://stackoverflow.com/a/809465/211160
 //
-#define static_assert_c(e) \
-    do {(void)sizeof(char[1 - 2*!(e)]);} while(0)
+#if defined(__cplusplus) && __cplusplus >= 201103L
+    #define static_assert_c(e) \
+        static_assert((e), "compile-time static assert failure")
+#else
+    #define static_assert_c(e) \
+        do {(void)sizeof(char[1 - 2*!(e)]);} while(0)
+#endif
 
 
+//=////////////////////////////////////////////////////////////////////////=//
 //
-// CONDITIONAL C++ NAME MANGLING MACRO
+// CONDITIONAL C++ NAME MANGLING MACROS
+//
+//=////////////////////////////////////////////////////////////////////////=//
 //
 // When linking C++ code, different functions with the same name need to be
 // discerned by the types of their parameters.  This means their name is
@@ -117,21 +169,41 @@
 // a C function.
 //
 // https://en.wikipedia.org/wiki/Name_mangling
+// http://en.cppreference.com/w/cpp/language/language_linkage
 //
-// When built as C++, Ren-C needs to inform the compiler that the functions
+// This also applies to global variables in some compilers (e.g. MSVC), and
+// must be taken into account:
+//
+// https://stackoverflow.com/a/27939238/211160
+//
+// When built as C++, Ren-C must tell the compiler that functions/variables
 // it exports to the outside world should *not* use C++ name mangling, so that
-// they can be called sensibly from C.  This conditional macro avoids needing
-// to put #ifdefs around those prototypes.
+// they can be used sensibly from C.  But the instructions to tell it that
+// are not legal in C.  This conditional macro avoids needing to put #ifdefs
+// around those prototypes.
 //
 #if defined(__cplusplus)
     #define EXTERN_C extern "C"
 #else
+    // !!! There is some controversy on whether EXTERN_C should be a no-op in
+    // a C build, or decay to the meaning of C's `extern`.  Notably, WinSock
+    // headers from Microsoft use this "decays to extern" form:
+    //
+    // https://stackoverflow.com/q/47027062/
+    //
+    // Review if this should be changed to use an EXTERN_C_BEGIN and an
+    // EXTERN_C_END style macro--which would be a no-op in the C build and
+    // require manual labeling of `extern` on any exported variables.
+    //
     #define EXTERN_C extern
 #endif
 
 
+//=////////////////////////////////////////////////////////////////////////=//
 //
 // CASTING MACROS
+//
+//=////////////////////////////////////////////////////////////////////////=//
 //
 // The following code and explanation is from "Casts for the Masses (in C)":
 //
@@ -241,8 +313,11 @@
 #endif
 
 
+//=////////////////////////////////////////////////////////////////////////=//
 //
 // NOOP a.k.a. VOID GENERATOR
+//
+//=////////////////////////////////////////////////////////////////////////=//
 //
 // Creating a void value conveniently is useful for a few reasons.  One is
 // that it can serve as a NO-OP and suppress a compiler warning you might
@@ -358,8 +433,11 @@ typedef unsigned long   REBUPT;     // unsigned counterpart of void*
 #define MAX_U64 U64_C(0xffffffffffffffff)
 
 
+//=////////////////////////////////////////////////////////////////////////=//
 //
 // BOOLEAN DEFINITION
+//
+//=////////////////////////////////////////////////////////////////////////=//
 //
 // The C language defines the value 0 as false, while all non-zero things are
 // considered logically true.  Yet the language standard mandates that the
@@ -593,8 +671,11 @@ enum {
 #define LDIV_T          lldiv_t
 
 
+//=////////////////////////////////////////////////////////////////////////=//
 //
 // C FUNCTION TYPE (__cdecl)
+//
+//=////////////////////////////////////////////////////////////////////////=//
 //
 // Note that you *CANNOT* cast something like a `void *` to (or from) a
 // function pointer.  Pointers to functions are not guaranteed to be the same
@@ -620,8 +701,11 @@ enum {
 #endif
 
 
+//=////////////////////////////////////////////////////////////////////////=//
 //
 // TESTING IF A NUMBER IS FINITE
+//
+//=////////////////////////////////////////////////////////////////////////=//
 //
 // C89 and C++98 had no standard way of testing for if a number was finite or
 // not.  Windows and POSIX came up with their own methods.  Finally it was
@@ -650,8 +734,11 @@ enum {
 #endif
 
 
+//=////////////////////////////////////////////////////////////////////////=//
 //
 // UNICODE CHARACTER TYPE
+//
+//=////////////////////////////////////////////////////////////////////////=//
 //
 // REBUNI is a two-byte UCS-2 representation of a Unicode codepoint.  Some
 // routines once errantly conflated wchar_t with REBUNI, but a wchar_t is not
@@ -685,8 +772,11 @@ typedef u16 REBUNI;
     ((1 << (8 * sizeof(REBUNI))) - 1)
 
 
+//=////////////////////////////////////////////////////////////////////////=//
 //
 // MEMORY POISONING and POINTER TRASHING
+//
+//=////////////////////////////////////////////////////////////////////////=//
 //
 // If one wishes to indicate a region of memory as being "off-limits", modern
 // tools like Address Sanitizer allow instrumented builds to augment reads
@@ -779,8 +869,11 @@ typedef u16 REBUNI;
 #endif
 
 
+//=////////////////////////////////////////////////////////////////////////=//
 //
 // MARK UNUSED VARIABLES
+//
+//=////////////////////////////////////////////////////////////////////////=//
 //
 // Used in coordination with the `-Wunused-variable` setting of the compiler.
 // While a simple cast to void is what people usually use for this purpose,
@@ -886,86 +979,6 @@ typedef u16 REBUNI;
 #endif
 
 
-/***********************************************************************
-**
-**  ATTRIBUTES
-**
-**      The __attribute__ feature is non-standard and only available
-**      in some compilers.  Individual attributes themselves are
-**      also available on a case-by-case basis.
-**
-**      Note: Placing the attribute after the prototype seems to lead
-**      to complaints, and technically there is a suggestion you may
-**      only define attributes on prototypes--not definitions:
-**
-**          http://stackoverflow.com/q/23917031/211160
-**
-**      Putting the attribute *before* the prototype seems to allow
-**      it on both the prototype and definition in gcc, however.
-**
-***********************************************************************/
-
-#if defined(__clang__) || GCC_VERSION_AT_LEAST(2, 5)
-    #define ATTRIBUTE_NO_RETURN __attribute__ ((noreturn))
-#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
-    #define ATTRIBUTE_NO_RETURN _Noreturn
-#elif defined(_MSC_VER)
-    #define ATTRIBUTE_NO_RETURN __declspec(noreturn)
-#else
-    #define ATTRIBUTE_NO_RETURN
-#endif
-
-#if __has_builtin(__builtin_unreachable) || GCC_VERSION_AT_LEAST(4, 5)
-    #define DEAD_END __builtin_unreachable()
-#elif defined(_MSC_VER)
-    __declspec(noreturn) static inline void msvc_unreachable(void) {
-        while (TRUE) { }
-    }
-    #define DEAD_END msvc_unreachable()
-#else
-    #define DEAD_END
-#endif
-
-
-
-//=////////////////////////////////////////////////////////////////////////=//
-//
-// BIT FLAGS & MASKING
-//
-//=////////////////////////////////////////////////////////////////////////=//
-//
-// When flags are needed, the platform-natural unsigned integer is used
-// (REBUPT, a `uintptr_t` equivalent).
-//
-// The 64-bit macro is used to get a 64-bit flag even on 32-bit platforms.
-// Hence it should be stored in a REBU64 and not in a REBFLGS.
-//
-
-typedef REBUPT REBFLGS;
-
-#define FLAGIT(f) \
-    ((REBUPT)1 << (f))
-
- // !!! These are leftovers from old code which used integers instead of
-// masks to indicate flags.  Using masks then it's easy enough to read using
-// C's plain bit masking operators.
-//
-#define GET_FLAG(v,f) \
-    LOGICAL((v) & (cast(REBUPT, 1) << (f)))
-
-#define GET_FLAGS(v,f,g) \
-    LOGICAL((v) & ((cast(REBUPT, 1) << (f)) | (cast(REBUPT, 1) << (g))))
-
-#define SET_FLAG(v,f) \
-    cast(void, (v) |= (cast(REBUPT, 1) << (f)))
-
-#define CLR_FLAG(v,f) \
-    cast(void, (v) &= ~(cast(REBUPT, 1) << (f)))
-
-#define CLR_FLAGS(v,f,g) \
-    cast(void, (v) &= ~((cast(REBUPT, 1) << (f)) | (cast(REBUPT, 1) << (g))))
-
-
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // BYTE-ORDER SENSITIVE BIT FLAGS & MASKING
@@ -1007,6 +1020,8 @@ typedef REBUPT REBFLGS;
 // * `#pragma pack` is not standard C98 or C99...nor is any #pragma
 // * `char[4]` or `char[8]` can't generally be assigned in one instruction
 //
+
+typedef REBUPT REBFLGS; // platform-pointer-size unsigned (like `uintptr_t`)
 
 #if defined(__LP64__) || defined(__LLP64__)
     #define PLATFORM_BITS 64

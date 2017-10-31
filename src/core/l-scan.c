@@ -1642,7 +1642,7 @@ static REBARR *Scan_Array(
     const REBDSP dsp_orig = DSP;
 
     // just_once for load/next see Load_Script for more info.
-    const REBOOL just_once = GET_FLAG(ss->opts, SCAN_NEXT);
+    const REBOOL just_once = LOGICAL(ss->opts & SCAN_NEXT);
 
     struct Reb_State state;
     REBCTX *error;
@@ -1650,7 +1650,7 @@ static REBARR *Scan_Array(
     if (C_STACK_OVERFLOWING(&state))
         Trap_Stack_Overflow();
 
-    if (GET_FLAG(ss->opts, SCAN_RELAX)) {
+    if (ss->opts & SCAN_RELAX) {
         PUSH_TRAP(&error, &state);
         if (error != NULL) {
             ss->begin = ss->end; // skip malformed token
@@ -1672,7 +1672,7 @@ static REBARR *Scan_Array(
     CLEARS(&mo);
 
     if (just_once)
-        CLR_FLAG(ss->opts, SCAN_NEXT); // no deeper
+        ss->opts &= ~SCAN_NEXT; // no deeper
 
     while (
         Drop_Mold_If_Pushed(&mo),
@@ -2117,7 +2117,7 @@ static REBARR *Scan_Array(
         }
 
         // Added for load/next
-        if (GET_FLAG(ss->opts, SCAN_ONLY) || just_once)
+        if (LOGICAL(ss->opts & SCAN_ONLY) || just_once)
             goto array_done;
     }
 
@@ -2128,7 +2128,7 @@ static REBARR *Scan_Array(
         fail (Error_Missing(ss, mode_char));
 
 array_done:
-    if (GET_FLAG(ss->opts, SCAN_RELAX))
+    if (ss->opts & SCAN_RELAX)
         DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 
 array_done_relax:
@@ -2192,12 +2192,13 @@ static REBARR *Scan_Child_Array(SCAN_STATE *ss, REBYTE mode_char)
 //
 static REBARR *Scan_Full_Array(SCAN_STATE *ss, REBYTE mode_char)
 {
-    REBOOL saved_only = GET_FLAG(ss->opts, SCAN_ONLY);
-    CLR_FLAG(ss->opts, SCAN_ONLY);
+    REBOOL saved_only = LOGICAL(ss->opts & SCAN_ONLY);
+    ss->opts &= ~SCAN_ONLY;
 
     REBARR *array = Scan_Child_Array(ss, mode_char);
 
-    if (saved_only) SET_FLAG(ss->opts, SCAN_ONLY);
+    if (saved_only)
+        ss->opts |= SCAN_ONLY;
     return array;
 }
 
@@ -2338,11 +2339,11 @@ REBNATIVE(transcode)
     );
 
     if (REF(next))
-        SET_FLAG(ss.opts, SCAN_NEXT);
+        ss.opts |= SCAN_NEXT;
     if (REF(only))
-        SET_FLAG(ss.opts, SCAN_ONLY);
+        ss.opts |= SCAN_ONLY;
     if (REF(relax))
-        SET_FLAG(ss.opts, SCAN_RELAX);
+        ss.opts |= SCAN_RELAX;
 
     // The scanner always returns an "array" series.  So set the result
     // to a BLOCK! of the results.

@@ -148,7 +148,7 @@ void Do_Core_Traced(REBFRM * const f)
         if (NOT(
             (f->flags.bits & DO_FLAG_APPLYING) // only value is END
             || IS_FUNCTION(f->value)
-            || GET_FLAG(Trace_Flags, 1)
+            || LOGICAL(Trace_Flags & TRACE_FLAG_FUNCTION)
         )){
             Debug_Space(cast(REBCNT, 4 * depth));
 
@@ -243,7 +243,7 @@ REB_R Apply_Core_Traced(REBFRM * const f)
 
         Debug_Space(cast(REBCNT, 4 * depth));
         Debug_Fmt_(RM_TRACE_FUNCTION, Frame_Label_Or_Anonymous_UTF8(f));
-        if (GET_FLAG(Trace_Flags, 1))
+        if (Trace_Flags & TRACE_FLAG_FUNCTION)
             Debug_Values(FRM_ARG(FS_TOP, 1), FRM_NUM_ARGS(FS_TOP), 20);
         else
             Debug_Line();
@@ -417,7 +417,7 @@ REBNATIVE(trace)
         PG_Apply = &Apply_Core_Traced;
 
         if (REF(function))
-            SET_FLAG(Trace_Flags, 1);
+            Trace_Flags |= TRACE_FLAG_FUNCTION;
         Trace_Depth = Eval_Depth() - 1; // subtract current TRACE frame
     }
     else {

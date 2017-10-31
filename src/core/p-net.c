@@ -124,7 +124,7 @@ static REB_R Transport_Actor(
     //
     REBREQ *sock = Ensure_Port_State(port, RDI_NET);
     if (proto == TRANSPORT_UDP)
-        SET_FLAG(sock->modes, RST_UDP);
+        sock->modes |= RST_UDP;
 
     REBVAL *spec = CTX_VAR(port, STD_PORT_SPEC);
 
@@ -135,7 +135,7 @@ static REB_R Transport_Actor(
 
     // Actions for an unopened socket:
 
-    if (!IS_OPEN(sock)) {
+    if (NOT(sock->flags & RRF_OPEN)) {
 
         switch (action) { // Ordered by frequency
 
@@ -145,7 +145,7 @@ static REB_R Transport_Actor(
 
             if (OS_DO_DEVICE(sock, RDC_OPEN))
                 fail (Error_On_Port(RE_CANNOT_OPEN, port, -12));
-            SET_OPEN(sock);
+            sock->flags |= RRF_OPEN;
 
             // Lookup host name (an extra TCP device step):
             if (IS_STRING(arg)) {
@@ -169,7 +169,7 @@ static REB_R Transport_Actor(
                 break;
             }
             else if (IS_BLANK(arg)) { // No host, must be a LISTEN socket:
-                SET_FLAG(sock->modes, RST_LISTEN);
+                sock->modes |= RST_LISTEN;
                 sock->common.sock = 0; // where ACCEPT requests are queued
                 DEVREQ_NET(sock)->local_port =
                     IS_INTEGER(val) ? VAL_INT32(val) : 8000;
@@ -236,9 +236,9 @@ static REB_R Transport_Actor(
         // Read data into a buffer, expanding the buffer if needed.
         // If no length is given, program must stop it at some point.
         if (
-            !GET_FLAG(sock->modes, RST_UDP)
-            && !GET_FLAG(sock->state, RSM_CONNECT)
-        ) {
+            NOT(sock->modes & RST_UDP)
+            && NOT(sock->state & RSM_CONNECT)
+        ){
             fail (Error_On_Port(RE_NOT_CONNECTED, port, -15));
         }
 
@@ -293,8 +293,8 @@ static REB_R Transport_Actor(
         // The lower level write code continues until done.
 
         if (
-            !GET_FLAG(sock->modes, RST_UDP)
-            && !GET_FLAG(sock->state, RSM_CONNECT)
+            NOT(sock->modes & RST_UDP)
+            && NOT(sock->state & RSM_CONNECT)
         ){
             fail (Error_On_Port(RE_NOT_CONNECTED, port, -15));
         }
@@ -335,8 +335,13 @@ static REB_R Transport_Actor(
         // FIRST server-port returns new port connection.
         //
         REBCNT len = Get_Num_From_Arg(ARG(picker));
-        if (len == 1 && GET_FLAG(sock->modes, RST_LISTEN) && sock->common.data)
+        if (
+            len == 1
+            && LOGICAL(sock->modes & RST_LISTEN)
+            && sock->common.data != NULL
+        ){
             Accept_New_Port(SINK(D_OUT), port, DEVREQ_NET(sock));
+        }
         else
             fail (Error_Out_Of_Range(ARG(picker)));
         return R_OUT; }
@@ -354,13 +359,13 @@ static REB_R Transport_Actor(
         // Connect for clients, bind for servers:
         //
         return R_FROM_BOOL (
-            LOGICAL(sock->state & ((1 << RSM_CONNECT) | (1 << RSM_BIND)))
+            LOGICAL((sock->state & (RSM_CONNECT | RSM_BIND)) != 0)
         );
 
     case SYM_CLOSE: {
-        if (IS_OPEN(sock)) {
+        if (sock->flags & RRF_OPEN) {
             OS_DO_DEVICE(sock, RDC_CLOSE);
-            SET_CLOSED(sock);
+            sock->flags &= ~RRF_OPEN;
         }
         Move_Value(D_OUT, CTX_VALUE(port));
         return R_OUT; }

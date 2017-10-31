@@ -159,11 +159,11 @@ static int Get_File_Info(struct devreq_file *file)
     }
 
     if (S_ISDIR(info.st_mode)) {
-        SET_FLAG(req->modes, RFM_DIR);
+        req->modes |= RFM_DIR;
         file->size = 0; // in order to be consistent on all systems
     }
     else {
-        CLR_FLAG(req->modes, RFM_DIR);
+        req->modes &= ~RFM_DIR;
         file->size = info.st_size;
     }
     file->time.l = cast(long, info.st_mtime);
@@ -239,7 +239,7 @@ static int Read_Directory(struct devreq_file *dir, struct devreq_file *file)
             return DR_ERROR;
         }
         dir_req->requestee.handle = h;
-        CLR_FLAG(dir_req->flags, RRF_DONE);
+        dir_req->flags &= ~RRF_DONE;
     }
 
     // Get dir entry (skip over the . and .. dir cases):
@@ -250,7 +250,7 @@ static int Read_Directory(struct devreq_file *dir, struct devreq_file *file)
             closedir(h);
             dir_req->requestee.handle = 0;
             //if (dir->error) return DR_ERROR;
-            SET_FLAG(dir_req->flags, RRF_DONE); // no more files
+            dir_req->flags |= RRF_DONE; // no more files
             return DR_DONE;
         }
         cp = d->d_name;
@@ -266,7 +266,8 @@ static int Read_Directory(struct devreq_file *dir, struct devreq_file *file)
     // instance).  But secondly, even if your OS supports it...a filesystem
     // doesn't have to.  (Examples: VirtualBox shared folders, XFS.)
 
-    if (d->d_type == DT_DIR) SET_FLAG(file_req->modes, RFM_DIR);
+    if (d->d_type == DT_DIR)
+        file_req->modes |= RFM_DIR;
 #endif
 
     // More widely supported mechanism of determining if something is a
@@ -274,7 +275,7 @@ static int Read_Directory(struct devreq_file *dir, struct devreq_file *file)
     // making an additional filesystem call)
 
     if (Is_Dir(dir->path, file->path))
-        SET_FLAG(file_req->modes, RFM_DIR);
+        file_req->modes |= RFM_DIR;
 
     // Line below DOES NOT WORK -- because we need full path.
     //Get_File_Info(file); // updates modes, size, time
@@ -298,38 +299,34 @@ static int Read_Directory(struct devreq_file *dir, struct devreq_file *file)
 //
 DEVICE_CMD Open_File(REBREQ *req)
 {
-    int modes;
-    int access = 0;
     int h;
-    char *path;
     struct stat info;
 
     struct devreq_file *file = DEVREQ_FILE(req);
 
     // Posix file names should be compatible with REBOL file paths:
+    char *path;
     if (!(path = file->path)) {
         req->error = -RFE_BAD_PATH;
         return DR_ERROR;
     }
 
-    // Set the modes:
-    modes = O_BINARY | (GET_FLAG(req->modes, RFM_READ) ? O_RDONLY : O_RDWR);
+    int modes = O_BINARY | ((req->modes & RFM_READ) ? O_RDONLY : O_RDWR);
 
-    if (GET_FLAGS(req->modes, RFM_WRITE, RFM_APPEND)) {
+    if ((req->modes & (RFM_WRITE | RFM_APPEND)) != 0) {
         modes = O_BINARY | O_RDWR | O_CREAT;
         if (
-            GET_FLAG(req->modes, RFM_NEW) ||
-            !(
-                GET_FLAG(req->modes, RFM_READ) ||
-                GET_FLAG(req->modes, RFM_APPEND) ||
-                GET_FLAG(req->modes, RFM_SEEK)
-            )
-        ) modes |= O_TRUNC;
+            LOGICAL(req->modes & RFM_NEW) ||
+            (req->modes & (RFM_READ | RFM_APPEND | RFM_SEEK)) == 0
+        ){
+            modes |= O_TRUNC;
+        }
     }
 
-    //modes |= GET_FLAG(req->modes, RFM_SEEK) ? O_RANDOM : O_SEQUENTIAL;
+    //modes |= LOGICAL(req->modes & RFM_SEEK) ? O_RANDOM : O_SEQUENTIAL;
 
-    if (GET_FLAG(req->modes, RFM_READONLY))
+    int access = 0;
+    if (req->modes & RFM_READONLY)
         access = S_IREAD;
     else
         access = S_IREAD | S_IWRITE | S_IRGRP | S_IWGRP | S_IROTH;
@@ -343,7 +340,7 @@ DEVICE_CMD Open_File(REBREQ *req)
     }
 
     // Confirm that a seek-mode file is actually seekable:
-    if (GET_FLAG(req->modes, RFM_SEEK)) {
+    if (req->modes & RFM_SEEK) {
         if (lseek(h, 0, SEEK_CUR) < 0) {
             close(h);
             req->error = -RFE_BAD_SEEK;
@@ -390,7 +387,7 @@ DEVICE_CMD Read_File(REBREQ *req)
 
     struct devreq_file *file = DEVREQ_FILE(req);
 
-    if (GET_FLAG(req->modes, RFM_DIR)) {
+    if (req->modes & RFM_DIR) {
         return Read_Directory(file, cast(struct devreq_file*, req->common.data));
     }
 
@@ -399,9 +396,10 @@ DEVICE_CMD Read_File(REBREQ *req)
         return DR_ERROR;
     }
 
-    if (req->modes & ((1 << RFM_SEEK) | (1 << RFM_RESEEK))) {
-        CLR_FLAG(req->modes, RFM_RESEEK);
-        if (!Seek_File_64(file)) return DR_ERROR;
+    if ((req->modes & (RFM_SEEK | RFM_RESEEK)) != 0) {
+        req->modes &= ~RFM_RESEEK;
+        if (!Seek_File_64(file))
+            return DR_ERROR;
     }
 
     // printf("read %d len %d\n", req->requestee.id, req->length);
@@ -435,16 +433,18 @@ DEVICE_CMD Write_File(REBREQ *req)
         return DR_ERROR;
     }
 
-    if (GET_FLAG(req->modes, RFM_APPEND)) {
-        CLR_FLAG(req->modes, RFM_APPEND);
+    if (req->modes & RFM_APPEND) {
+        req->modes &= ~RFM_APPEND;
         lseek(req->requestee.id, 0, SEEK_END);
     }
 
-    if (req->modes & ((1 << RFM_SEEK) | (1 << RFM_RESEEK) | (1 << RFM_TRUNCATE))) {
-        CLR_FLAG(req->modes, RFM_RESEEK);
-        if (!Seek_File_64(file)) return DR_ERROR;
-        if (GET_FLAG(req->modes, RFM_TRUNCATE))
-            if (ftruncate(req->requestee.id, file->index)) return DR_ERROR;
+    if ((req->modes & (RFM_SEEK | RFM_RESEEK | RFM_TRUNCATE)) != 0) {
+        req->modes &= ~RFM_RESEEK;
+        if (!Seek_File_64(file))
+            return DR_ERROR;
+        if (req->modes & RFM_TRUNCATE)
+            if (ftruncate(req->requestee.id, file->index))
+                return DR_ERROR;
     }
 
     if (req->length == 0) return DR_DONE;
@@ -480,7 +480,7 @@ DEVICE_CMD Query_File(REBREQ *req)
 DEVICE_CMD Create_File(REBREQ *req)
 {
     struct devreq_file *file = DEVREQ_FILE(req);
-    if (GET_FLAG(req->modes, RFM_DIR)) {
+    if (req->modes & RFM_DIR) {
         if (!mkdir(file->path, 0777)) return DR_DONE;
         req->error = errno;
         return DR_ERROR;
@@ -502,15 +502,17 @@ DEVICE_CMD Delete_File(REBREQ *req)
 {
     struct devreq_file *file = DEVREQ_FILE(req);
 
-    if (GET_FLAG(req->modes, RFM_DIR)) {
-        if (!rmdir(file->path)) return DR_DONE;
-    } else
-        if (!remove(file->path)) return DR_DONE;
+    if (req->modes & RFM_DIR) {
+        if (!rmdir(file->path))
+            return DR_DONE;
+    }
+    else {
+        if (!remove(file->path))
+            return DR_DONE;
+    }
 
     req->error = errno;
     return DR_ERROR;
-
-    return 0;
 }
 
 

@@ -53,7 +53,7 @@ extern void Done_Device(REBUPT handle, int error);
 DEVICE_CMD Init_Events(REBREQ *dr)
 {
     REBDEV *dev = (REBDEV*)dr; // just to keep compiler happy
-    SET_FLAG(dev->flags, RDF_INIT);
+    dev->flags |= RDF_INIT;
     return DR_DONE;
 }
 

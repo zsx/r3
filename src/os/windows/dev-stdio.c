@@ -42,8 +42,6 @@
 
 #define BUF_SIZE (16 * 1024)    // MS restrictions apply
 
-#define SF_DEV_NULL 31          // Local flag to mark NULL device.
-
 #define CONSOLE_MODES \
         ENABLE_LINE_INPUT | ENABLE_PROCESSED_INPUT | ENABLE_ECHO_INPUT \
         | 0x0040 | 0x0020       // quick edit and insert mode (not defined in VC6)
@@ -76,8 +74,8 @@ DEVICE_CMD Quit_IO(REBREQ *dr)
     REBDEV *dev = (REBDEV*)dr; // just to keep compiler happy above
 
     Close_Stdio();
-    //if (GET_FLAG(dev->flags, RDF_OPEN)) FreeConsole();
-    CLR_FLAG(dev->flags, RDF_OPEN);
+    //if (dev->flags & RDF_OPEN)) FreeConsole();
+    dev->flags &= ~RDF_OPEN;
     return DR_DONE;
 }
 
@@ -92,15 +90,15 @@ DEVICE_CMD Open_IO(REBREQ *req)
     dev = Devices[req->device];
 
     // Avoid opening the console twice (compare dev and req flags):
-    if (GET_FLAG(dev->flags, RDF_OPEN)) {
+    if (dev->flags & RDF_OPEN) {
         // Device was opened earlier as null, so req must have that flag:
-        if (GET_FLAG(dev->flags, SF_DEV_NULL))
-            SET_FLAG(req->modes, RDM_NULL);
-        SET_FLAG(req->flags, RRF_OPEN);
+        if (dev->flags & SF_DEV_NULL)
+            req->modes |= RDM_NULL;
+        req->flags |= RRF_OPEN;
         return DR_DONE; // Do not do it again
     }
 
-    if (!GET_FLAG(req->modes, RDM_NULL)) {
+    if (NOT(req->modes & RDM_NULL)) {
         // Get the raw stdio handles:
         Std_Out = GetStdHandle(STD_OUTPUT_HANDLE);
         Std_Inp = GetStdHandle(STD_INPUT_HANDLE);
@@ -121,10 +119,10 @@ DEVICE_CMD Open_IO(REBREQ *req)
         }
     }
     else
-        SET_FLAG(dev->flags, SF_DEV_NULL);
+        dev->flags |= SF_DEV_NULL;
 
-    SET_FLAG(req->flags, RRF_OPEN);
-    SET_FLAG(dev->flags, RDF_OPEN);
+    req->flags |= RRF_OPEN;
+    dev->flags |= RDF_OPEN;
 
     return DR_DONE;
 }
@@ -139,7 +137,7 @@ DEVICE_CMD Close_IO(REBREQ *req)
 
     Close_Stdio();
 
-    CLR_FLAG(dev->flags, RRF_OPEN);
+    dev->flags &= ~RRF_OPEN;
 
     return DR_DONE;
 }
@@ -156,7 +154,7 @@ DEVICE_CMD Close_IO(REBREQ *req)
 //
 DEVICE_CMD Write_IO(REBREQ *req)
 {
-    if (GET_FLAG(req->modes, RDM_NULL)) {
+    if (req->modes & RDM_NULL) {
         req->actual = req->length;
         return DR_DONE;
     }
@@ -211,7 +209,7 @@ DEVICE_CMD Write_IO(REBREQ *req)
 
         req->actual = req->length; // want byte count written, assume success
 
-        //if (GET_FLAG(req->flags, RRF_FLUSH)) {
+        //if (req->flags & RRF_FLUSH) {
         //  FLUSH();
         //}
     }
@@ -235,7 +233,7 @@ DEVICE_CMD Read_IO(REBREQ *req)
     DWORD len;
     BOOL ok;
 
-    if (GET_FLAG(req->modes, RDM_NULL)) {
+    if (req->modes & RDM_NULL) {
         req->common.data[0] = 0;
         return DR_DONE;
     }

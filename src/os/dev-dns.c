@@ -51,7 +51,7 @@ extern void Signal_Device(REBREQ *req, REBINT type);
 //
 DEVICE_CMD Open_DNS(REBREQ *sock)
 {
-    SET_OPEN(sock);
+    sock->flags |= RRF_OPEN;
     return DR_DONE;
 }
 
@@ -69,7 +69,7 @@ DEVICE_CMD Close_DNS(REBREQ *req)
     if (sock->host_info) OS_FREE(sock->host_info);
     sock->host_info = 0;
     req->requestee.handle = 0;
-    SET_CLOSED(req);
+    req->flags &= ~RRF_OPEN;
     return DR_DONE; // Removes it from device's pending list (if needed)
 }
 
@@ -94,7 +94,7 @@ DEVICE_CMD Read_DNS(REBREQ *req)
     char *host = OS_ALLOC_N(char, MAXGETHOSTSTRUCT);
 
     HOSTENT *he;
-    if (GET_FLAG(req->modes, RST_REVERSE)) {
+    if (req->modes & RST_REVERSE) {
         // 93.184.216.34 => example.com
         he = gethostbyaddr(
             cast(char*, &sock->remote_ip), 4, AF_INET
@@ -102,7 +102,7 @@ DEVICE_CMD Read_DNS(REBREQ *req)
         if (he != NULL) {
             sock->host_info = host; //???
             req->common.data = b_cast(he->h_name);
-            SET_FLAG(req->flags, RRF_DONE);
+            req->flags |= RRF_DONE;
             return DR_DONE;
         }
     }
@@ -112,7 +112,7 @@ DEVICE_CMD Read_DNS(REBREQ *req)
         if (he != NULL) {
             sock->host_info = host; // ?? who deallocs?
             memcpy(&sock->remote_ip, *he->h_addr_list, 4); //he->h_length);
-            SET_FLAG(req->flags, RRF_DONE);
+            req->flags |= RRF_DONE;
             return DR_DONE;
         }
     }
@@ -127,7 +127,7 @@ DEVICE_CMD Read_DNS(REBREQ *req)
             // The READ should return a blank in these cases, vs. raise an
             // error, for convenience in handling.
             //
-            SET_FLAG(req->flags, RRF_DONE);
+            req->flags |= RRF_DONE;
             return DR_DONE;
 
         case NO_RECOVERY: // A nonrecoverable name server error occurred
@@ -164,14 +164,14 @@ DEVICE_CMD Poll_DNS(REBREQ *dr)
     for (req = *prior; req; req = *prior) {
 
         // If done or error, remove command from list:
-        if (GET_FLAG(req->flags, RRF_DONE)) { // req->error may be set
+        if (req->flags & RRF_DONE) { // req->error may be set
             *prior = req->next;
             req->next = 0;
-            CLR_FLAG(req->flags, RRF_PENDING);
+            req->flags &= ~RRF_PENDING;
 
             if (!req->error) { // success!
                 host = cast(HOSTENT*, DEVREQ_NET(req)->host_info);
-                if (GET_FLAG(req->modes, RST_REVERSE))
+                if (req->modes & RST_REVERSE)
                     req->common.data = b_cast(host->h_name);
                 else
                     memcpy(&(DEVREQ_NET(req)->remote_ip), *host->h_addr_list, 4); //he->h_length);

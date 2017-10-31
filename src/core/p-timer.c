@@ -102,7 +102,7 @@ act_blk:
 
     case SYM_CLEAR:
         RESET_ARRAY(state);
-        CLR_FLAG(Eval_Signals, SIG_EVENT_PORT);
+        Eval_Signals &= ~SIG_EVENT_PORT;
         break;
 
     case SYM_LENGTH_OF:
@@ -113,7 +113,7 @@ act_blk:
         INCLUDE_PARAMS_OF_OPEN;
         if (!req) { //!!!
             req = OS_MAKE_DEVREQ(RDI_EVENT);
-            SET_OPEN(req);
+            req->flags |= RRF_OPEN;
             OS_DO_DEVICE(req, RDC_CONNECT);     // stays queued
         }
         break; }

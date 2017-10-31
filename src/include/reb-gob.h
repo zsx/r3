@@ -43,36 +43,82 @@
 
 // #include "host-view.h"
 
-enum GOB_FLAGS {        // GOB attribute and option flags
-    GOBF_0_IS_TRUE,     // aligns with NODE_FLAG_NODE
-    GOBF_1_IS_FALSE,    // aligns with NODE_FLAG_FREE
-    GOBF_MARK = 2,
-    GOBF_TOP,           // Top level (window or output image)
-    GOBF_WINDOW,        // Window (parent is OS window reference)
-    GOBF_OPAQUE,        // Has no alpha
-    GOBF_STATIC,        // Does not change
-    GOBF_HIDDEN,        // Is hidden (e.g. hidden window)
-    GOBF_RESIZE,        // Can be resized
-    GOBF_NO_TITLE,      // Has window title
-    GOBF_NO_BORDER,     // Has window border
-    GOBF_DROPABLE,      // Let window receive drag and drop
-    GOBF_TRANSPARENT,   // Window is in transparent mode
-    GOBF_POPUP,         // Window is a popup (with owner window)
-    GOBF_MODAL,         // Modal event filtering
-    GOBF_ON_TOP,        // The window is always on top
-    GOBF_ACTIVE,        // Window is active
-    GOBF_MINIMIZE,      // Window is minimized
-    GOBF_MAXIMIZE,      // Window is maximized
-    GOBF_RESTORE,       // Window is restored
-    GOBF_FULLSCREEN,    // Window is fullscreen
-    GOBF_MAX
-};
+// These are GOB attribute and option flags.  They may need to be declared
+// using the same method as node flags, so long as they are using their own
+// memory pool.  (This is not the long term plan.)
+
+#define GOBF_0_IS_TRUE \
+    FLAGIT_LEFT(0) // aligns with NODE_FLAG_NODE
+
+#define GOBF_1_IS_FALSE \
+    FLAGIT_LEFT(1) // aligns with NODE_FLAG_FREE
+
+#define GOBF_MARK \
+    FLAGIT_LEFT(2)
+
+#define GOBF_TOP \
+    FLAGIT_LEFT(3) // Top level (window or output image)
+
+#define GOBF_WINDOW \
+    FLAGIT_LEFT(4) // Window (parent is OS window reference)
+
+#define GOBF_OPAQUE \
+    FLAGIT_LEFT(5) // Has no alpha
+
+#define GOBF_STATIC \
+    FLAGIT_LEFT(6) // Does not change
+    
+#define GOBF_HIDDEN \
+    FLAGIT_LEFT(7) // Is hidden (e.g. hidden window)
+
+#define GOBF_RESIZE \
+    FLAGIT_LEFT(8) // Can be resized
+
+#define GOBF_NO_TITLE \
+    FLAGIT_LEFT(9) // Has window title
+
+#define GOBF_NO_BORDER \
+    FLAGIT_LEFT(10) // Has no window border
+
+#define GOBF_DROPABLE \
+    FLAGIT_LEFT(11) // Let window receive drag and drop
+
+#define GOBF_TRANSPARENT \
+    FLAGIT_LEFT(12) // Window is in transparent mode
+
+#define GOBF_POPUP \
+    FLAGIT_LEFT(13) // Window is a popup (with owner window)
+
+#define GOBF_MODAL \
+    FLAGIT_LEFT(14) // Modal event filtering
+
+#define GOBF_ON_TOP \
+    FLAGIT_LEFT(15) // The window is always on top
+
+#define GOBF_ACTIVE \
+    FLAGIT_LEFT(16) // Window is active
+
+#define GOBF_MINIMIZE \
+    FLAGIT_LEFT(17) // Window is minimized
+
+#define GOBF_MAXIMIZE \
+    FLAGIT_LEFT(18) // Window is maximized
+
+#define GOBF_RESTORE \
+    FLAGIT_LEFT(19) // Window is restored
+
+#define GOBF_FULLSCREEN \
+    FLAGIT_LEFT(20) // Window is fullscreen
+
+#if defined(__cplusplus) && (__cplusplus >= 201103L)
+    static_assert(20 < 32, "GOBF_XXX too high"); // 32 bits on 32 bit platform
+#endif
+
 
 enum GOB_STATE {        // GOB state flags
-    GOBS_OPEN = 0,      // Window is open
-    GOBS_ACTIVE,        // Window is active
-    GOBS_NEW,           // Gob is new to pane (old-offset, old-size wrong)
-    GOBS_MAX
+    GOBS_OPEN = 1 << 0, // Window is open
+    GOBS_ACTIVE = 1 << 1, // Window is active
+    GOBS_NEW = 1 << 2 // Gob is new to pane (old-offset, old-size wrong)
 };
 
 enum GOB_TYPES {        // Types of content
@@ -191,18 +237,18 @@ typedef struct gob_window {             // Maps gob to window
 #define CLEAR_GOB_STATE(g) ((g)->state = 0)
 
 #define SET_GOB_FLAG(g,f) \
-    cast(void, (g)->header.bits |= (cast(REBUPT, 1) << (f)))
-
+    cast(void, (g)->header.bits |= (f))
 #define GET_GOB_FLAG(g,f) \
-    LOGICAL((g)->header.bits & (cast(REBUPT, 1) << (f)))
-
+    LOGICAL((g)->header.bits & (f))
 #define CLR_GOB_FLAG(g,f) \
-    cast(void, (g)->header.bits &= ~(cast(REBUPT, 1) << (f)))
+    cast(void, (g)->header.bits &= ~(f))
 
-
-#define SET_GOB_STATE(g,f)      SET_FLAG((g)->state, f)
-#define GET_GOB_STATE(g,f)      GET_FLAG((g)->state, f)
-#define CLR_GOB_STATE(g,f)      CLR_FLAG((g)->state, f)
+#define SET_GOB_STATE(g,f) \
+    cast(void, (g)->state |= (f))
+#define GET_GOB_STATE(g,f) \
+    LOGICAL((g)->state & (f))
+#define CLR_GOB_STATE(g,f) \
+    cast(void, (g)->state &= ~(f))
 
 #define GOB_ALPHA(g)        ((g)->alpha)
 #define GOB_TYPE(g)         ((g)->ctype)

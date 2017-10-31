@@ -136,7 +136,7 @@ DEVICE_CMD Init_Net(REBREQ *dr)
     // It is ok to call twice, as long as WSACleanup twice.
     if (WSAStartup(0x0101, &wsaData)) return DR_ERROR;
 #endif
-    SET_FLAG(dev->flags, RDF_INIT);
+    dev->flags |= RDF_INIT;
     return DR_DONE;
 }
 
@@ -150,9 +150,10 @@ DEVICE_CMD Quit_Net(REBREQ *dr)
 {
     REBDEV *dev = (REBDEV*)dr; // just to keep compiler happy
 #ifdef TO_WINDOWS
-    if (GET_FLAG(dev->flags, RDF_INIT)) WSACleanup();
+    if (dev->flags & RDF_INIT)
+        WSACleanup();
 #endif
-    CLR_FLAG(dev->flags, RDF_INIT);
+    dev->flags &= ~RDF_INIT;
     return DR_DONE;
 }
 
@@ -184,7 +185,7 @@ DEVICE_CMD Open_Socket(REBREQ *sock)
     sock->state = 0;  // clear all flags
 
     // Setup for correct type and protocol:
-    if (GET_FLAG(sock->modes, RST_UDP)) {
+    if (sock->modes & RST_UDP) {
         type = SOCK_DGRAM;
         protocol = IPPROTO_UDP;
     }
@@ -203,7 +204,7 @@ DEVICE_CMD Open_Socket(REBREQ *sock)
     }
 
     sock->requestee.socket = result;
-    SET_FLAG(sock->state, RSM_OPEN);
+    sock->state |= RSM_OPEN;
 
     // Set socket to non-blocking async mode:
     if (!Set_Sock_Options(sock->requestee.socket)) {
@@ -228,7 +229,7 @@ DEVICE_CMD Close_Socket(REBREQ *req)
     struct devreq_net *sock = DEVREQ_NET(req);
     req->error = 0;
 
-    if (GET_FLAG(req->state, RSM_OPEN)) {
+    if (req->state & RSM_OPEN) {
 
         req->state = 0;  // clear: RSM_OPEN, RSM_CONNECT
 
@@ -270,7 +271,7 @@ DEVICE_CMD Lookup_Socket(REBREQ *req)
     HOSTENT *host = gethostbyname(s_cast(req->common.data));
     if (host != NULL) {
         memcpy(&sock->remote_ip, *host->h_addr_list, 4); //he->h_length);
-        CLR_FLAG(req->flags, RRF_DONE);
+        req->flags &= ~RRF_DONE;
         Signal_Device(req, EVT_LOOKUP);
         return DR_DONE;
     }
@@ -305,14 +306,15 @@ DEVICE_CMD Connect_Socket(REBREQ *req)
     struct sockaddr_in sa;
     struct devreq_net *sock = DEVREQ_NET(req);
 
-    if (GET_FLAG(req->modes, RST_LISTEN))
+    if (req->modes & RST_LISTEN)
         return Listen_Socket(req);
 
-    if (GET_FLAG(req->state, RSM_CONNECT)) return DR_DONE; // already connected
+    if (req->state & RSM_CONNECT)
+        return DR_DONE; // already connected
 
-    if (GET_FLAG(req->modes, RST_UDP)) {
-        CLR_FLAG(req->state, RSM_ATTEMPT);
-        SET_FLAG(req->state, RSM_CONNECT);
+    if (req->modes & RST_UDP) {
+        req->state &= ~RSM_ATTEMPT;
+        req->state |= RSM_CONNECT;
         Get_Local_IP(sock);
         Signal_Device(req, EVT_CONNECT);
         return DR_DONE; // done
@@ -332,8 +334,8 @@ DEVICE_CMD Connect_Socket(REBREQ *req)
     case 0: // no error
     case NE_ISCONN:
         // Connected, set state:
-        CLR_FLAG(req->state, RSM_ATTEMPT);
-        SET_FLAG(req->state, RSM_CONNECT);
+        req->state &= ~RSM_ATTEMPT;
+        req->state |= RSM_CONNECT;
         Get_Local_IP(sock);
         Signal_Device(req, EVT_CONNECT);
         return DR_DONE; // done
@@ -345,12 +347,12 @@ DEVICE_CMD Connect_Socket(REBREQ *req)
     case NE_INPROGRESS:
     case NE_ALREADY:
         // Still trying:
-        SET_FLAG(req->state, RSM_ATTEMPT);
+        req->state |= RSM_ATTEMPT;
         return DR_PEND;
 
     default:
         // An error happened:
-        CLR_FLAG(req->state, RSM_ATTEMPT);
+        req->state &= ~RSM_ATTEMPT;
         req->error = result;
         //Signal_Device(req, EVT_ERROR);
         return DR_ERROR;
@@ -390,13 +392,12 @@ DEVICE_CMD Transfer_Socket(REBREQ *req)
     struct devreq_net *sock = DEVREQ_NET(req);
     int mode = (req->command == RDC_READ ? RSM_RECEIVE : RSM_SEND);
 
-    if (!GET_FLAG(req->state, RSM_CONNECT)
-        &&!GET_FLAG(req->modes, RST_UDP)) {
+    if (NOT(req->state & RSM_CONNECT) && NOT(req->modes & RST_UDP)) {
         req->error = -18;
         return DR_ERROR;
     }
 
-    SET_FLAG(req->state, mode);
+    req->state |= mode;
 
     // Limit size of transfer:
     len = MIN(req->length - req->actual, MAX_TRANSFER);
@@ -419,7 +420,7 @@ DEVICE_CMD Transfer_Socket(REBREQ *req)
                 Signal_Device(req, EVT_WROTE);
                 return DR_DONE;
             }
-            SET_FLAG(req->flags, RRF_ACTIVE); /* notify OS_WAIT of activity */
+            req->flags |= RRF_ACTIVE; // notify OS_WAIT of activity
             return DR_PEND;
         }
         // if (result < 0) ...
@@ -434,7 +435,7 @@ DEVICE_CMD Transfer_Socket(REBREQ *req)
         WATCH2("recv() len: %d result: %d\n", len, result);
 
         if (result > 0) {
-            if (GET_FLAG(req->modes, RST_UDP)) {
+            if (req->modes & RST_UDP) {
                 sock->remote_ip = remote_addr.sin_addr.s_addr;
                 sock->remote_port = ntohs(remote_addr.sin_port);
             }
@@ -444,7 +445,7 @@ DEVICE_CMD Transfer_Socket(REBREQ *req)
         }
         if (result == 0) {      // The socket gracefully closed.
             req->actual = 0;
-            CLR_FLAG(req->state, RSM_CONNECT); // But, keep RRF_OPEN true
+            req->state &= ~RSM_CONNECT; // But, keep RRF_OPEN true
             Signal_Device(req, EVT_CLOSE);
             return DR_DONE;
         }
@@ -505,15 +506,17 @@ lserr:
     result = bind(
         req->requestee.socket, cast(struct sockaddr *, &sa), sizeof(sa)
     );
-    if (result) goto lserr;
+    if (result)
+        goto lserr;
 
-    SET_FLAG(req->state, RSM_BIND);
+    req->state |= RSM_BIND;
 
     // For TCP connections, setup listen queue:
-    if (!GET_FLAG(req->modes, RST_UDP)) {
+    if (NOT(req->modes & RST_UDP)) {
         result = listen(req->requestee.socket, SOMAXCONN);
-        if (result) goto lserr;
-        SET_FLAG(req->state, RSM_LISTEN);
+        if (result)
+            goto lserr;
+        req->state |= RSM_LISTEN;
     }
 
     Get_Local_IP(sock);
@@ -546,7 +549,7 @@ DEVICE_CMD Modify_Socket(REBREQ *sock)
 
         UNUSED(ARG(port)); // implicit from sock, which caller extracted
 
-        if (!GET_FLAG(sock->modes, RST_UDP)) { // !!! other checks?
+        if (NOT(sock->modes & RST_UDP)) { // !!! other checks?
             sock->error = -18;
             return DR_ERROR;
         }
@@ -570,7 +573,7 @@ DEVICE_CMD Modify_Socket(REBREQ *sock)
 
         UNUSED(ARG(port)); // implicit from sock, which caller extracted
 
-        if (!GET_FLAG(sock->modes, RST_UDP)) { // !!! other checks?
+        if (NOT(sock->modes & RST_UDP)) { // !!! other checks?
             sock->error = -18;
             return DR_ERROR;
         }
@@ -650,9 +653,8 @@ DEVICE_CMD Accept_Socket(REBREQ *req)
 //  *news = *sock;
     news->devreq.device = req->device;
 
-    SET_OPEN(news);
-    SET_FLAG(news->devreq.state, RSM_OPEN);
-    SET_FLAG(news->devreq.state, RSM_CONNECT);
+    cast(REBREQ*, news)->flags |= RRF_OPEN;
+    news->devreq.state |= (RSM_OPEN | RSM_CONNECT);
 
     news->devreq.requestee.socket = result;
     news->remote_ip   = sa.sin_addr.s_addr; //htonl(ip); NOTE: REBOL stays in network byte order

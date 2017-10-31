@@ -1884,10 +1884,10 @@ static void Queue_Mark_Event_Deep(const RELVAL *value)
     }
 
     // FIXME: This test is not in parallel to others.
-    if (VAL_EVENT_TYPE(value) == EVT_DROP_FILE
-        && GET_FLAG(VAL_EVENT_FLAGS(value), EVF_COPIED)
-        )
-    {
+    if (
+        VAL_EVENT_TYPE(value) == EVT_DROP_FILE
+        && LOGICAL(VAL_EVENT_FLAGS(value) & EVF_COPIED)
+    ){
         assert(FALSE);
         Queue_Mark_Array_Deep(ARR(VAL_EVENT_SER(m_cast(RELVAL*, value))));
     }
