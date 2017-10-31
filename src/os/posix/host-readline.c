@@ -133,9 +133,9 @@ STD_TERM *Init_Terminal(void)
     // Setup variables:
     Line_History = OS_ALLOC_N(REBYTE*, MAX_HISTORY + 2);
 
-    char empty_line[] = "";
-    Line_History[0] = OS_ALLOC_N(REBYTE, LEN_BYTES(empty_line) + 1);
-    strcpy(s_cast(Line_History[0]), empty_line);
+    // Make first line as an empty string
+    Line_History[0] = OS_ALLOC_N(REBYTE, 1);
+    Line_History[0][0] = '\0';
     Line_Count = 1;
 
     STD_TERM *term = OS_ALLOC_ZEROFILL(STD_TERM);

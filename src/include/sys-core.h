@@ -174,17 +174,15 @@
 // macros and tools for C programming.
 //
 #include "reb-c.h"
+#include "reb-defs.h"
 
-
-// !!! Is there a more ideal location for these prototypes?
-typedef int cmp_t(void *, const void *, const void *);
-extern void reb_qsort_r(void *a, size_t n, size_t es, void *thunk, cmp_t *cmp);
-
-
-// Must be defined at the end of reb-c.h, but not *in* reb-c.h so that
-// files including sys-core.h and reb-host.h can have differing
-// definitions of REBCHR.  (We want it opaque to the core, but the
-// host to have it compatible with the native character type w/o casting)
+// Must be defined at the end of reb-defs.h, but not *in* reb-defs.h so that
+// files including sys-core.h and reb-host.h can have differing definitions of
+// REBCHR.  (We want it opaque to the core, but the host to have it compatible
+// with the native character type w/o casting)
+//
+// !!! This should become obsolete when all string exchanges with non-core
+// code are done via STRING! values.
 //
 #ifdef OS_WIDE_CHAR
     #ifdef NDEBUG
@@ -203,8 +201,6 @@ extern void reb_qsort_r(void *a, size_t n, size_t es, void *thunk, cmp_t *cmp);
         } REBCHR;
     #endif
 #endif
-
-#include "reb-defs.h"
 
 #include "reb-device.h"
 #include "reb-types.h"

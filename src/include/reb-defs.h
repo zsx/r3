@@ -41,6 +41,86 @@
 #ifndef REB_DEFS_H  // due to sequences within the lib build itself
 #define REB_DEFS_H
 
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// REBOL NUMERIC TYPES ("REBXXX")
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// The 64-bit build modifications to R3-Alpha after its open sourcing changed
+// *pointers* internal to data structures to be 64-bit.  But indexes did not
+// get changed to 64-bit: REBINT and REBCNT remained 32-bit.
+//
+// This meant there was often extra space in the structures used on 64-bit
+// machines, and a possible loss of performance for forcing a platform to use
+// a specific size int (instead of deferring to C's generic `int`).
+//
+
+typedef i32 REBINT; // 32 bit (64 bit defined below)
+typedef u32 REBCNT; // 32 bit (counting number)
+typedef i64 REBI64; // 64 bit integer
+typedef u64 REBU64; // 64 bit unsigned integer
+typedef float REBD32; // 32 bit decimal
+typedef double REBDEC; // 64 bit decimal
+typedef i8 REBOOL8; // Small for struct packing (memory optimization vs CPU)
+
+typedef REBUPT REBFLGS; // platform-pointer-size unsigned (like `uintptr_t`)
+
+// Using unsigned characters is good for conveying information is not limited
+// to textual data.  It provides type-checking that helps discern between
+// single-codepoint null terminated data (on which you might legitimately
+// use `strlen()`, for instance) and something like UTF-8 data.
+//
+typedef u8 REBYTE; // unsigned byte data
+
+#define MIN_D64 ((double)-9.2233720368547758e18)
+#define MAX_D64 ((double) 9.2233720368547758e18)
+
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// UNICODE CHARACTER TYPE
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// REBUNI is a two-byte UCS-2 representation of a Unicode codepoint.  Some
+// routines once errantly conflated wchar_t with REBUNI, but a wchar_t is not
+// 2 bytes on all platforms (it's 4 on GCC in 64-bit Linux, for instance).
+// Routines for handling UCS-2 must be custom-coded or come from a library.
+// (For example: you can't use wcslen() so Strlen_Uni() is implemented inside
+// of Rebol.)
+//
+// Rebol is able to have its strings start out as UCS-1, with a single byte
+// per character.  For that it uses REBYTEs.  But when you insert something
+// requiring a higher codepoint, it goes to UCS-2 with REBUNI and will not go
+// back (at time of writing).
+//
+// !!! BEWARE that several lower level routines don't do this widening, so be
+// sure that you check which are which.
+//
+// Longer term, the growth of emoji usage in Internet communication has led
+// to supporting higher "astral" codepoints as being a priority.  This means
+// either being able to "double-widen" to UCS-4, as is Red's strategy:
+//
+// http://www.red-lang.org/2012/09/plan-for-unicode-support.html
+//
+// Or it could also mean shifting to "UTF-8 everywhere":
+//
+// http://utf8everywhere.org
+//
+
+typedef u16 REBUNI;
+
+#define MAX_UNI \
+    ((1 << (8 * sizeof(REBUNI))) - 1)
+
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// REBOL SERIES TYPES
+//
+//=////////////////////////////////////////////////////////////////////////=//
 //
 // Forward declarations of the series subclasses defined in %sys-series.h
 // Because the Reb_Series structure includes a Reb_Value by value, it
@@ -128,5 +208,65 @@
     typedef void REBVAL;
     typedef void REBFRM;
 #endif
+
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// MISCELLANY
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// !!! This is stuff that needs a better home.
+
+// Useful char constants:
+enum {
+    BEL =   7,
+    BS  =   8,
+    LF  =  10,
+    CR  =  13,
+    ESC =  27,
+    DEL = 127
+};
+
+// Used for MOLDing:
+#define MAX_DIGITS 17   // number of digits
+#define MAX_NUMCHR 32   // space for digits and -.e+000%
+
+#define MAX_INT_LEN     21
+#define MAX_HEX_LEN     16
+
+#ifdef ITOA64           // Integer to ascii conversion
+    #define INT_TO_STR(n,s) _i64toa(n, s_cast(s), 10)
+#else
+    #define INT_TO_STR(n,s) Form_Int_Len(s, n, MAX_INT_LEN)
+#endif
+
+#ifdef ATOI64           // Ascii to integer conversion
+#define CHR_TO_INT(s)   _atoi64(cs_cast(s))
+#else
+#define CHR_TO_INT(s)   strtoll(cs_cast(s), 0, 10)
+#endif
+
+#define LDIV            lldiv
+#define LDIV_T          lldiv_t
+
+// Skip to the specified byte but not past the provided end
+// pointer of the byte string.  Return NULL if byte is not found.
+//
+inline static const REBYTE *Skip_To_Byte(
+    const REBYTE *cp,
+    const REBYTE *ep,
+    REBYTE b
+) {
+    while (cp != ep && *cp != b) cp++;
+    if (*cp == b) return cp;
+    return 0;
+}
+
+typedef int cmp_t(void *, const void *, const void *);
+extern void reb_qsort_r(void *a, size_t n, size_t es, void *thunk, cmp_t *cmp);
+
+#define ROUND_TO_INT(d) \
+    (i32)(floor((MAX(MIN_I32, MIN(MAX_I32, d))) + 0.5))
 
 #endif

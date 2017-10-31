@@ -354,28 +354,16 @@ newline newline (rebol-lib-macros)
 **      strncpy, strncat, strchr and strlen.  But most of the code
 **      that used REBCHR at all was sketchy-at-best.
 **
-**      @HostileFork feels that Rebol's model for extension probably
-**      needs another answer (or a more coherent version of the current
-**      answer) vs. having the core itself getting too hands-on with
-**      brokering native format strings.  And the reach of REBCHR should
-**      be reigned in as much as possible, with host code using its
-**      own type (char, wchar_t).
+**      In order to limit the scope of REBCHR, and ensure type checking in
+**      the core was as rigorous as possible, @HostileFork tried making it
+**      an "opaque" type in the core (see %sys-core.h) and a "transparent"
+**      type in the host (see %reb-host.h).  This was at the very start of
+**      the Ren-C branch.
 **
-**      So in order to limit the scope of REBCHR, and ensure that type
-**      checking in the core is as rigorous as possible when dealing
-**      with it (effectively letting the wide char developers test
-**      their impacts on the non-wide char builds, and vice versa), the
-**      REBCHR type is "opaque" inside the core (see sys-core.h).  It
-**      is so opaque as to be a struct containing the native char type
-**      in Debug builds.
-**
-**      By contrast, REBCHR is "transparent" to the host (see reb-host.h)
-**      The expectation is that the host not use REBCHR or the wrappers
-**      like OS_STRLEN...instead using char/strlen or wchar_t/wcslen.
-**      However--the wrappers are still exported to the host, because
-**      there are some pieces of code that are written outside the core
-**      but are designed to be reused across hosts, so that code has to
-**      be as agnostic about the character size as the core does.
+**      !!! This model is expected to go away, with wide and non-wide API
+**      accessors of STRING! REBVAL being the currency between core and the
+**      extensions... *not* REBCHR.  However, it serves as a marker in the
+**      code for places where this REBVAL-reform will need to be done.
 **
 **      !!!
 **      !!! **WARNING!**  DO NOT EDIT THIS! (until you've checked...)
@@ -398,7 +386,8 @@ newline newline (rebol-lib-macros)
 // !!! SEE **WARNING** BEFORE EDITING
     #define OS_MAKE_CH(c) (c)
     #define OS_CH_VALUE(c) (c)
-    #define OS_CH_EQUAL(os_ch, ch)      ((os_ch) == (ch))
+    #define OS_CH_EQUAL(os_ch, ch) \
+        ((os_ch) == (ch))
 
     #ifdef OS_WIDE_CHAR
     // !!! SEE **WARNING** BEFORE EDITING
@@ -415,7 +404,8 @@ newline newline (rebol-lib-macros)
             cast(REBCHR*, \
                 m_cast(wchar_t*, wcschr(cast(const wchar_t*, (d)), (s))) \
             )
-        #define OS_STRLEN(s)            wcslen(cast(const wchar_t*, (s)))
+        #define OS_STRLEN(s) \
+            wcslen(cast(const wchar_t*, (s)))
     #else
         #ifdef TO_OPENBSD
     // !!! SEE **WARNING** BEFORE EDITING
@@ -437,19 +427,89 @@ newline newline (rebol-lib-macros)
         // const.
         #define OS_STRCHR(d,s) \
             cast(REBCHR*, m_cast(char*, strchr(cast(const char*, (d)), (s))))
-        #define OS_STRLEN(s)            strlen(cast(const char*, (s)))
+        #define OS_STRLEN(s) \
+            strlen(cast(const char*, (s)))
     #endif
 #else
 // !!! SEE **WARNING** BEFORE EDITING
     // Debug build only; fully opaque type and functions for certainty
-    #define OS_CH_VALUE(c)              ((c).num)
-    #define OS_CH_EQUAL(os_ch, ch)      ((os_ch).num == ch)
-    #define OS_MAKE_CH(c)               OS_MAKE_CH_(c)
-    #define OS_STRNCPY(d,s,m)           OS_STRNCPY_((d), (s), (m))
-    #define OS_STRNCAT(d,s,m)           OS_STRNCAT_((d), (s), (m))
-    #define OS_STRNCMP(l,r,m)           OS_STRNCMP_((l), (r), (m))
-    #define OS_STRCHR(d,s)              OS_STRCHR_((d), (s))
-    #define OS_STRLEN(s)                OS_STRLEN_(s)
+    #define OS_CH_VALUE(c) \
+        ((c).num)
+    #define OS_CH_EQUAL(os_ch, ch) \
+        ((os_ch).num == ch)
+
+    inline static REBCHR OS_MAKE_CH(REBCNT ch) {
+        REBCHR result;
+        result.num = ch;
+        return result;
+    }
+
+    inline static REBCHR *OS_STRNCPY(REBCHR *dest, const REBCHR *src, size_t count) {
+    #ifdef OS_WIDE_CHAR
+        return cast(REBCHR*,
+            wcsncpy(cast(wchar_t*, dest), cast(const wchar_t*, src), count)
+        );
+    #else
+        #ifdef TO_OPENBSD
+            return cast(REBCHR*,
+                strlcpy(cast(char*, dest), cast(const char*, src), count)
+            );
+        #else
+            return cast(REBCHR*,
+                strncpy(cast(char*, dest), cast(const char*, src), count)
+            );
+        #endif
+    #endif
+    }
+
+    inline static REBCHR *OS_STRNCAT(REBCHR *dest, const REBCHR *src, size_t max) {
+    #ifdef OS_WIDE_CHAR
+        return cast(REBCHR*,
+            wcsncat(cast(wchar_t*, dest), cast(const wchar_t*, src), max)
+        );
+    #else
+        #ifdef TO_OPENBSD
+            return cast(REBCHR*,
+                strlcat(cast(char*, dest), cast(const char*, src), max)
+            );
+        #else
+            return cast(REBCHR*,
+                strncat(cast(char*, dest), cast(const char*, src), max)
+            );
+        #endif
+    #endif
+    }
+
+    inline static int OS_STRNCMP(const REBCHR *lhs, const REBCHR *rhs, size_t max) {
+    #ifdef OS_WIDE_CHAR
+        return wcsncmp(cast(const wchar_t*, lhs), cast(const wchar_t*, rhs), max);
+    #else
+        return strncmp(cast(const char*, lhs), cast (const char*, rhs), max);
+    #endif
+    }
+
+    inline static REBCHR *OS_STRCHR(const REBCHR *str, REBCNT ch) {
+        // We have to m_cast because C++ actually has a separate overloads of
+        // wcschr and strchr which will return a const pointer if the in pointer
+        // was const.
+    #ifdef OS_WIDE_CHAR
+        return cast(REBCHR*,
+            m_cast(wchar_t*, wcschr(cast(const wchar_t*, str), ch))
+        );
+    #else
+        return cast(REBCHR*,
+            m_cast(char*, strchr(cast(const char*, str), ch))
+        );
+    #endif
+    }
+
+    inline static size_t OS_STRLEN(const REBCHR *str) {
+    #ifdef OS_WIDE_CHAR
+        return wcslen(cast(const wchar_t*, str));
+    #else
+        return strlen(cast(const char*, str));
+    #endif
+    }
 #endif
 
 #ifdef __cplusplus

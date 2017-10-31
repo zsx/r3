@@ -51,7 +51,7 @@ REBOOL reb_u32_add_overflow(u32 x, u32 y, u32 *sum)
 
 REBOOL reb_i64_add_overflow(i64 x, i64 y, i64 *sum)
 {
-    *sum = (REBU64)x + (REBU64)y; /* never overflow with unsigned integers*/
+    *sum = (u64)x + (u64)y; /* never overflow with unsigned integers*/
     if (((x < 0) == (y < 0))
         && ((x < 0) != (*sum < 0))) return TRUE;
     return FALSE;
@@ -74,7 +74,7 @@ REBOOL reb_i32_sub_overflow(i32 x, i32 y, i32 *diff)
 
 REBOOL reb_i64_sub_overflow(i64 x, i64 y, i64 *diff)
 {
-    *diff = (REBU64)x - (REBU64)y;
+    *diff = (u64)x - (u64)y;
     if (((x < 0) != (y < 0)) && ((x < 0) != (*diff < 0))) return TRUE;
 
     return FALSE;

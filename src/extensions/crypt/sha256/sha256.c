@@ -15,7 +15,7 @@
 /*************************** HEADER FILES ***************************/
 #include <stdlib.h>
 #include <memory.h>
-#include "reb-c.h" // needed for REBYTE, REBCNT, REBU64
+#include "reb-c.h" // needed for u8, u32, u64
 #include "sha256.h"
 
 /****************************** MACROS ******************************/
@@ -30,7 +30,7 @@
 #define SIG1(x) (ROTRIGHT(x,17) ^ ROTRIGHT(x,19) ^ ((x) >> 10))
 
 /**************************** VARIABLES *****************************/
-static const REBCNT k[64] = {
+static const u32 k[64] = {
     0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
     0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
     0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
@@ -42,9 +42,9 @@ static const REBCNT k[64] = {
 };
 
 /*********************** FUNCTION DEFINITIONS ***********************/
-void sha256_transform(SHA256_CTX *ctx, const REBYTE data[])
+void sha256_transform(SHA256_CTX *ctx, const u8 data[])
 {
-    REBCNT a, b, c, d, e, f, g, h, i, j, t1, t2, m[64];
+    u32 a, b, c, d, e, f, g, h, i, j, t1, t2, m[64];
 
     for (i = 0, j = 0; i < 16; ++i, j += 4)
         m[i] = (data[j] << 24) | (data[j + 1] << 16) | (data[j + 2] << 8) | (data[j + 3]);
@@ -97,9 +97,9 @@ void sha256_init(SHA256_CTX *ctx)
     ctx->state[7] = 0x5be0cd19;
 }
 
-void sha256_update(SHA256_CTX *ctx, const REBYTE data[], size_t len)
+void sha256_update(SHA256_CTX *ctx, const u8 data[], size_t len)
 {
-    REBCNT i;
+    u32 i;
 
     for (i = 0; i < len; ++i) {
         ctx->data[ctx->datalen] = data[i];
@@ -112,9 +112,9 @@ void sha256_update(SHA256_CTX *ctx, const REBYTE data[], size_t len)
     }
 }
 
-void sha256_final(SHA256_CTX *ctx, REBYTE hash[])
+void sha256_final(SHA256_CTX *ctx, u8 hash[])
 {
-    REBCNT i;
+    u32 i;
 
     i = ctx->datalen;
 

@@ -48,7 +48,7 @@
 #include "sys-core.h"
 #include "sys-ext.h"
 
-#include "sha256/sha256.h" // depends on Reb-C for REBCNT, REBYTE
+#include "sha256/sha256.h" // depends on %reb-c.h for u8, u32, u64
 
 #include "tmp-mod-crypt-first.h"
 
