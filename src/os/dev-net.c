@@ -603,6 +603,7 @@ DEVICE_CMD Modify_Socket(REBREQ *sock)
     return DR_DONE;
 }
 
+extern void Attach_Request(REBREQ **prior, REBREQ *req);
 
 //
 //  Accept_Socket: C
@@ -625,7 +626,6 @@ DEVICE_CMD Accept_Socket(REBREQ *req)
     struct devreq_net *news;
     socklen_t len = sizeof(sa);
     int result;
-    extern void Attach_Request(REBREQ **prior, REBREQ *req);
     struct devreq_net *sock = DEVREQ_NET(req);
 
     // Accept a new socket, if there is one:

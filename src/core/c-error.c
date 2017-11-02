@@ -254,9 +254,7 @@ ATTRIBUTE_NO_RETURN void Fail_Core(const void *p)
 
     switch (Detect_Rebol_Pointer(p)) {
     case DETECTED_AS_UTF8: {
-        DECLARE_LOCAL (string);
-        Init_String(string, Make_UTF8_May_Fail(cast(const char*, p)));
-        error = Error(RE_USER, string, END);
+        error = Error_User(cast(const char*, p));
         break; }
 
     case DETECTED_AS_SERIES: {
@@ -1094,6 +1092,20 @@ REBCTX *Error(REBCNT num, ... /* REBVAL *arg1, REBVAL *arg2, ... */)
 
 
 //
+//  Error_User: C
+//
+// Simple error constructor from a string (historically this was called a
+// "user error" since MAKE ERROR! of a STRING! would produce them in usermode
+// without any error template in %errors.r)
+//
+REBCTX *Error_User(const char *str) {
+    DECLARE_LOCAL (message);
+    Init_String(message, Make_UTF8_May_Fail(str));
+    return Error(RE_USER, message, END);
+}
+
+
+//
 //  Error_Lookback_Quote_Too_Late: C
 //
 REBCTX *Error_Lookback_Quote_Too_Late(const RELVAL *word, REBSPC *specifier) {
@@ -1102,7 +1114,7 @@ REBCTX *Error_Lookback_Quote_Too_Late(const RELVAL *word, REBSPC *specifier) {
     DECLARE_LOCAL (specific);
     Derelativize(specific, word, specifier);
 
-    fail (Error_Enfix_Quote_Late_Raw(specific));
+    return Error_Enfix_Quote_Late_Raw(specific);
 }
 
 
@@ -1117,7 +1129,7 @@ REBCTX *Error_Lookback_Quote_Too_Late(const RELVAL *word, REBSPC *specifier) {
 REBCTX *Error_Non_Logic_Refinement(REBFRM *f) {
     DECLARE_LOCAL (word);
     Init_Word(word, VAL_PARAM_SPELLING(f->param));
-    fail (Error_Non_Logic_Refine_Raw(word, Type_Of(f->arg)));
+    return Error_Non_Logic_Refine_Raw(word, Type_Of(f->arg));
 }
 
 
@@ -1219,7 +1231,7 @@ REBCTX *Error_Not_Varargs(
         VAL_PARAM_SPELLING(param)
     );
 
-    fail (Error_Arg_Type(f, honest_param, kind));
+    return Error_Arg_Type(f, honest_param, kind);
 }
 
 

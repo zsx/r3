@@ -1761,7 +1761,7 @@ REBNATIVE(get_os_browsers)
 
 
 //
-//  sleep: native [
+//  sleep: native/export [
 //
 //  "Use system sleep to wait a certain amount of time (doesn't use PORT!s)."
 //

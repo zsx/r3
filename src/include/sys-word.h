@@ -253,6 +253,6 @@ inline static REBSTR* STR(const void *p)
         return Intern_UTF8_Managed(BIN_AT(temp, index), len); }
 
     default:
-        panic ("Bad pointer type passed to Rebstr_From_Rebol_Pointer");
+        panic ("Bad pointer type passed to STR()");
     }
 }

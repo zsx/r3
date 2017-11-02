@@ -451,10 +451,10 @@ REBNATIVE(callgrind)
     default:
         fail ("Currently CALLGRIND only supports ON and OFF");
     }
+    return R_VOID;
+
 #else
     UNUSED(ARG(instruction));
     fail ("This exeuctable wasn't compiled with INCLUDE_CALLGRIND_NATIVE");
 #endif
-
-    return R_VOID;
 }

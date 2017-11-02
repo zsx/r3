@@ -50,7 +50,6 @@ struct Reb_State {
     struct Reb_Chunk *top_chunk;
     REBFRM *frame;
     REBCNT guarded_len;
-    REBCNT value_guard_len;
     REBCTX *error;
 
     REBCNT manuals_len; // Where GC_Manuals was when state started

@@ -250,7 +250,7 @@ int Host_Repl(const REBVAL *repl_fun) {
                 CATCH_THROWN(result, result);
                 DROP_GUARD_VALUE(result);
 
-                free(last_failed); // dynamically allocated to avoid warnings
+                free(m_cast(REBVAL**, last_failed)); // C++ free() mutable ptr
                 return Exit_Status_From_Value(result);
             }
 

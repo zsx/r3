@@ -1581,7 +1581,8 @@ inline static REBVAL *Move_Value(RELVAL *out, const REBVAL *v)
     else
         out_depth = 1; // !!! need to determine out's stack level
 
-    if (FALSE && out_depth >= bind_depth) {
+    const REBOOL smarts_enabled = FALSE; 
+    if (smarts_enabled && out_depth >= bind_depth) {
         //
         // The non-reified binding will outlive the output slot, so there is
         // no reason to reify it.

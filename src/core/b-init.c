@@ -1154,7 +1154,10 @@ void Startup_Core(void)
     PG_Boot_Time = OS_DELTA_TIME(0);
 
 #ifndef NDEBUG
-    // This might call Debug_Str, which depends on StdIO, and must be called after Start_StdIO;
+    //
+    // This might call Debug_Str, which depends on StdIO, and must be called
+    // after Startup_StdIO()
+    //
     Init_Break_Point();
 #endif
 
@@ -1187,8 +1190,8 @@ void Startup_Core(void)
 
     Startup_Task();
 
-    // !!! REVIEW: Init_Function_Tags() uses BUF_UTF8, not
-    // available untilthis point in time.
+    // !!! REVIEW: Init_Function_Tags() uses BUF_UTF8, not available until
+    // this point in time.
     //
     Init_Function_Tags();
 
