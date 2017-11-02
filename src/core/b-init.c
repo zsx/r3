@@ -1218,12 +1218,12 @@ void Startup_Core(void)
     if (utf8 == NULL || SER_LEN(utf8) != NAT_UNCOMPRESSED_SIZE)
         panic ("decompressed native specs size mismatch (try `make clean`)");
 
-    const char *tmp_boot_utf8 = "tmp-boot.r";
-    REBSTR *tmp_boot_filename = Intern_UTF8_Managed(
-        cb_cast(tmp_boot_utf8), strlen(tmp_boot_utf8)
-    );
-    REBARR *boot_array = Scan_UTF8_Managed(
-        BIN_HEAD(utf8), NAT_UNCOMPRESSED_SIZE, tmp_boot_filename
+    // Use Scan_Va_Managed() not because it's actually variadic, but because
+    // there are currently no other usages of the function (rigorous builds
+    // notice when things are defined and not used).
+    //
+    REBARR *boot_array = Scan_Va_Managed(
+        STR("tmp-boot.r"), BIN_HEAD(utf8), END
     );
     PUSH_GUARD_ARRAY(boot_array); // managed, so must be guarded
 

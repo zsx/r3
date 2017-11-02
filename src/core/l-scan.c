@@ -752,6 +752,8 @@ static REBCTX *Error_Mismatch(SCAN_STATE *ss, char wanted, char seen) {
 //
 static REBCNT Prescan_Token(SCAN_STATE *ss)
 {
+    assert(IS_POINTER_TRASH_DEBUG(ss->end)); // prescan only uses ->begin
+
     const REBYTE *cp = ss->begin;
     REBCNT flags = 0;
 
@@ -805,52 +807,56 @@ static REBCNT Prescan_Token(SCAN_STATE *ss)
 //
 //  Locate_Token_May_Push_Mold: C
 //
-// Find the beginning and end character pointers for the next
-// TOKEN_ in the scanner state.  The TOKEN_ type returned will
-// correspond directly to a Rebol datatype if it isn't an
-// ANY-ARRAY! (e.g. TOKEN_INTEGER for INTEGER! or TOKEN_STRING
-// for STRING!).  When a block or group delimiter was found it
-// will indicate that (e.g. TOKEN_BLOCK_BEGIN or TOKEN_GROUP_END).
-// Hence the routine will have to be called multiple times during
-// the array's content scan.
+// Find the beginning and end character pointers for the next token in the
+// scanner state.  If the scanner is being fed variadically by a list of UTF-8
+// strings and REBVAL pointers, then any Rebol values encountered will be
+// spliced into the array being currently gathered by pushing them to the data
+// stack (as tokens can only be located in UTF-8 strings encountered).
+//
+// The scan state will be updated so that `ss->begin` has been moved past any
+// leading whitespace that was pending in the buffer.  `ss->end` will hold the
+// conclusion at a delimiter.  `ss->token` will return the calculated token.
+//
+// The TOKEN_XXX type returned will correspond directly to a Rebol datatype
+// if it isn't an ANY-ARRAY! (e.g. TOKEN_INTEGER for INTEGER! or TOKEN_STRING
+// for STRING!).  When a block or group delimiter is found it will indicate
+// that, e.g. TOKEN_BLOCK_BEGIN will be returned to indicate the scanner
+// should recurse... or TOKEN_GROUP_END which will signal the end of a level
+// of recursion.
+//
+// TOKEN_END is returned if end of input is reached.
 //
 // !!! This should be modified to explain how paths work, once
 // I can understand how paths work. :-/  --HF
 //
-// The scan state will be updated so that `ss->begin` has been moved past any
-// leading whitespace that was pending in the buffer.  `ss->end` will hold the
-// conclusion at a delimiter.  TOKEN_END is returned if end of input is
-// reached (signaled by a null byte).
+// Newlines that should be internal to a non-ANY-ARRAY! type are included in
+// the scanned range between the `begin` and `end`.  But newlines that are
+// found outside of a string are returned as TOKEN_NEWLINE.  (These are used
+// to set the VALUE_FLAG_LINE formatting bit on the subsequent value.)
 //
-// Newlines that should be internal to a non-ANY-ARRAY! type are
-// included in the scanned range between the `begin` and `end`.
-// But newlines that are found outside of a string are returned
-// as TOKEN_NEWLINE.  (These are used to set the OPTS_VALUE_LINE
-// formatting bit on the values.)
+// Determining the end point of token types that need escaping requires
+// processing (for instance `{a^}b}` can't see the first close brace as ending
+// the string).  To avoid double processing, the routine decodes the string's
+// content into UNI_BUF for any quoted form to be used by the caller.  This is
+// overwritten in successive calls, and is only done for quoted forms (e.g.
+// %"foo" will have data in UNI_BUF but %foo will not.)
 //
-// Determining the end point of token types that need escaping
-// requires processing (for instance `{a^}b}` can't see the first
-// close brace as ending the string).  To avoid double processing,
-// the routine decodes the string's content into UNI_BUF for any
-// quoted form to be used by the caller.  This is overwritten in
-// successive calls, and is only done for quoted forms (e.g. %"foo"
-// will have data in UNI_BUF but %foo will not.)
+// !!! This is a somewhat weird separation of responsibilities, that seems to
+// arise from a desire to make "Scan_XXX" functions independent of the 
+// "Locate_Token_May_Push_Mold" function.  But if the work of locating the
+// value means you have to basically do what you'd do to read it into a REBVAL
+// anyway, why split it?  This is especially true now that the variadic
+// splicing pushes values directly from this routine.
 //
-// !!! This is a somewhat weird separation of responsibilities,
-// that seems to arise from a desire to make "Scan_XXX" functions
-// independent of the "Locate_Token_May_Push_Mold" function.
-// But if the work of locating the value means you have to basically
-// do what you'd do to read it into a REBVAL anyway, why split it?
-//
-// Error handling is limited for most types, as an additional
-// phase is needed to load their data into a REBOL value.  Yet if
-// a "cheap" error is incidentally found during this routine
-// without extra cost to compute, it can fail here.
+// Error handling is limited for most types, as an additional phase is needed
+// to load their data into a REBOL value.  Yet if a "cheap" error is
+// incidentally found during this routine without extra cost to compute, it
+// can fail here.
 //
 // Examples with ss's (B)egin (E)nd and return value:
 //
-//        foo: baz bar => TOKEN_SET
-//        B   E
+//     foo: baz bar => TOKEN_SET
+//     B   E
 //
 //     [quick brown fox] => TOKEN_BLOCK_BEGIN
 //     B
@@ -859,11 +865,11 @@ static REBCNT Prescan_Token(SCAN_STATE *ss)
 //     "brown fox]" => TOKEN_WORD
 //      B    E
 //
-//       $10AE.20 sent => fail()
-//       B       E
+//     $10AE.20 sent => fail()
+//     B       E
 //
-//       {line1\nline2}  => TOKEN_STRING (content in UNI_BUF)
-//       B             E
+//     {line1\nline2}  => TOKEN_STRING (content in UNI_BUF)
+//     B             E
 //
 //     \n{line2} => TOKEN_NEWLINE (newline is external)
 //     BB
@@ -879,19 +885,89 @@ static REBCNT Prescan_Token(SCAN_STATE *ss)
 //     BB
 //     EE
 //
-// Note: The reason that the code is able to use byte scanning
-// over UTF-8 encoded source is because all the characters
-// that dictate the tokenization are ASCII (< 128).
+// Note: The reason that the code is able to use byte scanning over UTF-8
+// encoded source is because all the characters that dictate the tokenization
+// are currently in the ASCII range (< 128).
 //
 static void Locate_Token_May_Push_Mold(
     REB_MOLD *mo,
     SCAN_STATE *ss
 ) {
 #if !defined(NDEBUG)
-    ss->token = TOKEN_MAX;
+    TRASH_POINTER_IF_DEBUG(ss->end);
+    ss->token = TOKEN_MAX; // trash token to help ensure it's recalculated
 #endif
 
-    TRASH_POINTER_IF_DEBUG(ss->end); // prescan only uses ->begin
+acquisition_loop:
+    //
+    // If a non-variadic scan of a UTF-8 string is being done, then ss->vaptr
+    // will be NULL and ss->begin will be set to the data to scan.  A variadic
+    // scan will start ss->begin at NULL also.
+    //
+    // Each time a string component being scanned gets exhausted, ss->begin
+    // will be set to NULL and this loop is run to see if there's more input
+    // to be processed.
+    //
+    while (ss->begin == NULL) {
+        if (ss->vaptr == NULL) { // not a variadic va_list-based scan...
+            ss->token = TOKEN_END; // ...so end of the utf-8 input was the end
+            return;
+        }
+
+        const void *p = va_arg(*ss->vaptr, const void*);
+
+        if (p == NULL) {
+        #if defined(NDEBUG)
+            ss->token = TOKEN_END;
+            return;
+        #else
+            // NULL is just the integer 0, so it's bad to use to terminate C
+            // va_lists, as integers may not be the same size as pointers and
+            // it's easy to forget to cast.
+            //
+            panic ("NULL used to terminate va_list, use END instead");
+        #endif
+        }
+
+        switch (Detect_Rebol_Pointer(p)) {
+        case DETECTED_AS_END: {
+            ss->token = TOKEN_END;
+            return; }
+
+        case DETECTED_AS_VALUE: {
+            const REBVAL *splice = cast(const REBVAL*, p);
+            DS_PUSH_TRASH;
+            Move_Value(DS_TOP, splice);
+            
+            if (ss->newline_pending) {
+                ss->newline_pending = FALSE;
+                SET_VAL_FLAG(DS_TOP, VALUE_FLAG_LINE);
+            }
+            break; } // push values to emit stack until UTF-8 or END
+
+        case DETECTED_AS_UTF8: {
+            ss->begin = cast(const REBYTE*, p);
+
+            // If we're using a va_list, we start the scan with no C string
+            // pointer to serve as the beginning of line for an error message.
+            // wing it by just setting the line pointer to whatever the start
+            // of the first UTF-8 string fragment we see.
+            //
+            // !!! A more sophisticated debug mode might "reify" the va_list
+            // as a BLOCK! before scanning, which might be able to give more
+            // context for the error-causing input.
+            //
+            if (ss->line_head == NULL) {
+                assert(ss->vaptr != NULL);
+                assert(ss->start_line_head == NULL); 
+                ss->line_head = ss->start_line_head = ss->begin;
+            }
+            break; } // fallthrough to "ordinary" scanning
+
+        default:
+            panic ("Scanned pointer not END, REBVAL*, or valid UTF-8 string");
+        }
+    }
 
     REBCNT flags = Prescan_Token(ss); // sets ->begin, ->end
 
@@ -995,6 +1071,7 @@ static void Locate_Token_May_Push_Mold(
                     fail (Error_Syntax(ss));
                 }
                 ss->begin = cp;
+                TRASH_POINTER_IF_DEBUG(ss->end);
                 flags = Prescan_Token(ss);
                 ss->begin--;
                 ss->token = TOKEN_REFINE;
@@ -1013,12 +1090,15 @@ static void Locate_Token_May_Push_Mold(
             return;
 
         case LEX_DELIMIT_END:
-            // Prescan_Token() spans the terminator as if it were a byte
-            // to process, so we collapse end to begin to signal no data
-            ss->end--;
-            assert(ss->end == ss->begin);
-            ss->token = TOKEN_END;
-            return;
+            //
+            // We've reached the end of this string token's content.  By
+            // putting a NULL in ss->begin, that will cue the acquisition loop
+            // to check if there's a variadic pointer in effect to see if
+            // there's more content yet to come.
+            //
+            ss->begin = NULL;
+            TRASH_POINTER_IF_DEBUG(ss->end);
+            goto acquisition_loop;
 
         case LEX_DELIMIT_UTF8_ERROR:
             ss->token = TOKEN_WORD;
@@ -1527,6 +1607,43 @@ scanword:
 
 
 //
+//  Init_Va_Scan_State_Core: C
+//
+// Initialize a scanner state structure, using variadic C arguments.
+//
+static void Init_Va_Scan_State_Core(
+    SCAN_STATE *ss,
+    REBSTR *filename,
+    REBUPT line,
+    va_list *vaptr
+){
+    ss->vaptr = vaptr;
+    ss->begin = NULL; // signal Locate_Token to first fetch from vaptr
+    TRASH_POINTER_IF_DEBUG(ss->end);
+
+    // !!! Splicing REBVALs into a scan as it goes creates complexities for
+    // error messages based on line numbers.  Fortunately the splice of a
+    // REBVAL* itself shouldn't cause a fail()-class error if there's no
+    // data corruption, so it should be able to pick up *a* line head before
+    // any errors occur...it just might not give the whole picture when used
+    // to offer an error message of what's happening with the spliced values.
+    //
+    ss->start_line_head = ss->line_head = NULL;
+
+    ss->start_line = ss->line = line;
+    ss->filename = filename;
+
+    ss->newline_pending = FALSE;
+
+    ss->opts = 0;
+
+#if !defined(NDEBUG)
+    ss->token = TOKEN_MAX;
+#endif
+}
+
+
+//
 //  Init_Scan_State: C
 //
 // Initialize a scanner state structure.  Set the standard
@@ -1534,15 +1651,27 @@ scanword:
 //
 static void Init_Scan_State(
     SCAN_STATE *ss,
-    const REBYTE *utf8,
-    REBCNT limit,
     REBSTR *filename,
-    REBUPT line
-) {
-    ss->start_line_head = ss->line_head = ss->begin = utf8;
+    REBUPT line,
+    const REBYTE *utf8,
+    REBCNT limit
+){
+    // The limit feature was not actually supported...just check to make sure
+    // it's NUL terminated.
+    //
+    assert(utf8[limit] == '\0');
+    UNUSED(limit);
+
+    ss->vaptr = NULL; // signal Locate_Token to not use vaptr
+    ss->begin = utf8;
     TRASH_POINTER_IF_DEBUG(ss->end);
-    ss->limit = utf8 + limit;
+
+    ss->start_line_head = ss->line_head = utf8;
+
     ss->start_line = ss->line = line;
+
+    ss->newline_pending = FALSE;
+
     ss->filename = filename;
     ss->opts = 0;
 
@@ -1662,9 +1791,6 @@ static REBARR *Scan_Array(
         }
     }
 
-    REBOOL line; // goto would cross init, moving up gets clobber warning
-    line = FALSE;
-
     // We'd like to use DECLARE_MOLD here, but the macro has a problem with
     // goto crossing the initialization of `REB_MOLD *mo = &mold_struct`. :-(
     //
@@ -1679,6 +1805,8 @@ static REBARR *Scan_Array(
         Locate_Token_May_Push_Mold(&mo, ss),
         (ss->token != TOKEN_END)
     ){
+        assert(ss->begin != NULL && ss->end != NULL);
+
         const REBYTE *bp = ss->begin;
         const REBYTE *ep = ss->end;
         REBCNT len = cast(REBCNT, ep - bp);
@@ -1741,7 +1869,7 @@ static REBARR *Scan_Array(
         switch (ss->token) {
 
         case TOKEN_NEWLINE:
-            line = TRUE;
+            ss->newline_pending = TRUE;
             ss->line_head = ep;
             continue;
 
@@ -2098,8 +2226,8 @@ static REBARR *Scan_Array(
             SET_SER_FLAG(s, SERIES_FLAG_FILE_LINE);
         }
 
-        if (line) {
-            line = FALSE;
+        if (ss->newline_pending) {
+            ss->newline_pending = FALSE;
             SET_VAL_FLAG(DS_TOP, VALUE_FLAG_LINE);
         }
 
@@ -2204,15 +2332,71 @@ static REBARR *Scan_Full_Array(SCAN_STATE *ss, REBYTE mode_char)
 
 
 //
+//  Scan_Va_Managed: C
+//
+// Variadic form of source scanning.  Due to the nature of REBNOD (see
+// %sys-node.h), it's possible to feed the scanner with a list of pointers
+// that may be to UTF-8 strings or to Rebol values.  The behavior is to
+// "splice" in the values at the point in the scan that they occur, e.g.
+//
+//     REBVAL *item1 = ...;
+//     REBVAL *item2 = ...;
+//     REBVAL *item3 = ...;
+//     REBSTR *filename = ...; // where to say code came from
+//
+//     REBARR *result = Scan_Va_Managed(filename,
+//         "if not", item1, "[\n",
+//             item2, "| print {Close brace separate from content}\n",
+//         "] else [\n",
+//             item3, "| print {Close brace with content}]\n",
+//         END
+//     );
+//
+// While the approach is flexible, any token must appear fully inside its
+// UTF-8 string component.  So you can't--for instance--divide a scan up like
+// ("{abc", "def", "ghi}") and get the STRING! {abcdefghi}.  On that note,
+// ("a", "/", "b") produces `a / b` and not the PATH! `a/b`.
+//
+REBARR *Scan_Va_Managed(
+    REBSTR *filename, // NOTE: va_start must get last parameter before ...
+    ...
+){
+    SCAN_STATE ss;
+    const REBUPT start_line = 1;
+
+    va_list va;
+    va_start(va, filename);
+
+    Init_Va_Scan_State_Core(&ss, filename, start_line, &va);
+
+    REBARR *array = Scan_Array(&ss, 0);
+
+    // !!! While in practice every system has va_end() as a no-op, it's not
+    // necessarily true from a standards point of view:
+    //
+    // https://stackoverflow.com/q/32259543/
+    //
+    // It needs to be called before the longjmp in fail() crosses this stack
+    // level.  That means either PUSH_UNHALTABLE_TRAP here, or coming up with
+    // some more generic mechanism to register cleanup code that runs during
+    // the fail().
+    //
+    va_end(va);
+
+    return array;
+}
+
+
+//
 //  Scan_UTF8_Managed: C
 //
 // Scan source code. Scan state initialized. No header required.
 //
-REBARR *Scan_UTF8_Managed(const REBYTE *utf8, REBCNT len, REBSTR *filename)
+REBARR *Scan_UTF8_Managed(REBSTR *filename, const REBYTE *utf8, REBCNT len)
 {
     SCAN_STATE ss;
     const REBUPT start_line = 1;
-    Init_Scan_State(&ss, utf8, len, filename, start_line);
+    Init_Scan_State(&ss, filename, start_line, utf8, len);
     return Scan_Array(&ss, 0);
 }
 
@@ -2227,7 +2411,7 @@ REBINT Scan_Header(const REBYTE *utf8, REBCNT len)
     SCAN_STATE ss;
     REBSTR * const filename = Canon(SYM___ANONYMOUS__);
     const REBUPT start_line = 1;
-    Init_Scan_State(&ss, utf8, len, filename, start_line);
+    Init_Scan_State(&ss, filename, start_line, utf8, len);
 
     REBINT result = Scan_Head(&ss);
     if (result == 0)
@@ -2293,32 +2477,11 @@ REBNATIVE(transcode)
 {
     INCLUDE_PARAMS_OF_TRANSCODE;
 
-    REBSTR *filename;
-    if (REF(file)) {
-        //
-        // The file string may be mutable, so we wouldn't want to store it
-        // persistently as-is.  Consider:
-        //
-        //     file: copy %test
-        //     x: transcode/file data1 file
-        //     append file "-2"
-        //     y: transcode/file data2 file
-        //
-        // You would not want the change of `file` to affect the filename
-        // references in x's loaded source.  So the series shouldn't be used
-        // directly, and as long as another reference is needed, use an
-        // interned one (the same mechanic words use).  Since the source
-        // filename may be a wide string it is converted to UTF-8 first.
-        //
-        // !!! Should the base name and extension be stored, or whole path?
-        //
-        REBCNT index = VAL_INDEX(ARG(file_name));
-        REBCNT len = VAL_LEN_AT(ARG(file_name));
-        REBSER *temp = Temp_Bin_Str_Managed(ARG(file_name), &index, &len);
-        filename = Intern_UTF8_Managed(BIN_AT(temp, index), len);
-    }
-    else
-        filename = Canon(SYM___ANONYMOUS__);
+    // !!! Should the base name and extension be stored, or whole path?
+    //
+    REBSTR *filename = REF(file)
+        ? STR(ARG(file_name))
+        : Canon(SYM___ANONYMOUS__);
 
     REBUPT start_line = 1;
     if (REF(line)) {
@@ -2332,10 +2495,10 @@ REBNATIVE(transcode)
     SCAN_STATE ss;
     Init_Scan_State(
         &ss,
-        VAL_BIN_AT(ARG(source)),
-        VAL_LEN_AT(ARG(source)),
         filename,
-        start_line
+        start_line,
+        VAL_BIN_AT(ARG(source)),
+        VAL_LEN_AT(ARG(source))
     );
 
     if (REF(next))
@@ -2381,7 +2544,7 @@ const REBYTE *Scan_Any_Word(
     SCAN_STATE ss;
     REBSTR * const filename = Canon(SYM___ANONYMOUS__);
     const REBUPT start_line = 1;
-    Init_Scan_State(&ss, utf8, len, filename, start_line);
+    Init_Scan_State(&ss, filename, start_line, utf8, len);
 
     DECLARE_MOLD (mo);
 

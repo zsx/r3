@@ -195,3 +195,64 @@ inline static void Init_Any_Word_Bound(
 inline static void Canonize_Any_Word(REBVAL *any_word) {
     any_word->payload.any_word.spelling = VAL_WORD_CANON(any_word);
 }
+
+// To make interfaces easier for some functions that take REBSTR* strings,
+// it can be useful to allow passing UTF-8 text, a REBVAL* with an ANY-WORD!
+// or ANY-STRING!, or just plain UTF-8 text.
+//
+// !!! Should VOID_CELL or other arguments make anonymous symbols?
+//
+#if defined(__cplusplus) && __cplusplus >= 201103L
+template<typename T>
+inline static REBSTR* STR(const T *p)
+{
+    static_assert(
+        std::is_same<T, REBVAL>::value
+        || std::is_same<T, char>::value
+        || std::is_same<T, REBSTR>::value,
+        "STR works on: char*, REBVAL*, REBSTR*"
+    );
+#else
+inline static REBSTR* STR(const void *p)
+{
+#endif
+    switch (Detect_Rebol_Pointer(p)) {
+    case DETECTED_AS_UTF8: {
+        const char *utf8 = cast(const char*, p);
+        return Intern_UTF8_Managed(cb_cast(utf8), strlen(utf8)); }
+
+    case DETECTED_AS_SERIES: {
+        REBSER *s = m_cast(REBSER*, cast(const REBSER*, p));
+        assert(GET_SER_FLAG(s, SERIES_FLAG_UTF8_STRING));
+        return s; }
+
+    case DETECTED_AS_VALUE: {
+        const REBVAL *v = cast(const REBVAL*, p);
+        if (ANY_WORD(v))
+            return VAL_WORD_SPELLING(v);
+
+        assert(ANY_STRING(v));
+
+        // The string may be mutable, so we wouldn't want to store it
+        // persistently as-is.  Consider:
+        //
+        //     file: copy %test
+        //     x: transcode/file data1 file
+        //     append file "-2"
+        //     y: transcode/file data2 file
+        //
+        // You would not want the change of `file` to affect the filename
+        // references in x's loaded source.  So the series shouldn't be used
+        // directly, and as long as another reference is needed, use an
+        // interned one (the same mechanic words use).  Since the source
+        // filename may be a wide string it is converted to UTF-8 first.
+        //
+        REBCNT index = VAL_INDEX(v);
+        REBCNT len = VAL_LEN_AT(v);
+        REBSER *temp = Temp_Bin_Str_Managed(v, &index, &len);
+        return Intern_UTF8_Managed(BIN_AT(temp, index), len); }
+
+    default:
+        panic ("Bad pointer type passed to Rebstr_From_Rebol_Pointer");
+    }
+}

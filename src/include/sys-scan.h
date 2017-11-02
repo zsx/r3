@@ -207,16 +207,36 @@ enum rebol_esc_codes {
 */
 
 typedef struct rebol_scan_state {
+    //
+    // If vaptr is NULL, then it is assumed that the `begin` is the source of
+    // the UTF-8 data to scan.  Otherwise, it is a variadic feed of UTF-8
+    // strings and values that are spliced in.
+    //
+    va_list *vaptr;
+
     const REBYTE *begin;
     const REBYTE *end;
-    const REBYTE *limit;    /* no chars after this point */
+
+    // The "limit" feature was not implemented, scanning stopped on a null
+    // terminator.  It may be interesting in the future, but it doesn't mix
+    // well with scanning variadics which merge REBVAL and UTF-8 strings
+    // together...
+    //
+    /* const REBYTE *limit; */
     
     REBCNT line;
     const REBYTE *line_head; // head of current line (used for errors)
+
     REBCNT start_line;
     const REBYTE *start_line_head;
 
     REBSTR *filename;
+
+    // VALUE_FLAG_LINE appearing on a value means that there is a line break
+    // *before* that value.  Hence when a newline is seen, it means the *next*
+    // value to be scanned will receive the flag.
+    //
+    REBOOL newline_pending;
 
     REBFLGS opts;
     enum Reb_Token token;

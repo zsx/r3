@@ -535,12 +535,8 @@ int main(int argc, char **argv_ansi)
         if (startup == NULL)
             panic ("Can't decompress %host-start.r linked into executable");
 
-        const char *host_start_utf8 = "host-start.r";
-        REBSTR *host_start_filename = Intern_UTF8_Managed(
-            cb_cast(host_start_utf8), strlen(host_start_utf8)
-        );
         REBARR *array = Scan_UTF8_Managed(
-            BIN_HEAD(startup), BIN_LEN(startup), host_start_filename
+            STR("host-start.r"), BIN_HEAD(startup), BIN_LEN(startup)
         );
 
         // Bind the REPL and startup code into the lib context.

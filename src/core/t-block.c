@@ -193,7 +193,7 @@ void TO_Array(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
         Init_Any_Array(
             out,
             kind,
-            Scan_UTF8_Managed(BIN_HEAD(utf8), BIN_LEN(utf8), filename)
+            Scan_UTF8_Managed(filename, BIN_HEAD(utf8), BIN_LEN(utf8))
         );
         DROP_GUARD_SERIES(utf8);
     }
@@ -206,7 +206,7 @@ void TO_Array(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
         Init_Any_Array(
             out,
             kind,
-            Scan_UTF8_Managed(VAL_BIN_AT(arg), VAL_LEN_AT(arg), filename)
+            Scan_UTF8_Managed(filename, VAL_BIN_AT(arg), VAL_LEN_AT(arg))
         );
     }
     else if (IS_MAP(arg)) {
