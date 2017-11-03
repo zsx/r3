@@ -1730,18 +1730,6 @@ void Check_Security(REBSTR *sym, REBCNT policy, REBVAL *value)
 
 
 //
-//  Make_OS_Error: C
-//
-void Make_OS_Error(REBVAL *out, int errnum)
-{
-    REBCHR str[100];
-
-    OS_FORM_ERROR(errnum, str, 100);
-    Init_String(out, Copy_OS_Str(str, OS_STRLEN(str)));
-}
-
-
-//
 //  Find_Next_Error_Base_Code: C
 //
 // Find in system/catalog/errors the next error base (used by extensions)

@@ -153,42 +153,6 @@ void OS_Crash(const REBYTE *title, const REBYTE *content)
 }
 
 
-//
-//  OS_Form_Error: C
-//
-// Translate OS error into a string. The str is the string
-// buffer and the len is the length of the buffer.
-//
-REBCHR *OS_Form_Error(int errnum, REBCHR *str, int len)
-{
-    wchar_t *lpMsgBuf;
-    int ok;
-
-    if (!errnum) errnum = GetLastError();
-
-    // !!! Why does this allocate a buffer when FormatMessage takes a
-    // buffer and a size...exactly the interface we're implementing?
-    ok = FormatMessage(
-            FORMAT_MESSAGE_ALLOCATE_BUFFER |
-            FORMAT_MESSAGE_FROM_SYSTEM |
-            FORMAT_MESSAGE_IGNORE_INSERTS,
-            NULL,
-            errnum,
-            MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), // Default language
-            cast(wchar_t*, &lpMsgBuf), // see FORMAT_MESSAGE_ALLOCATE_BUFFER
-            0,
-            NULL);
-
-    len--; // termination
-
-    if (!ok) wcsncpy(str, L"unknown error", len);
-    else {
-        wcsncpy(str, lpMsgBuf, len);
-        LocalFree(lpMsgBuf);
-    }
-    return str;
-}
-
 
 //
 //  OS_Get_Time: C

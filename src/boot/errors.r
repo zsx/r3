@@ -313,8 +313,6 @@ Access: [
     bad-extension:      [{invalid extension format:} :arg1]
     extension-init:     [{extension cannot be initialized (check version):} :arg1]
 
-    call-fail:          [{external process failed:} :arg1]
-
     symbol-not-found:   [{symbol not found:} :arg1]
     bad-memory:         [{non-accessible memory at} :arg1 {in} :arg2]
     no-external-storage: [{no external storage in the series}]
