@@ -49,7 +49,6 @@
 #include <string.h>
 #include <windows.h>
 #include <process.h>
-#include <shlobj.h>
 #include <assert.h>
 
 #include "reb-host.h"
@@ -57,9 +56,6 @@
 #ifndef REB_CORE
 REBSER* Gob_To_Image(REBGOB *gob);
 #endif
-
-//used to detect non-modal OS dialogs
-BOOL osDialogOpen = FALSE;
 
 
 //
@@ -359,100 +355,6 @@ int OS_Reap_Process(int pid, int *status, int flags)
     return 0;
 }
 
-
-//
-//  OS_Request_File: C
-//
-REBOOL OS_Request_File(REBRFR *fr)
-{
-    OPENFILENAME ofn;
-    BOOL ret;
-    //int err;
-    const wchar_t *filters = L"All files\0*.*\0REBOL scripts\0*.r\0Text files\0*.txt\0";
-
-    memset(&ofn, '\0', sizeof(ofn));
-    ofn.lStructSize = sizeof(ofn);
-
-    // ofn.hwndOwner = WIN_WIN(win); // Must find a way to set this
-
-    ofn.lpstrTitle = fr->title;
-    ofn.lpstrInitialDir = fr->dir;
-    ofn.lpstrFile = fr->files;
-    ofn.lpstrFilter = fr->filter ? fr->filter : filters;
-    ofn.nMaxFile = fr->len;
-    ofn.lpstrFileTitle = 0;
-    ofn.nMaxFileTitle = 0;
-
-    ofn.Flags = OFN_HIDEREADONLY | OFN_EXPLORER | OFN_NOCHANGEDIR; //|OFN_NONETWORKBUTTON; //;
-
-    if (fr->flags & FRF_MULTI)
-        ofn.Flags |= OFN_ALLOWMULTISELECT;
-
-    osDialogOpen = TRUE;
-
-    if (fr->flags & FRF_SAVE)
-        ret = GetSaveFileName(&ofn);
-    else
-        ret = GetOpenFileName(&ofn);
-
-    osDialogOpen = FALSE;
-
-    //if (!ret)
-    //  err = CommDlgExtendedError(); // CDERR_FINDRESFAILURE
-
-    return ret;
-}
-
-int CALLBACK ReqDirCallbackProc( HWND hWnd, UINT uMsg, LPARAM lParam, LPARAM lpData )
-{
-    UNUSED(lParam);
-
-    static REBOOL inited = FALSE;
-    switch (uMsg) {
-        case BFFM_INITIALIZED:
-            if (lpData) SendMessage(hWnd,BFFM_SETSELECTION,TRUE,lpData);
-            SetForegroundWindow(hWnd);
-            inited = TRUE;
-            break;
-        case BFFM_SELCHANGED:
-            if (inited && lpData) {
-                SendMessage(hWnd,BFFM_SETSELECTION,TRUE,lpData);
-                inited = FALSE;
-            }
-            break;
-    }
-    return 0;
-}
-
-
-//
-//  OS_Request_Dir: C
-//
-// WARNING: TEMPORARY implementation! Used only by host-core.c
-// Will be most probably changed in future.
-//
-REBOOL OS_Request_Dir(REBCHR* title, REBCHR** folder, REBCHR* path)
-{
-    BROWSEINFO bi;
-    wchar_t buffer[MAX_PATH];
-    LPCITEMIDLIST pFolder;
-    ZeroMemory(buffer, MAX_PATH);
-    ZeroMemory(&bi, sizeof(bi));
-    bi.hwndOwner = NULL;
-    bi.pszDisplayName = buffer;
-    bi.lpszTitle = title;
-    bi.ulFlags = BIF_EDITBOX | BIF_NEWDIALOGSTYLE | BIF_RETURNONLYFSDIRS | BIF_SHAREABLE;
-    bi.lpfn = ReqDirCallbackProc;
-    bi.lParam = (LPARAM)path;
-
-    osDialogOpen = TRUE;
-    pFolder = SHBrowseForFolder(&bi);
-    osDialogOpen = FALSE;
-    if (pFolder == NULL) return FALSE;
-    if (!SHGetPathFromIDList(pFolder, buffer) ) return FALSE;
-    wcscpy(*folder, buffer);
-    return TRUE;
-}
 
 //
 //  OS_GOB_To_Image: C

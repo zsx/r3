@@ -1,6 +1,7 @@
 //
-//  File: %reb-filereq.h
-//  Summary: "File requestor definitions"
+//  File: %ext-view.c
+//  Summary: "/View Graphics Extension stub"
+//  Section: Extension
 //  Project: "Rebol 3 Interpreter and Run-time (Ren-C branch)"
 //  Homepage: https://github.com/metaeducation/ren-c/
 //
@@ -24,25 +25,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-//=////////////////////////////////////////////////////////////////////////=//
+// ==================================================================
 //
+#include "sys-core.h"
+#include "sys-ext.h"
 
-#define MAX_FILE_REQ_BUF (16*1024)
 
-typedef struct Reb_File_Requestor {
-    REBCNT flags;   // multi, load/save, unicode
-    REBCHR *title;  // title of requestor
-    REBCHR *button; // button name
-    REBCHR *dir;    // dir path
-    REBCHR *files;  // buffer to hold results
-    REBCHR *filter; // buffer to hold results
-    REBINT len;     // length of buffer
-} REBRFR;
+#include "tmp-ext-view-init.inc"
 
-// File Request Flags:
-enum {
-    FRF_MULTI = 1 << 0,
-    FRF_SAVE = 1 << 2,
-    FRF_KEEP = 1 << 3
-};
 
+#define MODULE_INCLUDE_DECLARATION_ONLY
+#include "tmp-mod-view-last.h"
+
+DEFINE_EXT_INIT_COMPRESSED(View, //name of the extension
+    script_bytes, // REBOL script for the extension in the source form
+    {
+        // init all modules in this extension
+        int init = CALL_MODULE_INIT(View);
+        if (init < 0) return init;
+    }
+)
+
+DEFINE_EXT_QUIT(View,
+{
+    return CALL_MODULE_QUIT(View);
+}
+)

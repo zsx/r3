@@ -86,29 +86,3 @@ REBOOL OS_Set_Current_Dir(REBCHR *path)
 {
     return LOGICAL(chdir(path) == 0);
 }
-
-
-//
-//  OS_Request_File: C
-//
-REBOOL OS_Request_File(REBRFR *fr)
-{
-    UNUSED(fr);
-    return FALSE;
-}
-
-
-//
-//  OS_Request_Dir: C
-//
-// WARNING: TEMPORARY implementation! Used only by host-core.c
-// Will be most probably changed in future.
-//
-REBOOL OS_Request_Dir(REBCHR* title, REBCHR** folder, REBCHR* path)
-{
-    UNUSED(title);
-    UNUSED(folder);
-    UNUSED(path);
-
-    return FALSE;
-}
