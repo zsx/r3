@@ -195,67 +195,6 @@ REBCHR *OS_Form_Error(int errnum, REBCHR *str, int len)
 
 
 //
-//  OS_Get_Env: C
-//
-// Get a value from the environment.
-// Returns size of retrieved value for success or zero if missing.
-//
-// If return size is greater than capacity then value contents
-// are undefined, and size includes null terminator of needed buf
-//
-REBINT OS_Get_Env(REBCHR* buffer, const REBCHR *key, REBINT capacity)
-{
-    // Note: The Windows variant of this API is NOT case-sensitive
-
-    REBINT result = GetEnvironmentVariable(key, buffer, capacity);
-    if (result == 0) { // some failure...
-        if (GetLastError() == ERROR_ENVVAR_NOT_FOUND) {
-            return -1; // not found
-        }
-        return -2; // other error... fail?
-    }
-    return result;
-}
-
-
-//
-//  OS_Set_Env: C
-//
-// Set a value from the environment.
-// Returns >0 for success and 0 for errors.
-//
-REBOOL OS_Set_Env(REBCHR *envname, REBCHR *envval)
-{
-    return SetEnvironmentVariable(envname, envval);
-}
-
-
-//
-//  OS_List_Env: C
-//
-REBCHR *OS_List_Env(void)
-{
-    wchar_t *env = GetEnvironmentStrings();
-    REBCNT n, len = 0;
-    wchar_t *str;
-
-    str = env;
-    while ((n = wcslen(str))) {
-        len += n + 1;
-        str = env + len; // next
-    }
-    len++;
-
-    str = OS_ALLOC_N(wchar_t, len);
-    memmove(str, env, len * sizeof(wchar_t));
-
-    FreeEnvironmentStrings(env);
-
-    return str;
-}
-
-
-//
 //  OS_Get_Time: C
 //
 // Get the current system date/time in UTC plus zone offset (mins).

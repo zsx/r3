@@ -96,10 +96,6 @@
 #include "sys-ext.h"
 #include "tmp-boot-extensions.h"
 
-EXTERN_C void RL_Version(REBYTE vers[]);
-EXTERN_C void RL_Shutdown(REBOOL clean);
-EXTERN_C void RL_Escape();
-
 EXTERN_C REBOL_HOST_LIB Host_Lib_Init;
 
 

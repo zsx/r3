@@ -47,11 +47,11 @@ REBOOL All_Bytes_ASCII(REBYTE *bp, REBCNT len)
 
 
 //
-//  Is_Wide: C
+//  All_Codepoints_Latin1: C
 //
 // Returns TRUE if uni string needs 16 bits.
 //
-REBOOL Is_Wide(const REBUNI *up, REBCNT len)
+REBOOL All_Codepoints_Latin1(const REBUNI *up, REBCNT len)
 {
     for (; len > 0; len--, up++)
         if (*up >= 0x100) return TRUE;

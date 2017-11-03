@@ -37,13 +37,25 @@
         #undef IS_ERROR //winerror.h defines, Rebol has a different meaning
     #endif
 #else
-    #if !defined( __cplusplus) && defined(TO_LINUX)
+    #if !defined(__cplusplus) && defined(TO_LINUX)
         //
         // See feature_test_macros(7), this definition is redundant under C++
         //
         #define _GNU_SOURCE // Needed for pipe2 when #including <unistd.h>
     #endif
     #include <unistd.h>
+    #include <stdlib.h>
+
+    // The location of "environ" (environment variables inventory that you
+    // can walk on POSIX) can vary.  Some put it in stdlib, some put it
+    // in <unistd.h>.  And OS X doesn't define it in a header at all, you
+    // just have to declare it yourself.  :-/
+    //
+    // https://stackoverflow.com/a/31347357/211160
+    //
+    #if defined(TO_OSX)
+        extern char **environ;
+    #endif
 
     #include <errno.h>
     #include <fcntl.h>
@@ -1870,6 +1882,322 @@ static REBNATIVE(terminate)
 #endif
 }
 
+
+//
+//  get-env: native/export [
+//
+//  {Returns the value of an OS environment variable (for current process).}
+//
+//      return: [string! blank!]
+//          {The string of the environment variable, or blank if not set}
+//      variable [string! word!]
+//          {Name of variable to get (case-insensitive in Windows)}
+//  ]
+//
+static REBNATIVE(get_env)
+{
+    INCLUDE_PARAMS_OF_GET_ENV;
+
+    REBVAL *variable = ARG(variable);
+
+    Check_Security(Canon(SYM_ENVR), POL_READ, variable);
+
+    if (ANY_WORD(variable)) {
+        REBSER *copy = Copy_Form_Value(variable, 0);
+        Init_String(variable, copy);
+    }
+
+    REBCTX *error = NULL;
+
+#ifdef TO_WINDOWS
+    // Note: The Windows variant of this API is NOT case-sensitive
+
+    wchar_t *key = RL_Val_Wstring_Alloc(NULL, variable);
+
+    DWORD val_len_plus_one = GetEnvironmentVariable(key, NULL, 0);
+    if (val_len_plus_one == 0) { // some failure...
+        if (GetLastError() == ERROR_ENVVAR_NOT_FOUND)
+            Init_Blank(D_OUT);
+        else
+            error = Error_User("Unknown error when requesting variable size");
+    }
+    else {
+        wchar_t *val = OS_ALLOC_N(wchar_t, val_len_plus_one);
+        DWORD result = GetEnvironmentVariable(key, val, val_len_plus_one);
+        if (result == 0)
+            error = Error_User("Unknown error fetching variable to buffer");
+        else
+            Init_String(D_OUT, Copy_Wide_Str(val, val_len_plus_one - 1));
+        OS_FREE(val);
+    }
+
+    OS_FREE(key);
+#else
+    // Note: The Posix variant of this API is case-sensitive
+
+    REBYTE *key = RL_Val_UTF8_Alloc(NULL, variable);
+
+    const REBYTE* val = cb_cast(getenv(cs_cast(key)));
+    if (val == NULL) // key not present in environment
+        Init_Blank(D_OUT);
+    else {
+        REBCNT len = LEN_BYTES(val);
+
+        /* assert(len != 0); */ // Is this true?  Should it return BLANK!?
+
+        Init_String(D_OUT, Decode_UTF_String(val, len, 8));
+    }
+
+    OS_FREE(key);
+#endif
+
+    // Error is broken out like this so that the proper freeing can be done
+    // without leaking temporary buffers.
+    //
+    if (error != NULL)
+        fail (error);
+
+    return R_OUT;
+}
+
+
+//
+//  set-env: native/export [
+//
+//  {Sets value of operating system environment variable for current process.}
+//
+//      return: [<opt>]
+//      variable [string! word!]
+//          "Variable to set (case-insensitive in Windows)"
+//      value [string! blank!]
+//          "Value to set the variable to, or a BLANK! to unset it"
+//  ]
+//
+static REBNATIVE(set_env)
+{
+    INCLUDE_PARAMS_OF_SET_ENV;
+
+    REBVAL *variable = ARG(variable);
+    REBVAL *value = ARG(value);
+
+    Check_Security(Canon(SYM_ENVR), POL_WRITE, variable);
+
+    if (IS_WORD(variable)) {
+        REBSER *copy = Copy_Form_Value(variable, 0);
+        Init_String(variable, copy);
+    }
+
+    REBCTX *error = NULL;
+
+#ifdef TO_WINDOWS
+    wchar_t *key = RL_Val_Wstring_Alloc(NULL, variable);
+
+    REBOOL success;
+
+    if (IS_BLANK(value)) {
+        success = SetEnvironmentVariable(key, NULL);
+    }
+    else {
+        assert(IS_STRING(value));
+        
+        wchar_t *val = RL_Val_Wstring_Alloc(NULL, value);
+        success = SetEnvironmentVariable(key, val);
+        OS_FREE(val);
+    }
+
+    OS_FREE(key);
+
+    if (NOT(success)) // make better error with GetLastError + variable name
+        error = Error_User("environment variable couldn't be modified");
+#else
+
+    REBCNT key_len;
+    REBYTE *key = RL_Val_UTF8_Alloc(&key_len, variable);
+
+    REBOOL success;
+
+    if (IS_BLANK(value)) {
+        UNUSED(key_len);
+
+    #ifdef unsetenv
+        if (unsetenv(key) == -1)
+            success = FALSE;
+    #else
+        // WARNING: KNOWN PORTABILITY ISSUE
+        //
+        // Simply saying putenv("FOO") will delete FOO from the environment,
+        // but it's not consistent...does nothing on NetBSD for instance.  But
+        // not all other systems have unsetenv...
+        //
+        // http://julipedia.meroh.net/2004/10/portability-unsetenvfoo-vs-putenvfoo.html
+        //
+        // going to hope this case doesn't hold onto the string...
+        //
+        if (putenv(s_cast(key)) == -1) // !!! Why mutable?
+            success = FALSE;
+    #endif
+    }
+    else {
+        assert(IS_STRING(value));
+
+    #ifdef setenv
+        UNUSED(key_len);
+
+        REBYTE *val = RL_Val_UTF8_Alloc(NULL, value);
+
+        // we pass 1 for overwrite (make call to OS_Get_Env if you
+        // want to check if already exists)
+
+        if (setenv(cs_cast(key), cs_cast(val), 1) == -1)
+            success = FALSE;
+
+        OS_FREE(val);
+    #else
+        // WARNING: KNOWN MEMORY LEAK!
+        //
+        // putenv takes its argument as a single "key=val" string.  It is
+        // *fatally flawed*, and obsoleted by setenv and unsetenv in System V:
+        //
+        // http://stackoverflow.com/a/5876818/211160
+        //
+        // Once you have passed a string to it you never know when that string
+        // will no longer be needed.  Thus it may either not be dynamic or you
+        // must leak it, or track a local copy of the environment yourself.
+        //
+        // If you're stuck without setenv on some old platform, but really
+        // need to set an environment variable, here's a way that just leaks a
+        // string each time you call.  The code would have to keep track of
+        // each string added in some sort of a map...which is currently deemed
+        // not worth the work.
+
+        REBCNT val_len = RL_Val_UTF8(NULL, 0, value);
+
+        REBYTE *key_equals_val = OS_ALLOC_N(REBYTE,
+            key_len + 1 + val_len + 1
+        );
+
+        RL_Val_UTF8(key_equals_val, key_len, variable);
+        key_equals_val[key_len] = '=';
+        RL_Val_UTF8(key_equals_val + key_len + 1, val_len, value);
+
+        if (putenv(s_cast(key_equals_val)) == -1) // !!! why mutable?  :-/
+            success = FALSE;
+
+        /* OS_FREE(key_equals_val); */ // !!! Can't do this, crashes getenv()
+#endif
+    }
+
+    OS_FREE(key);
+
+    if (NOT(success)) // make better error if more information is known
+        error = Error_User("environment variable couldn't be modified");
+#endif
+
+    // Don't do the fail() in mid-environment work, as it will leak memory
+    // if the OS strings aren't freed up.  Done like this so that the error
+    // messages could be OS-specific.
+    //
+    if (error != NULL)
+        fail (error);
+
+    return R_VOID;
+}
+
+
+//
+//  list-env: native/export [
+//
+//  {Returns a map of OS environment variables (for current process).}
+//
+//      ; No arguments
+//  ]
+//
+static REBNATIVE(list_env)
+{
+#ifdef TO_WINDOWS
+    //
+    // Windows environment strings are sequential null-terminated strings,
+    // with a 0-length string signaling end ("keyA=valueA\0keyB=valueB\0\0")
+    // We count the strings to know how big an array to make, and then
+    // convert the array into a MAP!.
+    //
+    // !!! Adding to a map as we go along would probably be better.
+
+    wchar_t *env = GetEnvironmentStrings();
+
+    REBCNT num_pairs = 0;
+    const wchar_t *key_equals_val = env;
+    REBCNT len;
+    while ((len = wcslen(key_equals_val)) != 0) {
+        ++num_pairs;
+        key_equals_val += len + 1; // next
+    }
+
+    REBARR *array = Make_Array(num_pairs * 2); // we split the keys and values
+
+    key_equals_val = env;
+    while ((len = wcslen(key_equals_val)) != 0) {
+        const wchar_t *eq = wcschr(key_equals_val, '=');
+
+        Init_String(
+            Alloc_Tail_Array(array),
+            Copy_Wide_Str(key_equals_val, eq - key_equals_val)
+        );
+        Init_String(
+            Alloc_Tail_Array(array),
+            Copy_Wide_Str(eq + 1, len - (eq - key_equals_val) - 1)
+        );
+
+        key_equals_val += len + 1; // next
+    }
+
+    FreeEnvironmentStrings(env);
+
+    REBMAP *map = Mutate_Array_Into_Map(array);
+    Init_Map(D_OUT, map);
+
+    return R_OUT;
+#else
+    // Note: 'environ' is an extern of a global found in <unistd.h>, and each
+    // entry contains a `key=value` formatted string.
+    //
+    // https://stackoverflow.com/q/3473692/
+    //
+    REBCNT num_pairs = 0;
+    REBCNT n;
+    for (n = 0; environ[n] != NULL; ++n)
+        ++num_pairs;
+
+    REBARR *array = Make_Array(num_pairs * 2); // we split the keys and values
+
+    for (n = 0; environ[n] != NULL; ++n) {
+        //
+        // Note: it's safe to search for just a `=` byte, since the high bit
+        // isn't set...and even if the key contains UTF-8 characters, there
+        // won't be any occurrences of such bytes in multi-byte-characters.
+        //
+        const REBYTE *key_equals_val = cb_cast(environ[n]);
+        const REBYTE *eq = cb_cast(strchr(cs_cast(key_equals_val), '='));
+
+        REBCNT len = LEN_BYTES(key_equals_val);
+        Init_String(
+            Alloc_Tail_Array(array),
+            Decode_UTF_String(key_equals_val, eq - key_equals_val, 8)
+        );
+        Init_String(
+            Alloc_Tail_Array(array),
+            Decode_UTF_String(eq + 1, len - (eq - key_equals_val) - 1, 8)
+        );
+    }
+
+    REBMAP *map = Mutate_Array_Into_Map(array);
+    Init_Map(D_OUT, map);
+
+    return R_OUT;
+#endif
+
+    DEAD_END;
+}
 
 
 #if defined(TO_LINUX) || defined(TO_ANDROID) || defined(TO_POSIX) || defined(TO_OSX)

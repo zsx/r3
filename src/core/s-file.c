@@ -82,7 +82,11 @@ REBSER *To_REBOL_Path(const void *p, REBCNT len, REBFLGS flags)
             ? LOGICAL(flags & PATH_OPT_UNI_SRC)
             : TRUE
     );
-    dst = ((flags & PATH_OPT_FORCE_UNI_DEST) || (unicode && Is_Wide(up, len)))
+
+    dst = (
+            (flags & PATH_OPT_FORCE_UNI_DEST)
+            || (unicode && All_Codepoints_Latin1(up, len))
+        )
         ? Make_Unicode(len + FN_PAD)
         : Make_Binary(len + FN_PAD);
 

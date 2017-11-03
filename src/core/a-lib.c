@@ -30,16 +30,6 @@
 
 #include "sys-core.h"
 
-// !!! Most of the Rebol source does not include %reb-ext.h.  As a result
-// REBRXT and RXIARG and RXIFRM are not defined when %tmp-funcs.h is being
-// compiled, so the MAKE PREP process doesn't auto-generate prototypes for
-// these functions.
-//
-// Rather than try and define RX* for all of the core to include, assume that
-// the burden of keeping these in sync manually is for the best.
-//
-#include "reb-ext.h"
-
 // Linkage back to HOST functions. Needed when we compile as a DLL
 // in order to use the OS_* macro functions.
 #ifdef REB_API  // Included by C command line
@@ -49,9 +39,6 @@ REBOL_HOST_LIB *Host_Lib;
 
 static REBRXT Reb_To_RXT[REB_MAX];
 static enum Reb_Kind RXT_To_Reb[RXT_MAX];
-
-
-#include "reb-lib.h" // forward definitions needed for "extern C" linkage
 
 
 //
@@ -654,6 +641,195 @@ RL_API void RL_Init_Date(
 
     SET_VAL_FLAG(out, DATE_FLAG_HAS_TIME);
     VAL_NANO(out) = SECS_TO_NANO(seconds) + nano;
+}
+
+
+//
+//  RL_Val_UTF8: C
+//
+// Extract UTF-8 data from an ANY-STRING! or ANY-WORD!.
+//
+RL_API REBCNT RL_Val_UTF8(
+    REBYTE *buf,
+    REBCNT buf_chars,
+    const REBVAL *v
+){
+    REBCNT index;
+    REBCNT len;
+    const REBYTE *utf8;
+    if (ANY_STRING(v)) {
+        index = VAL_INDEX(v);
+        len = VAL_LEN_AT(v);
+        REBSER *temp = Temp_Bin_Str_Managed(v, &index, &len);
+        utf8 = BIN_AT(temp, index);
+    }
+    else {
+        assert(ANY_WORD(v));
+        index = 0;
+        utf8 = VAL_WORD_HEAD(v);
+        len = LEN_BYTES(utf8);
+    }
+
+    if (buf == NULL) {
+        assert(buf_chars == 0);
+        return len; // caller must allocate a buffer of size len + 1
+    }
+
+    REBCNT limit = MIN(buf_chars, len);
+    memcpy(s_cast(buf), cs_cast(utf8), limit);
+    buf[limit] = '\0';
+    return len;
+}
+
+
+//
+//  RL_Val_UTF8_Alloc: C
+//
+RL_API REBYTE *RL_Val_UTF8_Alloc(REBCNT *out_len, const REBVAL *v)
+{
+    REBCNT len = RL_Val_UTF8(NULL, 0, v);
+    REBYTE *result = OS_ALLOC_N(REBYTE, len + 1);
+    RL_Val_UTF8(result, len, v);
+    if (out_len != NULL)
+        *out_len = len;
+    return result;
+}
+
+
+//
+//  RL_Val_Wstring: C
+//
+// Extract wchar_t data from an ANY-STRING! or ANY-WORD!.  Note that while
+// the size of a wchar_t varies on Linux, it is part of the windows platform
+// standard to be two bytes.
+//
+RL_API REBCNT RL_Val_Wstring(
+    wchar_t *buf,
+    REBCNT buf_chars, // characters buffer can hold (not including terminator)
+    const REBVAL *v
+){
+/*
+    if (VAL_BYTE_SIZE(val)) {
+        // On windows, we need to convert byte to wide:
+        REBINT n = VAL_LEN_AT(val);
+        REBSER *up = Make_Unicode(n);
+
+        // !!!"Leaks" in the sense that the GC has to take care of this
+        MANAGE_SERIES(up);
+
+        n = Decode_UTF8_Negative_If_Latin1(
+            UNI_HEAD(up),
+            VAL_BIN_AT(val),
+            n,
+            FALSE
+        );
+        TERM_UNI_LEN(up, abs(n));
+
+        if (out) *out = up;
+
+        return cast(REBCHR*, UNI_HEAD(up));
+    }
+    else {
+        // Already wide, we can use it as-is:
+        // !Assumes the OS uses same wide format!
+
+        if (out) *out = VAL_SERIES(val);
+
+        return cast(REBCHR*, VAL_UNI_AT(val));
+    }
+*/
+
+    REBCNT index;
+    REBCNT len;
+    if (ANY_STRING(v)) {
+        index = VAL_INDEX(v);
+        len = VAL_LEN_AT(v);
+    }
+    else {
+        assert(ANY_WORD(v));
+        panic ("extracting wide characters from WORD! not yet supported");
+    }
+
+    if (buf == NULL) { // querying for size
+        assert(buf_chars == 0);
+        return len; // caller must now allocate buffer of len + 1
+    }
+
+    REBSER *s = VAL_SERIES(v);
+
+    REBCNT limit = MIN(buf_chars, len);
+    REBCNT n = 0;
+    for (; index < limit; ++n, ++index)
+        buf[n] = GET_ANY_CHAR(s, index);
+
+    buf[limit] = 0;
+    return len;
+}
+
+
+//
+//  RL_Val_Wstring_Alloc: C
+//
+RL_API wchar_t *RL_Val_Wstring_Alloc(REBCNT *out_len, const REBVAL *v)
+{
+    REBCNT len = RL_Val_Wstring(NULL, 0, v);
+    wchar_t *result = OS_ALLOC_N(wchar_t, len + 1);
+    RL_Val_Wstring(result, len, v);
+    if (out_len != NULL)
+        *out_len = len;
+    return result;
+}
+
+
+//
+//  RL_String: C
+//
+RL_API REBVAL *RL_String(const char *utf8)
+{
+    // Default the returned handle's lifetime to the currently running FRAME!.
+    // The user can unmanage it if they want it to live longer.
+    //
+    assert(FS_TOP != NULL);
+    REBVAL *pairing = Alloc_Pairing(FS_TOP);
+    Init_String(pairing, Make_UTF8_May_Fail(utf8));
+    Manage_Pairing(pairing);
+    return pairing;
+}
+
+
+//
+//  RL_Unmanage: C
+//
+RL_API REBVAL *RL_Unmanage(REBVAL *v)
+{
+    REBVAL *key = PAIRING_KEY(v);
+    assert(key->header.bits & NODE_FLAG_MANAGED);
+    UNUSED(key);
+
+    Unmanage_Pairing(v);
+    return v;
+}
+
+
+//
+//  RL_Free: C
+//
+RL_API void RL_Free(REBVAL *v)
+{
+    REBVAL *key = PAIRING_KEY(v);
+    assert(NOT(key->header.bits & NODE_FLAG_MANAGED));
+    UNUSED(key);
+    
+    Free_Pairing(v);
+}
+
+
+//
+//  RL_Panic: C
+//
+RL_API void RL_Panic(const void *p)
+{
+    Panic_Core(p, __FILE__, __LINE__);
 }
 
 

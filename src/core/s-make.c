@@ -117,29 +117,33 @@ REBSER *Copy_Bytes_To_Unicode(REBYTE *src, REBINT len)
 // Create a REBOL string series from a wide char string.
 // Minimize to bytes if possible
 //
-REBSER *Copy_Wide_Str(void *src, REBINT len)
+REBSER *Copy_Wide_Str(const wchar_t *ws, REBINT len)
 {
+    assert(sizeof(REBUNI) == sizeof(wchar_t));
+
     REBSER *dst;
-    REBUNI *str = (REBUNI*)src;
-    if (Is_Wide(str, len)) {
-        REBUNI *up;
+    if (All_Codepoints_Latin1(cast(const REBUNI*, ws), len)) {
         dst = Make_Unicode(len);
         SET_SERIES_LEN(dst, len);
-        up = UNI_HEAD(dst);
-        while (len-- > 0) *up++ = *str++;
+
+        REBUNI *up = UNI_HEAD(dst);
+        while (len-- > 0)
+            *up++ = *ws++;
         *up = 0;
     }
     else {
-        REBYTE *bp;
         dst = Make_Binary(len);
         SET_SERIES_LEN(dst, len);
-        bp = BIN_HEAD(dst);
-        while (len-- > 0) *bp++ = (REBYTE)*str++;
+
+        REBYTE *bp = BIN_HEAD(dst);
+        while (len-- > 0)
+            *bp++ = cast(REBYTE, *ws++);
         *bp = 0;
     }
     ASSERT_SERIES_TERM(dst);
     return dst;
 }
+
 
 //
 //  Copy_OS_Str: C
@@ -152,12 +156,12 @@ REBSER *Copy_Wide_Str(void *src, REBINT len)
 // For Linux the char string could be UTF-8, so that must be
 // converted to REBOL Unicode or Latin byte strings.
 //
-REBSER *Copy_OS_Str(void *src, REBINT len)
+REBSER *Copy_OS_Str(const void *src, REBINT len)
 {
 #ifdef OS_WIDE_CHAR
-    return Copy_Wide_Str(src, len);
+    return Copy_Wide_Str(cast(const wchar_t*, src), len);
 #else
-    return Decode_UTF_String((REBYTE*)src, len, 8);
+    return Decode_UTF_String(cast(const REBYTE*, src), len, 8);
 #endif
 }
 

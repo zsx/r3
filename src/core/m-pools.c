@@ -1007,15 +1007,26 @@ REBSER *Make_Series_Core(REBCNT capacity, REBYTE wide, REBUPT flags)
 // This provides an alternate mechanism for plain C code to do cleanup besides
 // handlers based on PUSH_TRAP().
 //
-REBVAL *Alloc_Pairing(REBCTX *opt_owning_frame) {
+REBVAL *Alloc_Pairing(REBFRM *opt_owning_frame) {
     REBSER *s = cast(REBSER*, Make_Node(SER_POOL)); // 2x REBVAL size
 
     REBVAL *key = cast(REBVAL*, s);
     REBVAL *paired = key + 1;
 
     Prep_Non_Stack_Cell(key);
-    if (opt_owning_frame) {
-        Init_Any_Context(key, REB_FRAME, opt_owning_frame);
+    if (opt_owning_frame != NULL) {
+        //
+        // !!! Currently this reifies the frame... but it would not have to do
+        // so if FRAME! could hold a non-reified REBFRM* and if Move_Value()
+        // and Derelativize() were sensitive to reifying those frames on
+        // demand.  This general concept could be used for transient contexts
+        // as well--consider it
+        //
+        Init_Any_Context(
+            key,
+            REB_FRAME,
+            Context_For_Frame_May_Reify_Managed(opt_owning_frame)
+        );
         SET_VAL_FLAGS(
             key, ANY_CONTEXT_FLAG_OWNS_PAIRED | NODE_FLAG_ROOT
         );
@@ -1046,17 +1057,28 @@ REBVAL *Alloc_Pairing(REBCTX *opt_owning_frame) {
 //
 //  Manage_Pairing: C
 //
-// GC management is a one-way street in Ren-C, and the paired management
-// status is handled by bits directly in the first (or key's) REBVAL header.
-// Switching to managed mode means the key can no longer be changed--only
-// the value.
-//
-// !!! a const_Pairing_Key() accessor should help enforce the rule, only
-// allowing const access if managed.
+// The paired management status is handled by bits directly in the first (or
+// key's) REBVAL header.
 //
 void Manage_Pairing(REBVAL *paired) {
     REBVAL *key = PAIRING_KEY(paired);
     SET_VAL_FLAG(key, NODE_FLAG_MANAGED);
+}
+
+
+//
+//  Unmanage_Pairing: C
+//
+// A pairing may become unmanaged.  This is not a good idea for things like
+// the pairing used by a PAIR! value.  But pairings are used for API handles
+// which default to tying their lifetime to the currently executing frame.
+// It may be desirable to extend, shorten, or otherwise explicitly control
+// their lifetime.
+//
+void Unmanage_Pairing(REBVAL *paired) {
+    REBVAL *key = PAIRING_KEY(paired);
+    assert(GET_VAL_FLAG(key, NODE_FLAG_MANAGED));
+    CLEAR_VAL_FLAG(key, NODE_FLAG_MANAGED);
 }
 
 

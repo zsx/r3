@@ -27,19 +27,20 @@
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// NOTE: The R3-Alpha extension mechanism and API are deprecated in Ren-C.
+// !!! Extensions in Ren-C are a redesign from extensions in R3-Alpha.  They
+// are a work in progress (and need documentation and cleanup), but have
+// been a proof-of-concept for the core idea to be able to write code that
+// looks similar to Rebol natives, but can be loaded from a DLL making calls
+// back into the executable...or alternately, built directly into the Rebol
+// interpreter itself based on a configuration switch.
 //
-// See %reb-ext.h for a general overview of R3-Alpha extensions.  Also:
-//
-// http://www.rebol.com/r3/docs/concepts/extensions-embedded.html
+// See the %extensions/ directory for some current (evolving) examples.
 //
 
 #include "sys-core.h"
 
-#include "reb-ext.h"
 #include "reb-evtypes.h"
 
-#include "reb-lib.h"
 #include "sys-ext.h"
 
 //(*call)(int cmd, RXIFRM *args);

@@ -109,7 +109,7 @@ REBOOL OS_Request_File(REBRFR *fr)
     REBINT error;
     const char * libs [] = {
         "libgtk-3.so",
-        "libgtk-3.so.0", /* Some systems, like Ubuntu, don't have libgtk-3.so */
+        "libgtk-3.so.0", // Some systems, like Ubuntu, don't have libgtk-3.so
         NULL
     };
     const char **ptr = NULL;

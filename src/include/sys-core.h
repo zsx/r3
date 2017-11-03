@@ -551,6 +551,20 @@ enum Reb_Vararg_Op {
 };
 
 
+// Historically, Rebol source did not include %reb-ext.h...because it was
+// assumed the core would never want to use the less-privileged and higher
+// overhead API.  Hence data types like REBRXT were not included in the core,
+// except in the one file that was implementing the "user library".
+//
+// However, there are cases where code is being migrated to use the internal
+// API over to using the external one, so it's helpful to allow calling both.
+// We therefore include %reb-ext so it defines RX* for all of the core, and
+// these types must be available to process %tmp-funcs.h since the RL_API
+// functions appear there too.
+//
+#include "reb-ext.h"
+#include "reb-lib.h"
+
 
 //=////////////////////////////////////////////////////////////////////////=//
 //

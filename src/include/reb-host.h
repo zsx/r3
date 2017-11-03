@@ -27,6 +27,8 @@
 //=////////////////////////////////////////////////////////////////////////=//
 //
 
+#include <stddef.h> // wchar_t and other definitions
+
 #include "reb-config.h"
 
 // %reb-host.h is often used in third party code that was not written to
