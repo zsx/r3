@@ -1309,7 +1309,7 @@ stdout_pipe_err:
 		close(stdin_pipe[W]);
 	}
 stdin_pipe_err:
-	printf("ret: %d\n", ret);
+	// printf("ret: %d\n", ret);
 	return ret;
 }
 
