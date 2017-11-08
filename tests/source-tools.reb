@@ -155,10 +155,7 @@ rebsource: context [
                 ]
 
                 emit-proto: procedure [proto] [
-                    if all [
-                        'format2015 = proto-parser/style
-                        block? proto-parser/data
-                    ] [
+                    if block? proto-parser/data [
                         do bind [
                             if last-func-end [
                                 if not all [
@@ -388,7 +385,7 @@ rebsource: context [
 
         grammar/function-body: braced
 
-        append grammar/format2015-func-section [
+        append grammar/format-func-section [
             last-func-end:
             any [nl | eol | wsp]
         ]

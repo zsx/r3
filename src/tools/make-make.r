@@ -1702,7 +1702,7 @@ clean: make rebmake/entry-class [
                 %host-lib.h
                 %reb-evtypes.h
                 %reb-lib.h
-                %reb-lib-lib.h
+                %tmp-reb-lib-table.inc
                 %reb-types.h
             ][
                 make rebmake/cmd-delete-class [file: join-of %../src/include/ s]

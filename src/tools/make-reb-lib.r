@@ -37,7 +37,7 @@ out-dir: output-dir/include
 mkdir/deep out-dir
 
 reb-ext-lib:  out-dir/reb-lib.h   ; for Host usage
-reb-ext-defs: out-dir/reb-lib-lib.h  ; for REBOL usage
+reb-ext-defs: out-dir/tmp-reb-lib-table.inc  ; for REBOL usage
 
 ver: load %../boot/version.r
 

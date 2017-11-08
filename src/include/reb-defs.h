@@ -189,6 +189,41 @@ typedef u16 REBUNI;
 
     typedef struct Reb_Node REBSPC;
 
+    // This defines END as the address of a global node.  It's important to
+    // point out that several definitions you might think would work for END
+    // will not.  For example, this string literal seems to have the right
+    // bits in the leading byte (NODE_FLAG_NODE and NODE_FLAG_END):
+    //
+    //     #define END ((const REBVAL*)"\x88")
+    //
+    // (Note: it's actually two bytes, C adds a terminator \x00)
+    //
+    // But the special "endlike" value of "the" END global node is set up to
+    // assuming further that it has 0 in its rightmost bits, where the type is
+    // stored.  Why would this be true when you cannot run a VAL_TYPE() on an
+    // arbitrary end marker?
+    //
+    // (Note: the reason you can't run VAL_TYPE() on arbitrary cells that
+    // return true to IS_END() is because some--like the above--only set
+    // enough bits to say that they're ends and not cells, so they can use
+    // subsequent bits for other purposes.  See Init_Endlike_Header())
+    //
+    // The reason there's a special loophole for this END is to help avoid
+    // extra testing for NULL.  So in various internal code where NULL might
+    // be used, this END is...which permits the operation VAL_TYPE_OR_0.
+    //
+    // So you might think that more zero bytes would help.  If you're on a
+    // 64-bit platform, that means you'd need at least 7 bytes plus null
+    // terminator:
+    //
+    //     #define END ((const REBVAL*)"\x88\x00\x00\x00\x00\x00\x00")
+    //
+    // ...but even that doesn't work for the core, since END is expected to
+    // have a single memory address across translation units.  This means if
+    // one C file assigns a variable to END, another C file can turn around
+    // and test `value == END` instead of with `IS_END(value)` (though it's
+    // not clear whether that actually benefits performance much or not.)
+    //
     #define END \
         ((const REBVAL*)&PG_End_Node) // sizeof(REBVAL) but not NODE_FLAG_CELL
 #else

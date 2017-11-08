@@ -17,10 +17,8 @@ REBOL [
 emit-native-proto: proc [
     "Emit native prototypes to @unsorted-buffer"
     proto
-] [
-
+][
     if all [
-        'format2015 = proto-parser/style
         block? proto-parser/data
         any [
             'native = proto-parser/data/2

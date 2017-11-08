@@ -208,7 +208,6 @@ proto-parser: context [
     proto.id: _
     proto.arg.1: _
     data: _
-    style: _
     eoh: _ ; End of file header.
 
     process: func [text] [parse text grammar/rule]
@@ -221,19 +220,18 @@ proto-parser: context [
         ]
 
         fileheader: [
-            (style: data: _)
+            (data: _)
             doubleslashed-lines
-            and is-format201603-fileheader
+            and is-fileheader
             eoh:
             (
-                style: 'format201603
                 emit-fileheader data
             )
         ]
 
         segment: [
-            (style: proto.id: proto.arg.1: _)
-            format2015-func-section
+            (proto.id: proto.arg.1: _)
+            format-func-section
             | span-comment
             | line-comment any [newline line-comment] newline
             | opt wsp directive
@@ -258,13 +256,12 @@ proto-parser: context [
         ; we COPY/DEEP here because this part gets invasively modified by
         ; the source analysis tools.
         ;
-        format2015-func-section: copy/deep [
+        format-func-section: copy/deep [
             doubleslashed-lines
-            and is-format2015-intro
+            and is-intro
             function-proto any white-space
             function-body
             (
-                style: 'format2015
                 emit-proto proto
             )
         ]
@@ -273,7 +270,7 @@ proto-parser: context [
 
         doubleslashed-lines: [copy lines some ["//" thru newline]]
 
-        is-format201603-fileheader: parsing-at position [
+        is-fileheader: parsing-at position [
             either all [
                 lines: attempt [decode-lines lines {//} { }]
                 parse lines [copy data to {=///} to end]
@@ -288,7 +285,7 @@ proto-parser: context [
             ]
         ]
 
-        is-format2015-intro: parsing-at position [
+        is-intro: parsing-at position [
             either all [
                 lines: attempt [decode-lines lines {//} { }]
                 data: load-until-blank lines
