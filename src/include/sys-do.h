@@ -150,7 +150,18 @@ inline static void Push_Frame_Core(REBFRM *f)
 
     f->prior = TG_Frame_Stack;
     TG_Frame_Stack = f;
-    if (NOT(f->flags.bits & DO_FLAG_VA_LIST)) {
+
+    // If the source for the frame is a REBARR*, then we want to temporarily
+    // lock that array against mutations.  
+    //
+    if (FRM_IS_VALIST(f)) {
+        //
+        // There's nothing to put a hold on while it's a va_list-based frame.
+        // But a GC might occur and "Reify" it, in which case the array
+        // which is created will have a hold put on it to be released when
+        // the frame is finished.
+    }
+    else {
         if (GET_SER_INFO(f->source.array, SERIES_INFO_HOLD))
             NOOP; // already temp-locked
         else {
@@ -258,22 +269,7 @@ inline static void Fetch_Next_In_Frame(REBFRM *f) {
     assert(NOT_END(f->value)); // caller should test for END first
     assert(f->gotten == END); // is fetched f->value, we'd be invalidating it!
 
-    if (f->pending != NULL) {
-        assert(NOT(f->flags.bits & DO_FLAG_VA_LIST));
-
-        // We assume the ->pending value lives in the source array, and can
-        // just be incremented since the array has SERIES_INFO_HOLD while it
-        // is being executed hence won't be relocated or modified.  This
-        // means the release build doesn't need to call ARR_AT().
-        //
-        assert(f->pending == ARR_AT(f->source.array, f->index));
-        SET_FRAME_VALUE(f, f->pending);
-        ++f->pending;
-        ++f->index;
-    }
-    else {
-        assert(f->flags.bits & DO_FLAG_VA_LIST);
-
+    if (FRM_IS_VALIST(f)) {
         SET_FRAME_VALUE(f, va_arg(*f->source.vaptr, const REBVAL*));
         assert(
             IS_END(f->value) ||
@@ -286,6 +282,17 @@ inline static void Fetch_Next_In_Frame(REBFRM *f) {
         // perhaps be strengthened.
         //
         assert(NOT(IN_DATA_STACK_DEBUG(f->value)));
+    }
+    else {
+        // We assume the ->pending value lives in the source array, and can
+        // just be incremented since the array has SERIES_INFO_HOLD while it
+        // is being executed hence won't be relocated or modified.  This
+        // means the release build doesn't need to call ARR_AT().
+        //
+        assert(f->pending == ARR_AT(f->source.array, f->index));
+        SET_FRAME_VALUE(f, f->pending);
+        ++f->pending;
+        ++f->index;
     }
 }
 
@@ -409,7 +416,7 @@ inline static REBOOL Do_Next_In_Subframe_Throws(
     Drop_Frame_Core(child);
 
     assert(
-        (child->flags.bits & DO_FLAG_VA_LIST)
+        FRM_IS_VALIST(child)
         || parent->index != child->index
         || THROWN(out)
     );
@@ -611,7 +618,7 @@ inline static void Reify_Va_To_Array_In_Frame(
 ) {
     REBDSP dsp_orig = DSP;
 
-    assert(f->flags.bits & DO_FLAG_VA_LIST);
+    assert(FRM_IS_VALIST(f));
 
     if (truncated) {
         DS_PUSH_TRASH;
@@ -662,12 +669,6 @@ inline static void Reify_Va_To_Array_In_Frame(
         SET_FRAME_VALUE(f, ARR_AT(f->source.array, 1)); // skip `--optimized--`
     else
         SET_FRAME_VALUE(f, ARR_HEAD(f->source.array));
-
-    // We clear the DO_FLAG_VA_LIST, assuming that the truncation marker is
-    // enough information to record the fact that it was a va_list (revisit
-    // if there's another reason to know what it was...)
-
-    f->flags.bits &= ~cast(REBUPT, DO_FLAG_VA_LIST);
 
     assert(f->pending == NULL);
     f->pending = f->value + 1;
@@ -740,7 +741,7 @@ inline static REBIXO Do_Va_Core(
     f->specifier = SPECIFIED; // va_list values MUST be full REBVAL* already
     f->pending = NULL; // only varargs-based frames have NULL for pending
 
-    Init_Endlike_Header(&f->flags, flags | DO_FLAG_VA_LIST); // see notes
+    Init_Endlike_Header(&f->flags, flags); // see notes
 
     Push_Frame_Core(f);
     (*PG_Do)(f);

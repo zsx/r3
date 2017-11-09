@@ -903,7 +903,7 @@ static void Reify_Any_C_Valist_Frames(void)
 
     REBFRM *f = FS_TOP;
     for (; f != NULL; f = f->prior) {
-        if (f->flags.bits & DO_FLAG_VA_LIST) {
+        if (FRM_IS_VALIST(f)) {
             const REBOOL truncated = TRUE;
             Reify_Va_To_Array_In_Frame(f, truncated);
         }

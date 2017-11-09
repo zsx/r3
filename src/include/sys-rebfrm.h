@@ -96,17 +96,20 @@
     FLAGIT_LEFT(2)
 
 
-//=//// DO_FLAG_VA_LIST ///////////////////////////////////////////////////=//
+//=//// DO_FLAG_DAMPEN_DEFER //////////////////////////////////////////////=//
 //
-// Usually VA_LIST_FLAG is enough to tell when there is a source array to
-// examine or not.  However, when the end is reached it is written over with
-// END_FLAG and it's no longer possible to tell if there's an array available
-// to inspect or not.  The few cases that "need to know" are things like
-// error delivery, which want to process the array after expression evaluation
-// is complete.  Review to see if they actually would rather know something
-// else, but this is a cheap flag for now.
+// If an enfixed function wishes to complete an expression on its left, it
+// only wants to complete one of them.  `print if false ["a"] else ["b"]`
+// is a case where the ELSE wants to allow `if false ["a"]` to complete,
+// which it does by deferring its execution.  But when that step is finished,
+// the landscape looks like `print *D_OUT* else ["b"]`, and if there is not
+// some indication it might defer again, that would just lead print to
+// continue the process of deferment, consuming the output for itself.
 //
-#define DO_FLAG_VA_LIST \
+// This is a flag tagged on the parent frame the first time, so it knows to
+// defer only once.
+//
+#define DO_FLAG_DAMPEN_DEFER \
     FLAGIT_LEFT(3)
 
 
@@ -214,30 +217,13 @@
     FLAGIT_LEFT(11)
 
 
-//=//// DO_FLAG_DAMPEN_DEFER //////////////////////////////////////////////=//
-//
-// If an enfixed function wishes to complete an expression on its left, it
-// only wants to complete one of them.  `print if false ["a"] else ["b"]`
-// is a case where the ELSE wants to allow `if false ["a"]` to complete,
-// which it does by deferring its execution.  But when that step is finished,
-// the landscape looks like `print *D_OUT* else ["b"]`, and if there is not
-// some indication it might defer again, that would just lead print to
-// continue the process of deferment, consuming the output for itself.
-//
-// This is a flag tagged on the parent frame the first time, so it knows to
-// defer only once.
-//
-#define DO_FLAG_DAMPEN_DEFER \
-    FLAGIT_LEFT(12)
-
-
 // Currently the rightmost two bytes of the Reb_Frame->flags are not used,
 // so the flags could theoretically go up to 31.  It could hold something
 // like the ->eval_type, but performance is probably better to put such
 // information in a platform aligned position of the frame.
 //
 #if defined(__cplusplus) && (__cplusplus >= 201103L)
-    static_assert(12 < 32, "DO_FLAG_XXX too high");
+    static_assert(11 < 32, "DO_FLAG_XXX too high");
 #endif
 
 

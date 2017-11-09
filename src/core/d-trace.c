@@ -152,7 +152,7 @@ void Do_Core_Traced(REBFRM * const f)
         )){
             Debug_Space(cast(REBCNT, 4 * depth));
 
-            if (f->flags.bits & DO_FLAG_VA_LIST) {
+            if (FRM_IS_VALIST(f)) {
                 //
                 // If you are doing a sequence of REBVAL* held in a C va_list,
                 // it doesn't have an "index".  It could manufacture one if

@@ -68,7 +68,7 @@ void Dump_Frame_Location(REBFRM *f)
     printf("Dump_Frame_Location() value\n");
     PROBE(dump);
 
-    if (f->flags.bits & DO_FLAG_VA_LIST) {
+    if (FRM_IS_VALIST(f)) {
         //
         // NOTE: This reifies the va_list in the frame, and hence has
         // side effects.  It may need to be commented out if the
@@ -216,7 +216,7 @@ static void Do_Core_Shared_Checks_Debug(REBFRM *f) {
     assert(f->state_debug.top_chunk == TG_Top_Chunk);
     assert(DSP == f->dsp_orig);
 
-    if (f->flags.bits & DO_FLAG_VA_LIST)
+    if (FRM_IS_VALIST(f))
         assert(f->index == TRASHED_INDEX);
     else {
         assert(
@@ -328,7 +328,7 @@ REBUPT Do_Core_Expression_Checks_Debug(REBFRM *f) {
     // Mutate va_list sources into arrays at fairly random moments in the
     // debug build.  It should be able to handle it at any time.
     //
-    if ((f->flags.bits & DO_FLAG_VA_LIST) && SPORADICALLY(50)) {
+    if (FRM_IS_VALIST(f) && SPORADICALLY(50)) {
         const REBOOL truncated = TRUE;
         Reify_Va_To_Array_In_Frame(f, truncated);
     }
@@ -358,7 +358,7 @@ void Do_Core_Exit_Checks_Debug(REBFRM *f) {
 
     Do_Core_Shared_Checks_Debug(f);
 
-    if (NOT_END(f->value) && NOT(f->flags.bits & DO_FLAG_VA_LIST)) {
+    if (NOT_END(f->value) && NOT(FRM_IS_VALIST(f))) {
         assert(
             (f->index <= ARR_LEN(f->source.array))
             || (

@@ -1268,7 +1268,7 @@ reevaluate:;
         // refine can be anything.
         assert(
             IS_END(f->value)
-            || (f->flags.bits & DO_FLAG_VA_LIST)
+            || FRM_IS_VALIST(f)
             || IS_VALUE_IN_ARRAY_DEBUG(f->source.array, f->value)
         );
 

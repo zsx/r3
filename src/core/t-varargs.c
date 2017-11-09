@@ -633,7 +633,7 @@ void MF_Varargs(REB_MOLD *mo, const RELVAL *v, REBOOL form) {
             else {
                 Mold_Value(mo, f->value);
 
-                if (f->flags.bits & DO_FLAG_VA_LIST)
+                if (FRM_IS_VALIST(f))
                     Append_Unencoded(mo->series, "*C varargs, pending*");
                 else
                     Mold_Array_At(
