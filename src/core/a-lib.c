@@ -833,7 +833,7 @@ RL_API void RL_Panic(const void *p)
 }
 
 
-#include "reb-lib-table.inc"
+#include "tmp-reb-lib-table.inc"
 
 //
 //  Extension_Lib: C
