@@ -368,7 +368,7 @@ struct Reb_Frame {
     // !!! Review impacts on debugging; e.g. a debug mode should hold onto
     // the initial value in order to display full error messages.
     //
-    const RELVAL *value;
+    const_RELVAL_NO_END_PTR value;
 
     // `index`
     //

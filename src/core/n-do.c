@@ -394,7 +394,7 @@ repush:
         assert(IS_END(thrown_name));
         Init_Error(arg_or_error, error);
 
-        while (NOT_END(f->value) && NOT(IS_BAR(f->value)))
+        while (FRM_HAS_MORE(f) && NOT(IS_BAR(f->value)))
             Fetch_Next_In_Frame(f);
 
         goto repush;
@@ -402,7 +402,7 @@ repush:
 
     Init_Void(D_OUT); // default return result of DO-ALL []
 
-    while (NOT_END(f->value)) {
+    while (FRM_HAS_MORE(f)) {
         if (IS_BAR(f->value)) {
             //
             // BAR! is handled explicitly, because you might have f->value as
@@ -450,7 +450,7 @@ repush:
             CATCH_THROWN(arg_or_error, D_OUT);
             Move_Value(thrown_name, D_OUT); // THROWN cleared by CATCH_THROWN
 
-            while (NOT_END(f->value) && NOT(IS_BAR(f->value)))
+            while (FRM_HAS_MORE(f) && NOT(IS_BAR(f->value)))
                 Fetch_Next_In_Frame(f);
         }
     }

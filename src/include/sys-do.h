@@ -123,7 +123,7 @@ inline static REBOOL IS_QUOTABLY_SOFT(const RELVAL *v) {
 //      writes the computed REBVAL into a destination location.  After the
 //      operation, the next f->value pointer will already be fetched and
 //      waiting for examination or use.  The returned value may be THROWN(),
-//      and IS_END(f->value) may be true after the operation.
+//      and FRM_AT_END(f) may be true after the operation.
 //
 // Quote_Next_In_Frame()
 //
@@ -266,13 +266,13 @@ inline static void Recover_Frame(REBFRM *f)
 // Fetch_Next_In_Frame() (see notes above)
 //
 inline static void Fetch_Next_In_Frame(REBFRM *f) {
-    assert(NOT_END(f->value)); // caller should test for END first
+    assert(NOT(FRM_AT_END(f))); // caller should test this first
     assert(f->gotten == END); // is fetched f->value, we'd be invalidating it!
 
     if (FRM_IS_VALIST(f)) {
         SET_FRAME_VALUE(f, va_arg(*f->source.vaptr, const REBVAL*));
         assert(
-            IS_END(f->value) ||
+            FRM_AT_END(f) ||
             (IS_VOID(f->value) && (f->flags.bits & DO_FLAG_EXPLICIT_EVALUATE))
             || NOT(IS_RELATIVE(f->value))
         );
@@ -405,7 +405,7 @@ inline static REBOOL Do_Next_In_Subframe_Throws(
     child->out = out;
 
     child->source = parent->source;
-    SET_FRAME_VALUE(child, parent->value);
+    DUP_FRAME_VALUE(child, parent->value);
     child->index = parent->index;
     child->specifier = parent->specifier;
     Init_Endlike_Header(&child->flags, flags);
@@ -421,7 +421,7 @@ inline static REBOOL Do_Next_In_Subframe_Throws(
         || THROWN(out)
     );
     parent->pending = child->pending;
-    SET_FRAME_VALUE(parent, child->value);
+    DUP_FRAME_VALUE(parent, child->value);
     parent->index = child->index;
     parent->gotten = child->gotten;
 
@@ -474,7 +474,7 @@ inline static REBIXO DO_NEXT_MAY_THROW(
     DECLARE_FRAME (f);
 
     SET_FRAME_VALUE(f, ARR_AT(array, index));
-    if (IS_END(f->value)) {
+    if (FRM_AT_END(f)) {
         Init_Void(out);
         return END_FLAG;
     }
@@ -498,7 +498,7 @@ inline static REBIXO DO_NEXT_MAY_THROW(
     if (THROWN(out))
         return THROWN_FLAG;
 
-    if (IS_END(f->value))
+    if (FRM_AT_END(f))
         return END_FLAG;
 
     assert(f->index > 1);
@@ -534,7 +534,7 @@ inline static REBIXO Do_Array_At_Core(
         f->pending = f->value + 1;
     }
 
-    if (IS_END(f->value)) {
+    if (FRM_AT_END(f)) {
         Init_Void(out);
         return END_FLAG;
     }
@@ -556,7 +556,7 @@ inline static REBIXO Do_Array_At_Core(
     if (THROWN(f->out))
         return THROWN_FLAG; // !!! prohibits recovery from exits
 
-    return IS_END(f->value) ? END_FLAG : f->index;
+    return FRM_AT_END(f) ? END_FLAG : f->index;
 }
 
 
@@ -625,12 +625,12 @@ inline static void Reify_Va_To_Array_In_Frame(
         Init_Word(DS_TOP, Canon(SYM___OPTIMIZED_OUT__));
     }
 
-    if (NOT_END(f->value)) {
+    if (FRM_HAS_MORE(f)) {
         do {
             // may be void.  Preserve VALUE_FLAG_EVAL_FLIP flag.
             DS_PUSH_RELVAL_KEEP_EVAL_FLIP(f->value, f->specifier);
             Fetch_Next_In_Frame(f);
-        } while (NOT_END(f->value));
+        } while (FRM_HAS_MORE(f));
 
         if (truncated)
             f->index = 2; // skip the --optimized-out--
@@ -727,7 +727,7 @@ inline static REBIXO Do_Va_Core(
         assert(!IS_RELATIVE(f->value));
     }
 
-    if (IS_END(f->value)) {
+    if (FRM_AT_END(f)) {
         Init_Void(out);
         return END_FLAG;
     }
@@ -772,7 +772,7 @@ inline static REBIXO Do_Va_Core(
     if (THROWN(f->out))
         return THROWN_FLAG; // !!! prohibits recovery from exits
 
-    return IS_END(f->value) ? END_FLAG : VA_LIST_FLAG;
+    return FRM_AT_END(f) ? END_FLAG : VA_LIST_FLAG;
 }
 
 

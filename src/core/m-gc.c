@@ -1151,7 +1151,7 @@ static void Mark_Frame_Stack_Deep(void)
         // will stay on the stack while the zero-arity function is running.
         // The array still might be used in an error, so can't GC it.
         //
-        if (f->value && NOT_END(f->value) && Is_Value_Managed(f->value))
+        if (FRM_HAS_MORE(f) && Is_Value_Managed(f->value))
             Queue_Mark_Value_Deep(f->value);
 
         if (NOT(f->specifier->header.bits & NODE_FLAG_CELL)) {

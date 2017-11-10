@@ -48,14 +48,16 @@
 inline static REB_R Vararg_Op_If_No_Advance(
     REBVAL *out,
     enum Reb_Vararg_Op op,
-    const RELVAL *look, // the first value in the varargs input
+    const RELVAL *opt_look, // the first value in the varargs input
     REBSPC *specifier,
     enum Reb_Param_Class pclass
 ){
-    if (IS_END(look))
+    if (opt_look == NULL)
         return R_For_Vararg_End(op); // exhausted
 
-    if (IS_BAR(look)) {
+    assert(NOT_END(opt_look));
+
+    if (IS_BAR(opt_look)) {
         //
         // Only hard quotes are allowed to see BAR! (and if they do, they
         // are *encouraged* to test the evaluated bit and error on literals,
@@ -77,7 +79,7 @@ inline static REB_R Vararg_Op_If_No_Advance(
 
     if (
         (pclass == PARAM_CLASS_NORMAL || pclass == PARAM_CLASS_TIGHT)
-        && IS_WORD(look)
+        && IS_WORD(opt_look)
     ){
         // When a variadic argument is being TAKE-n, deferred left hand side
         // argument needs to be seen as end of variadic input.  Otherwise,
@@ -91,7 +93,7 @@ inline static REB_R Vararg_Op_If_No_Advance(
         // and the rules apply.  Note the raw check is faster, no need to
         // separately test for IS_END()
 
-        const REBVAL *child_gotten = Get_Opt_Var_Else_End(look, specifier);
+        const REBVAL *child_gotten = Get_Opt_Var_Else_End(opt_look, specifier);
 
         if (VAL_TYPE_OR_0(child_gotten) == REB_FUNCTION) {
             if (GET_VAL_FLAG(child_gotten, VALUE_FLAG_ENFIXED)) {
@@ -115,7 +117,7 @@ inline static REB_R Vararg_Op_If_No_Advance(
         if (pclass != PARAM_CLASS_HARD_QUOTE)
             fail (Error_Varargs_No_Look_Raw()); // hard quote only
 
-        Derelativize(out, look, specifier);
+        Derelativize(out, opt_look, specifier);
         SET_VAL_FLAG(out, VALUE_FLAG_UNEVALUATED);
 
         return R_OUT; // only a lookahead, no need to advance
@@ -197,7 +199,7 @@ REB_R Do_Vararg_Op_May_Throw(
         r = Vararg_Op_If_No_Advance(
             out,
             op,
-            IS_END(shared) ? END : VAL_ARRAY_AT(shared),
+            IS_END(shared) ? NULL : VAL_ARRAY_AT(shared), // NULL is protocol
             IS_END(shared) ? SPECIFIED : VAL_SPECIFIER(shared),
             pclass
         );
@@ -227,7 +229,7 @@ REB_R Do_Vararg_Op_May_Throw(
                 return R_OUT_IS_THROWN;
             }
 
-            if (IS_END(f->value))
+            if (FRM_AT_END(f))
                 SET_END(shared); // signal end to all varargs sharing value
             else {
                 // The indexor is "prefetched", so though the temp_frame would
@@ -277,7 +279,7 @@ REB_R Do_Vararg_Op_May_Throw(
         r = Vararg_Op_If_No_Advance(
             out,
             op,
-            f->value,
+            f->value, // NULL if FRM_AT_END()
             f->specifier,
             pclass
         );
@@ -372,9 +374,14 @@ void MAKE_Varargs(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
         // Make a single-element array to hold a reference+index to the
         // incoming ANY-ARRAY!.  This level of indirection means all
         // VARARGS! copied from this will update their indices together.
+        // By protocol, if the array is exhausted then the shared element
+        // should be an END marker (not an array at its end)
         //
         REBARR *array1 = Alloc_Singular_Array();
-        Move_Value(ARR_HEAD(array1), arg);
+        if (IS_END(VAL_ARRAY_AT(arg)))
+            SET_END(ARR_HEAD(array1));
+        else
+            Move_Value(ARR_HEAD(array1), arg);
         MANAGE_ARRAY(array1);
 
         VAL_RESET_HEADER(out, REB_VARARGS);
@@ -628,7 +635,7 @@ void MF_Varargs(REB_MOLD *mo, const RELVAL *v, REBOOL form) {
             }
 
             /*
-            if (IS_END(f->value))
+            if (FRM_AT_END(f))
                 Append_Unencoded(mo->series, "*exhausted*");
             else {
                 Mold_Value(mo, f->value);

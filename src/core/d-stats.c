@@ -140,7 +140,7 @@ void Do_Core_Measured(REBFRM * const f)
     // There are a lot of invariants checked on entry to Do_Core(), but this
     // is a simple one that is important enough to mirror here.
     //
-    assert(NOT_END(f->value) || f->flags.bits & DO_FLAG_APPLYING);
+    assert(FRM_HAS_MORE(f) || f->flags.bits & DO_FLAG_APPLYING);
 
     // In order to measure single steps, we convert a DO_FLAG_TO_END request
     // into a sequence of DO/NEXT operations, and loop them.
@@ -151,7 +151,7 @@ void Do_Core_Measured(REBFRM * const f)
     while (TRUE) {
         Do_Core(f);
 
-        if (NOT(was_do_to_end) || THROWN(f->out) || IS_END(f->value))
+        if (NOT(was_do_to_end) || THROWN(f->out) || FRM_AT_END(f))
             break;
 
         // It is assumed we could not have finished the last operation with

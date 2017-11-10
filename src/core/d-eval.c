@@ -79,7 +79,7 @@ void Dump_Frame_Location(REBFRM *f)
         Reify_Va_To_Array_In_Frame(f, truncated);
     }
 
-    if (IS_END(f->value)) {
+    if (FRM_AT_END(f)) {
         printf("...then Dump_Frame_Location() at end of array\n");
     }
     else {
@@ -191,7 +191,7 @@ void Do_Core_Entry_Checks_Debug(REBFRM *f)
     // All callers should ensure that the type isn't an END marker before
     // bothering to invoke Do_Core().
     //
-    assert(NOT_END(f->value));
+    assert(FRM_HAS_MORE(f));
 }
 
 
@@ -248,7 +248,7 @@ static void Do_Core_Shared_Checks_Debug(REBFRM *f) {
 
     //=//// ^-- ABOVE CHECKS *ALWAYS* APPLY ///////////////////////////////=//
 
-    if (IS_END(f->value))
+    if (FRM_AT_END(f))
         return;
 
     if (NOT_END(f->out) && THROWN(f->out))
@@ -271,7 +271,7 @@ static void Do_Core_Shared_Checks_Debug(REBFRM *f) {
     );
 
     assert(f->value);
-    assert(NOT_END(f->value));
+    assert(FRM_HAS_MORE(f));
     assert(NOT(THROWN(f->value)));
     ASSERT_VALUE_MANAGED(f->value);
     assert(f->value != f->out);
@@ -358,7 +358,7 @@ void Do_Core_Exit_Checks_Debug(REBFRM *f) {
 
     Do_Core_Shared_Checks_Debug(f);
 
-    if (NOT_END(f->value) && NOT(FRM_IS_VALIST(f))) {
+    if (NOT(FRM_AT_END(f)) && NOT(FRM_IS_VALIST(f))) {
         assert(
             (f->index <= ARR_LEN(f->source.array))
             || (
@@ -372,7 +372,7 @@ void Do_Core_Exit_Checks_Debug(REBFRM *f) {
     }
 
     if (f->flags.bits & DO_FLAG_TO_END)
-        assert(THROWN(f->out) || IS_END(f->value));
+        assert(THROWN(f->out) || FRM_AT_END(f));
 
     // Function execution should have written *some* actual output value.
     // checking the VAL_TYPE() is enough to make sure it's not END or trash

@@ -132,12 +132,17 @@ typedef u16 REBUNI;
     #if  !defined(__cplusplus) || __cplusplus < 201103L
         #define RELVAL struct Reb_Cell
         #define REBVAL struct Reb_Cell
+        #define const_RELVAL_NO_END_PTR const struct Reb_Cell *
     #else
         struct Reb_Relative_Value;
         #define RELVAL struct Reb_Relative_Value // *maybe* IS_RELATIVE()
 
         struct Reb_Specific_Value;
         #define REBVAL struct Reb_Specific_Value // guaranteed IS_SPECIFIC()
+
+        struct const_Reb_Relative_Value_No_End_Ptr;
+        #define const_RELVAL_NO_END_PTR \
+            struct const_Reb_Relative_Value_No_End_Ptr
     #endif
 
     struct Reb_Series; // Rebol series node

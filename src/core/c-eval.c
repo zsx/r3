@@ -391,7 +391,7 @@ reevaluate:;
     // sets), which really controls the after lookahead step.  Consider this
     // edge case.
     //
-    if (NOT_END(f->value) && IS_WORD(f->value) && evaluating) {
+    if (FRM_HAS_MORE(f) && IS_WORD(f->value) && evaluating) {
         //
         // While the next item may be a WORD! that looks up to an enfixed
         // function, and it may want to quote what's on its left...there
@@ -1034,7 +1034,7 @@ reevaluate:;
 
     //=//// ERROR ON END MARKER, BAR! IF APPLICABLE //////////////////////=//
 
-            if (IS_END(f->value)) {
+            if (FRM_AT_END(f)) {
                 if (NOT_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
                     fail (Error_No_Arg(f, f->param));
 
@@ -1291,7 +1291,7 @@ reevaluate:;
         assert(IS_END(f->param));
         // refine can be anything.
         assert(
-            IS_END(f->value)
+            FRM_AT_END(f)
             || FRM_IS_VALIST(f)
             || IS_VALUE_IN_ARRAY_DEBUG(f->source.array, f->value)
         );
@@ -1588,7 +1588,7 @@ reevaluate:;
     case REB_SET_WORD:
         assert(IS_SET_WORD(current));
 
-        if (IS_END(f->value)) {
+        if (FRM_AT_END(f)) {
             DECLARE_LOCAL (specific);
             Derelativize(specific, current, f->specifier);
             fail (Error_Need_Value_Raw(specific)); // `do [a:]` is illegal
@@ -1764,7 +1764,7 @@ reevaluate:;
     case REB_SET_PATH: {
         assert(IS_SET_PATH(current));
 
-        if (IS_END(f->value)) {
+        if (FRM_AT_END(f)) {
             DECLARE_LOCAL (specific);
             Derelativize(specific, current, f->specifier);
             fail (Error_Need_Value_Raw(specific)); // `do [a/b:]` is illegal
@@ -1934,7 +1934,7 @@ reevaluate:;
     case REB_BAR:
         assert(IS_BAR(current));
 
-        if (NOT_END(f->value)) {
+        if (FRM_HAS_MORE(f)) {
             SET_END(f->out); // skipping the post loop where this is done
             f->eval_type = VAL_TYPE(f->value);
             goto do_next; // quickly process next item, no infix test needed
@@ -2044,7 +2044,7 @@ reevaluate:;
 
     assert(!THROWN(f->out)); // should have jumped to exit sooner
 
-    if (IS_END(f->value))
+    if (FRM_AT_END(f))
         goto finished;
 
     f->eval_type = VAL_TYPE(f->value);
@@ -2191,5 +2191,5 @@ finished:;
 #endif
 
     // All callers must inspect for THROWN(f->out), and most should also
-    // inspect for IS_END(f->value)
+    // inspect for FRM_AT_END(f)
 }

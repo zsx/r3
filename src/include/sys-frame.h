@@ -87,6 +87,12 @@ static inline void CATCH_THROWN(REBVAL *arg_out, REBVAL *thrown) {
 #define FRM_IS_VALIST(f) \
     LOGICAL((f)->pending == NULL)
 
+#define FRM_AT_END(f) \
+    LOGICAL((f)->value == NULL)
+
+#define FRM_HAS_MORE(f) \
+    LOGICAL((f)->value != NULL)
+
 inline static REBARR *FRM_ARRAY(REBFRM *f) {
     assert(!FRM_IS_VALIST(f));
     return f->source.array;
@@ -100,7 +106,7 @@ inline static REBARR *FRM_ARRAY(REBFRM *f) {
 //
 inline static REBCNT FRM_INDEX(REBFRM *f) {
     assert(!FRM_IS_VALIST(f));
-    return IS_END(f->value)
+    return FRM_AT_END(f)
         ? ARR_LEN(f->source.array)
         : f->index - 1;
 }
@@ -231,15 +237,29 @@ inline static const REBYTE* Frame_Label_Or_Anonymous_UTF8(REBFRM *f) {
     return cb_cast("[anonymous]");
 }
 
-inline static void SET_FRAME_VALUE(REBFRM *f, const RELVAL *value) {
-    f->value = value;
-
+inline static void SET_FRAME_VALUE(REBFRM *f, const RELVAL* value) {
 #if !defined(NDEBUG)
-    if (NOT_END(f->value))
-        f->kind_debug = VAL_TYPE(f->value);
-    else
+    if (IS_END(value))
         f->kind_debug = REB_0;
+    else
+        f->kind_debug = VAL_TYPE(value);
 #endif
+
+    if (IS_END(value))
+        f->value = NULL;
+    else
+        f->value = value;
+}
+
+inline static void DUP_FRAME_VALUE(REBFRM *f, const_RELVAL_NO_END_PTR value) {
+#if !defined(NDEBUG)
+    if (value == NULL)
+        f->kind_debug = REB_0;
+    else
+        f->kind_debug = VAL_TYPE(value);
+#endif
+
+    f->value = value;
 }
 
 

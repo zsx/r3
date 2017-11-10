@@ -586,7 +586,7 @@ REBOOL Form_Reduce_Throws(
 
     REBOOL pending = FALSE;
 
-    while (NOT_END(f->value)) {
+    while (FRM_HAS_MORE(f)) {
         if (IS_BLANK(f->value)) { // opt-out
             Fetch_Next_In_Frame(f);
             continue;

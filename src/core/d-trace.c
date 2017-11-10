@@ -127,7 +127,7 @@ void Do_Core_Traced(REBFRM * const f)
     // There are a lot of invariants checked on entry to Do_Core(), but this is
     // a simple one that is important enough to mirror here.
     //
-    assert(NOT_END(f->value) || f->flags.bits & DO_FLAG_APPLYING);
+    assert(FRM_HAS_MORE(f) || f->flags.bits & DO_FLAG_APPLYING);
 
     int depth = Eval_Depth() - Trace_Depth;
     if (depth < 0 || depth >= Trace_Level) {
@@ -206,7 +206,7 @@ void Do_Core_Traced(REBFRM * const f)
 
         Do_Core(f);
 
-        if (NOT(was_do_to_end) || THROWN(f->out) || IS_END(f->value))
+        if (NOT(was_do_to_end) || THROWN(f->out) || FRM_AT_END(f))
             break;
 
         // It is assumed we could not have finished the last operation with
@@ -447,8 +447,8 @@ void Trace_Fetch_Debug(const char* msg, REBFRM *f, REBOOL after) {
         after ? "AFTER" : "BEFORE"
     );
 
-    if (IS_END(f->value))
-        Debug_Fmt("f->value is END");
+    if (FRM_AT_END(f))
+        Debug_Fmt("f is finished");
     else
         PROBE(f->value);
 }

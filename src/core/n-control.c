@@ -354,7 +354,7 @@ REBNATIVE(all)
     DECLARE_FRAME (f);
     Push_Frame(f, ARG(block));
 
-    while (NOT_END(f->value)) {
+    while (FRM_HAS_MORE(f)) {
         if (Do_Next_In_Frame_Throws(D_CELL, f)) {
             Drop_Frame(f);
             Move_Value(D_OUT, D_CELL);
@@ -400,7 +400,7 @@ REBNATIVE(any)
 
     REBOOL voted = FALSE;
 
-    while (NOT_END(f->value)) {
+    while (FRM_HAS_MORE(f)) {
         if (Do_Next_In_Frame_Throws(D_OUT, f)) {
             Drop_Frame(f);
             return R_OUT_IS_THROWN;
@@ -449,7 +449,7 @@ REBNATIVE(none)
 
     REBOOL voted = FALSE;
 
-    while (NOT_END(f->value)) {
+    while (FRM_HAS_MORE(f)) {
         if (Do_Next_In_Frame_Throws(D_OUT, f)) {
             Drop_Frame(f);
             return R_OUT_IS_THROWN;
@@ -492,7 +492,7 @@ static REB_R Case_Choose_Core(
     // With the block argument pushed in the enumerator, that frame slot is
     // available for scratch space in the rest of the routine.
 
-    while (NOT_END(f->value)) {
+    while (FRM_HAS_MORE(f)) {
         if (IS_BAR(f->value)) { // interstitial BAR! legal, `case [1 2 | 3 4]`
             Fetch_Next_In_Frame(f);
             continue;
@@ -509,7 +509,7 @@ static REB_R Case_Choose_Core(
         if (IS_VOID(cell)) // no void conditions allowed (as with IF)
             fail (Error_No_Return_Raw());
 
-        if (IS_END(f->value)) // require conditions and branches in pairs
+        if (FRM_AT_END(f)) // require conditions and branches in pairs
             fail (Error_Past_End_Raw());
 
         if (IS_BAR(f->value)) // BAR! out of sync between condition and branch
@@ -704,7 +704,7 @@ REBNATIVE(switch)
 
     Init_Void(D_CELL); // used for "fallout"
 
-    while (NOT_END(f->value)) {
+    while (FRM_HAS_MORE(f)) {
         //
         // If a branch is seen at this point, it doesn't correspond to any
         // condition to match.  If no more tests are run, let it suppress the
@@ -755,7 +755,7 @@ REBNATIVE(switch)
 
         do {
             Fetch_Next_In_Frame(f);
-            if (IS_END(f->value))
+            if (FRM_AT_END(f))
                 goto return_defaulted;
         } while (!IS_BLOCK(f->value) && !IS_FUNCTION(f->value));
 

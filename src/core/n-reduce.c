@@ -58,7 +58,7 @@ REBOOL Reduce_Any_Array_Throws(
 
     DECLARE_LOCAL (reduced);
 
-    while (NOT_END(f->value)) {
+    while (FRM_HAS_MORE(f)) {
         if (IS_BAR(f->value)) {
             if (flags & REDUCE_FLAG_KEEP_BARS) {
                 DS_PUSH_TRASH;
@@ -199,7 +199,7 @@ REBOOL Compose_Any_Array_Throws(
     DECLARE_LOCAL (composed);
     DECLARE_LOCAL (specific);
 
-    while (NOT_END(f->value)) {
+    while (FRM_HAS_MORE(f)) {
         if (IS_GROUP(f->value)) {
             //
             // Evaluate the GROUP! at current position into `composed` cell.

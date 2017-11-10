@@ -116,7 +116,7 @@ REBNATIVE(verify)
     DECLARE_FRAME (f);
     Push_Frame(f, ARG(conditions));
 
-    while (NOT_END(f->value)) {
+    while (FRM_HAS_MORE(f)) {
         const RELVAL *start = f->value;
         if (Do_Next_In_Frame_Throws(D_OUT, f)) {
             Drop_Frame(f);

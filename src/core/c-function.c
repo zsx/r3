@@ -2148,7 +2148,7 @@ REB_R Apply_Def_Or_Exemplar(
     if (THROWN(f->out))
         return R_OUT_IS_THROWN; // prohibits recovery from exits
 
-    assert(IS_END(f->value)); // we started at END_FLAG, can only throw
+    assert(FRM_AT_END(f)); // we started at END_FLAG, can only throw
 
     return R_OUT;
 }

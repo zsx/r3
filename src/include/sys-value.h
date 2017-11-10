@@ -647,6 +647,17 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
         return FALSE;
     }
 
+#if defined(__cplusplus) && __cplusplus >= 201103L
+    //
+    // Disable teseting a RELVAL marked that it can't be END for endness-in
+    // the C++ build.  (ordinary version takes a RELVAL.)
+    //
+    // !!! This could probably be tweaked to give a better message with
+    // type_traits and SFINAE, these just give a linker error
+    //
+    REBOOL IS_END_Debug(const_RELVAL_NO_END_PTR v, const char* file, int line);
+#endif
+
     #define IS_END(v) \
         IS_END_Debug((v), __FILE__, __LINE__)
 
