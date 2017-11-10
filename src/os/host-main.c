@@ -138,21 +138,9 @@ void Host_Crash(const char *reason) {
 
 
 int Host_Repl(const REBVAL *repl_fun) {
-    //
-    // Currently, no code is run that doesn't implicitly lock the result.
-    // But a guard would be needed if it ever did, so go ahead and do that.
-    //
-    DECLARE_LOCAL (result);
-    Init_Void(result);
-    PUSH_GUARD_VALUE(result);
+    REBVAL *result = rebVoid(); // ATM, result has to be freed each loop
 
-    // Note that to avoid spurious longjmp clobbering warnings, last_failed
-    // cannot be stack allocated to act cumulatively across fail()s.  (Dumb
-    // compilers can't tell that all longjmps set error to non-NULL and will
-    // subsequently assign last_failed to TRUE_VALUE.)
-    //
-    const REBVAL **last_failed = cast(const REBVAL**, malloc(sizeof(REBVAL*)));
-    *last_failed = BLANK_VALUE; // indicate first call to REPL
+    const REBVAL *last_failed = BLANK_VALUE; // indicate first call to REPL
 
     while (TRUE) {
     loop:;
@@ -165,15 +153,25 @@ int Host_Repl(const REBVAL *repl_fun) {
         Trace_Level = 0;
         Trace_Depth = 0;
 
-        struct Reb_State state;
-        REBCTX *error;
+        // !!! In this early phase of trying to establish the API, we assume
+        // this code is responsible for freeing the result `code` (if it
+        // does not come back NULL indicating a failure).
+        //
+        REBVAL *code = rebDo(
+            rebEval(repl_fun), // HOST-CONSOLE function (run it)
+            result, // last-result (always blank first run through loop)
+            last_failed, // TRUE, FALSE, BLANK! on first run, BAR! if HALT
+            BLANK_VALUE, // focus-level, supplied by debugger REPL, not here
+            BLANK_VALUE, // focus-frame, ...same
+            END
+        );
 
-        PUSH_UNHALTABLE_TRAP(&error, &state); // must catch HALTs
+        // Currently the contract is we have to free the last result, so now
+        // that the REPL has seen it for this loop free it.
+        //
+        rebFree(result);
 
-    // The first time through the following code 'error' will be NULL, but...
-    // `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
-
-        if (error != NULL) {
+        if (code == NULL) {
             //
             // We don't really want the REPL code itself invoking HALT.  But
             // so long as we have a handler for Ctrl-C registered, it is
@@ -184,32 +182,17 @@ int Host_Repl(const REBVAL *repl_fun) {
             // Note that currently, a Ctrl-C pressed during the INPUT command
             // will not be processed until after return is pressed.
             //
-            if (ERR_NUM(error) == RE_HALT) {
-                Init_Void(result);
-                *last_failed = BAR_VALUE;
+            REBVAL *e = rebLastError();
+            if (IS_BAR(e)) { // currently means halted
+                result = rebVoid();
+                last_failed = BAR_VALUE;
                 goto loop;
             }
 
-            panic (error); // !!! Handle if REPL has a bug/error in it?
+            // !!! Handle if REPL has a bug/error in it?
+            //
+            rebPanic (rebLastError());
         }
-
-        const REBOOL fully = TRUE; // error if not all arguments consumed
-
-        DECLARE_LOCAL (code);
-        if (Apply_Only_Throws(
-            code, // where return value of HOST-CONSOLE is saved
-            fully,
-            repl_fun, // HOST-CONSOLE function to run
-            result, // last-result (always blank first run through loop)
-            *last_failed, // TRUE, FALSE, BLANK! on first run, BAR! if HALT
-            BLANK_VALUE, // focus-level, supplied by debugger REPL, not here
-            BLANK_VALUE, // focus-frame, ...same
-            END
-        )){
-            panic (code); // !!! Handle if REPL itself THROWs?
-        }
-
-        DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 
         Trace_Level = Save_Trace_Level;
         Trace_Depth = Save_Trace_Depth;
@@ -217,49 +200,38 @@ int Host_Repl(const REBVAL *repl_fun) {
         if (NOT(IS_BLOCK(code)))
             panic (code); // !!! Handle if REPL doesn't return a block?
 
-        PUSH_UNHALTABLE_TRAP(&error, &state); // must catch HALTs
+        result = rebDoValue(code);
+        rebFree(code);
 
-    // The first time through the following code 'error' will be NULL, but...
-    // `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
+        if (result == NULL) {
+            REBVAL *e = rebLastError();
+            assert(e != NULL);
 
-        if (error != NULL) {
-            if (ERR_NUM(error) == RE_HALT) { // not really an "ERROR!"
-                Init_Void(result);
-                *last_failed = BAR_VALUE; // informs REPL it was a HALT/Ctrl-C
+            if (IS_BAR(e)) { // currently means "halted", not really an ERROR!
+                result = rebVoid();
+                last_failed = BAR_VALUE; // informs REPL it was a HALT/Ctrl-C
+                rebFree(e);
                 goto loop;
             }
 
-            Init_Error(result, error);
-            *last_failed = TRUE_VALUE;
-            goto loop;
-        }
-
-        if (Do_Any_Array_At_Throws(result, code)) {
-            if (
-                IS_FUNCTION(result)
-                && VAL_FUNC_DISPATCHER(result) == &N_quit
-            ){
-                // Command issued a purposeful QUIT or EXIT.  Convert the
-                // QUIT/WITH value (if any) into an exit status and end loop.
-                //
-                DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
-                CATCH_THROWN(result, result);
-                DROP_GUARD_VALUE(result);
-
-                free(m_cast(REBVAL**, last_failed)); // C++ free() mutable ptr
-                return Exit_Status_From_Value(result);
+            if (IS_INTEGER(e)) { // currently means quit with exit code
+                int exit_status = VAL_INT32(e);
+                rebFree(e);
+                return exit_status;
             }
 
-            fail (Error_No_Catch_For_Throw(result));
-        }
+            assert(IS_ERROR(e));
 
-        DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
+            result = e; // don't free because it's being passed to REPL
+            last_failed = TRUE_VALUE; // failure, REPL should output error
+            goto loop;
+        }
 
         // NOTE: Although the operation has finished at this point, it may
         // be that a Ctrl-C set up a pending FAIL, which will be triggered
         // during output below.  See the PUSH_UNHALTABLE_TRAP in the caller.
 
-        *last_failed = FALSE_VALUE; // success, so REPL should output result
+        last_failed = FALSE_VALUE; // success, so REPL should output result
     }
 
     DEAD_END;
@@ -361,7 +333,7 @@ int main(int argc, char **argv_ansi)
     Open_StdIO();
 
     Host_Lib = &Host_Lib_Init;
-    rebInit(Host_Lib);
+    rebStartup(Host_Lib);
 
     // While running the Rebol initialization code, we don't want any special
     // Ctrl-C handling... leave it to the OS (which would likely terminate

@@ -252,11 +252,30 @@
     FLAGIT_LEFT(GENERAL_VALUE_BIT + 5)
 
 
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  VALUE_FLAG_EVAL_FLIP
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// !!! Highly experimental feature that may not want to be implemented as
+// a value flag.  If a DO is happening with DO_FLAG_EXPLICIT_EVALUATE, only
+// values which carry this bit will override it.  It may be the case that the
+// flag on a value would signal a kind of quoting to suppress evaluation in
+// ordinary evaluation (without DO_FLAG_EXPLICIT_EVALUATE), hence it is being
+// tested as a "flip" bit.
+//
+
+#define VALUE_FLAG_EVAL_FLIP \
+    FLAGIT_LEFT(GENERAL_VALUE_BIT + 6)
+
+
+
 // v-- BEGIN TYPE SPECIFIC BITS HERE
 
 
 #define TYPE_SPECIFIC_BIT \
-    (GENERAL_VALUE_BIT + 6)
+    (GENERAL_VALUE_BIT + 7)
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -296,7 +315,7 @@
 
 #define CELL_MASK_COPY \
     ~(CELL_MASK_RESET | NODE_FLAG_MARKED | CELL_FLAG_PROTECTED \
-        | VALUE_FLAG_ENFIXED | VALUE_FLAG_UNEVALUATED)
+        | VALUE_FLAG_ENFIXED | VALUE_FLAG_UNEVALUATED | VALUE_FLAG_EVAL_FLIP)
 
 
 //=////////////////////////////////////////////////////////////////////////=//

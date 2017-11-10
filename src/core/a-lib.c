@@ -73,62 +73,53 @@
 #endif
 
 
+static REBVAL *PG_last_error = NULL;
 static REBRXT Reb_To_RXT[REB_MAX];
 static enum Reb_Kind RXT_To_Reb[RXT_MAX];
 
 
+// !!! Review how much checking one wants to do when calling API routines,
+// and what the balance should be of debug vs. release.  Right now, this helps
+// in particular notice if the core tries to use an API function before the
+// proper moment in the boot.
 //
-//  rebVersion: RL_API
+// !!! Review the balance of which APIs can set or clear errors.  It's not
+// useful if they all do as a rule...for instance, it may be more convenient
+// to `rebFree()` something before an error check than be forced to free it
+// on branches that test for an error on the call before the free.  See the
+// notes on Windows GetLastError() about how the APIs document whether they
+// manipulate the error or not--not all of them clear it rotely.
 //
-// Obtain current REBOL interpreter version information.
-//
-// Returns:
-//     A byte array containing version, revision, update, and more.
-// Arguments:
-//     vers - a byte array to hold the version info. First byte is length,
-//         followed by version, revision, update, system, variation.
-// Notes:
-//     In the original RL_API, this function was to be called before any other
-//     initialization to determine version compatiblity with the caller.
-//     With the massive changes in Ren-C and the lack of RL_API clients, this
-//     check is low priority.  This is how it was originally done:
-//
-//          REBYTE vers[8];
-//          vers[0] = 5; // len
-//          RL_Version(&vers[0]);
-//
-//          if (vers[1] != RL_VER || vers[2] != RL_REV)
-//              OS_CRASH(cb_cast("Incompatible reb-lib DLL"));
-//
-void RL_rebVersion(REBYTE vers[])
-{
-    // [0] is length
-    vers[1] = REBOL_VER;
-    vers[2] = REBOL_REV;
-    vers[3] = REBOL_UPD;
-    vers[4] = REBOL_SYS;
-    vers[5] = REBOL_VAR;
+inline static void Enter_Api_Cant_Error(void) {
+    if (PG_last_error == NULL)
+        panic ("rebStartup() not called before API call");
+}
+inline static void Enter_Api_Clear_Last_Error(void) {
+    Enter_Api_Cant_Error();
+    SET_END(PG_last_error);
 }
 
 
 //
-//  rebInit: RL_API
+//  Startup_Api: C
 //
-// Initialize the REBOL interpreter.
+// RL_API routines may be used by extensions (which are invoked by a fully
+// initialized Rebol core) or by normal linkage (such as from within the core
+// itself).  A call to rebInit() won't be needed in the former case.  So
+// setup code that is needed to interact with the API needs to be done by the
+// core independently.
 //
-// Returns:
-//     Zero on success, otherwise an error indicating that the
-//     host library is not compatible with this release.
-// Arguments:
-//     lib - the host lib (OS_ functions) to be used by REBOL.
-//         See host-lib.c for details.
-// Notes:
-//     This function will allocate and initialize all memory
-//     structures used by the REBOL interpreter. This is an
-//     extensive process that takes time.
-//
-void RL_rebInit(void *lib)
+void Startup_Api(void)
 {
+    // The last_error is used to signal whether the API has been initialized
+    // as well as to store a copy of the last error.  If it's END then that
+    // means no error.
+    //
+    assert(PG_last_error == NULL);
+    PG_last_error = Alloc_Pairing(NULL);
+    SET_END(PG_last_error);
+    Init_Blank(PAIRING_KEY(PG_last_error));
+
     // These tables used to be built by overcomplicated Rebol scripts.  It's
     // less hassle to have them built on initialization.
 
@@ -191,6 +182,76 @@ void RL_rebInit(void *lib)
 
     for (n = 0; n < REB_MAX; ++n)
         RXT_To_Reb[Reb_To_RXT[n]] = cast(enum Reb_Kind, n); // reverse lookup
+}
+
+
+//
+//  Shutdown_Api: C
+//
+// See remarks on Startup_Api() for the difference between this idea and
+// rebShutdown.
+//
+void Shutdown_Api(void)
+{
+    assert(PG_last_error != NULL);
+    Free_Pairing(PG_last_error);
+}
+
+
+//
+//  rebVersion: RL_API
+//
+// Obtain current REBOL interpreter version information.
+//
+// Returns:
+//     A byte array containing version, revision, update, and more.
+// Arguments:
+//     vers - a byte array to hold the version info. First byte is length,
+//         followed by version, revision, update, system, variation.
+// Notes:
+//     In the original RL_API, this function was to be called before any other
+//     initialization to determine version compatiblity with the caller.
+//     With the massive changes in Ren-C and the lack of RL_API clients, this
+//     check is low priority.  This is how it was originally done:
+//
+//          REBYTE vers[8];
+//          vers[0] = 5; // len
+//          RL_Version(&vers[0]);
+//
+//          if (vers[1] != RL_VER || vers[2] != RL_REV)
+//              OS_CRASH(cb_cast("Incompatible reb-lib DLL"));
+//
+void RL_rebVersion(REBYTE vers[])
+{
+    // [0] is length
+    vers[1] = REBOL_VER;
+    vers[2] = REBOL_REV;
+    vers[3] = REBOL_UPD;
+    vers[4] = REBOL_SYS;
+    vers[5] = REBOL_VAR;
+}
+
+
+//
+//  rebStartup: RL_API
+//
+// Initialize the REBOL interpreter.
+//
+// Returns:
+//     Zero on success, otherwise an error indicating that the
+//     host library is not compatible with this release.
+// Arguments:
+//     lib - the host lib (OS_ functions) to be used by REBOL.
+//         See host-lib.c for details.
+// Notes:
+//     This function will allocate and initialize all memory
+//     structures used by the REBOL interpreter. This is an
+//     extensive process that takes time.
+//
+void RL_rebStartup(void *lib)
+{
+    if (PG_last_error != NULL)
+        panic ("rebStartup() called when it's already started");
 
     // The RL_XXX API functions are stored like a C++ vtable, so they are
     // function pointers inside of a struct.  It's not completely obvious
@@ -228,6 +289,8 @@ void RL_rebInit(void *lib)
 //
 void RL_rebShutdown(REBOOL clean)
 {
+    Enter_Api_Cant_Error();
+
     // At time of writing, nothing Shutdown_Core() does pertains to
     // committing unfinished data to disk.  So really there is
     // nothing to do in the case of an "unclean" shutdown...yet.
@@ -250,6 +313,199 @@ void RL_rebShutdown(REBOOL clean)
 
 
 //
+//  rebDo: RL_API
+//
+// C variadic function which calls the evaluator on multiple pointers.
+// Each pointer may either be a REBVAL* or a UTF-8 string which will be
+// scanned to reflect one or more values in the sequence.  All REBVAL* are
+// spliced in inert by default, as if they were an evaluative product already.
+//
+REBVAL *RL_rebDo(const void *p, ...)
+{
+    Enter_Api_Clear_Last_Error();
+
+    // For now, do a test of manual memory management in a pairing, and let's
+    // just say a BLANK! means that for now.  Assume caller has to explicitly
+    // rebFree() the result.
+    //
+    REBVAL *result = Alloc_Pairing(NULL);
+    assert(IS_TRASH_DEBUG(result)); // ok: Do_Va_Core() will set to END
+    Init_Blank(PAIRING_KEY(result)); // the meta-value of the API handle
+
+    va_list va;
+    va_start(va, p);
+
+    struct Reb_State state;
+    REBCTX *error;
+
+    PUSH_UNHALTABLE_TRAP(&error, &state); // must catch HALTs
+
+// The first time through the following code 'error' will be NULL, but...
+// `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
+
+    if (error != NULL) {
+        va_end(va); // not necessarily a no-op
+        Free_Pairing(result); // incomplete output (or never written to)
+
+        if (ERR_NUM(error) == RE_HALT) {
+            Init_Bar(PG_last_error);
+            return NULL;
+        }
+
+        Init_Error(PG_last_error, error);
+        return NULL;
+    }
+
+    // Note: It's not possible to make C variadics that can take 0 arguments;
+    // there always has to be one real argument to find the varargs.  Luckily
+    // the design of REBFRM* allows us to pre-load one argument outside of the
+    // REBARR* or va_list is being passed in.  Pass `p` as opt_first argument.
+    //
+    // !!! Loading of UTF-8 strings is not supported yet, cast to REBVAL
+    //
+    REBIXO indexor = Do_Va_Core(
+        result,
+        cast(const REBVAL*, p), // opt_first (see note above)
+        &va,
+        DO_FLAG_EXPLICIT_EVALUATE | DO_FLAG_TO_END
+    );
+
+    DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
+
+    va_end(va);
+
+    if (indexor == THROWN_FLAG) {
+        if (IS_FUNCTION(result) && VAL_FUNC_DISPATCHER(result) == &N_quit) {
+            //
+            // Command issued a purposeful QUIT or EXIT.  Convert the
+            // QUIT/WITH value (if any) into an integer for last error to
+            // signal this.
+            //
+            CATCH_THROWN(result, result);
+            Init_Integer(PG_last_error, Exit_Status_From_Value(result));
+            Free_Pairing(result);
+            return NULL;
+        }
+
+        // For now, convert all other THROWN() values into uncaught throw
+        // errors.  Since that error captures the thrown value as well as the
+        // throw name, the information is there to be extracted.
+        //
+        Init_Error(PG_last_error, Error_No_Catch_For_Throw(result));
+        Free_Pairing(result);
+        return NULL;
+    }
+
+    assert(indexor == END_FLAG); // we asked to do to end
+    return result; // client's responsibility to rebFree(), for now
+}
+
+
+//
+//  rebDoValue: RL_API
+//
+// Non-variadic function which takes a single argument which must be a single
+// value.  It invokes the basic behavior of the DO native on a value.
+// 
+REBVAL *RL_rebDoValue(const REBVAL *v)
+{
+    // don't need an Enter_Api_Clear_Last_Error(); call while implementation
+    // is based on the RL_API rebDo(), because it will do it.
+
+    // !!! One design goal of Ren-C's RL_API is to limit the number of
+    // fundamental exposed C functions.  So this formulation of rebDoValue()
+    // is a good example of something that might be in "userspace", vs. part
+    // of the "main" RL_API...possibly using generic memoizations for speed
+    // so "do" and "quote" could be provided textually by users yet not
+    // loaded and bound each time.
+    //
+    // As with much of the API it could be more optimal, but 
+    //
+    return rebDo(rebEval(NAT_VALUE(do)), v, END);
+}
+
+
+//
+//  rebLastError: RL_API
+//
+// Get the last error that occurred, or NULL if none.
+//
+REBVAL *RL_rebLastError(void)
+{
+    Enter_Api_Cant_Error(); // just checking error doesn't clear it
+
+    if (IS_END(PG_last_error))
+        return NULL; // error clear since last API called which might have one
+
+    assert(
+        IS_BAR(PG_last_error) // currently denotes HALT
+        || IS_INTEGER(PG_last_error) // currently denotes QUIT/WITH status
+        || IS_ERROR(PG_last_error) // other errors including uncaught THROW
+    );
+
+    // Returning a copy is important, because the error can be an object and
+    // someone might want to pick apart the error properties using API
+    // functions.  Giving back a direct pointer to the last error would mean
+    // those APIs would overwrite it during inspection.
+    //
+    REBVAL *result = Alloc_Pairing(NULL);
+    Move_Value(result, PG_last_error);
+    Init_Blank(PAIRING_KEY(result)); // manual lifetime for now
+
+    return result; // for now, caller has to rebFree() the result
+}
+
+
+//
+//  rebEval: RL_API
+//
+// When rebDo() receives a REBVAL*, the default is to assume it should be
+// spliced into the input stream as if it had already been evaluated.  It's
+// only segments of code supplied via UTF-8 strings, or so-called "REBEVL"
+// that are live and can execute functions.
+//
+// REBEVL are type-incompatible with REBVAL and cannot be stored in them.
+// They can only be used within a rebDo() stream.  Their lifetime management
+// is automatic and can only be freed by the rebDo() in which they are called.
+//
+REBVAL *RL_rebEval(const REBVAL *v)
+{
+    Enter_Api_Clear_Last_Error();
+
+    REBVAL *result = Alloc_Pairing(NULL);
+    Move_Value(result, v);
+    SET_VAL_FLAG(result, VALUE_FLAG_EVAL_FLIP);
+    Init_Blank(PAIRING_KEY(result));
+
+    return result;
+}
+
+
+//
+//  rebVoid: RL_API
+//
+// One theory of the RL_API might be that void values not be allowed, as they
+// are illegal in blocks.  A question might be whether an API REBVAL is more
+// similar to a variable in a context, than it is to a cell in an array...and
+// if a REBVAL* could point to a cell which could be mutable from void to
+// non-void.
+//
+// For now, this rebVoid is one which returns a mutable REBVAL* and whose
+// lifetime requires that it be freed.
+//
+REBVAL *RL_rebVoid(void)
+{
+    Enter_Api_Clear_Last_Error();
+
+    REBVAL *result = Alloc_Pairing(NULL);
+    Init_Void(result);
+    Init_Blank(PAIRING_KEY(result));
+
+    return result;
+}
+
+
+//
 //  rebEscape: RL_API
 //
 // Signal that code evaluation needs to be interrupted.
@@ -264,6 +520,8 @@ void RL_rebShutdown(REBOOL clean)
 //
 void RL_rebEscape(void)
 {
+    Enter_Api_Clear_Last_Error();
+
     // How should HALT vs. BREAKPOINT be decided?  When does a Ctrl-C want
     // to quit entirely vs. begin an interactive debugging session?
     //
@@ -296,6 +554,8 @@ void RL_rebEscape(void)
 //
 int RL_rebEvent(REBEVT *evt)
 {
+    Enter_Api_Clear_Last_Error();
+
     REBVAL *event = Append_Event();     // sets signal
 
     if (event) {                        // null if no room left in series
@@ -328,6 +588,8 @@ int RL_rebEvent(REBEVT *evt)
 //
 int RL_rebUpdateEvent(REBEVT *evt)
 {
+    Enter_Api_Clear_Last_Error();
+
     REBVAL *event = Find_Last_Event(evt->model, evt->type);
 
     if (event) {
@@ -357,6 +619,8 @@ int RL_rebUpdateEvent(REBEVT *evt)
 //
 REBEVT *RL_rebFindEvent(REBINT model, REBINT type)
 {
+    Enter_Api_Clear_Last_Error();
+
     REBVAL * val = Find_Last_Event(model, type);
     if (val != NULL) {
         return cast(REBEVT*, val); // should be compatible!
@@ -370,6 +634,8 @@ REBEVT *RL_rebFindEvent(REBINT model, REBINT type)
 //
 REBGOB** RL_rebGobHead(REBGOB *gob)
 {
+    Enter_Api_Clear_Last_Error();
+
     return SER_HEAD(REBGOB*, GOB_PANE(gob));
 }
 
@@ -379,6 +645,8 @@ REBGOB** RL_rebGobHead(REBGOB *gob)
 //
 REBYTE* RL_rebGobString(REBGOB *gob)
 {
+    Enter_Api_Clear_Last_Error();
+
     return BIN_HEAD(GOB_CONTENT(gob));
 }
 
@@ -388,6 +656,8 @@ REBYTE* RL_rebGobString(REBGOB *gob)
 //
 REBCNT RL_rebGobLen(REBGOB *gob)
 {
+    Enter_Api_Clear_Last_Error();
+
     return SER_LEN(GOB_PANE(gob));
 }
 
@@ -425,6 +695,8 @@ inline static REBFRM *Extract_Live_Rebfrm_May_Fail(const REBVAL *frame) {
 //  rebFrmNumArgs: RL_API
 //
 REBCNT RL_rebFrmNumArgs(const REBVAL *frame) {
+    Enter_Api_Clear_Last_Error();
+
     REBFRM *f = Extract_Live_Rebfrm_May_Fail(frame);
     return FRM_NUM_ARGS(f);
 }
@@ -433,6 +705,8 @@ REBCNT RL_rebFrmNumArgs(const REBVAL *frame) {
 //  rebFrmArg: RL_API
 //
 REBVAL *RL_rebFrmArg(const REBVAL *frame, REBCNT n) {
+    Enter_Api_Clear_Last_Error();
+
     REBFRM *f = Extract_Live_Rebfrm_May_Fail(frame);
     return FRM_ARG(f, n);
 }
@@ -441,6 +715,8 @@ REBVAL *RL_rebFrmArg(const REBVAL *frame, REBCNT n) {
 //  rebValLogic: RL_API
 //
 REBOOL RL_rebValLogic(const REBVAL *v) {
+    Enter_Api_Clear_Last_Error();
+
     return VAL_LOGIC(v);
 }
 
@@ -452,6 +728,8 @@ REBOOL RL_rebValLogic(const REBVAL *v) {
 // REB_XXX numbering scheme.  So for the moment, REBRXT is being kept as is.
 //
 REBRXT RL_rebValType(const REBVAL *v) {
+    Enter_Api_Clear_Last_Error();
+
     return IS_VOID(v)
         ? 0
         : Reb_To_RXT[VAL_TYPE(v)];
@@ -462,6 +740,8 @@ REBRXT RL_rebValType(const REBVAL *v) {
 //  rebValInt64: RL_API
 //
 REBI64 RL_rebValInt64(const REBVAL *v) {
+    Enter_Api_Clear_Last_Error();
+
     return VAL_INT64(v);
 }
 
@@ -469,6 +749,8 @@ REBI64 RL_rebValInt64(const REBVAL *v) {
 //  rebValInt32: RL_API
 //
 REBINT RL_rebValInt32(const REBVAL *v) {
+    Enter_Api_Clear_Last_Error();
+
     return VAL_INT32(v);
 }
 
@@ -476,6 +758,8 @@ REBINT RL_rebValInt32(const REBVAL *v) {
 //  rebValDecimal: RL_API
 //
 REBDEC RL_rebValDecimal(const REBVAL *v) {
+    Enter_Api_Clear_Last_Error();
+
     return VAL_DECIMAL(v);
 }
 
@@ -483,6 +767,8 @@ REBDEC RL_rebValDecimal(const REBVAL *v) {
 //  rebValChar: RL_API
 //
 REBUNI RL_rebValChar(const REBVAL *v) {
+    Enter_Api_Clear_Last_Error();
+
     return VAL_CHAR(v);
 }
 
@@ -490,6 +776,8 @@ REBUNI RL_rebValChar(const REBVAL *v) {
 //  rebValTime: RL_API
 //
 REBI64 RL_rebValTime(const REBVAL *v) {
+    Enter_Api_Clear_Last_Error();
+
     return VAL_NANO(v);
 }
 
@@ -498,6 +786,8 @@ REBI64 RL_rebValTime(const REBVAL *v) {
 //  rebValTupleData: RL_API
 //
 REBYTE *RL_rebValTupleData(const REBVAL *v) {
+    Enter_Api_Clear_Last_Error();
+
     return VAL_TUPLE_DATA(m_cast(REBVAL*, v));
 }
 
@@ -505,6 +795,8 @@ REBYTE *RL_rebValTupleData(const REBVAL *v) {
 //  rebValIndex: RL_API
 //
 REBCNT RL_rebValIndex(const REBVAL *v) {
+    Enter_Api_Clear_Last_Error();
+
     return VAL_INDEX(v);
 }
 
@@ -512,6 +804,8 @@ REBCNT RL_rebValIndex(const REBVAL *v) {
 //  rebInitValIndex: RL_API
 //
 void RL_rebInitValIndex(REBVAL *v, REBCNT i) {
+    Enter_Api_Clear_Last_Error();
+
     VAL_INDEX(v) = i;
 }
 
@@ -519,6 +813,8 @@ void RL_rebInitValIndex(REBVAL *v, REBCNT i) {
 //  rebValHandlePointer: RL_API
 //
 void *RL_rebValHandlePointer(const REBVAL *v) {
+    Enter_Api_Clear_Last_Error();
+
     return VAL_HANDLE_POINTER(void, v);
 }
 
@@ -526,6 +822,8 @@ void *RL_rebValHandlePointer(const REBVAL *v) {
 //  rebSetHandlePointer: RL_API
 //
 void RL_rebSetHandlePointer(REBVAL *v, void *p) {
+    Enter_Api_Clear_Last_Error();
+
     v->extra.singular = NULL; // !!! only support "dumb" handles for now
     SET_HANDLE_POINTER(v, p);
 }
@@ -534,6 +832,8 @@ void RL_rebSetHandlePointer(REBVAL *v, void *p) {
 //  rebValImageWide: RL_API
 //
 REBCNT RL_rebValImageWide(const REBVAL *v) {
+    Enter_Api_Clear_Last_Error();
+
     return VAL_IMAGE_WIDE(v);
 }
 
@@ -541,6 +841,8 @@ REBCNT RL_rebValImageWide(const REBVAL *v) {
 //  rebValImageHigh: RL_API
 //
 REBCNT RL_rebValImageHigh(const REBVAL *v) {
+    Enter_Api_Clear_Last_Error();
+
     return VAL_IMAGE_HIGH(v);
 }
 
@@ -559,6 +861,8 @@ REBCNT RL_rebValImageHigh(const REBVAL *v) {
 // API is for compatibility with those extracting floats.
 //
 float RL_rebValPairXFloat(const REBVAL *v) {
+    Enter_Api_Clear_Last_Error();
+
     return VAL_PAIR_X(v);
 }
 
@@ -568,6 +872,8 @@ float RL_rebValPairXFloat(const REBVAL *v) {
 // !!! See notes on RL_rebValPairXFloat
 //
 float RL_rebValPairYFloat(const REBVAL *v) {
+    Enter_Api_Clear_Last_Error();
+
     return VAL_PAIR_Y(v);
 }
 
@@ -605,7 +911,9 @@ void RL_rebInitDate(
     int seconds,
     int nano,
     int zone
-) {
+){
+    Enter_Api_Clear_Last_Error();
+
     VAL_RESET_HEADER(out, REB_DATE);
     VAL_YEAR(out)  = year;
     VAL_MONTH(out) = month;
@@ -629,6 +937,8 @@ REBCNT RL_rebValUTF8(
     REBCNT buf_chars,
     const REBVAL *v
 ){
+    Enter_Api_Clear_Last_Error();
+
     REBCNT index;
     REBCNT len;
     const REBYTE *utf8;
@@ -662,6 +972,8 @@ REBCNT RL_rebValUTF8(
 //
 REBYTE *RL_rebValUTF8Alloc(REBCNT *out_len, const REBVAL *v)
 {
+    Enter_Api_Clear_Last_Error();
+
     REBCNT len = rebValUTF8(NULL, 0, v);
     REBYTE *result = OS_ALLOC_N(REBYTE, len + 1);
     rebValUTF8(result, len, v);
@@ -683,6 +995,8 @@ REBCNT RL_rebValWstring(
     REBCNT buf_chars, // characters buffer can hold (not including terminator)
     const REBVAL *v
 ){
+    Enter_Api_Clear_Last_Error();
+
 /*
     if (VAL_BYTE_SIZE(val)) {
         // On windows, we need to convert byte to wide:
@@ -747,6 +1061,8 @@ REBCNT RL_rebValWstring(
 //
 wchar_t *RL_rebValWstringAlloc(REBCNT *out_len, const REBVAL *v)
 {
+    Enter_Api_Clear_Last_Error();
+
     REBCNT len = rebValWstring(NULL, 0, v);
     wchar_t *result = OS_ALLOC_N(wchar_t, len + 1);
     rebValWstring(result, len, v);
@@ -761,6 +1077,8 @@ wchar_t *RL_rebValWstringAlloc(REBCNT *out_len, const REBVAL *v)
 //
 REBVAL *RL_rebString(const char *utf8)
 {
+    Enter_Api_Clear_Last_Error();
+
     // Default the returned handle's lifetime to the currently running FRAME!.
     // The user can unmanage it if they want it to live longer.
     //
@@ -777,6 +1095,8 @@ REBVAL *RL_rebString(const char *utf8)
 //
 REBVAL *RL_rebUnmanage(REBVAL *v)
 {
+    Enter_Api_Clear_Last_Error();
+
     REBVAL *key = PAIRING_KEY(v);
     assert(key->header.bits & NODE_FLAG_MANAGED);
     UNUSED(key);
@@ -791,6 +1111,8 @@ REBVAL *RL_rebUnmanage(REBVAL *v)
 //
 void RL_rebFree(REBVAL *v)
 {
+    Enter_Api_Cant_Error();
+
     REBVAL *key = PAIRING_KEY(v);
     assert(NOT(key->header.bits & NODE_FLAG_MANAGED));
     UNUSED(key);
@@ -804,6 +1126,8 @@ void RL_rebFree(REBVAL *v)
 //
 void RL_rebPanic(const void *p)
 {
+    Enter_Api_Cant_Error();
+
     Panic_Core(p, __FILE__, __LINE__);
 }
 

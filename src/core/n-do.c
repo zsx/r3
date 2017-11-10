@@ -63,7 +63,17 @@ REBNATIVE(eval)
     //
     Move_Value(&f->cell, ARG(value));
 
-    return REF(only) ? R_REEVALUATE_CELL_ONLY : R_REEVALUATE_CELL;
+    if (REF(only)) {
+        //
+        // We're going to tell the evaluator to switch into a "non-evaluating"
+        // mode.  But we still want the eval cell itself to be treated
+        // evaluatively despite that.  So flip its special evaluator bit.
+        //
+        SET_VAL_FLAG(&f->cell, VALUE_FLAG_EVAL_FLIP);
+        return R_REEVALUATE_CELL_ONLY;
+    }
+
+    return R_REEVALUATE_CELL;
 }
 
 

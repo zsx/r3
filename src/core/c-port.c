@@ -451,9 +451,11 @@ REBOOL Redo_Func_Throws(REBFRM *f, REBFUN *func_new)
     TERM_ARRAY_LEN(code_array, code - ARR_HEAD(code_array));
     MANAGE_ARRAY(code_array);
 
+    // Although we are using 
     DECLARE_LOCAL (first);
     TERM_ARRAY_LEN(path_array, path - ARR_HEAD(path_array));
     Init_Path(first, path_array);
+    SET_VAL_FLAG(first, VALUE_FLAG_EVAL_FLIP);
 
     // Invoke DO with the special mode requesting non-evaluation on all
     // args, as they were evaluated the first time around.
@@ -464,7 +466,7 @@ REBOOL Redo_Func_Throws(REBFRM *f, REBFUN *func_new)
         code_array,
         0, // index
         SPECIFIED, // reusing existing REBVAL arguments, no relative values
-        DO_FLAG_NO_ARGS_EVALUATE
+        DO_FLAG_EXPLICIT_EVALUATE
     );
 
     if (indexor != THROWN_FLAG && indexor != END_FLAG) {

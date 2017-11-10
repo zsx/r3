@@ -150,24 +150,20 @@
     FLAGIT_LEFT(8)
 
 
-//=//// DO_FLAG_NO_ARGS_EVALUATE //////////////////////////////////////////=//
+//=//// DO_FLAG_EXPLICIT_EVALUATE /////////////////////////////////////////=//
 //
 // Sometimes a DO operation has already calculated values, and does not want
 // to interpret them again.  e.g. the call to the function wishes to use a
 // precalculated WORD! value, and not look up that word as a variable.  This
 // is common when calling Rebol functions from C code when the parameters are
-// known, or what R3-Alpha called "APPLY/ONLY"
+// known (also present in what R3-Alpha called "APPLY/ONLY")
 //
-// !!! It's questionable as to whether this flag needs to exist, or if C
-// code should use some kind of special out of band quoting operator to mean
-// "literally this value".  (The problem with using the QUOTE word or function
-// in this capacity is that then functions that quote their arguments will
-// receive the literal QUOTE word or function, but a variadic call from C
-// could subvert that with an invisible instruction.)  Currently the existence
-// of this mode is leaked to Rebol users through EVAL/ONLY, which may be
-// unnecessary complexity to expose.
+// Special escaping operations must be used in order to get evaluation
+// behavior.
 //
-#define DO_FLAG_NO_ARGS_EVALUATE \
+// !!! This feature is in the process of being designed.
+//
+#define DO_FLAG_EXPLICIT_EVALUATE \
     FLAGIT_LEFT(9)
 
 

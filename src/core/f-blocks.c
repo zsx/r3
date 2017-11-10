@@ -126,8 +126,13 @@ REBARR *Copy_Values_Len_Extra_Skip_Shallow_Core(
     REBCNT count = 0;
     const RELVAL *src = head;
     RELVAL *dest = ARR_HEAD(array);
-    for (; count < len; ++count, src += skip, ++dest)
+    for (; count < len; ++count, src += skip, ++dest) {
         Derelativize(dest, src, specifier);
+        if (flags & ARRAY_FLAG_VOIDS_LEGAL) {
+            if (GET_VAL_FLAG(src, VALUE_FLAG_EVAL_FLIP))
+                SET_VAL_FLAG(dest, VALUE_FLAG_EVAL_FLIP);
+        }
+    }
 
     TERM_ARRAY_LEN(array, len);
 

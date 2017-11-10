@@ -335,6 +335,18 @@ inline static void DS_PUSH_RELVAL(const RELVAL *v, REBSPC *specifier) {
     Derelativize(DS_TOP, v, specifier);
 }
 
+inline static void DS_PUSH_RELVAL_KEEP_EVAL_FLIP(
+    const RELVAL *v,
+    REBSPC *specifier
+){
+    ASSERT_VALUE_MANAGED(v); // would fail on END marker
+    DS_PUSH_TRASH;
+    REBOOL flip = GET_VAL_FLAG(v, VALUE_FLAG_EVAL_FLIP);
+    Derelativize(DS_TOP, v, specifier);
+    if (flip)
+        SET_VAL_FLAG(DS_TOP, VALUE_FLAG_EVAL_FLIP);
+}
+
 
 //=////////////////////////////////////////////////////////////////////////=//
 //

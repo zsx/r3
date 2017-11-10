@@ -273,7 +273,7 @@ inline static void Fetch_Next_In_Frame(REBFRM *f) {
         SET_FRAME_VALUE(f, va_arg(*f->source.vaptr, const REBVAL*));
         assert(
             IS_END(f->value) ||
-            (IS_VOID(f->value) && (f->flags.bits & DO_FLAG_NO_ARGS_EVALUATE))
+            (IS_VOID(f->value) && (f->flags.bits & DO_FLAG_EXPLICIT_EVALUATE))
             || NOT(IS_RELATIVE(f->value))
         );
 
@@ -627,7 +627,8 @@ inline static void Reify_Va_To_Array_In_Frame(
 
     if (NOT_END(f->value)) {
         do {
-            DS_PUSH_RELVAL(f->value, f->specifier); // may be void
+            // may be void.  Preserve VALUE_FLAG_EVAL_FLIP flag.
+            DS_PUSH_RELVAL_KEEP_EVAL_FLIP(f->value, f->specifier);
             Fetch_Next_In_Frame(f);
         } while (NOT_END(f->value));
 
@@ -653,7 +654,8 @@ inline static void Reify_Va_To_Array_In_Frame(
     //
     va_end(*f->source.vaptr);
 
-    f->source.array = Pop_Stack_Values(dsp_orig); // may contain voids
+    // special array...may contain voids and eval flip is kept
+    f->source.array = Pop_Stack_Values_Keep_Eval_Flip(dsp_orig);
     MANAGE_ARRAY(f->source.array); // held alive while frame running
     SET_SER_FLAG(f->source.array, ARRAY_FLAG_VOIDS_LEGAL);
 
@@ -691,9 +693,9 @@ inline static void Reify_Va_To_Array_In_Frame(
 //
 // The previously accomplished style of execution with a function which may
 // not be in the arglist can be accomplished using `opt_first` to put that
-// function into the optional first position.  To instruct the evaluator not
-// to do any evaluation on the values supplied as arguments after that
-// (corresponding to R3-Alpha's APPLY/ONLY) then DO_FLAG_NO_ARGS_EVALUATE
+// function into the optional first position.  To instruct the evaluator that
+// evaluation will only happen on those values marked explicitly for it,
+// (corresponding to R3-Alpha's APPLY/ONLY) then DO_FLAG_EXPLICIT_EVALUATE
 // should be used--otherwise they will be evaluated normally.
 //
 // NOTE: Ren-C no longer supports the built-in ability to supply refinements
@@ -818,11 +820,15 @@ inline static REBOOL Apply_Only_Throws(
     va_list va;
     va_start(va, applicand); // must mention last param before the "..."
 
+    DECLARE_LOCAL (applicand_eval);
+    Move_Value(applicand_eval, applicand);
+    SET_VAL_FLAG(applicand_eval, VALUE_FLAG_EVAL_FLIP);
+
     REBIXO indexor = Do_Va_Core(
         out,
-        applicand, // opt_first
+        applicand_eval, // opt_first
         &va,
-        DO_FLAG_NO_ARGS_EVALUATE | DO_FLAG_NO_LOOKAHEAD
+        DO_FLAG_EXPLICIT_EVALUATE | DO_FLAG_NO_LOOKAHEAD
     );
 
     if (fully && indexor == VA_LIST_FLAG) {

@@ -1495,7 +1495,11 @@ inline static void INIT_BINDING(RELVAL *v, void *p) {
 
 #if !defined(NDEBUG)
     if (binding->header.bits & NODE_FLAG_CELL) {
-        assert(v->header.bits & VALUE_FLAG_STACK);
+        //
+        // !!! This is a good assert but it is limiting the applications of
+        // trying to do evaluations into API cells.  Review.
+        //
+        /* assert(v->header.bits & VALUE_FLAG_STACK); */
     }
     else if (NOT(v->header.bits & VALUE_FLAG_STACK)) {
         assert(binding->header.bits & NODE_FLAG_MANAGED);

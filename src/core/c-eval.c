@@ -121,7 +121,7 @@ static inline REBOOL Start_New_Expression_Throws(REBFRM *f) {
 #define START_NEW_EXPRESSION_MAY_THROW_COMMON(f,g) \
     if (Start_New_Expression_Throws(f)) \
         g; \
-    args_evaluate = NOT((f)->flags.bits & DO_FLAG_NO_ARGS_EVALUATE); \
+    evaluating = NOT((f)->flags.bits & DO_FLAG_EXPLICIT_EVALUATE); \
 
 #ifdef NDEBUG
     #define START_NEW_EXPRESSION_MAY_THROW(f,g) \
@@ -298,12 +298,12 @@ void Do_Core(REBFRM * const f)
     //
     f->dsp_orig = DSP;
 
-    REBOOL args_evaluate; // set on every iteration (varargs do, EVAL/ONLY...)
+    REBOOL evaluating; // set on every iteration (varargs do, EVAL/ONLY...)
 
     // APPLY and a DO of a FRAME! both use process_function.
     //
     if (f->flags.bits & DO_FLAG_APPLYING) {
-        args_evaluate = NOT(f->flags.bits & DO_FLAG_NO_ARGS_EVALUATE);
+        evaluating = NOT(f->flags.bits & DO_FLAG_EXPLICIT_EVALUATE);
 
         f->refine = ORDINARY_ARG; // "APPLY infix" not supported
         assert(IS_END(f->out));
@@ -327,7 +327,7 @@ void Do_Core(REBFRM * const f)
 do_next:;
 
     START_NEW_EXPRESSION_MAY_THROW(f, goto finished);
-    // ^-- sets args_evaluate, do_count, Ctrl-C may abort
+    // ^-- sets evaluating, do_count, Ctrl-C may abort
 
     const RELVAL *current;
     const REBVAL *current_gotten;
@@ -356,7 +356,22 @@ do_next:;
 reevaluate:;
     //
     // ^-- doesn't advance expression index, so `eval x` starts with `eval`
-    // also EVAL/ONLY may change args_evaluate to FALSE for a cycle
+    // also EVAL/ONLY may change `evaluating` to FALSE for a cycle
+
+    if (NOT(evaluating) == NOT_VAL_FLAG(current, VALUE_FLAG_EVAL_FLIP)) {
+        //
+        // Either we're NOT evaluating and there's NO special exemption, or we
+        // ARE evaluating and there IS A special exemption.  Treat this as
+        // inert.
+        //
+        // !!! This check is repeated in function argument fulfillment, and
+        // as this is new and experimental code it's not clear exactly what
+        // the consequences should be to lookahead.  There needs to be
+        // reconsideration now that evaluating-ness is a property that can
+        // be per-frame, per operation, and per-value.
+        //
+        goto inert;
+    }
 
     //==////////////////////////////////////////////////////////////////==//
     //
@@ -376,7 +391,7 @@ reevaluate:;
     // sets), which really controls the after lookahead step.  Consider this
     // edge case.
     //
-    if (NOT_END(f->value) && IS_WORD(f->value) && args_evaluate) {
+    if (NOT_END(f->value) && IS_WORD(f->value) && evaluating) {
         //
         // While the next item may be a WORD! that looks up to an enfixed
         // function, and it may want to quote what's on its left...there
@@ -1030,7 +1045,14 @@ reevaluate:;
 
     //=//// IF EVAL/ONLY SEMANTICS, TAKE NEXT ARG WITHOUT EVALUATION //////=//
 
-            if (NOT(args_evaluate)) {
+            if (
+                NOT(evaluating)
+                == NOT_VAL_FLAG(f->value, VALUE_FLAG_EVAL_FLIP)
+            ){
+                // Either we're NOT evaluating and there's NO special
+                // exemption, or we ARE evaluating and there IS A special
+                // exemption.  Treat this as if it's quoted.
+                //
                 Prep_Stack_Cell(f->arg);
                 Quote_Next_In_Frame(f->arg, f); // has VALUE_FLAG_UNEVALUATED
                 goto check_arg;
@@ -1060,7 +1082,9 @@ reevaluate:;
                 if (Do_Next_In_Subframe_Throws(
                     f->arg,
                     f,
-                    DO_FLAG_FULFILLING_ARG
+                    evaluating
+                        ? DO_FLAG_FULFILLING_ARG
+                        : DO_FLAG_FULFILLING_ARG | DO_FLAG_EXPLICIT_EVALUATE
                 )){
                     Move_Value(f->out, f->arg);
                     Abort_Function(f);
@@ -1281,7 +1305,14 @@ reevaluate:;
         // has written the out slot yet or not.
         //
         assert(IS_END(f->out));
-        assert(f->out->header.bits & VALUE_FLAG_STACK);
+
+        // !!! In theory an assert can be developed here, but we need to allow
+        // API handles which may have non-stack lifetimes here.  This could
+        // get complicated if a manual lifetime is used and freed during eval
+        // so rethink what the assert should be and if perhaps the API handle
+        // should get a hold taken on it.
+        //
+        /* assert(f->out->header.bits & VALUE_FLAG_STACK); */
 
         // Running arbitrary native code can manipulate the bindings or cache
         // of a variable.  It's very conservative to say this, but any word
@@ -1392,11 +1423,11 @@ reevaluate:;
             goto redo_unchecked;
 
         case R_REEVALUATE_CELL:
-            args_evaluate = TRUE; // unnecessary?
+            evaluating = TRUE; // unnecessary?
             goto prep_for_reevaluate;
 
         case R_REEVALUATE_CELL_ONLY:
-            args_evaluate = FALSE;
+            evaluating = FALSE;
             goto prep_for_reevaluate;
 
         prep_for_reevaluate: {
@@ -1563,7 +1594,7 @@ reevaluate:;
             fail (Error_Need_Value_Raw(specific)); // `do [a:]` is illegal
         }
 
-        if (NOT(args_evaluate)) { // e.g. `eval/only quote x: 1 + 2`, x => 1
+        if (NOT(evaluating)) { // e.g. `eval/only quote x: 1 + 2`, x => 1
             Derelativize(f->out, f->value, f->specifier);
             Move_Value(Sink_Var_May_Fail(current, f->specifier), f->out);
         }
@@ -1739,7 +1770,7 @@ reevaluate:;
             fail (Error_Need_Value_Raw(specific)); // `do [a/b:]` is illegal
         }
 
-        if (NOT(args_evaluate)) {
+        if (NOT(evaluating)) {
             Derelativize(f->out, f->value, f->specifier);
 
             // !!! Due to the way this is currently designed, throws need to
@@ -1983,7 +2014,7 @@ reevaluate:;
 //==//////////////////////////////////////////////////////////////////////==//
 
     case REB_MAX_VOID:
-        if (NOT(args_evaluate)) {
+        if (NOT(evaluating)) {
             Init_Void(f->out);
         }
         else {
@@ -2049,7 +2080,7 @@ reevaluate:;
     //=//// IT'S INFIX OR WE'RE DOING TO THE END...DISPATCH LIKE WORD /////=//
 
         START_NEW_EXPRESSION_MAY_THROW(f, goto finished);
-        // ^-- sets args_evaluate, do_count, Ctrl-C may abort
+        // ^-- sets evaluating, do_count, Ctrl-C may abort
 
         if (VAL_TYPE_OR_0(f->gotten) != REB_FUNCTION) { // END is REB_0
             current = f->value;

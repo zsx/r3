@@ -193,6 +193,9 @@ inline static void DS_PUSH(const REBVAL *v) {
 #define Pop_Stack_Values(dsp) \
     Pop_Stack_Values_Core((dsp), SERIES_FLAG_FILE_LINE)
 
+#define Pop_Stack_Values_Keep_Eval_Flip(dsp) \
+    Pop_Stack_Values_Core((dsp), SERIES_FLAG_FILE_LINE | ARRAY_FLAG_VOIDS_LEGAL)
+
 
 //=////////////////////////////////////////////////////////////////////////=//
 //

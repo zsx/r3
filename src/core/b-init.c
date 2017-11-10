@@ -1238,6 +1238,14 @@ void Startup_Core(void)
 
     // STR_SYMBOL(), VAL_WORD_SYM() and Canon(SYM_XXX) now available
 
+    // !!! There is an idea that so-called "Root" and "Task" variables might
+    // be held onto API nodes, whose lifetime is indefinite until program
+    // shutdown.  If that were the case then the API should be started up
+    // early...it depends on when the codebase is presumed free to start
+    // using rebXxxYyy() functions.
+    //
+    Startup_Api();
+
     PG_Boot_Phase = BOOT_LOADED;
 
 //==//////////////////////////////////////////////////////////////////////==//
@@ -1525,6 +1533,7 @@ void Shutdown_Core(void)
     Shutdown_Scanner();
     Shutdown_Char_Cases();
 
+    Shutdown_Api();
     Shutdown_Symbols();
     Shutdown_Interning();
 
