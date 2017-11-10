@@ -1817,18 +1817,15 @@ REBOOL Is_Value_Managed(const RELVAL *value)
 // trustworthy method for "sniffing" pointers and discerning whether it is a
 // REBSER*, a REBVAL*, or a UTF-8 character string.
 //
+// During startup, Assert_Pointer_Detection_Working() checks that:
+//
+//     LEFT_8_BITS(NODE_FLAG_CELL) == 0x1
+//     LEFT_8_BITS(NODE_FLAG_END) == 0x8
+//
 enum Reb_Pointer_Detect Detect_Rebol_Pointer(const void *p) {
-    const REBYTE *bp = cast(const REBYTE*, p);
-    REBYTE left_4_bits = *bp >> 4;
+    REBYTE bp = *cast(const REBYTE*, p);
 
-#if !defined(NDEBUG)
-    REBUPT cell_flag = NODE_FLAG_CELL;
-    assert(LEFT_8_BITS(cell_flag) == 0x1);
-    REBUPT end_flag = NODE_FLAG_END;
-    assert(LEFT_8_BITS(end_flag) == 0x8);
-#endif
-
-    switch (left_4_bits) {
+    switch (bp >> 4) { // switch on the left 4 bits of the byte
     case 0:
     case 1:
     case 2:
@@ -1843,34 +1840,34 @@ enum Reb_Pointer_Detect Detect_Rebol_Pointer(const void *p) {
     // valid starting points for a UTF-8 string)
 
     case 8: // 0xb1000
-        if (*bp & 0x8)
+        if (bp & 0x8)
             return DETECTED_AS_END; // may be end cell or "endlike" header
-        if (*bp & 0x1)
+        if (bp & 0x1)
             return DETECTED_AS_VALUE; // unmanaged
         return DETECTED_AS_SERIES; // unmanaged
 
     case 9: // 0xb1001
-        if (*bp & 0x8)
+        if (bp & 0x8)
             return DETECTED_AS_END; // has to be an "endlike" header
         panic (p); // would be "marked and unmanaged", not legal
 
     case 10: // 0b1010
     case 11: // 0b1011
-        if (*bp & 0x8)
+        if (bp & 0x8)
             return DETECTED_AS_END;
-        if (*bp & 0x1)
+        if (bp & 0x1)
             return DETECTED_AS_VALUE; // managed, marked if `case 11`
         return DETECTED_AS_SERIES; // managed, marked if `case 11`
 
-    // v-- bit sequences starting with `11` are usually legal multi-byte
+    // v-- bit sequences starting with `11` are *usually* legal multi-byte
     // valid starting points for UTF-8, with only the exceptions made for
     // the illegal 192 and 193 bytes which represent freed series and trash.
 
     case 12: // 0b1100
-        if (*bp == FREED_SERIES_BYTE)
+        if (bp == FREED_SERIES_BYTE)
             return DETECTED_AS_FREED_SERIES;
 
-        if (*bp == TRASH_CELL_BYTE)
+        if (bp == TRASH_CELL_BYTE)
             return DETECTED_AS_TRASH_CELL;
 
         return DETECTED_AS_UTF8;
@@ -1883,7 +1880,6 @@ enum Reb_Pointer_Detect Detect_Rebol_Pointer(const void *p) {
 
     DEAD_END;
 }
-
 
 
 //
@@ -2025,8 +2021,30 @@ REBSER *Rebserize(void *ptr)
 //
 //  Assert_Pointer_Detection_Working: C
 //
+// Check the conditions that are required for Detect_Rebol_Pointer() and
+// Init_Endlike_Header() to work, and throw some sample cases at it to make
+// sure they give the right answer.
+//
 void Assert_Pointer_Detection_Working(void)
 {
+    REBUPT cell_flag = NODE_FLAG_CELL;
+    assert(LEFT_8_BITS(cell_flag) == 0x1);
+    REBUPT end_flag = NODE_FLAG_END;
+    assert(LEFT_8_BITS(end_flag) == 0x8);
+
+    assert(
+        SERIES_INFO_0_IS_TRUE == NODE_FLAG_NODE
+        && SERIES_INFO_1_IS_FALSE == NODE_FLAG_FREE
+        && SERIES_INFO_4_IS_TRUE == NODE_FLAG_END
+        && SERIES_INFO_7_IS_FALSE == NODE_FLAG_CELL
+    );
+    assert(
+        DO_FLAG_0_IS_TRUE == NODE_FLAG_NODE
+        && DO_FLAG_1_IS_FALSE == NODE_FLAG_FREE
+        && DO_FLAG_4_IS_TRUE == NODE_FLAG_END
+        && DO_FLAG_7_IS_FALSE == NODE_FLAG_CELL
+    );
+
     assert(Detect_Rebol_Pointer("") == DETECTED_AS_UTF8);
     assert(Detect_Rebol_Pointer("asdf") == DETECTED_AS_UTF8);
 
@@ -2034,6 +2052,7 @@ void Assert_Pointer_Detection_Working(void)
     assert(Detect_Rebol_Pointer(BLANK_VALUE) == DETECTED_AS_VALUE);
 
     DECLARE_LOCAL (trash_cell);
+    assert(IS_TRASH_DEBUG(trash_cell));
     assert(Detect_Rebol_Pointer(trash_cell) == DETECTED_AS_TRASH_CELL);
 
     DECLARE_LOCAL (end_cell);
@@ -2052,21 +2071,6 @@ void Assert_Pointer_Detection_Working(void)
     assert(Detect_Rebol_Pointer(series) == DETECTED_AS_SERIES);
     Free_Series(series);
     assert(Detect_Rebol_Pointer(series) == DETECTED_AS_FREED_SERIES);
-
-    // Sanity check the flags used for the Init_Endlike_Header trick
-    //
-    assert(
-        SERIES_INFO_0_IS_TRUE == NODE_FLAG_NODE
-        && SERIES_INFO_1_IS_FALSE == NODE_FLAG_FREE
-        && SERIES_INFO_4_IS_TRUE == NODE_FLAG_END
-        && SERIES_INFO_7_IS_FALSE == NODE_FLAG_CELL
-    );
-    assert(
-        DO_FLAG_0_IS_TRUE == NODE_FLAG_NODE
-        && DO_FLAG_1_IS_FALSE == NODE_FLAG_FREE
-        && DO_FLAG_4_IS_TRUE == NODE_FLAG_END
-        && DO_FLAG_7_IS_FALSE == NODE_FLAG_CELL
-    );
 }
 
 

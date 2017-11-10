@@ -2027,11 +2027,14 @@ REB_R Apply_Def_Or_Exemplar(
 
     // We pretend our "input source" has ended.
     //
+    f->source.index = 0;
+    f->source.vaptr = NULL;
+    f->source.array = EMPTY_ARRAY; // for setting HOLD flag in Push_Frame
+    TRASH_POINTER_IF_DEBUG(f->source.pending);
+    //
+    f->gotten = END;
     SET_FRAME_VALUE(f, END);
-    f->index = 0;
-    f->source.array = EMPTY_ARRAY;
     f->specifier = SPECIFIED;
-    TRASH_POINTER_IF_DEBUG(f->pending);
 
     Init_Endlike_Header(&f->flags, DO_FLAG_APPLYING);
 

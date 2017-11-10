@@ -236,8 +236,8 @@ REB_R Do_Vararg_Op_May_Throw(
                 // be ready to use again we're throwing it away, and need to
                 // effectively "undo the prefetch" by taking it down by 1.
                 //
-                assert(f->index > 0);
-                VAL_INDEX(shared) = f->index - 1; // seen by all sharings
+                assert(f->source.index > 0);
+                VAL_INDEX(shared) = f->source.index - 1; // all sharings see
             }
 
             Drop_Frame(f);
@@ -644,7 +644,7 @@ void MF_Varargs(REB_MOLD *mo, const RELVAL *v, REBOOL form) {
                     Append_Unencoded(mo->series, "*C varargs, pending*");
                 else
                     Mold_Array_At(
-                        mo, f->source.array, cast(REBCNT, f->index), NULL
+                        mo, f->source.array, cast(REBCNT, f->source.index), NULL
                     );
             }
             */

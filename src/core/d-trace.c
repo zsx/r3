@@ -442,7 +442,7 @@ REBNATIVE(trace)
 void Trace_Fetch_Debug(const char* msg, REBFRM *f, REBOOL after) {
     Debug_Fmt(
         "%d - %s : %s",
-        cast(REBCNT, f->index),
+        cast(REBCNT, f->source.index),
         msg,
         after ? "AFTER" : "BEFORE"
     );

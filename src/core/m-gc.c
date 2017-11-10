@@ -1138,9 +1138,9 @@ static void Mark_Frame_Stack_Deep(void)
         //
     #if !defined(NDEBUG)
         if (f->flags.bits & DO_FLAG_APPLYING)
-            assert(IS_POINTER_TRASH_DEBUG(f->pending));
+            assert(IS_POINTER_TRASH_DEBUG(f->source.pending));
         else
-            assert(f->pending != NULL); // should live in f->source.array
+            assert(f->source.pending != NULL); // lives in f->source.array
     #endif
 
         ASSERT_ARRAY_MANAGED(f->source.array);

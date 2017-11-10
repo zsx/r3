@@ -185,14 +185,35 @@ inline static void Push_Frame_Core(REBFRM *f)
 }
 
 inline static void UPDATE_EXPRESSION_START(REBFRM *f) {
-    f->expr_index = f->index; // note this is garbage if DO_FLAG_VA_LIST
+    f->expr_index = f->source.index; // this is garbage if DO_FLAG_VA_LIST
 }
 
 inline static void Drop_Frame_Core(REBFRM *f) {
     if (f->flags.bits & DO_FLAG_TOOK_FRAME_HOLD) {
+        //
+        // The frame was either never variadic, or it was but got spooled into
+        // an array by Reify_Va_To_Array_In_Frame()
+        //
+        assert(NOT(FRM_IS_VALIST(f)));
+
         assert(GET_SER_INFO(f->source.array, SERIES_INFO_HOLD));
         CLEAR_SER_INFO(f->source.array, SERIES_INFO_HOLD);
     }
+    else if (FRM_IS_VALIST(f)) {
+        //
+        // Note: While on many platforms va_end() is a no-op, the C standard
+        // is clear it must be called...it's undefined behavior to skip it:
+        //
+        // http://stackoverflow.com/a/32259710/211160
+        //
+        // !!! If rebDo() allows transient elements to be put into the va_list
+        // with the expectation that they will be cleaned up by the end of
+        // the call, any remaining entries in the list would have to be
+        // fetched and processed here.
+        //
+        va_end(*f->source.vaptr);
+    }
+
     assert(TG_Frame_Stack == f);
     TG_Frame_Stack = f->prior;
 }
@@ -203,16 +224,18 @@ inline static void Push_Frame_At(
     REBCNT index,
     REBSPC *specifier,
     REBUPT flags
-) {
-    SET_FRAME_VALUE(f, ARR_AT(array, index));
-    f->source.array = array;
-
+){
     Init_Endlike_Header(&f->flags, flags);
 
     f->gotten = END; // tells ET_WORD and ET_GET_WORD they must do a get
-    f->index = index + 1;
+    SET_FRAME_VALUE(f, ARR_AT(array, index));
+
+    f->source.vaptr = NULL;
+    f->source.array = array;
+    f->source.index = index + 1;
+    f->source.pending = f->value + 1;
+
     f->specifier = specifier;
-    f->pending = f->value + 1;
 
     // The goal of pushing a frame is to reuse it for several sequential
     // operations, when not using DO_FLAG_TO_END.  This is found in operations
@@ -265,34 +288,85 @@ inline static void Recover_Frame(REBFRM *f)
 //
 // Fetch_Next_In_Frame() (see notes above)
 //
+// Once a va_list is "fetched", it cannot be "un-fetched".  Hence only one
+// unit of fetch is done at a time, into f->value.  f->source.pending thus
+// must hold a signal that data remains in the va_list and it should be
+// consulted further.  That signal is an END marker.
+//
+// More generally, an END marker in f->source.pending for this routine is a
+// signal that the vaptr (if any) should be consulted next.
+//
 inline static void Fetch_Next_In_Frame(REBFRM *f) {
     assert(NOT(FRM_AT_END(f))); // caller should test this first
-    assert(f->gotten == END); // is fetched f->value, we'd be invalidating it!
 
-    if (FRM_IS_VALIST(f)) {
-        SET_FRAME_VALUE(f, va_arg(*f->source.vaptr, const REBVAL*));
-        assert(
-            FRM_AT_END(f) ||
-            (IS_VOID(f->value) && (f->flags.bits & DO_FLAG_EXPLICIT_EVALUATE))
-            || NOT(IS_RELATIVE(f->value))
-        );
-
-        // We know addresses on the data stack are unstable during evaluation,
-        // but what about addresses into unlocked arrays?  This assert should
-        // perhaps be strengthened.
+    if (NOT_END(f->source.pending)) {
         //
-        assert(NOT(IN_DATA_STACK_DEBUG(f->value)));
-    }
-    else {
-        // We assume the ->pending value lives in the source array, and can
+        // We assume the ->pending value lives in a source array, and can
         // just be incremented since the array has SERIES_INFO_HOLD while it
         // is being executed hence won't be relocated or modified.  This
         // means the release build doesn't need to call ARR_AT().
         //
-        assert(f->pending == ARR_AT(f->source.array, f->index));
-        SET_FRAME_VALUE(f, f->pending);
-        ++f->pending;
-        ++f->index;
+        // !!! It is probably worth it to tolerate an array of NULL in this
+        // case, as the GC could still iterate over the remaining values.
+        // It would mean any client of such a service would need to accept
+        // the array's values may well be dead after execution.
+        //
+        assert(f->source.pending == ARR_AT(f->source.array, f->source.index));
+        SET_FRAME_VALUE(f, f->source.pending); // !!! optimize out END test
+        ++f->source.pending; // might be becoming an END marker, here
+        ++f->source.index;
+    }
+    else if (f->source.vaptr == NULL) {
+        //
+        // We're not processing a C variadic at all, so the first END we hit
+        // is the full stop end.
+        //
+    end_of_input:
+        f->value = NULL;
+    #if !defined(NDEBUG)
+        f->kind_debug = REB_0;
+        TRASH_POINTER_IF_DEBUG(f->source.pending);
+    #endif
+    }
+    else {
+        // A variadic can source arbitrary pointers, which can be detected
+        // and handled in different ways.  Notably, a UTF-8 string can be
+        // differentiated and loaded.
+        //
+        const void *p = va_arg(*f->source.vaptr, const void*);
+        switch (Detect_Rebol_Pointer(p)) {
+        case DETECTED_AS_UTF8:
+            panic ("UTF8 scanning not covered yet");
+
+        case DETECTED_AS_SERIES:
+            panic ("Sub-array handling not covered yet");
+
+        case DETECTED_AS_FREED_SERIES:
+            panic (p);
+
+        case DETECTED_AS_VALUE:
+            SET_FRAME_VALUE(f, cast(const RELVAL*, p));
+            assert(
+                (
+                    IS_VOID(f->value)
+                    && (f->flags.bits & DO_FLAG_EXPLICIT_EVALUATE)
+                ) || NOT(IS_RELATIVE(f->value))
+            );
+            break;
+        
+        case DETECTED_AS_END: {
+            //
+            // We're at the end of the variadic input, so this is the end of
+            // the line.  va_end() is taken care of by Drop_Frame_Core()
+            //
+            goto end_of_input; }
+
+        case DETECTED_AS_TRASH_CELL:
+            panic (p);
+
+        default:
+            assert(FALSE);
+        };
     }
 }
 
@@ -404,12 +478,16 @@ inline static REBOOL Do_Next_In_Subframe_Throws(
     SET_END(out);
     child->out = out;
 
+    // !!! Should they share a source instead of updating?
     child->source = parent->source;
-    DUP_FRAME_VALUE(child, parent->value);
-    child->index = parent->index;
+
+    child->value = parent->value;
+#if !defined(NDEBUG)
+    child->kind_debug = parent->kind_debug;
+#endif
+
     child->specifier = parent->specifier;
     Init_Endlike_Header(&child->flags, flags);
-    child->pending = parent->pending;
 
     Push_Frame_Core(child);
     (*PG_Do)(child);
@@ -417,12 +495,19 @@ inline static REBOOL Do_Next_In_Subframe_Throws(
 
     assert(
         FRM_IS_VALIST(child)
-        || parent->index != child->index
+        || FRM_AT_END(child)
+        || parent->source.index != child->source.index
         || THROWN(out)
     );
-    parent->pending = child->pending;
-    DUP_FRAME_VALUE(parent, child->value);
-    parent->index = child->index;
+
+    // !!! Should they share a source instead of updating?
+    parent->source = child->source;
+
+    parent->value = child->value;
+#if !defined(NDEBUG)
+    parent->kind_debug = child->kind_debug;
+#endif
+
     parent->gotten = child->gotten;
 
     return THROWN(out);
@@ -473,20 +558,22 @@ inline static REBIXO DO_NEXT_MAY_THROW(
 ){
     DECLARE_FRAME (f);
 
+    f->gotten = END;
     SET_FRAME_VALUE(f, ARR_AT(array, index));
+
     if (FRM_AT_END(f)) {
         Init_Void(out);
         return END_FLAG;
     }
 
-    f->source.array = array;
-    f->specifier = specifier;
-    f->index = index + 1;
-
     Init_Endlike_Header(&f->flags, DO_FLAG_NORMAL);
 
-    f->pending = f->value + 1;
-    f->gotten = END;
+    f->source.vaptr = NULL;
+    f->source.array = array;
+    f->source.index = index + 1;
+    f->source.pending = f->value + 1;
+
+    f->specifier = specifier;
 
     SET_END(out);
     f->out = out;
@@ -501,8 +588,8 @@ inline static REBIXO DO_NEXT_MAY_THROW(
     if (FRM_AT_END(f))
         return END_FLAG;
 
-    assert(f->index > 1);
-    return f->index - 1;
+    assert(f->source.index > 1);
+    return f->source.index - 1;
 }
 
 
@@ -518,20 +605,22 @@ inline static REBIXO Do_Array_At_Core(
     REBCNT index,
     REBSPC *specifier,
     REBFLGS flags
-) {
+){
     DECLARE_FRAME (f);
 
-    if (opt_first) {
+    f->gotten = END;
+
+    f->source.vaptr = NULL;
+    f->source.array = array;
+    if (opt_first != NULL) {
         SET_FRAME_VALUE(f, opt_first);
-        f->index = index;
-        f->pending = ARR_AT(array, index);
+        f->source.index = index;
+        f->source.pending = ARR_AT(array, index);
     }
     else {
-        // Do_Core() requires caller pre-seed first value, always
-        //
         SET_FRAME_VALUE(f, ARR_AT(array, index));
-        f->index = index + 1;
-        f->pending = f->value + 1;
+        f->source.index = index + 1;
+        f->source.pending = f->value + 1;
     }
 
     if (FRM_AT_END(f)) {
@@ -542,21 +631,18 @@ inline static REBIXO Do_Array_At_Core(
     SET_END(out);
     f->out = out;
 
-    f->source.array = array;
     f->specifier = specifier;
 
     Init_Endlike_Header(&f->flags, flags); // see notes on definition
-
-    f->gotten = END; // so REB_WORD and REB_GET_WORD do their own Get_Var
 
     Push_Frame_Core(f);
     (*PG_Do)(f);
     Drop_Frame_Core(f);
 
     if (THROWN(f->out))
-        return THROWN_FLAG; // !!! prohibits recovery from exits
+        return THROWN_FLAG;
 
-    return FRM_AT_END(f) ? END_FLAG : f->index;
+    return FRM_AT_END(f) ? END_FLAG : f->source.index;
 }
 
 
@@ -626,6 +712,8 @@ inline static void Reify_Va_To_Array_In_Frame(
     }
 
     if (FRM_HAS_MORE(f)) {
+        assert(f->source.pending == END);
+
         do {
             // may be void.  Preserve VALUE_FLAG_EVAL_FLIP flag.
             DS_PUSH_RELVAL_KEEP_EVAL_FLIP(f->value, f->specifier);
@@ -633,15 +721,17 @@ inline static void Reify_Va_To_Array_In_Frame(
         } while (FRM_HAS_MORE(f));
 
         if (truncated)
-            f->index = 2; // skip the --optimized-out--
+            f->source.index = 2; // skip the --optimized-out--
         else
-            f->index = 1; // position at the start of the extracted values
+            f->source.index = 1; // position at start of the extracted values
     }
     else {
-        // Leave at the END, but give back the array to serve as
+        assert(IS_POINTER_TRASH_DEBUG(f->source.pending));
+
+        // Leave at end of frame, but give back the array to serve as
         // notice of the truncation (if it was truncated)
         //
-        f->index = 0;
+        f->source.index = 0;
     }
 
     // We're about to overwrite the va_list pointer in the f->source union,
@@ -653,6 +743,7 @@ inline static void Reify_Va_To_Array_In_Frame(
     // the Do_Core() call in Do_Va_Core() never returns.
     //
     va_end(*f->source.vaptr);
+    f->source.vaptr = NULL;
 
     // special array...may contain voids and eval flip is kept
     f->source.array = Pop_Stack_Values_Keep_Eval_Flip(dsp_orig);
@@ -672,8 +763,7 @@ inline static void Reify_Va_To_Array_In_Frame(
     else
         SET_FRAME_VALUE(f, ARR_HEAD(f->source.array));
 
-    assert(f->pending == NULL);
-    f->pending = f->value + 1;
+    f->source.pending = f->value + 1;
 
     assert(NOT(FRM_IS_VALIST(f))); // no longer a va_list fed frame
 }
@@ -685,25 +775,12 @@ inline static void Reify_Va_To_Array_In_Frame(
 // a C function with those parameters (e.g. supplied as arguments, separated
 // by commas).  Uses same method to do so as functions like printf() do.
 //
-// In R3-Alpha this style of invocation was specifically used to call single
-// Rebol functions.  It would use a list of REBVAL*s--each of which could
-// come from disjoint memory locations and be passed directly with no
-// evaluation.  Ren-C replaced this entirely by adapting the evaluator to
-// use va_arg() lists for the same behavior as a DO of an ARRAY.
-//
-// The previously accomplished style of execution with a function which may
-// not be in the arglist can be accomplished using `opt_first` to put that
-// function into the optional first position.  To instruct the evaluator that
-// evaluation will only happen on those values marked explicitly for it,
-// (corresponding to R3-Alpha's APPLY/ONLY) then DO_FLAG_EXPLICIT_EVALUATE
-// should be used--otherwise they will be evaluated normally.
-//
-// NOTE: Ren-C no longer supports the built-in ability to supply refinements
-// positionally, due to the brittleness of this approach (for both system
-// and user code).  The `opt_head` value should be made a path with the
-// function at the head and the refinements specified there.  Future
-// additions could do this more efficiently by allowing the refinement words
-// to be pushed directly to the data stack.
+// The evaluator has a common means of fetching values out of both arrays
+// and C va_lists via Fetch_Next_In_Frame(), so this code can behave the
+// same as if the passed in values came from an array.  However, when values
+// originate from C they often have been effectively evaluated already, so
+// it's desired that WORD!s or PATH!s not execute as they typically would
+// in a block.  So this is often used with DO_FLAG_EXPLICIT_EVALUATE.
 //
 // !!! C's va_lists are very dangerous, there is no type checking!  The
 // C++ build should be able to check this for the callers of this function
@@ -717,14 +794,32 @@ inline static REBIXO Do_Va_Core(
     const REBVAL *opt_first,
     va_list *vaptr,
     REBFLGS flags
-) {
+){
     DECLARE_FRAME (f);
 
+    f->gotten = END; // so REB_WORD and REB_GET_WORD do their own Get_Var
+
+#if !defined(NDEBUG)
+    TRASH_POINTER_IF_DEBUG(f->source.array);
+    f->source.index = TRASHED_INDEX;
+#endif
+    f->source.vaptr = vaptr;
+    f->source.pending = END; // signal next fetch should come from va_list
     if (opt_first)
         SET_FRAME_VALUE(f, opt_first); // no specifier, not relative
     else {
-        SET_FRAME_VALUE(f, va_arg(*vaptr, const REBVAL*));
-        assert(!IS_RELATIVE(f->value));
+    #if !defined(NDEBUG)
+        //
+        // We need to reuse the logic from Fetch_Next_In_Frame here, but it
+        // requires the prior-fetched f->value to be non-NULL in the debug
+        // build.  Make something up that the debug build can trace back to
+        // here via the value's ->track information if it ever gets used.
+        //
+        DECLARE_LOCAL (junk);
+        Init_Unreadable_Blank(junk);
+        f->value = junk;
+    #endif
+        Fetch_Next_In_Frame(f);
     }
 
     if (FRM_AT_END(f)) {
@@ -735,42 +830,16 @@ inline static REBIXO Do_Va_Core(
     SET_END(out);
     f->out = out;
 
-#if !defined(NDEBUG)
-    f->index = TRASHED_INDEX;
-#endif
-    f->source.vaptr = vaptr;
-    f->gotten = END; // so REB_WORD and REB_GET_WORD do their own Get_Var
-    f->specifier = SPECIFIED; // va_list values MUST be full REBVAL* already
-    f->pending = NULL; // only varargs-based frames have NULL for pending
+    f->specifier = SPECIFIED; // relative values not allowed in va_lists
 
     Init_Endlike_Header(&f->flags, flags); // see notes
 
     Push_Frame_Core(f);
     (*PG_Do)(f);
-    Drop_Frame_Core(f);
-
-    // Note: While on many platforms va_end() is a no-op, the C standard is
-    // clear that it must be called...it's undefined behavior if you skip it:
-    //
-    // http://stackoverflow.com/a/32259710/211160
-    //
-    // Yet fail() will longjmp above this stack level, never getting here.  So
-    // it is necessary that the call to va_end be done by Fail_Core() *before*
-    // that longjmp, by walking the stack list and looking for any va_list
-    // frames between the failure point and the trapper.
-    //
-    // But additionally, a frame may have to be "reified" if a GC runs while
-    // this va_list is being processed.  (The reason is that the va_list has
-    // to have its values examined to be GC protected, but there's no API to
-    // allow the values to be examined for GC and then "rewound" to be fed
-    // into evaluation, so they must be stored in an intermediate array.)
-    // Reification also does a va_end(), so we don't want to do it again.
-    //
-    if (FRM_IS_VALIST(f)) // didn't get reified, so va_end() not called...
-        va_end(*vaptr);
+    Drop_Frame_Core(f); // will va_end() if not reified during evaluation
 
     if (THROWN(f->out))
-        return THROWN_FLAG; // !!! prohibits recovery from exits
+        return THROWN_FLAG;
 
     return FRM_AT_END(f) ? END_FLAG : VA_LIST_FLAG;
 }
@@ -780,11 +849,12 @@ inline static REBIXO Do_Va_Core(
 // opposed to taking the `va_list` which has been captured out of the
 // variadic interface).
 //
-inline static REBOOL Do_Va_Throws(REBVAL *out, ...)
-{
+inline static REBOOL Do_Va_Throws(
+    REBVAL *out, // last param before ... mentioned in va_start()
+    ...
+){
     va_list va;
-
-    va_start(va, out); // must mention last param before the "..."
+    va_start(va, out);
 
     REBIXO indexor = Do_Va_Core(
         out,
@@ -814,11 +884,11 @@ inline static REBOOL Do_Va_Throws(REBVAL *out, ...)
 inline static REBOOL Apply_Only_Throws(
     REBVAL *out,
     REBOOL fully,
-    const REBVAL *applicand,
+    const REBVAL *applicand, // last param before ... mentioned in va_start()
     ...
 ) {
     va_list va;
-    va_start(va, applicand); // must mention last param before the "..."
+    va_start(va, applicand);
 
     DECLARE_LOCAL (applicand_eval);
     Move_Value(applicand_eval, applicand);

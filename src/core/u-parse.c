@@ -182,14 +182,14 @@ static REBOOL Subparse_Throws(
 
     f->out = out;
 
+    f->gotten = END;
     SET_FRAME_VALUE(f, VAL_ARRAY_AT(rules)); // not an END due to test
     f->specifier = Derive_Specifier(rules_specifier, rules);
 
+    f->source.vaptr = NULL;
     f->source.array = VAL_ARRAY(rules);
-    f->index = VAL_INDEX(rules) + 1;
-
-    f->pending = f->value + 1;
-    f->gotten = END;
+    f->source.index = VAL_INDEX(rules) + 1;
+    f->source.pending = f->value + 1;
 
     Init_Endlike_Header(&f->flags, 0); // implicitly terminate f->cell
 

@@ -85,7 +85,7 @@ static inline void CATCH_THROWN(REBVAL *arg_out, REBVAL *thrown) {
 #define FS_TOP (TG_Frame_Stack + 0) // avoid assignment to FS_TOP via + 0
 
 #define FRM_IS_VALIST(f) \
-    LOGICAL((f)->pending == NULL)
+    LOGICAL((f)->source.vaptr != NULL)
 
 #define FRM_AT_END(f) \
     LOGICAL((f)->value == NULL)
@@ -108,7 +108,7 @@ inline static REBCNT FRM_INDEX(REBFRM *f) {
     assert(!FRM_IS_VALIST(f));
     return FRM_AT_END(f)
         ? ARR_LEN(f->source.array)
-        : f->index - 1;
+        : f->source.index - 1;
 }
 
 inline static REBCNT FRM_EXPR_INDEX(REBFRM *f) {
@@ -238,6 +238,8 @@ inline static const REBYTE* Frame_Label_Or_Anonymous_UTF8(REBFRM *f) {
 }
 
 inline static void SET_FRAME_VALUE(REBFRM *f, const RELVAL* value) {
+    assert(f->gotten == END); // is fetched f->value, we'd be invalidating it!
+
 #if !defined(NDEBUG)
     if (IS_END(value))
         f->kind_debug = REB_0;
@@ -251,16 +253,6 @@ inline static void SET_FRAME_VALUE(REBFRM *f, const RELVAL* value) {
         f->value = value;
 }
 
-inline static void DUP_FRAME_VALUE(REBFRM *f, const_RELVAL_NO_END_PTR value) {
-#if !defined(NDEBUG)
-    if (value == NULL)
-        f->kind_debug = REB_0;
-    else
-        f->kind_debug = VAL_TYPE(value);
-#endif
-
-    f->value = value;
-}
 
 
 //=////////////////////////////////////////////////////////////////////////=//

@@ -266,10 +266,34 @@
     LOGICAL((k) >= REB_BLOCK)
 
 
-union Reb_Frame_Source {
-    REBARR *array;
+struct Reb_Frame_Source {
+    //
+    // A frame may be sourced from a va_list of pointers, or not.  If this is
+    // NULL it is assumed that the values are sourced from a simple array.
+    //
     va_list *vaptr;
+
+    // This contains an IS_END() marker if the next fetch should be an attempt
+    // to consult the va_list (if any).  That end marker may be resident in
+    // an array, or if it's a plain va_list source it may be the global END.
+    //
+    const RELVAL *pending;
+
+    // If values are being sourced from an array, this holds the pointer to
+    // that array.  By knowing the array it is possible for error and debug
+    // messages to reach backwards and present more context of where the
+    // error is located.
+    //
+    REBARR *array;
+
+    // `index`
+    //
+    // This holds the index of the *next* item in the array to fetch as
+    // f->value for processing.  It's invalid if the frame is for a C va_list.
+    //
+    REBUPT index;
 };
+
 
 // NOTE: The ordering of the fields in `Reb_Frame` are specifically done so
 // as to accomplish correct 64-bit alignment of pointers on 64-bit systems.
@@ -338,7 +362,7 @@ struct Reb_Frame {
     // conditions require the va_list to be converted to an array, see notes
     // on Reify_Va_To_Array_In_Frame().)
     //
-    union Reb_Frame_Source source;
+    struct Reb_Frame_Source source;
 
     // `specifier`
     //
@@ -352,30 +376,26 @@ struct Reb_Frame {
 
     // `value`
     //
-    // This is the value currently being processed.  Callers pass in the
-    // first value pointer...which for any successive evaluations will be
-    // updated via picking from `array` based on `index`.  But having the
-    // caller pass in the initial value gives the *option* of that value
-    // not being resident in the series.
+    // This is the "prefetched" value being processed.  Entry points to the
+    // evaluator must load a first value pointer into it...which for any
+    // successive evaluations will be updated via Fetch_Next_In_Frame()--which
+    // retrieves values from arrays or va_lists.  But having the caller pass
+    // in the initial value gives the option of that value being out of band.
     //
     // (Hence if one has the series `[[a b c] [d e]]` it would be possible to
     // have an independent path value `append/only` and NOT insert it in the
     // series, yet get the effect of `append/only [a b c] [d e]`.  This only
     // works for one value, but is a convenient no-cost trick for apply-like
     // situations...as insertions usually have to "slide down" the values in
-    // the series and may also need to perform alloc/free/copy to expand.)
+    // the series and may also need to perform alloc/free/copy to expand.
+    // It also is helpful since in C, variadic functions must have at least
+    // one non-variadic parameter...and one might want that non-variadic
+    // parameter to be blended in with the variadics.)
     //
     // !!! Review impacts on debugging; e.g. a debug mode should hold onto
     // the initial value in order to display full error messages.
     //
     const_RELVAL_NO_END_PTR value;
-
-    // `index`
-    //
-    // This holds the index of the *next* item in the array to fetch as
-    // f->value for processing.  It's invalid if the frame is for a C va_list.
-    //
-    REBUPT index;
 
     // `expr_index`
     //
@@ -416,19 +436,6 @@ struct Reb_Frame {
     // across this (and other modifications) need to use the INDEXOR-based API.
     //
     const REBVAL *gotten;
-
-    // `pending`
-    //
-    // Mechanically speaking, running an EVAL has to overwrite `value` from
-    // the natural pre-fetching course, so that the evaluated value can be
-    // simulated as living in the line of execution.  Because fetching moves
-    // forward only, we'd lose the next value if we didn't save it somewhere.
-    //
-    // This pointer saves the prefetched value that eval overwrites, and
-    // by virtue of not being NULL signals to just use the value on the
-    // next fetch instead of fetching again.
-    //
-    const RELVAL *pending;
 
     // `phase` and `original`
     //

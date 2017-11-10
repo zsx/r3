@@ -325,7 +325,7 @@ ATTRIBUTE_NO_RETURN void Fail_Core(const void *p)
             va_end(*f->source.vaptr);
 
         REBFRM *prior = f->prior;
-        Drop_Frame_Core(f);
+        Drop_Frame_Core(f); // will call va_end() if variadic frame
         f = prior;
     }
 

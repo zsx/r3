@@ -266,19 +266,13 @@ static inline void Link_Vararg_Param_To_Frame(REBFRM *f, REBOOL make) {
 //     Fetched first value to execute (cannot be an END marker)
 //
 //     f->source
-//     Contains the REBARR* or C va_list of subsequent values to fetch
-//
-//     f->index
-//     Needed if f->source is an array (can be garbage if it's a C va_list)
-//
-//     f->pending
-//     Must be NULL if source is a va_list, else next value to be fetched
+//     Contains the REBARR* or C va_list of subsequent values to fetch.
 //
 //     f->specifier
 //     Resolver for bindings of values in f->source, SPECIFIED if all resolved
 //
 //     f->gotten
-//     Must be either be the Get_Var() lookup of f->value, or NULL
+//     Must be either be the Get_Var() lookup of f->value, or END
 //
 // More detailed assertions of the preconditions, postconditions, and state
 // at each evaluation step are contained in %d-eval.c

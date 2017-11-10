@@ -87,7 +87,7 @@ void Dump_Frame_Location(REBFRM *f)
             dump,
             REB_BLOCK,
             SER(f->source.array),
-            cast(REBCNT, f->index),
+            cast(REBCNT, f->source.index),
             f->specifier
         );
 
@@ -217,13 +217,13 @@ static void Do_Core_Shared_Checks_Debug(REBFRM *f) {
     assert(DSP == f->dsp_orig);
 
     if (FRM_IS_VALIST(f))
-        assert(f->index == TRASHED_INDEX);
+        assert(f->source.index == TRASHED_INDEX);
     else {
         assert(
-            f->index != TRASHED_INDEX
-            && f->index != END_FLAG
-            && f->index != THROWN_FLAG
-            && f->index != VA_LIST_FLAG
+            f->source.index != TRASHED_INDEX
+            && f->source.index != END_FLAG
+            && f->source.index != THROWN_FLAG
+            && f->source.index != VA_LIST_FLAG
         ); // END, THROWN, VA_LIST only used by wrappers
     }
 
@@ -360,13 +360,13 @@ void Do_Core_Exit_Checks_Debug(REBFRM *f) {
 
     if (NOT(FRM_AT_END(f)) && NOT(FRM_IS_VALIST(f))) {
         assert(
-            (f->index <= ARR_LEN(f->source.array))
+            (f->source.index <= ARR_LEN(f->source.array))
             || (
                 (
-                    (f->pending && IS_END(f->pending))
+                    (f->source.pending && IS_END(f->source.pending))
                     || THROWN(f->out)
                 )
-                && f->index == ARR_LEN(f->source.array) + 1
+                && f->source.index == ARR_LEN(f->source.array) + 1
             )
         );
     }
