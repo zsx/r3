@@ -406,7 +406,7 @@ REBVAL *RL_rebDo(const void *p, ...)
 //
 // Non-variadic function which takes a single argument which must be a single
 // value.  It invokes the basic behavior of the DO native on a value.
-// 
+//
 REBVAL *RL_rebDoValue(const REBVAL *v)
 {
     // don't need an Enter_Api_Clear_Last_Error(); call while implementation
@@ -419,9 +419,12 @@ REBVAL *RL_rebDoValue(const REBVAL *v)
     // so "do" and "quote" could be provided textually by users yet not
     // loaded and bound each time.
     //
-    // As with much of the API it could be more optimal, but 
+    // As with much of the API it could be more optimal, but this is a test
+    // of the concept.  BLANK_VALUE has to be used for the moment as the
+    // first instruction since rebEval() instructions are not allowed in
+    // the preload slot of a variadic yet.
     //
-    return rebDo(rebEval(NAT_VALUE(do)), v, END);
+    return rebDo(BLANK_VALUE, rebEval(NAT_VALUE(do)), v, END);
 }
 
 
@@ -461,22 +464,33 @@ REBVAL *RL_rebLastError(void)
 //
 // When rebDo() receives a REBVAL*, the default is to assume it should be
 // spliced into the input stream as if it had already been evaluated.  It's
-// only segments of code supplied via UTF-8 strings, or so-called "REBEVL"
-// that are live and can execute functions.
+// only segments of code supplied via UTF-8 strings, that are live and can
+// execute functions.
 //
-// REBEVL are type-incompatible with REBVAL and cannot be stored in them.
-// They can only be used within a rebDo() stream.  Their lifetime management
-// is automatic and can only be freed by the rebDo() in which they are called.
+// This instruction is used with rebDo() in order to mark a value as being
+// evaluated.
 //
-REBVAL *RL_rebEval(const REBVAL *v)
+void *RL_rebEval(const REBVAL *v)
 {
     Enter_Api_Clear_Last_Error();
 
-    REBVAL *result = Alloc_Pairing(NULL);
-    Move_Value(result, v);
-    SET_VAL_FLAG(result, VALUE_FLAG_EVAL_FLIP);
-    Init_Blank(PAIRING_KEY(result));
+    // !!! The presence of the VALUE_FLAG_EVAL_FLIP is a pretty good
+    // indication that it's an eval instruction.  So it's not necessary to
+    // fill in the ->link or ->misc fields.  But if there were more
+    // instructions like this, there'd probably need to be a misc->opcode or
+    // something to distinguish them.
+    //
+    REBARR *result = Alloc_Singular_Array();
+    Move_Value(KNOWN(ARR_HEAD(result)), v);
+    SET_VAL_FLAG(ARR_HEAD(result), VALUE_FLAG_EVAL_FLIP);
 
+    // !!! The intent for the long term is that these rebEval() instructions
+    // not tax the garbage collector and be freed as they are encountered
+    // while traversing the va_list.  Right now an assert would trip if we
+    // tried that.  It's a good assert in general, so rather than subvert it
+    // the instructions are just GC managed for now.
+    //
+    MANAGE_ARRAY(result);
     return result;
 }
 

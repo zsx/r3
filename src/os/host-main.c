@@ -158,6 +158,7 @@ int Host_Repl(const REBVAL *repl_fun) {
         // does not come back NULL indicating a failure).
         //
         REBVAL *code = rebDo(
+            BLANK_VALUE, // hack around rebEval() not allowed yet in first slot
             rebEval(repl_fun), // HOST-CONSOLE function (run it)
             result, // last-result (always blank first run through loop)
             last_failed, // TRUE, FALSE, BLANK! on first run, BAR! if HALT

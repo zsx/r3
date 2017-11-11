@@ -549,6 +549,11 @@ enum Reb_Vararg_Op {
     VARARG_OP_TAKE // doesn't modify underlying data stream--advances index
 };
 
+// %sys-do.h needs to call into the scanner if Fetch_Next_In_Frame() is to
+// be inlined at all (at its many time-critical callsites), so the scanner
+// API has to be exposed with SCAN_STATE before %tmp-funcs.h
+//
+#include "sys-scan.h"
 
 // Historically, Rebol source did not include %reb-ext.h...because it was
 // assumed the core would never want to use the less-privileged and higher
@@ -670,8 +675,6 @@ enum Reb_Vararg_Op {
 
 #include "sys-frame.h"
 #include "sys-bind.h"
-
-#include "sys-scan.h"
 
 #include "sys-library.h"
 

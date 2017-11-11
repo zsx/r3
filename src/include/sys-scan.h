@@ -283,36 +283,3 @@ enum {
 **  Externally Accessed Variables
 */
 extern const REBYTE Lex_Map[256];
-
-
-// R3-Alpha did not support unicode codepoints higher than 0xFFFF, because
-// strings were only 1 or 2 bytes per character.  Future plans for Ren-C may
-// use the "UTF8 everywhere" philosophy as opposed to extending this to
-// strings which have more bytes.
-//
-// Until support for "astral plane" characters is added, this inline function
-// traps large characters when strings are being scanned.  If a client wishes
-// to handle them explicitly, use Back_Scan_UTF8_Char_Core().
-//
-// Though the machinery can decode a UTF32 32-bit codepoint, the interface
-// uses a 16-bit REBUNI (due to that being all that Rebol supports at this
-// time).  If a codepoint that won't fit in 16-bits is found, it will raise
-// an error vs. return NULL.  This makes it clear that the problem is not
-// with the data itself being malformed (the usual assumption of callers)
-// but rather a limit of the implementation.
-//
-inline static const REBYTE *Back_Scan_UTF8_Char(
-    REBUNI *out,
-    const REBYTE *bp,
-    REBCNT *len
-){
-    unsigned long ch; // "UTF32" is defined as unsigned long
-    const REBYTE *bp_new = Back_Scan_UTF8_Char_Core(&ch, bp, len);
-    if (bp_new != NULL && ch > 0xFFFF) {
-        DECLARE_LOCAL (num);
-        Init_Integer(num, cast(REBI64, ch));
-        fail (Error_Codepoint_Too_High_Raw(num));
-    }
-    *out = cast(REBUNI, ch);
-    return bp_new;
-}

@@ -216,15 +216,17 @@ static void Do_Core_Shared_Checks_Debug(REBFRM *f) {
     assert(f->state_debug.top_chunk == TG_Top_Chunk);
     assert(DSP == f->dsp_orig);
 
-    if (FRM_IS_VALIST(f))
-        assert(f->source.index == TRASHED_INDEX);
-    else {
+    if (f->source.array != NULL) {
+        assert(NOT(IS_POINTER_TRASH_DEBUG(f->source.array)));
         assert(
             f->source.index != TRASHED_INDEX
             && f->source.index != END_FLAG
             && f->source.index != THROWN_FLAG
             && f->source.index != VA_LIST_FLAG
         ); // END, THROWN, VA_LIST only used by wrappers
+    }
+    else {
+        assert(f->source.index == TRASHED_INDEX);
     }
 
     // If this fires, it means that Flip_Series_To_White was not called an

@@ -939,6 +939,15 @@ acquisition_loop:
             DS_PUSH_TRASH;
             Move_Value(DS_TOP, splice);
 
+            // !!! The needs of rebDo() are such that it wants to preserve
+            // the non-user-visible EVAL_FLIP bit, which is usually not copied
+            // by Move_Value.  This should not be allowed by rebBlock(),
+            // however...so find a way to disable that in case someone puts
+            // a rebEval() inside a rebBlock().
+            //
+            if (GET_VAL_FLAG(splice, VALUE_FLAG_EVAL_FLIP))
+                SET_VAL_FLAG(DS_TOP, VALUE_FLAG_EVAL_FLIP);
+
             if (ss->newline_pending) {
                 ss->newline_pending = FALSE;
                 SET_VAL_FLAG(DS_TOP, VALUE_FLAG_LINE);
@@ -1611,14 +1620,16 @@ scanword:
 //
 // Initialize a scanner state structure, using variadic C arguments.
 //
-static void Init_Va_Scan_State_Core(
+void Init_Va_Scan_State_Core(
     SCAN_STATE *ss,
     REBSTR *filename,
     REBUPT line,
+    const REBYTE *opt_begin, // preload the scanner outside the va_list
     va_list *vaptr
 ){
     ss->vaptr = vaptr;
-    ss->begin = NULL; // signal Locate_Token to first fetch from vaptr
+
+    ss->begin = opt_begin; // if NULL Locate_Token does first fetch from vaptr
     TRASH_POINTER_IF_DEBUG(ss->end);
 
     // !!! Splicing REBVALs into a scan as it goes creates complexities for
@@ -1764,7 +1775,7 @@ static REBARR *Scan_Child_Array(SCAN_STATE *ss, REBYTE mode_char);
 // transformation (e.g. if the first element was a GET-WORD!, change it to
 // an ordinary WORD! and make it a GET-PATH!)  The caller does this.
 //
-static REBARR *Scan_Array(
+REBARR *Scan_Array(
     SCAN_STATE *ss,
     REBYTE mode_char
 ) {
@@ -2262,7 +2273,12 @@ array_done:
 array_done_relax:
     Drop_Mold_If_Pushed(&mo);
 
-    REBARR *result = Pop_Stack_Values(dsp_orig);
+    // !!! Because a variadic rebDo() can have rebEval() entries, when it
+    // delegates to the scanner that may mean it sees those entries.  This
+    // should not be legal in constructors like rebBlock() since rebEval()
+    // is not exposed there, so review how to prohibit it.
+    //
+    REBARR *result = Pop_Stack_Values_Keep_Eval_Flip(dsp_orig);
 
     // All scanned code is expected to be managed by the GC (because walking
     // the tree after constructing it to add the "manage GC" bit would be
@@ -2367,7 +2383,7 @@ REBARR *Scan_Va_Managed(
     va_list va;
     va_start(va, filename);
 
-    Init_Va_Scan_State_Core(&ss, filename, start_line, &va);
+    Init_Va_Scan_State_Core(&ss, filename, start_line, NULL, &va);
 
     REBARR *array = Scan_Array(&ss, 0);
 
