@@ -312,6 +312,72 @@ void RL_rebShutdown(REBOOL clean)
 }
 
 
+// Broken out as a function to avoid longjmp "clobbering" from PUSH_TRAP()
+//
+inline static REBOOL Reb_Do_Api_Core_Fails(
+    REBVAL * const out,
+    const void * const p,
+    va_list * const vaptr
+){
+    struct Reb_State state;
+    REBCTX *error;
+
+    PUSH_UNHALTABLE_TRAP(&error, &state); // must catch HALTs
+
+// The first time through the following code 'error' will be NULL, but...
+// `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
+
+    if (error != NULL) {
+        if (ERR_NUM(error) == RE_HALT) {
+            Init_Bar(PG_last_error); // denotes halting (for now)
+            return TRUE;
+        }
+
+        Init_Error(PG_last_error, error);
+        return TRUE;
+    }
+
+    // Note: It's not possible to make C variadics that can take 0 arguments;
+    // there always has to be one real argument to find the varargs.  Luckily
+    // the design of REBFRM* allows us to pre-load one argument outside of the
+    // REBARR* or va_list is being passed in.  Pass `p` as opt_first argument.
+    //
+    // !!! Loading of UTF-8 strings is not supported yet, cast to REBVAL
+    //
+    REBIXO indexor = Do_Va_Core(
+        out,
+        cast(const REBVAL*, p), // opt_first (see note above)
+        vaptr,
+        DO_FLAG_EXPLICIT_EVALUATE | DO_FLAG_TO_END
+    );
+
+    DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
+
+    if (indexor == THROWN_FLAG) {
+        if (IS_FUNCTION(out) && VAL_FUNC_DISPATCHER(out) == &N_quit) {
+            //
+            // Command issued a purposeful QUIT or EXIT.  Convert the
+            // QUIT/WITH value (if any) into an integer for last error to
+            // signal this (for now).
+            //
+            CATCH_THROWN(out, out);
+            Init_Integer(PG_last_error, Exit_Status_From_Value(out));
+            return TRUE;
+        }
+
+        // For now, convert all other THROWN() values into uncaught throw
+        // errors.  Since that error captures the thrown value as well as the
+        // throw name, the information is there to be extracted.
+        //
+        Init_Error(PG_last_error, Error_No_Catch_For_Throw(out));
+        return TRUE;
+    }
+
+    assert(indexor == END_FLAG); // we asked to do to end
+    return FALSE;
+}
+
+
 //
 //  rebDo: RL_API
 //
@@ -335,68 +401,18 @@ REBVAL *RL_rebDo(const void *p, ...)
     va_list va;
     va_start(va, p);
 
-    struct Reb_State state;
-    REBCTX *error;
-
-    PUSH_UNHALTABLE_TRAP(&error, &state); // must catch HALTs
-
-// The first time through the following code 'error' will be NULL, but...
-// `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
-
-    if (error != NULL) {
-        va_end(va); // not necessarily a no-op
-        Free_Pairing(result); // incomplete output (or never written to)
-
-        if (ERR_NUM(error) == RE_HALT) {
-            Init_Bar(PG_last_error);
-            return NULL;
-        }
-
-        Init_Error(PG_last_error, error);
-        return NULL;
-    }
-
-    // Note: It's not possible to make C variadics that can take 0 arguments;
-    // there always has to be one real argument to find the varargs.  Luckily
-    // the design of REBFRM* allows us to pre-load one argument outside of the
-    // REBARR* or va_list is being passed in.  Pass `p` as opt_first argument.
+    // Due to the way longjmp works, it can possibly "clobber" result if it
+    // is in a register.  The easiest way to get around this is to wrap the
+    // code in a separate function.  Even if that function is inlined, it
+    // should obey the conventions.
     //
-    // !!! Loading of UTF-8 strings is not supported yet, cast to REBVAL
-    //
-    REBIXO indexor = Do_Va_Core(
-        result,
-        cast(const REBVAL*, p), // opt_first (see note above)
-        &va,
-        DO_FLAG_EXPLICIT_EVALUATE | DO_FLAG_TO_END
-    );
-
-    DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
-
-    va_end(va);
-
-    if (indexor == THROWN_FLAG) {
-        if (IS_FUNCTION(result) && VAL_FUNC_DISPATCHER(result) == &N_quit) {
-            //
-            // Command issued a purposeful QUIT or EXIT.  Convert the
-            // QUIT/WITH value (if any) into an integer for last error to
-            // signal this.
-            //
-            CATCH_THROWN(result, result);
-            Init_Integer(PG_last_error, Exit_Status_From_Value(result));
-            Free_Pairing(result);
-            return NULL;
-        }
-
-        // For now, convert all other THROWN() values into uncaught throw
-        // errors.  Since that error captures the thrown value as well as the
-        // throw name, the information is there to be extracted.
-        //
-        Init_Error(PG_last_error, Error_No_Catch_For_Throw(result));
+    if (Reb_Do_Api_Core_Fails(result, p, &va)) {
         Free_Pairing(result);
+        va_end(va);
         return NULL;
     }
-
-    assert(indexor == END_FLAG); // we asked to do to end
+    
+    va_end(va);
     return result; // client's responsibility to rebFree(), for now
 }
 
