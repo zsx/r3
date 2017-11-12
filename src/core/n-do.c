@@ -87,6 +87,7 @@ REBNATIVE(eval)
 //          <opt> ;-- should DO accept an optional argument (chaining?)
 //          blank! ;-- same question... necessary, or not?
 //          block! ;-- source code in block form
+//          group! ;-- same as block (or should it have some other nuance?)
 //          string! ;-- source code in text form
 //          binary! ;-- treated as UTF-8
 //          url! ;-- load code from URL via protocol

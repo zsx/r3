@@ -1148,6 +1148,21 @@ void RL_rebFree(REBVAL *v)
 
 
 //
+//  rebError: RL_API
+//
+REBVAL *RL_rebError(const char *msg)
+{
+    Enter_Api_Cant_Error();
+
+    REBVAL *result = Alloc_Pairing(NULL);
+    Init_Error(result, Error_User(msg));
+    Init_Blank(PAIRING_KEY(result));
+
+    return result; // user currently responsible for rebFree()-ing
+}
+
+
+//
 //  rebFail: RL_API
 //
 void RL_rebFail(const void *p)
@@ -1164,6 +1179,17 @@ void RL_rebFail(const void *p)
 void RL_rebPanic(const void *p)
 {
     Enter_Api_Cant_Error();
+
+    // !! Panic on values needs to be updated to give good diagnostics for API
+    // handles.  (At the moment it just says it can't find an enclosing series
+    // because it's a pairing.)  Workaround for the moment by extracting to
+    // a non-pairing value.
+    //
+    if (Detect_Rebol_Pointer(p) == DETECTED_AS_VALUE) {
+        DECLARE_LOCAL (temp);
+        Move_Value(temp, cast(const REBVAL*, p));
+        Panic_Core(temp, __FILE__, __LINE__);
+    }
 
     Panic_Core(p, __FILE__, __LINE__);
 }

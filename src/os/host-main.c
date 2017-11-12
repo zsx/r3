@@ -137,104 +137,12 @@ void Host_Crash(const char *reason) {
 }
 
 
-int Host_Repl(const REBVAL *repl_fun) {
-    REBVAL *result = rebVoid(); // ATM, result has to be freed each loop
-
-    const REBVAL *last_failed = BLANK_VALUE; // indicate first call to REPL
-
-    while (TRUE) {
-    loop:;
-        // !!! We do not want the trace level to apply to the REPL execution
-        // itself.  Review how a usermode trace hook would recognize the
-        // REPL dispatch and suspend tracing until the REPL ends.
-        //
-        REBINT Save_Trace_Level = Trace_Level;
-        REBINT Save_Trace_Depth = Trace_Depth;
-        Trace_Level = 0;
-        Trace_Depth = 0;
-
-        // !!! In this early phase of trying to establish the API, we assume
-        // this code is responsible for freeing the result `code` (if it
-        // does not come back NULL indicating a failure).
-        //
-        REBVAL *code = rebDo(
-            BLANK_VALUE, // hack around rebEval() not allowed yet in first slot
-            rebEval(repl_fun), // HOST-CONSOLE function (run it)
-            result, // last-result (always blank first run through loop)
-            last_failed, // TRUE, FALSE, BLANK! on first run, BAR! if HALT
-            BLANK_VALUE, // focus-level, supplied by debugger REPL, not here
-            BLANK_VALUE, // focus-frame, ...same
-            END
-        );
-
-        // Currently the contract is we have to free the last result, so now
-        // that the REPL has seen it for this loop free it.
-        //
-        rebFree(result);
-
-        if (code == NULL) {
-            //
-            // We don't really want the REPL code itself invoking HALT.  But
-            // so long as we have a handler for Ctrl-C registered, it is
-            // possible that the interrupt will happen while the REPL is
-            // doing something (LOADing text, PRINTing errors, etc.)  If
-            // so, just loop it.
-            //
-            REBVAL *e = rebLastError();
-            if (IS_BAR(e)) { // currently means halted
-                result = rebVoid();
-                last_failed = BAR_VALUE;
-                goto loop;
-            }
-
-            // !!! Handle if REPL has a bug/error in it?
-            //
-            rebPanic (rebLastError());
-        }
-
-        Trace_Level = Save_Trace_Level;
-        Trace_Depth = Save_Trace_Depth;
-
-        if (NOT(IS_BLOCK(code)))
-            panic (code); // !!! Handle if REPL doesn't return a block?
-
-        result = rebDoValue(code);
-        rebFree(code);
-
-        if (result == NULL) {
-            REBVAL *e = rebLastError();
-            assert(e != NULL);
-
-            if (IS_BAR(e)) { // currently means "halted", not really an ERROR!
-                result = rebVoid();
-                last_failed = BAR_VALUE; // informs REPL it was a HALT/Ctrl-C
-                rebFree(e);
-                goto loop;
-            }
-
-            if (IS_INTEGER(e)) { // currently means quit with exit code
-                int exit_status = VAL_INT32(e);
-                rebFree(e);
-                return exit_status;
-            }
-
-            assert(IS_ERROR(e));
-
-            result = e; // don't free because it's being passed to REPL
-            last_failed = TRUE_VALUE; // failure, REPL should output error
-            goto loop;
-        }
-
-        // NOTE: Although the operation has finished at this point, it may
-        // be that a Ctrl-C set up a pending FAIL, which will be triggered
-        // during output below.  See the PUSH_UNHALTABLE_TRAP in the caller.
-
-        last_failed = FALSE_VALUE; // success, so REPL should output result
-    }
-
-    DEAD_END;
-}
-
+// Assume that Ctrl-C is enabled in a console application by default.
+// (Technically it may be set to be ignored by a parent process or context,
+// in which case conventional wisdom is that we should not be enabling it
+// ourselves.)
+//
+REBOOL ctrl_c_enabled = TRUE;
 
 
 #ifdef TO_WINDOWS
@@ -244,7 +152,7 @@ int Host_Repl(const REBVAL *repl_fun) {
 //
 BOOL WINAPI Handle_Break(DWORD dwCtrlType)
 {
-    switch(dwCtrlType) {
+    switch (dwCtrlType) {
     case CTRL_C_EVENT:
     case CTRL_BREAK_EVENT:
         rebHalt();
@@ -274,22 +182,257 @@ BOOL WINAPI Handle_Break(DWORD dwCtrlType)
 
 BOOL WINAPI Handle_Nothing(DWORD dwCtrlType)
 {
-    UNUSED(dwCtrlType);
-    return TRUE;
+    if (dwCtrlType == CTRL_C_EVENT)
+        return TRUE;
+
+    return FALSE;
+}
+
+void Disable_Ctrl_C(void)
+{
+    assert(ctrl_c_enabled);
+
+    SetConsoleCtrlHandler(Handle_Break, FALSE);
+    SetConsoleCtrlHandler(Handle_Nothing, TRUE);
+
+    ctrl_c_enabled = FALSE;
+}
+
+void Enable_Ctrl_C(void)
+{
+    assert(NOT(ctrl_c_enabled));
+
+    SetConsoleCtrlHandler(Handle_Break, TRUE);
+    SetConsoleCtrlHandler(Handle_Nothing, FALSE);
+
+    ctrl_c_enabled = TRUE;
 }
 
 #else
 
+// SIGINT is the interrupt usually tied to "Ctrl-C".  Note that if you use
+// just `signal(SIGINT, Handle_Signal);` as R3-Alpha did, this means that
+// blocking read() calls will not be interrupted with EINTR.  One needs to
+// use sigaction() if available...it's a slightly newer API.
 //
-// Hook registered via `signal()`.
+// http://250bpm.com/blog:12
 //
+// !!! What should be done about SIGTERM ("polite request to end", default
+// unix kill) or SIGHUP ("user's terminal disconnected")?  Is it useful to
+// register anything for these?  R3-Alpha did, and did the same thing as
+// SIGINT.  Not clear why.  It did nothing for SIGQUIT:
+//
+// SIGQUIT is used to terminate a program in a way that is designed to
+// debug it, e.g. a core dump.  Receiving SIGQUIT is a case where
+// program exit functions like deletion of temporary files may be
+// skipped to provide more state to analyze in a debugging scenario.
+//
+// SIGKILL is the impolite signal for shutdown; cannot be hooked/blocked
+
 static void Handle_Signal(int sig)
 {
     UNUSED(sig);
     rebHalt();
 }
 
+struct sigaction old_action;
+
+void Disable_Ctrl_C(void)
+{
+    assert(ctrl_c_enabled);
+
+    sigaction(SIGINT, NULL, &old_action); // fetch current handler
+    if (old_action.sa_handler != SIG_IGN) {
+        struct sigaction new_action;
+        new_action.sa_handler = SIG_IGN;
+        sigemptyset(&new_action.sa_mask);
+        new_action.sa_flags = 0;
+        sigaction(SIGINT, &new_action, NULL);
+    }
+
+    ctrl_c_enabled = FALSE;
+}
+
+void Enable_Ctrl_C(void)
+{
+    assert(NOT(ctrl_c_enabled));
+
+    if (old_action.sa_handler != SIG_IGN) {
+        struct sigaction new_action;
+        new_action.sa_handler = &Handle_Signal;
+        sigemptyset(&new_action.sa_mask);
+        new_action.sa_flags = 0;
+        sigaction(SIGINT, &new_action, NULL);
+    }
+
+    ctrl_c_enabled = TRUE;
+}
+
 #endif
+
+
+
+int Host_Repl(const REBVAL *repl_fun) {
+    REBVAL *result = rebVoid(); // ATM, result has to be freed each loop
+
+    const REBVAL *last_failed = VOID_CELL; // indicate first call to REPL
+
+    while (TRUE) {
+    loop:;
+        // !!! We do not want the trace level to apply to the REPL execution
+        // itself.  Review how a usermode trace hook would recognize the
+        // REPL dispatch and suspend tracing until the REPL ends.
+        //
+        REBINT Save_Trace_Level = Trace_Level;
+        REBINT Save_Trace_Depth = Trace_Depth;
+        Trace_Level = 0;
+        Trace_Depth = 0;
+
+        assert(NOT(ctrl_c_enabled)); // can't cancel during HOST-CONSOLE
+
+        // !!! In this early phase of trying to establish the API, we assume
+        // this code is responsible for freeing the result `code` (if it
+        // does not come back NULL indicating a failure).
+        //
+        REBVAL *code = rebDo(
+            BLANK_VALUE, // hack around rebEval() not allowed yet in first slot
+            rebEval(repl_fun), // HOST-CONSOLE function (run it)
+            result, // last-result (always void first run through loop)
+            last_failed, // LOGIC! or BLANK!, void on first run, BAR! if HALT
+            BLANK_VALUE, // focus-level, supplied by debugger REPL, not here
+            BLANK_VALUE, // focus-frame, ...same
+            END
+        );
+
+        // Currently the contract is we have to free the last result, so now
+        // that the REPL has seen it for this loop free it.
+        //
+        rebFree(result);
+
+        // Hackily work around the constness to free the ERROR! case of
+        // LAST-FAILED (the API is undergoing experiments to better understand
+        // lifetime contracts of the handles, and what the means of freeing
+        // basic types like void or LOGIC! or BAR! or BLANK! will be...)
+        //
+        if (IS_ERROR(last_failed))
+            rebFree(m_cast(REBVAL*, last_failed));
+
+        if (code == NULL) {
+            //
+            // We don't really want the REPL code itself invoking HALT.  But
+            // so long as we have a handler for Ctrl-C registered, it is
+            // possible that the interrupt will happen while the REPL is
+            // doing something (LOADing text, PRINTing errors, etc.)  If
+            // so, just loop it.
+            //
+            REBVAL *e = rebLastError();
+
+            // The REPL code itself cannot halt, because `user_code_running`
+            // is set to false.  (BAR! is the current signal for meaning
+            // the rebDo() halted from the rebLastError()).
+            //
+            assert(NOT(IS_BAR(e)));
+
+            // The REPL code itself *shouldn't* error.  This is why it is
+            // written to take all the user extension code and wrap it up
+            // to ask it to be run in a protected fashion.  If the REPL *does*
+            // error, the panic should be able to offer some amount of
+            // information about that error.
+            //
+            rebPanic (e);
+        }
+
+        Trace_Level = Save_Trace_Level;
+        Trace_Depth = Save_Trace_Depth;
+
+        if (NOT(IS_BLOCK(code)) && NOT(IS_GROUP(code))) {
+            //
+            // !!! Treat this as the harsher form of error that suspects
+            // there is something wrong with the skin.  Though it might seem
+            // that HOST-CONSOLE itself controls the return types, there
+            // could be some delegation assumptions that allow a hook to
+            // make the HOST-CONSOLE pick a bad result.
+            //
+            last_failed = rebError(
+                "HOST-CONSOLE must return GROUP! or BLOCK!"
+            );
+            result = rebVoid();
+            rebFree(code);
+            goto loop;
+        }
+
+        // When running user code (GROUP!) or cancellable/failable service
+        // code HOST-CONSOLE is asking for on its own behalf (BLOCK!) we want
+        // to allow Ctrl-C.
+        //
+        Enable_Ctrl_C();
+        result = rebDoValue(code);
+        Disable_Ctrl_C();
+
+        if (result != NULL) {
+            //
+            // Success.  GROUP! executions signal via LAST-FAILED of
+            // FALSE_VALUE, while BLOCK! executions signal via BLANK_VALUE.
+            //
+            if (IS_GROUP(code))
+                last_failed = FALSE_VALUE;
+            else {
+                assert(IS_BLOCK(code));
+                last_failed = BLANK_VALUE;
+            }
+
+            rebFree(code);
+            goto loop;
+        }
+
+        // Otherwise it was a failure of some kind...get the last error and
+        // signal it to the next iteration of HOST-CONSOLE.
+
+        REBVAL *e = rebLastError();
+        assert(e != NULL);
+
+        if (IS_BAR(e)) { // currently means "halted", not really an ERROR!
+            result = rebVoid();
+            last_failed = BAR_VALUE; // informs REPL it was a HALT/Ctrl-C
+            rebFree(e);
+            rebFree(code);
+            goto loop;
+        }
+
+        if (IS_INTEGER(e)) { // currently means quit with exit code
+            int exit_status = VAL_INT32(e);
+            rebFree(e);
+            rebFree(code);
+            return exit_status;
+        }
+
+        assert(IS_ERROR(e));
+
+        if (IS_GROUP(code)) {
+            //
+            // It was a failure in typical user executed code, and should
+            // be reported ordinarily by the REPL.
+            //
+            last_failed = TRUE_VALUE;
+            result = e; // don't free because it's being passed to REPL
+        }
+        else {
+            // It was a failure during a console continuation, which is
+            // generally done to protect HOST-CONSOLE from crashing due
+            // to code in the user skin.  This is a severe error that
+            // suggests trying to fall back on a default skin, so the
+            // REPL will be usable.
+            //
+            assert(IS_BLOCK(code));
+            last_failed = e;
+            result = rebVoid();
+        }
+
+        rebFree(code);
+    }
+
+    DEAD_END;
+}
 
 
 
@@ -333,40 +476,10 @@ int main(int argc, char **argv_ansi)
     Host_Lib = &Host_Lib_Init;
     rebStartup(Host_Lib);
 
-    // While running the Rebol initialization code, we don't want any special
-    // Ctrl-C handling... leave it to the OS (which would likely terminate
-    // the process).  But once it's done, set up the interrupt handler.
+    // We only enable Ctrl-C when user code is running...not when the
+    // HOST-CONSOLE function itself is.
     //
-    // Note: Once this was done in Open_StdIO, but it's less opaque to do it
-    // here (since there are already platform-dependent #ifdefs to handle the
-    // command line arguments)
-    //
-#ifdef TO_WINDOWS
-    SetConsoleCtrlHandler(Handle_Break, TRUE);
-#else
-    // SIGINT is the interrupt usually tied to "Ctrl-C".  Note that if you
-    // use just `signal(SIGINT, Handle_Signal);` as R3-Alpha did, this means
-    // that blocking read() calls will not be interrupted with EINTR.  One
-    // needs to use sigaction() if available...it's a slightly newer API.
-    //
-    // http://250bpm.com/blog:12
-    //
-    struct sigaction int_handler;
-    int_handler.sa_handler = &Handle_Signal;
-    sigaction(SIGINT, &int_handler, 0);
-
-    // !!! What should be done about SIGTERM ("polite request to end", e.g.
-    // default unix kill) or SIGHUP ("user's terminal disconnected")?  Is it
-    // useful to register anything for these?  R3-Alpha did, and did the
-    // same thing as SIGINT.  Not clear why.  It did nothing for SIGQUIT:
-    //
-    // SIGQUIT is used to terminate a program in a way that is designed to
-    // debug it, e.g. a core dump.  Receiving SIGQUIT is a case where
-    // program exit functions like deletion of temporary files may be
-    // skipped to provide more state to analyze in a debugging scenario.
-    //
-    // SIGKILL is the impolite signal for shutdown; cannot be hooked/blocked
-#endif
+    Disable_Ctrl_C();
 
     // With basic initialization done, we want to turn the platform-dependent
     // argument strings into a block of Rebol strings as soon as possible.

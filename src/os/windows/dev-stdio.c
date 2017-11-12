@@ -291,11 +291,12 @@ DEVICE_CMD Read_IO(REBREQ *req)
     // set to 0 (preserve nothing), the fact that the user terminated with the
     // control key *should* be detectable by `total == 0`.
     //
-    // But as mentioned, masking escape in as (1 << 27) has no effect.  You
-    // can mask in Ctrl-C and it works as advertised--exiting ReadConsole()
-    // and setting the length to `nInitialChars`.  But puzzlingly so, because
-    // it overrides a user-provided SetConsoleCtrlHandler() for handling
-    // CTRL_C_EVENT.  :-/
+    // But as mentioned, masking escape in as (1 << 27) has no effect.  And
+    // when using ENABLE_PROCESSED_INPUT (which you must in order to get the
+    // backspace/etc. behavior in the line editor) then Ctrl-C will exit
+    // ReadConsole() call and return a total of 0...regardless of whether you
+    // mask (1 << 3) or not.  It also exits before the SetConsoleCtrlHandler()
+    // does for handling CTRL_C_EVENT.  :-/
     //
     // Then Ctrl-D can be in the mask.  It does indeed exit the read when it
     // is hit, but ignores `nInitialChars` and just sticks a codepoint of 4
@@ -315,7 +316,7 @@ DEVICE_CMD Read_IO(REBREQ *req)
     CONSOLE_READCONSOLE_CONTROL ctl;
     ctl.nLength = sizeof(CONSOLE_READCONSOLE_CONTROL);
     ctl.nInitialChars = 0; // when hit, empty buffer...no CR LF
-    ctl.dwCtrlWakeupMask = (1 << 3) | (1 << 4); // ^C and ^D
+    ctl.dwCtrlWakeupMask = (1 << 4); // ^D (^C is implicit)
     ctl.dwControlKeyState = 0; // no alt+shift modifiers (beyond ctrl)
 
     DWORD total;
@@ -336,15 +337,28 @@ DEVICE_CMD Read_IO(REBREQ *req)
 
     if (total == 0) {
         //
-        // Has to be a Ctrl-C, because it returns 0 total.
-        // Note:  WideCharToMultibyte fails if cchWideChar is 0.
+        // Has to be a Ctrl-C, because it returns 0 total.  There is no
+        // apparent way to avoid this behavior a priori, nor to resume the
+        // console operation as if nothing had happened.
+        //
+        // Given that, write compensating line.  !!! Check error?
+        //
+        WriteConsoleW(Std_Out, cr_lf_term, 2, NULL, 0);
+
+        // The Ctrl-C will be passed on to the SetConsoleCtrlHandler().
+        // Regardless of what the Ctrl-C event does (it runs on its own thread
+        // in a console app) we'll get here, and have to return *something*
+        // to INPUT or whoever called.
+        //
+        // Give a zero length output.  If halting was enabled, further Rebol
+        // code of INPUT should not run.  In the case that INPUT sees this
+        // signal and a halt does not happen, it will FAIL.  Only special
+        // clients which can run with no cancellability (HOST-CONSOLE)
+        // should trap it and figure out what to do with the non-ideal state.
         //
         strcpy(s_cast(req->common.data), "");
         req->actual = 0;
 
-        // Write compensating line.  !!! Check error?
-        //
-        WriteConsoleW(Std_Out, cr_lf_term, 2, NULL, 0);
         return DR_DONE;
     }
 
@@ -376,6 +390,11 @@ DEVICE_CMD Read_IO(REBREQ *req)
         0
     );
 
+    // Note: WideCharToMultibyte would fail if cchWideChar was 0.  (we
+    // know total is *not* 0 as it was handled above.)  In any case, a 0
+    // result for the encoded length is how errors are signaled, as it could
+    // not happen any other way.
+    //
     if (encoded_len == 0) {
         req->error = GetLastError();
         return DR_ERROR;

@@ -156,14 +156,14 @@ echo: procedure [
 host-console: function [
     {Implements one Print-and-Read step of a Read-Eval-Print-Loop (REPL).}
 
-    return: [block!]
-        {Code to run (to correctly exit the REPL loop, have this run QUIT)}
+    return: [block! group!]
+        {Code to ask the top-level to run, BLOCK! makes last-failed blank}
 
     last-result [<opt> any-value!]
         {The result from the last time HOST-CONSOLE ran to display (if any)}
 
-    last-failed [blank! logic! bar!]
-        {BLANK! initially, TRUE if last-result is FAILed ERROR!, BAR! if HALT}
+    last-failed [<opt> blank! logic! bar! error!]
+        {blank after BLOCK!, TRUE on a FAIL, BAR! if HALT, ERROR! if BLOCK!}
 
     focus-level [blank! integer!]
         {If at a breakpoint, the integer index of how deep the stack was}
@@ -178,22 +178,45 @@ host-console: function [
     RE_SCAN_EXTRA (2002)
     RE_SCAN_MISMATCH (2003)
 ][
-    ; CONSOLE is an external object for skinning the behaviour & appearance
+    ; Note: SYSTEM/CONSOLE is an external object for skinning the behaviour
+    ; and appearance.  Since users can write arbitrary code in that skin, it
+    ; may contain bugs, infinite loops, etc.
     ;
-    repl: system/console
+    ; Yet HOST-CONSOLE is a function called from C at the top level, with no
+    ; recourse should it error...and Ctrl-C is disabled while it runs.  So
+    ; for safety, calls into SYSTEM/CONSOLE are returned as BLOCK! to the
+    ; C code to run.  If the code runs successfully, then LAST-FAILED will
+    ; be BLANK! and the LAST-RESULT can be used to trigger a re-entry with
+    ; the right properties for where the code should pick back up.
+    ;
+    ; This is very similar to continuation-style programming, and these
+    ; variables are what help pick up the continuation at the proper point.
+    ;
+    ; Notice that when the SYSTEM/CONSOLE functions are called, BAR!s are
+    ; used to make sure they don't accidentally consume data they should
+    ; not (e.g. by accidentally having too big an arity)
+    ;
+    needs-prompt: true
+    needs-gap: true
+    needs-input: true
+    source: copy {} ;-- source code potentially built of multiple lines
 
     ; Output the last evaluation result if there was one.  MOLD it unless it
     ; was an actual error that FAILed.
     ;
     case [
-        blank? last-failed [
+        not set? 'last-failed [
             ;
             ; First time running, hasn't had a chance to fail yet.  Each
             ; recursion in the debugger also starts a new REPL without a
             ; prior last result available.
 
             if not focus-frame [
-                repl/print-greeting
+                return [
+                    system/console/print-greeting
+                        |
+                    'needs-prompt
+                ]
             ] else [
                 ;
                 ; Internally there is a known difference between whether an
@@ -209,6 +232,58 @@ host-console: function [
             ]
         ]
 
+        false = last-failed [
+            ;
+            ; Successful evaluation of a returned GROUP!
+            ;
+            if set? 'last-result [
+                return compose/deep [
+                    system/console/last-result: (mold :last-result)
+                        |
+                    system/console/print-result
+                        |
+                    'needs-prompt
+                ]
+            ]
+        ]
+
+        blank? last-failed [
+            ;
+            ; This means the last thing that we asked to run was a BLOCK! and
+            ; not a GROUP!, and that execution did not itself fail.  (See
+            ; notes on the start of this function for why these "continuation"
+            ; results are needed.)
+            ;
+            ; WORD!s are used to make the needs of the continuations more
+            ; clear at the `return [...]` points in this function.  But the
+            ; special case of returning a BLOCK! is the self-trigger that
+            ; indicates a need for the actual execution on the user's behalf.
+            ; And the case of a STRING! is used to feed back the source after
+            ; allowing a processing hook to run on it.
+            ;
+            case [
+                block? last-result [
+                    return as group! last-result
+                ]
+                string? last-result [
+                    source: last-result
+                    needs-prompt: needs-gap: needs-input: false
+                ]
+            ] else [
+                switch last-result [
+                    no-op []
+                    needs-prompt [needs-prompt: true]
+                    needs-gap: [needs-gap: true | needs-prompt: false]
+                    no-prompt: [needs-prompt: needs-gap: false]
+                    no-gap: [needs-gap: false]
+                ] else [
+                    return compose/deep [
+                        fail ["Bad REPL continuation:" quote (last-result)]
+                    ]
+                ]
+            ]
+        ]
+
         bar? last-failed [
             ;
             ; !!! This used to say "[escape]".  Should be skinnable, but what
@@ -217,35 +292,74 @@ host-console: function [
             print "[interrupted by Ctrl-C or HALT instruction]"
         ]
 
-        last-failed [
-            assert [error? :last-result]
-            repl/print-error last-result
+        true = last-failed [
+            if not error? :last-result [
+                return compose/only/deep [
+                    fail ["REPL broken contract, non-error:" (:last-result)]
+                ]
+            ]
+
+            return compose/deep [
+                system/console/print-error (last-result)
+                    |
+                'needs-prompt
+            ]
+        ]
+
+        error? last-failed [
+            ;
+            ; This is reserved for the serious case when a BLOCK! was asked
+            ; to be executed, and a failure happened.  That means something
+            ; internal to the skin itself has a problem...which may mean
+            ; that the console becomes unusable.  Fall back to the default.
+            ;
+            system/console: make console! []
+
+            return compose/deep [
+                print [
+                    "*** ERROR WHILE RUNNING CONSOLE SKIN CODE ***"
+                        |
+                    "...Reverting to default skin for safety, report error..."
+                ]
+                    |
+                system/console/print-error (last-failed)
+                    |
+                'needs-prompt
+            ]
         ]
     ] else [
-        if set? 'last-result [
-            repl/last-result: mold :last-result
-            repl/print-result
+        ;
+        ; This would be bad...some kind of contract violation of the calling
+        ; C code of what HOST-CONSOLE expects to be possible.
+        ;
+        return compose/only/deep [
+            fail ["REPL broken contract, LAST-FAILED:" (:last-failed)]
         ]
     ]
 
-    repl/print-gap
+    if needs-gap [
+        return [system/console/print-gap | 'no-gap]
+    ]
 
     ; If a debug frame is in focus then show it in the prompt, e.g.
     ; as `if:|4|>>` to indicate stack frame 4 is being examined, and
     ; it was an `if` statement...so it will be used for binding (you
     ; can examine the condition and branch for instance)
     ;
-    if focus-frame [
-        if label-of focus-frame [
-            print/only [label-of focus-frame ":"]
+    if needs-prompt [
+        return compose/deep [
+            if (focus-frame) [
+                if label-of (focus-frame) [
+                    print/only [label-of (focus-frame) ":"]
+                ]
+                print/only ["|" (focus-level) "|"]
+            ]
+                |
+            system/console/print-prompt
+                |
+            'no-prompt
         ]
-
-        print/only ["|" focus-level "|"]
     ]
-
-    repl/print-prompt
-
-    source: copy {} ;-- source code potentially built of multiple lines
 
     ; The LOADed and bound code.  It's initialized to empty block so that if
     ; there is no input text (just newline at a prompt) , it will be treated
@@ -255,15 +369,46 @@ host-console: function [
 
     forever [ ;-- gather potentially multi-line input
 
-        if blank? line: input [
+        if needs-input [
             ;
-            ; It was aborted (Ctrl-D on Windows and POSIX, ESC also on POSIX).
-            ; Do a no-op execution that just cycles the prompt.
+            ; !!! Unfortunately Windows ReadConsole() has no way of being set
+            ; to ignore Ctrl-C.  In usermode code, this is okay as Ctrl-C
+            ; stops the Rebol code from running...but HOST-CONSOLE disables
+            ; the halting behavior assigned to Ctrl-C.  To avoid glossing over
+            ; that problem, INPUT doesn't just return blank or void...it
+            ; FAILs.  We make a special effort to TRAP it here, but it would
+            ; be a bug if seen by any other function.
             ;
-            return []
+            ; Upshot is that on Windows, Ctrl-C during HOST-CONSOLE is made
+            ; to act as escape.  (It does nothing on POSIX as we can actually
+            ; ask Ctrl-C to be ignored by the read() loop.)
+            ;
+            user-input: trap/with [input] [blank]
+
+            if blank? user-input [
+                ;
+                ; It was aborted.  This comes from ESC on POSIX (which is the
+                ; ideal behavior), Ctrl-D on Windows (because ReadConsole()
+                ; can't trap ESC), Ctrl-D on POSIX (just to be compatible with
+                ; Windows), and the case of Ctrl-C on Windows just on calls
+                ; to INPUT here in HOST-CONSOLE (usually it HALTs).
+                ;
+                ; Do a no-op execution that just cycles the prompt.
+                ;
+                return ['needs-gap]
+            ]
+
+            return compose/deep [
+                use [line] [
+                    line: system/console/input-hook (user-input)
+                        |
+                    append (source) line
+                ]
+                (source) ;-- STRING! signals feedback to BLANK? LAST-RESULT
+            ]
         ]
 
-        append source repl/input-hook line ;--  pre-processor hook
+        needs-input: true
 
         trap/with [
             ;
@@ -316,8 +461,14 @@ host-console: function [
                 ]
             ]
 
-            repl/print-error error
-            return [] ;-- No-Op execution, just cycles the prompt
+            ; Potentially large print operations should be handed back to the
+            ; top level, so that they can be halted.
+            ;
+            return compose/deep [
+                system/console/print-error (error)
+                    |
+                'needs-prompt
+            ]
         ]
 
         break ;-- Exit FOREVER if no additional input to be gathered
@@ -331,7 +482,9 @@ host-console: function [
         bind code focus-frame
     ]
 
-    if shortcut: select repl/shortcuts first code [
+    instruction: copy []
+
+    if shortcut: select system/console/shortcuts first code [
         ;
         ; Shortcuts.  Built-ins are:
         ;
@@ -345,12 +498,15 @@ host-console: function [
             ; panic by giving them a message.  Reduce noise for the casual
             ; shortcut by only doing so a bound variable exists.
             ;
-            repl/print-warning [
-                (uppercase to-string code/1)
-                    "interpreted by console as:" form :shortcut
-            ]
-            repl/print-warning [
-                "use" form to-get-word code/1 "to get variable."
+            instruction: compose/deep [
+                system/console/print-warning [
+                    (uppercase to-string code/1)
+                        "interpreted by console as:" form :shortcut
+                ]
+                    |
+                system/console/print-warning [
+                    "use" form to-get-word (code/1) "to get variable."
+                ]
             ]
         ]
         take code
@@ -364,8 +520,17 @@ host-console: function [
     ;
     lock code
 
-    code: repl/dialect-hook code
-    return code
+    ; We make it a bit safer in case there's an error in the dialect-hook
+    ; itself to transmit the code to execute back to ourselves.  If there's
+    ; no error and the instruction evaluates to a BLOCK!, then that combined
+    ; with receiving BLANK! as the last result signals us to execute the
+    ; code on the user's behalf.
+    ;
+    append instruction compose/only [
+            |
+        system/console/dialect-hook (code)
+    ]
+    return instruction
 ]
 
 

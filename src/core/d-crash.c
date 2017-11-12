@@ -143,13 +143,19 @@ ATTRIBUTE_NO_RETURN void Panic_Core(
         break;
 
     case DETECTED_AS_VALUE:
-    case DETECTED_AS_END:
+    case DETECTED_AS_END: {
+        const REBVAL *v = cast(const REBVAL*, p);
     #if defined(NDEBUG)
+        UNUSED(v);
         strncat(buf, "value", PANIC_BUF_SIZE - strlen(buf));
     #else
-        Panic_Value_Debug(cast(const REBVAL*, p));
+        if (IS_ERROR(v)) {
+            printf("...panicking on an ERROR! value...");
+            PROBE(v);
+        }
+        Panic_Value_Debug(v);
     #endif
-        break;
+        break; }
 
     case DETECTED_AS_TRASH_CELL:
     #if defined(NDEBUG)
