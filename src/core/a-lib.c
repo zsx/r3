@@ -313,6 +313,8 @@ void RL_rebShutdown(REBOOL clean)
 
 
 // Broken out as a function to avoid longjmp "clobbering" from PUSH_TRAP()
+// Actual pointers themselves have to be `const` (as opposed to pointing to
+// const data) to avoid the compiler warning in some older GCCs.
 //
 inline static REBOOL Reb_Do_Api_Core_Fails(
     REBVAL * const out,
@@ -411,7 +413,7 @@ REBVAL *RL_rebDo(const void *p, ...)
         va_end(va);
         return NULL;
     }
-    
+
     va_end(va);
     return result; // client's responsibility to rebFree(), for now
 }

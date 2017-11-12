@@ -162,9 +162,11 @@ inline static REBUNI GET_ANY_CHAR(REBSER *s, REBCNT n) {
     return BYTE_SIZE(s) ? BIN_HEAD(s)[n] : UNI_HEAD(s)[n];
 }
 
-inline static void SET_ANY_CHAR(REBSER *s, REBCNT n, REBYTE c) {
-    if (BYTE_SIZE(s))
+inline static void SET_ANY_CHAR(REBSER *s, REBCNT n, REBUNI c) {
+    if (BYTE_SIZE(s)) {
+        assert(c <= 255);
         BIN_HEAD(s)[n] = c;
+    }
     else
         UNI_HEAD(s)[n] = c;
 }
