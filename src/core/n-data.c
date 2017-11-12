@@ -191,7 +191,7 @@ REBNATIVE(bind)
 {
     INCLUDE_PARAMS_OF_BIND;
 
-    REBVAL *value = ARG(value);
+    REBVAL *v = ARG(value);
     REBVAL *target = ARG(target);
 
     REBCNT flags = REF(only) ? BIND_0 : BIND_DEEP;
@@ -226,24 +226,24 @@ REBNATIVE(bind)
         context = VAL_WORD_CONTEXT(target);
     }
 
-    if (ANY_WORD(value)) {
+    if (ANY_WORD(v)) {
         //
         // Bind a single word
 
-        if (Try_Bind_Word(context, value)) {
-            Move_Value(D_OUT, value);
+        if (Try_Bind_Word(context, v)) {
+            Move_Value(D_OUT, v);
             return R_OUT;
         }
 
         // not in context, bind/new means add it if it's not.
         //
-        if (REF(new) || (IS_SET_WORD(value) && REF(set))) {
-            Append_Context(context, value, NULL);
-            Move_Value(D_OUT, value);
+        if (REF(new) || (IS_SET_WORD(v) && REF(set))) {
+            Append_Context(context, v, NULL);
+            Move_Value(D_OUT, v);
             return R_OUT;
         }
 
-        fail (Error_Not_In_Context_Raw(ARG(value)));
+        fail (Error_Not_In_Context_Raw(v));
     }
 
     // Copy block if necessary (/copy)
@@ -254,17 +254,23 @@ REBNATIVE(bind)
     // because there could be code that depends on the existing (mis)behavior
     // but it should be followed up on.
     //
-    Move_Value(D_OUT, value);
+    Move_Value(D_OUT, v);
 
     REBARR *array;
     if (REF(copy)) {
-        array = Copy_Array_At_Deep_Managed(
-            VAL_ARRAY(value), VAL_INDEX(value), VAL_SPECIFIER(value)
+        array = Copy_Array_Core_Managed(
+            VAL_ARRAY(v),
+            VAL_INDEX(v), // at
+            VAL_SPECIFIER(v),
+            ARR_LEN(VAL_ARRAY(v)), // tail
+            0, // extra
+            TRUE, // deep
+            TS_ARRAY // types
         );
         INIT_VAL_ARRAY(D_OUT, array); // warning: macro copies args
     }
     else
-        array = VAL_ARRAY(value);
+        array = VAL_ARRAY(v);
 
     Bind_Values_Core(
         ARR_HEAD(array),

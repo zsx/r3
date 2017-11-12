@@ -437,10 +437,14 @@ void Virtual_Bind_Deep_To_New_Context(
         //
         Init_Block(
             body_in_out,
-            Copy_Array_At_Deep_Managed(
+            Copy_Array_Core_Managed(
                 VAL_ARRAY(body_in_out),
-                VAL_INDEX(body_in_out),
-                VAL_SPECIFIER(body_in_out)
+                VAL_INDEX(body_in_out), // at
+                VAL_SPECIFIER(body_in_out),
+                ARR_LEN(VAL_ARRAY(body_in_out)), // tail
+                0, // extra
+                TRUE, // deep
+                TS_ARRAY // types
             )
         );
     }
