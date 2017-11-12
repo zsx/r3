@@ -538,28 +538,22 @@ REBVAL *RL_rebVoid(void)
 
 
 //
-//  rebEscape: RL_API
+//  rebHalt: RL_API
 //
 // Signal that code evaluation needs to be interrupted.
 //
 // Returns:
 //     nothing
 // Notes:
-//     This function set's a signal that is checked during evaluation
+//     This function sets a signal that is checked during evaluation
 //     and will cause the interpreter to begin processing an escape
 //     trap. Note that control must be passed back to REBOL for the
 //     signal to be recognized and handled.
 //
-void RL_rebEscape(void)
+void RL_rebHalt(void)
 {
     Enter_Api_Clear_Last_Error();
 
-    // How should HALT vs. BREAKPOINT be decided?  When does a Ctrl-C want
-    // to quit entirely vs. begin an interactive debugging session?
-    //
-    // !!! For now default to halting, but use SIG_INTERRUPT when a decision
-    // is made about how to debug break.
-    //
     SET_SIGNAL(SIG_HALT);
 }
 
@@ -1150,6 +1144,17 @@ void RL_rebFree(REBVAL *v)
     UNUSED(key);
 
     Free_Pairing(v);
+}
+
+
+//
+//  rebFail: RL_API
+//
+void RL_rebFail(const void *p)
+{
+    Enter_Api_Cant_Error();
+
+    Fail_Core(p);
 }
 
 

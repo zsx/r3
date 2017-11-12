@@ -180,9 +180,6 @@ int Host_Repl(const REBVAL *repl_fun) {
             // doing something (LOADing text, PRINTing errors, etc.)  If
             // so, just loop it.
             //
-            // Note that currently, a Ctrl-C pressed during the INPUT command
-            // will not be processed until after return is pressed.
-            //
             REBVAL *e = rebLastError();
             if (IS_BAR(e)) { // currently means halted
                 result = rebVoid();
@@ -250,7 +247,7 @@ BOOL WINAPI Handle_Break(DWORD dwCtrlType)
     switch(dwCtrlType) {
     case CTRL_C_EVENT:
     case CTRL_BREAK_EVENT:
-        rebEscape();
+        rebHalt();
         return TRUE; // TRUE = "we handled it"
 
     case CTRL_CLOSE_EVENT:
@@ -289,7 +286,7 @@ BOOL WINAPI Handle_Nothing(DWORD dwCtrlType)
 static void Handle_Signal(int sig)
 {
     UNUSED(sig);
-    rebEscape();
+    rebHalt();
 }
 
 #endif
@@ -347,25 +344,27 @@ int main(int argc, char **argv_ansi)
 #ifdef TO_WINDOWS
     SetConsoleCtrlHandler(Handle_Break, TRUE);
 #else
-    // SIGINT is the interrupt, usually tied to "Ctrl-C"
+    // SIGINT is the interrupt usually tied to "Ctrl-C".  Note that if you
+    // use just `signal(SIGINT, Handle_Signal);` as R3-Alpha did, this means
+    // that blocking read() calls will not be interrupted with EINTR.  One
+    // needs to use sigaction() if available...it's a slightly newer API.
     //
-    signal(SIGINT, Handle_Signal);
-
-    // SIGTERM is sent on "polite request to end", e.g. default unix `kill`
+    // http://250bpm.com/blog:12
     //
-    signal(SIGTERM, Handle_Signal);
+    struct sigaction int_handler;
+    int_handler.sa_handler = &Handle_Signal;
+    sigaction(SIGINT, &int_handler, 0);
 
-    // SIGHUP is sent on a hangup, e.g. user's terminal disconnected
+    // !!! What should be done about SIGTERM ("polite request to end", e.g.
+    // default unix kill) or SIGHUP ("user's terminal disconnected")?  Is it
+    // useful to register anything for these?  R3-Alpha did, and did the
+    // same thing as SIGINT.  Not clear why.  It did nothing for SIGQUIT:
     //
-    signal(SIGHUP, Handle_Signal);
-
     // SIGQUIT is used to terminate a program in a way that is designed to
     // debug it, e.g. a core dump.  Receiving SIGQUIT is a case where
     // program exit functions like deletion of temporary files may be
     // skipped to provide more state to analyze in a debugging scenario.
     //
-    // -- no handler
-
     // SIGKILL is the impolite signal for shutdown; cannot be hooked/blocked
 #endif
 

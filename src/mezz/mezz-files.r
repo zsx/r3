@@ -71,7 +71,9 @@ clean-path: function [
 
 input: function [
     {Inputs a string from the console. New-line character is removed.}
-    return: [string!]
+
+    return: [string! blank!]
+        {Blank if the input was aborted via ESC}
 ;   /hide
 ;       "Mask input with a * character"
 ][
@@ -82,7 +84,30 @@ input: function [
         system/ports/input: open [scheme: 'console]
     ]
 
-    line: to-string read system/ports/input
+    data: read system/ports/input
+    if 0 = length-of data [
+        ;
+        ; !!! While zero-length data is the protocol being used to signal a
+        ; halt in the (deprecated) Host OS layer, even in more ideal
+        ; circumstances it is probably bad to try to get INPUT to be emitting
+        ; that HALT.
+        ;
+        fail "Signal for Ctrl-C got to INPUT function somehow."
+    ]
+
+    if all [
+        1 = length-of data
+        escape = to-char data/1
+    ][
+        ; Input Aborted (e.g. Ctrl-D on Windows, ESC on POSIX)--this does not
+        ; try and HALT the program overall, but gives the caller the chance
+        ; to process the BLANK! and realize it as distinct from the user
+        ; just hitting enter on an empty line (empty string)
+        ;
+        return blank;
+    ]
+
+    line: to-string data
     trim/with line newline
     line
 ]

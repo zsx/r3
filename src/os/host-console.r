@@ -255,15 +255,15 @@ host-console: function [
 
     forever [ ;-- gather potentially multi-line input
 
-        line: repl/input-hook input     ;--  pre-processor hook
-        if empty? line [
-            if block? code [break]
-
-            repl/print-error (really error! code)
-            return [] ;-- No-Op execution, just cycles the prompt
+        if blank? line: input [
+            ;
+            ; It was aborted (Ctrl-D on Windows and POSIX, ESC also on POSIX).
+            ; Do a no-op execution that just cycles the prompt.
+            ;
+            return []
         ]
 
-        append source line
+        append source repl/input-hook line ;--  pre-processor hook
 
         trap/with [
             ;
