@@ -109,14 +109,15 @@ load-files: function [
 host-start: load-files [
     %encap.reb
     %unzip.reb
-    %host-console.r
     %host-start.r
+    %host-console.r
 ]
 
-; script evaluates to the startup function, which will in turn evaluate
-; to either an exit status code or a REPL function.
+; script evaluates to the HOST-CONSOLE.  This is the userspace handler that is
+; called in a loop.  By protocol it knows if it's being called for the first
+; time, and hence is the generalized entry point.
 ;
-append host-start [:host-start]
+append host-start [:host-console]
 
 
 file-base: has load %../tools/file-base.r

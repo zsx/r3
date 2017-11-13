@@ -312,6 +312,45 @@ void RL_rebShutdown(REBOOL clean)
 }
 
 
+//
+//  rebBlock: RL_API
+//
+// !!! The variadic rebBlock() constructor is coming soon, but this is just
+// to create an API handle to use with rebFree() for a quick workaround to
+// get the one-entry-point idea in the console moving along.
+//
+REBVAL *RL_rebBlock(
+    const void *p1,
+    const void *p2,
+    const void *p3,
+    const void *p4
+){
+    Enter_Api_Clear_Last_Error();
+
+    assert(Detect_Rebol_Pointer(p1) == DETECTED_AS_VALUE);
+    assert(Detect_Rebol_Pointer(p2) == DETECTED_AS_VALUE);
+    assert(Detect_Rebol_Pointer(p3) == DETECTED_AS_VALUE);
+    assert(Detect_Rebol_Pointer(p4) == DETECTED_AS_END);
+
+    REBARR *array = Make_Array(3);
+    Append_Value(array, cast(const REBVAL*, p1));
+    Append_Value(array, cast(const REBVAL*, p2));
+    Append_Value(array, cast(const REBVAL*, p3));
+    UNUSED(p4);
+    TERM_ARRAY_LEN(array, 3);
+
+    // For now, do a test of manual memory management in a pairing, and let's
+    // just say a BLANK! means that for now.  Assume caller has to explicitly
+    // rebFree() the result.
+    //
+    REBVAL *result = Alloc_Pairing(NULL);
+    Init_Block(result, array);
+    Init_Blank(PAIRING_KEY(result)); // the meta-value of the API handle
+
+    return result;
+}
+
+
 // Broken out as a function to avoid longjmp "clobbering" from PUSH_TRAP()
 // Actual pointers themselves have to be `const` (as opposed to pointing to
 // const data) to avoid the compiler warning in some older GCCs.
@@ -536,6 +575,25 @@ REBVAL *RL_rebVoid(void)
     return result;
 }
 
+
+//
+//  rebBlank: RL_API
+//
+// As with rebVoid(), this is conceptually something that doesn't need to
+// be freed...but for uniformity might.  It could be reference counted just
+// to make sure the right number of free calls were made, even if it were
+// only allocated once.
+//
+REBVAL *RL_rebBlank(void)
+{
+    Enter_Api_Clear_Last_Error();
+
+    REBVAL *result = Alloc_Pairing(NULL);
+    Init_Blank(result);
+    Init_Blank(PAIRING_KEY(result));
+
+    return result;
+}
 
 //
 //  rebHalt: RL_API

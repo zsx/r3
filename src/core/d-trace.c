@@ -280,6 +280,8 @@ REB_R Apply_Core_Traced(REBFRM * const f)
             // It's not legal to mold or form a void, it's not ANY-VALUE!
             // In this case, just don't print anything, like the console does
             // when an evaluation gives a void result.
+            //
+            Debug_Fmt("\n");
             break;
 
         case R_BLANK:

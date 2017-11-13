@@ -228,9 +228,10 @@ host-script-pre-load: procedure [
 
 
 host-start: function [
-    "Loads extras, handles args, security, scripts."
-    return: [integer! function!]
-        {If integer, host should exit with that status; else a CONSOLE FUNCTION!}
+    "Called by HOST-CONSOLE.  Loads extras, handles args, security, scripts."
+
+    return: [block! group!]
+        {Instruction for C code to run in a sandbox (FAILs ok if GROUP!)}
     exec-path [file! blank!]
         {Path to the executable file}
     argv [block!]
@@ -277,11 +278,20 @@ host-start: function [
 
     system/product: 'core
 
+    ; !!! The debugger is a work in progress.  But the design attempts to make
+    ; it an optional extension which doesn't need to be built into the EXE,
+    ; and can be loaded dynamically into any Rebol-based binary.  But it has
+    ; to spawn a console, and since the console is userspace and may vary
+    ; between EXEs...it has to be told where that function is.
     ;
+    if find system/contexts/user 'init-debugger [
+        system/contexts/user/init-debugger :host-console
+    ]
+
     ; helper functions
     ;
     die: func [
-        {A gracefully way to FAIL during startup}
+        {A graceful way to "FAIL" during startup}
         reason [string!]
             {Error message}
         /error e [error!]
@@ -293,7 +303,7 @@ host-start: function [
         if error [
             print either o/verbose [e] ["!! use --verbose for more detail"]
         ]
-        return 1
+        return [quit/with 1]
     ]
 
     to-dir: function [
@@ -350,7 +360,7 @@ host-start: function [
         system/user/home: o/home: home-dir
         resources-dir: get-resources-path   ;; _ if doesn't exist
         o/resources: resources-dir
-     ]
+    ]
 
     sys/script-pre-load-hook: :host-script-pre-load
 
@@ -388,6 +398,24 @@ host-start: function [
         ]
     ]
 
+    ; As we process command line arguments, we build up an "instruction" block
+    ; which is going to be passed back.  This way you can have multiple
+    ; --do "..." or script arguments, and they will be run in a sequence.
+    ;
+    ; The instruction block is run in a sandbox which prevents cancellation
+    ; or failure from crashing the interpreter.  (HOST-START is not allowed
+    ; to cancel or fail--it is an implementation helper called from
+    ; HOST-CONSOLE, which is special.  See notes in HOST-CONSOLE.)
+    ;
+    ; The directives at the start of the instruction dictate that Ctrl-C
+    ; during the startup instruction will exit with code 130, and any errors
+    ; that arise will be reported and result in exit code 1.
+    ;
+    instruction: copy [
+        [#quit-if-halt #quit-if-error]
+            |
+    ]
+
     until [tail? argv] [
 
         is-option: parse/case argv/1 [
@@ -420,9 +448,20 @@ host-start: function [
             )
         |
             "--do" end (
+                ;
+                ; A string of code to run, e.g. `r3 --do "print {Hello}"`
+                ;
                 o/quiet: true ;-- don't print banner, just run code string
-                do-string: param-or-die "DO"
                 quit-when-done: default [true] ;-- override blank, not false
+                append instruction compose/only [
+                    ;
+                    ; Use /ONLY so that QUIT/WITH quits, vs. return DO value
+                    ;
+                    do/only (param-or-die "DO")
+                        |
+                    ; Use expression barrier for insulation
+                ]
+
             )
         |
             ["--halt" | "-h"] end (
@@ -678,207 +717,35 @@ comment [
 
     ; Evaluate any script argument, e.g. `r3 test.r` or `r3 --script test.r`
     ;
+    ; Note: We can't do this by appending the instruction as we go along
+    ; processing the arguments, as `--do` does, because the arguments aren't
+    ; known at the moment of hitting the `--script` enough to fill in the
+    ; slots of the COMPOSE.
+    ;
+    ; This can be worked around with multiple do statements in a row, e.g.:
+    ;
+    ;     r3 --do "do %script1.reb" --do "do %script2.reb"
+    ;
     if file? o/script [
-        trap/with [
-            do/only/args o/script script-args ;-- /ONLY so QUIT/WITH exit code bubbles out
-        ] func [error <with> return] [
-            print error
-            return 1
+        append instruction compose/deep/only [
+            ;
+            ; Use DO/ONLY so QUIT/WITH exits vs. being DO's return value
+            ;
+            do/only/args (o/script) (script-args)
         ]
     ]
 
     host-start: 'done
 
-    ; Evaluate the DO string, e.g. `r3 --do "print {Hello}"`
-    ;
-    if do-string [
-        trap/with [
-            do/only do-string ;-- /ONLY so QUIT/WITH exit code bubbles out
-        ] func [error <with> return] [
-            print error
-            return 1
-        ]
-    ]
-
-    if quit-when-done [return 0]
-
-    ; Start CONSOLE if got this far.
-    ;
-    ; Instantiate console! object into system/console for skinning.  This
-    ; object can be updated %console-skin.reb if in system/options/resources
-    ;
-    ; See /os/host-console.r where this object is called from
-    ;
-
-    loud-print "Starting console..."
-    loud-print ""
-    proto-skin: make console! []
-    skin-error: _
-
-    if all [
-        skin-file: %console-skin.reb
-        not find o/suppress skin-file
-        o/resources
-        exists? skin-file: join-of o/resources skin-file
+    either quit-when-done [
+        append instruction [quit/with 0]
     ][
-        trap/with [
-            new-skin: do load skin-file
-
-            ;; if loaded skin returns console! object then use as prototype
-            if all [
-                object? new-skin
-                select new-skin 'repl ;; quacks like REPL, say it's a console!
-            ][
-                proto-skin: new-skin
-                proto-skin/updated?: true
-                proto-skin/name: any [proto-skin/name "updated"]
-            ]
-
-            proto-skin/loaded?: true
-            proto-skin/name: any [proto-skin/name "loaded"]
-            append o/loaded skin-file
-
-        ] func [error] [
-            skin-error: error       ;; show error later if --verbose
-            proto-skin/name: "error"
+        append instruction [
+            start-console
+                |
+            <needs-prompt>
         ]
     ]
 
-    proto-skin/name: any [proto-skin/name | "default"]
-
-    system/console: proto-skin
-
-    ; Make the error hook store the error as the last one printed, so the
-    ; WHY command can access it.  Also inform people of the existence of
-    ; the WHY function on the first error delivery.
-    ;
-    proto-skin/print-error: adapt :proto-skin/print-error [
-        unless system/state/last-error [
-            system/console/print-info "Note: use WHY for error information"
-        ]
-
-        system/state/last-error: e
-    ]
-
-    ;
-    ; banner time
-    ;
-    if o/about [
-        ;-- print fancy boot banner
-        ;
-        boot-print make-banner boot-banner
-    ] else [
-        boot-print [
-            "Rebol 3 (Ren/C branch)"
-            mold compose [version: (system/version) build: (system/build)]
-            newline
-        ]
-    ]
-
-    boot-print boot-welcome
-
-    ; verbose console skinning messages
-    loud-print [newline {Console skinning:} newline]
-    if skin-error [
-        loud-print [
-            {  Error loading console skin  -} skin-file | |
-            skin-error | |
-            {  Fix error and restart CONSOLE}
-        ]
-    ] else [
-       loud-print [
-            space space
-            either proto-skin/loaded? {Loaded skin} {Skin does not exist}
-            "-" skin-file
-            spaced ["(CONSOLE" unless proto-skin/updated? {not} "updated)"]
-        ]
-    ]
-
-    ; Just to get things started, tell the debugger extension to use the
-    ; same console function that the top level uses.
-    ;
-    if find system/contexts/user 'init-debugger [
-        system/contexts/user/init-debugger :host-console
-    ]
-
-    ; Rather than have the host C code look up the CONSOLE function by name, it
-    ; is returned as a function value from calling the start.  It's a bit of
-    ; a hack, and might be better with something like the SYS_FUNC table that
-    ; lets the core call Rebol code.
-    ;
-    return :host-console
-]
-
-
-; Define console! object for skinning - stub for elsewhere?
-;
-
-console!: make object! [
-    name: _
-    repl: true      ;-- used to identify this as a console! object (quack!)
-    loaded?:  false ;-- if true then this is a loaded (external) skin
-    updated?: false ;-- if true then console! object found in loaded skin
-    last-result: _  ;-- last evaluated result (sent by HOST-CONSOLE)
-
-    ;; APPEARANCE (can be overridden)
-
-    prompt:   {>> }
-    result:   {== }
-    warning:  {!! }
-    error:    {** }                ;; not used yet
-    info:     to-string #{e29398}  ;; info sign!
-    greeting: _
-    print-prompt:   proc []  [print/only prompt]
-    print-result:   proc []  [print unspaced [result last-result]]
-    print-warning:  proc [s] [print unspaced [warning reduce s]]
-    print-error:    proc [e [error!]] [print e]
-    print-info:     proc [s] [print [info space space reduce s]]
-    print-greeting: proc []  [boot-print greeting]
-    print-gap:      proc []  [print-newline]
-
-    ;; BEHAVIOR (can be overridden)
-
-    input-hook: func [
-        {Receives line input, parse/transform, send back to CONSOLE eval}
-        s
-    ][
-        s
-    ]
-
-    dialect-hook: func [
-        {Receives code block, parse/transform, send back to CONSOLE eval}
-        s
-    ][
-        s
-    ]
-
-    shortcuts: make object! compose/deep [
-        d: [dump]
-        h: [help]
-        q: [quit]
-        list-shortcuts: [print system/console/shortcuts]
-        changes: [
-            say-browser
-            browse (join-all [
-                https://github.com/metaeducation/ren-c/blob/master/CHANGES.md#
-                join-all ["" system/version/1 system/version/2 system/version/3]
-            ])
-        ]
-        topics: [
-            say-browser
-            browse https://r3n.github.io/topics/
-        ]
-    ]
-
-    ;; HELPERS (could be overridden!)
-
-    add-shortcut: proc [
-        {Add/Change console shortcut}
-        name  [any-word!]
-            {shortcut name}
-        block [block!]
-            {command(s) expanded to}
-    ][
-        extend shortcuts name block
-    ]
+    return instruction
 ]

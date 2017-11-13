@@ -272,170 +272,6 @@ void Enable_Ctrl_C(void)
 
 
 
-int Host_Repl(const REBVAL *repl_fun) {
-    REBVAL *result = rebVoid(); // ATM, result has to be freed each loop
-
-    const REBVAL *last_failed = VOID_CELL; // indicate first call to REPL
-
-    while (TRUE) {
-    loop:;
-        // !!! We do not want the trace level to apply to the REPL execution
-        // itself.  Review how a usermode trace hook would recognize the
-        // REPL dispatch and suspend tracing until the REPL ends.
-        //
-        REBINT Save_Trace_Level = Trace_Level;
-        REBINT Save_Trace_Depth = Trace_Depth;
-        Trace_Level = 0;
-        Trace_Depth = 0;
-
-        assert(NOT(ctrl_c_enabled)); // can't cancel during HOST-CONSOLE
-
-        // !!! In this early phase of trying to establish the API, we assume
-        // this code is responsible for freeing the result `code` (if it
-        // does not come back NULL indicating a failure).
-        //
-        REBVAL *code = rebDo(
-            BLANK_VALUE, // hack around rebEval() not allowed yet in first slot
-            rebEval(repl_fun), // HOST-CONSOLE function (run it)
-            result, // last-result (always void first run through loop)
-            last_failed, // LOGIC! or BLANK!, void on first run, BAR! if HALT
-            BLANK_VALUE, // focus-level, supplied by debugger REPL, not here
-            BLANK_VALUE, // focus-frame, ...same
-            END
-        );
-
-        // Currently the contract is we have to free the last result, so now
-        // that the REPL has seen it for this loop free it.
-        //
-        rebFree(result);
-
-        // Hackily work around the constness to free the ERROR! case of
-        // LAST-FAILED (the API is undergoing experiments to better understand
-        // lifetime contracts of the handles, and what the means of freeing
-        // basic types like void or LOGIC! or BAR! or BLANK! will be...)
-        //
-        if (IS_ERROR(last_failed))
-            rebFree(m_cast(REBVAL*, last_failed));
-
-        if (code == NULL) {
-            //
-            // We don't really want the REPL code itself invoking HALT.  But
-            // so long as we have a handler for Ctrl-C registered, it is
-            // possible that the interrupt will happen while the REPL is
-            // doing something (LOADing text, PRINTing errors, etc.)  If
-            // so, just loop it.
-            //
-            REBVAL *e = rebLastError();
-
-            // The REPL code itself cannot halt, because `user_code_running`
-            // is set to false.  (BAR! is the current signal for meaning
-            // the rebDo() halted from the rebLastError()).
-            //
-            assert(NOT(IS_BAR(e)));
-
-            // The REPL code itself *shouldn't* error.  This is why it is
-            // written to take all the user extension code and wrap it up
-            // to ask it to be run in a protected fashion.  If the REPL *does*
-            // error, the panic should be able to offer some amount of
-            // information about that error.
-            //
-            rebPanic (e);
-        }
-
-        Trace_Level = Save_Trace_Level;
-        Trace_Depth = Save_Trace_Depth;
-
-        if (NOT(IS_BLOCK(code)) && NOT(IS_GROUP(code))) {
-            //
-            // !!! Treat this as the harsher form of error that suspects
-            // there is something wrong with the skin.  Though it might seem
-            // that HOST-CONSOLE itself controls the return types, there
-            // could be some delegation assumptions that allow a hook to
-            // make the HOST-CONSOLE pick a bad result.
-            //
-            last_failed = rebError(
-                "HOST-CONSOLE must return GROUP! or BLOCK!"
-            );
-            result = rebVoid();
-            rebFree(code);
-            goto loop;
-        }
-
-        // When running user code (GROUP!) or cancellable/failable service
-        // code HOST-CONSOLE is asking for on its own behalf (BLOCK!) we want
-        // to allow Ctrl-C.
-        //
-        Enable_Ctrl_C();
-        result = rebDoValue(code);
-        Disable_Ctrl_C();
-
-        if (result != NULL) {
-            //
-            // Success.  GROUP! executions signal via LAST-FAILED of
-            // FALSE_VALUE, while BLOCK! executions signal via BLANK_VALUE.
-            //
-            if (IS_GROUP(code))
-                last_failed = FALSE_VALUE;
-            else {
-                assert(IS_BLOCK(code));
-                last_failed = BLANK_VALUE;
-            }
-
-            rebFree(code);
-            goto loop;
-        }
-
-        // Otherwise it was a failure of some kind...get the last error and
-        // signal it to the next iteration of HOST-CONSOLE.
-
-        REBVAL *e = rebLastError();
-        assert(e != NULL);
-
-        if (IS_BAR(e)) { // currently means "halted", not really an ERROR!
-            result = rebVoid();
-            last_failed = BAR_VALUE; // informs REPL it was a HALT/Ctrl-C
-            rebFree(e);
-            rebFree(code);
-            goto loop;
-        }
-
-        if (IS_INTEGER(e)) { // currently means quit with exit code
-            int exit_status = VAL_INT32(e);
-            rebFree(e);
-            rebFree(code);
-            return exit_status;
-        }
-
-        assert(IS_ERROR(e));
-
-        if (IS_GROUP(code)) {
-            //
-            // It was a failure in typical user executed code, and should
-            // be reported ordinarily by the REPL.
-            //
-            last_failed = TRUE_VALUE;
-            result = e; // don't free because it's being passed to REPL
-        }
-        else {
-            // It was a failure during a console continuation, which is
-            // generally done to protect HOST-CONSOLE from crashing due
-            // to code in the user skin.  This is a severe error that
-            // suggests trying to fall back on a default skin, so the
-            // REPL will be usable.
-            //
-            assert(IS_BLOCK(code));
-            last_failed = e;
-            result = rebVoid();
-        }
-
-        rebFree(code);
-    }
-
-    DEAD_END;
-}
-
-
-
 /***********************************************************************
 **
 **  MAIN ENTRY POINT
@@ -579,144 +415,218 @@ int main(int argc, char **argv_ansi)
     OS_Init_Graphics();
 #endif // REB_CORE
 
-    struct Reb_State state;
-    REBCTX *error;
+    const REBOOL gzip = FALSE;
+    const REBOOL raw = FALSE;
+    const REBOOL only = FALSE;
+    REBSER *startup = Inflate_To_Series(
+        &Reb_Init_Code[0],
+        REB_INIT_SIZE,
+        -1,
+        gzip,
+        raw,
+        only
+    );
+    if (startup == NULL)
+        panic ("Can't decompress %host-start.r linked into executable");
 
-    PUSH_UNHALTABLE_TRAP(&error, &state);
+    REBARR *array = Scan_UTF8_Managed(
+        STR("host-start.r"), BIN_HEAD(startup), BIN_LEN(startup)
+    );
 
-// The first time through the following code 'error' will be NULL, but...
-// `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
+    // Bind the REPL and startup code into the lib context.
+    //
+    // !!! It's important not to load the REPL into user, because since it
+    // uses routines like PRINT to do it's I/O you (probably) don't want
+    // the REPL to get messed up if PRINT is redefined--for instance.  It
+    // should probably have its own context, which would entail a copy of
+    // every word in lib that it uses, but that mechanic hasn't been
+    // fully generalized--and might not be the right answer anyway.
+    //
+    // Only add top-level words to the `lib' context
+    Bind_Values_Set_Midstream_Shallow(ARR_HEAD(array), Lib_Context);
 
-    int exit_status;
+    // Bind all words to the `lib' context, but not adding any new words
+    Bind_Values_Deep(ARR_HEAD(array), Lib_Context);
 
-    if (error != NULL) {
-        //
-        // We want to avoid doing I/O directly from the C code of the host,
-        // and let that go through WRITE-STDOUT.  Hence any part of the
-        // startup that can error should be TRAP'd by the startup code itself
-        // and handled or PRINT'd in some way.
-        //
-        if (ERR_NUM(error) != RE_HALT)
-            panic (error);
+    // The new policy for source code in Ren-C is that it loads read only.
+    // This didn't go through the LOAD Rebol function (should it?  it
+    // never did before.)  For now, use simple binding but lock it.
+    //
+    Deep_Freeze_Array(array);
 
-        exit_status = 128; // http://stackoverflow.com/questions/1101957/
+    DECLARE_LOCAL (host_console);
+    if (Do_At_Throws(
+        host_console, // returned value must be a FUNCTION!
+        array,
+        0,
+        SPECIFIED
+    )){
+        panic (startup); // just loads functions, shouldn't QUIT or error
     }
-    else {
-        const REBOOL gzip = FALSE;
-        const REBOOL raw = FALSE;
-        const REBOOL only = FALSE;
-        REBSER *startup = Inflate_To_Series(
-            &Reb_Init_Code[0],
-            REB_INIT_SIZE,
-            -1,
-            gzip,
-            raw,
-            only
-        );
-        if (startup == NULL)
-            panic ("Can't decompress %host-start.r linked into executable");
 
-        REBARR *array = Scan_UTF8_Managed(
-            STR("host-start.r"), BIN_HEAD(startup), BIN_LEN(startup)
-        );
+    if (!IS_FUNCTION(host_console))
+        rebPanic (host_console);
 
-        // Bind the REPL and startup code into the lib context.
+    Free_Series(startup);
+
+    DECLARE_LOCAL (ext_value);
+    Init_Blank(ext_value);
+    LOAD_BOOT_EXTENSIONS(ext_value);
+
+    DECLARE_LOCAL(exec_path);
+    REBCHR *path;
+    REBINT path_len = OS_GET_CURRENT_EXEC(&path);
+    if (path_len < 0){
+        Init_Blank(exec_path);
+    } else {
+        Init_File(exec_path,
+            To_REBOL_Path(path, path_len, (OS_WIDE ? PATH_OPT_UNI_SRC : 0))
+            );
+        OS_FREE(path);
+    }
+
+    // !!! Previously the C code would call a separate startup function
+    // explicitly.  This created another difficult case to bulletproof
+    // various forms of failures during service routines that were already
+    // being handled by the framework surrounding HOST-CONSOLE.  The new
+    // approach is to let HOST-CONSOLE be the sole entry point, and that
+    // LAST-STATUS being void is an indication that it is running for the
+    // first time.  Thus it can use that opportunity to run any startup
+    // code or print any banners it wishes.
+    //
+    // However, the previous call to the startup function gave it three
+    // explicit parameters.  The parameters might best be passed by
+    // sticking them in the environment somewhere and letting HOST-CONSOLE
+    // find them...but for the moment we pass them as a BLOCK! in the
+    // LAST-RESULT argument when the LAST-STATUS is void, and let it
+    // unpack them.
+    //
+    // Note that `result`, `code`, and status have to be freed each loop ATM.
+    //
+    REBVAL *result = rebBlock(exec_path, argv_value, ext_value, END);
+    REBVAL *code = rebVoid();
+    REBVAL *status = rebVoid();
+
+    // The DO and APPLY hooks are used to implement things like tracing
+    // or debugging.  If they were allowed to run during the host
+    // console, they would create a fair amount of havoc (the console
+    // is supposed to be "invisible" and not show up on the stack...as if
+    // it were part of the C codebase, even though it isn't written in C)
+    //
+    REBDOF saved_do_hook = PG_Do;
+    REBAPF saved_apply_hook = PG_Apply;
+
+    // !!! While the new mode of TRACE (and other code hooking function
+    // execution) is covered by `saved_do_hook` and `saved_apply_hook`, there
+    // is independent tracing code in PARSE which is also enabled by TRACE ON
+    // and has to be silenced during console-related code.  Review how hooks
+    // into PARSE and other services can be avoided by the console itself
+    //
+    REBINT Save_Trace_Level = Trace_Level;
+    REBINT Save_Trace_Depth = Trace_Depth;
+
+    do {
+        assert(NOT(ctrl_c_enabled)); // can't cancel during HOST-CONSOLE
+
+        // !!! In this early phase of trying to establish the API, we assume
+        // this code is responsible for freeing the result `code` (if it
+        // does not come back NULL indicating a failure).
         //
-        // !!! It's important not to load the REPL into user, because since it
-        // uses routines like PRINT to do it's I/O you (probably) don't want
-        // the REPL to get messed up if PRINT is redefined--for instance.  It
-        // should probably have its own context, which would entail a copy of
-        // every word in lib that it uses, but that mechanic hasn't been
-        // fully generalized--and might not be the right answer anyway.
-        //
-        // Only add top-level words to the `lib' context
-        Bind_Values_Set_Midstream_Shallow(ARR_HEAD(array), Lib_Context);
-
-        // Bind all words to the `lib' context, but not adding any new words
-        Bind_Values_Deep(ARR_HEAD(array), Lib_Context);
-
-        // The new policy for source code in Ren-C is that it loads read only.
-        // This didn't go through the LOAD Rebol function (should it?  it
-        // never did before.)  For now, use simple binding but lock it.
-        //
-        Deep_Freeze_Array(array);
-
-        DECLARE_LOCAL (host_start);
-        if (Do_At_Throws(
-            host_start, // returned value must be a FUNCTION!
-            array,
-            0,
-            SPECIFIED
-        )){
-            panic (startup); // just loads functions, shouldn't QUIT or error
-        }
-
-        if (!IS_FUNCTION(host_start))
-            panic (host_start); // should not be able to error
-
-        Free_Series(startup);
-
-        DECLARE_LOCAL (ext_value);
-        Init_Blank(ext_value);
-        LOAD_BOOT_EXTENSIONS(ext_value);
-
-        const REBOOL fully = TRUE; // error if not all arguments are consumed
-
-        DECLARE_LOCAL(exec_path);
-        REBCHR *path;
-        REBINT path_len = OS_GET_CURRENT_EXEC(&path);
-        if (path_len < 0){
-            Init_Blank(exec_path);
-        } else {
-            Init_File(exec_path,
-                To_REBOL_Path(path, path_len, (OS_WIDE ? PATH_OPT_UNI_SRC : 0))
-                );
-            OS_FREE(path);
-        }
-
-        DECLARE_LOCAL (result);
-        if (Apply_Only_Throws(
-            result,
-            fully,
-            host_start, // startup function, implicit GC guard
-            exec_path,  // path to executable file, implicit GC guard
-            argv_value, // argv parameter, implicit GC guard
-            ext_value,
+        REBVAL *new_code = rebDo(
+            BLANK_VALUE, // hack around rebEval() not allowed yet in first slot
+            rebEval(host_console), // HOST-CONSOLE function (run it)
+            code, // GROUP! or BLOCK! that was executed prior below (or void)
+            result, // result of evaluating previous code (void if error)
+            status, // BLANK! if no error, BAR! if halt, or the ERROR!
             END
-        )){
-            if (
-                IS_FUNCTION(result)
-                && VAL_FUNC_DISPATCHER(result) == &N_quit
-            ){
-                CATCH_THROWN(result, result);
-                exit_status = Exit_Status_From_Value(result);
+        );
+        rebFree(code);
+        rebFree(result);
+        rebFree(status);
 
-                DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
-
-                SHUTDOWN_BOOT_EXTENSIONS();
-                Shutdown_Core();
-                OS_EXIT(exit_status);
-                DEAD_END;
-            }
-
-            fail (Error_No_Catch_For_Throw(result));
+        if ((code = new_code) == NULL) {
+            //
+            // We don't allow cancellation while the HOST-CONSOLE function is
+            // running, and it should not FAIL or otherwise raise an error.
+            // This is why it needs to be written in such a way that any
+            // arbitrary user code--or operations that might just legitimately
+            // take a long time--are returned in `code` to be sandboxed.
+            //
+            REBVAL *e = rebLastError();
+            assert(NOT(IS_BAR(e))); // at moment, the signal for HALT/Ctrl-C
+            assert(NOT(IS_INTEGER(e))); // at moment, signals an exit code
+            rebPanic (e); // should dump some info about the `e` ERROR!
         }
 
-        DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
+        if (NOT(IS_BLOCK(code)) && NOT(IS_GROUP(code))) {
+            status = rebError("HOST-CONSOLE must return GROUP! or BLOCK!");
+            result = rebVoid();
+            continue;
+        }
 
-        // HOST-START returns either a FUNCTION! to act as the REPL, or an
-        // integer exit code if no REPL should be spawned.
+        // Restore custom DO and APPLY hooks, but only if running a GROUP!.
+        // (We do not want to trace/debug/instrument Rebol code that the
+        // console is using to implement *itself*, which it does with BLOCK!)
+        // Same for Trace_Level seen by PARSE.
         //
-        if (IS_FUNCTION(result)) {
-            PUSH_GUARD_VALUE(result);
-            exit_status = Host_Repl(result);
-            DROP_GUARD_VALUE(result);
+        if (IS_GROUP(code)) {
+            PG_Do = saved_do_hook;
+            PG_Apply = saved_apply_hook;
+            Trace_Level = Save_Trace_Level;
+            Trace_Depth = Save_Trace_Depth;
         }
-        else if (IS_INTEGER(result))
-            exit_status = VAL_INT32(result);
-        else
-            panic (result); // no other legal return values for now
-    }
+
+        // Both GROUP! and BLOCK! code is cancellable with Ctrl-C (though it's
+        // up to HOST-CONSOLE on the next iteration to decide whether to
+        // accept the cancellation or consider it an error condition or a
+        // reason to fall back to the default skin).
+        //
+        Enable_Ctrl_C();
+        result = rebDoValue(code);
+        Disable_Ctrl_C();
+
+        // If the custom DO and APPLY hooks were changed by the user code,
+        // then save them...but restore the unhooked versions for the next
+        // iteration of HOST-CONSOLE.  Same for Trace_Level seen by PARSE.
+        //
+        if (IS_GROUP(code)) {
+            saved_do_hook = PG_Do;
+            saved_apply_hook = PG_Apply;
+            PG_Do = &Do_Core;
+            PG_Apply = &Apply_Core;
+            Save_Trace_Level = Trace_Level;
+            Save_Trace_Depth = Trace_Depth;
+            Trace_Level = 0;
+            Trace_Depth = 0;
+        }
+
+        if (result != NULL) {
+            status = rebBlank();
+            continue;
+        }
+
+        // Otherwise it was a failure of some kind...get the last error and
+        // signal it to the next iteration of HOST-CONSOLE.
+
+        status = rebLastError();
+        assert(status != NULL);
+        result = rebVoid();
+
+        if (IS_BAR(status)) // currently means halted, not really an ERROR!
+            continue;
+
+        if (IS_ERROR(status))
+            continue;
+
+        assert(IS_INTEGER(status));
+
+    } while (NOT(IS_INTEGER(status)));
+
+    int exit_status = VAL_INT32(status);
+
+    rebFree(status);
+    rebFree(code);
+    rebFree(result);
 
     DROP_GUARD_VALUE(argv_value);
 
@@ -736,5 +646,5 @@ int main(int argc, char **argv_ansi)
     REBOOL clean = FALSE;
     rebShutdown(clean);
 
-    return exit_status;
+    return exit_status; // http://stackoverflow.com/questions/1101957/
 }
