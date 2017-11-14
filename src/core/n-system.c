@@ -124,8 +124,10 @@ REBNATIVE(exit_rebol)
 //      size [integer!]
 //      /torture
 //          "Constant recycle (for internal debugging)"
+//      /watch
+//          "Monitor recycling (debug only)"
 //      /verbose
-//          "Dump out information about series being recycled"
+//          "Dump out information about series being recycled (debug only)"
 //  ]
 //
 REBNATIVE(recycle)
@@ -181,75 +183,63 @@ REBNATIVE(recycle)
         count = Recycle();
     }
 
+    if (REF(watch)) {
+    #if defined(NDEBUG)
+        fail (Error_Debug_Only_Raw());
+    #else
+        // There might should be some kind of generic way to set these kinds
+        // of flags individually, perhaps having them live in SYSTEM/...
+        //
+        Reb_Opts->watch_recycle = NOT(Reb_Opts->watch_recycle);
+        Reb_Opts->watch_expand = NOT(Reb_Opts->watch_expand);
+    #endif
+    }
+
     Init_Integer(D_OUT, count);
     return R_OUT;
 }
 
 
 //
-//  evoke: native [
+//  panic: native [
 //
-//  "Special guru meditations. (Not for beginners.)"
+//  "Cause abnormal termination of Rebol (dumps debug info in debug builds)"
 //
-//      chant [word! block! integer!]
-//          "Single or block of words ('? to list)"
+//      :value [string! error!]
+//          "Error or message to report (evaluation not counted in ticks)"
 //  ]
 //
-REBNATIVE(evoke)
+REBNATIVE(panic)
 {
-    INCLUDE_PARAMS_OF_EVOKE;
+    INCLUDE_PARAMS_OF_PANIC;
 
+    REBVAL *v = ARG(value);
+
+    // panic() on the string value itself would report information about the
+    // string cell...but panic() on UTF-8 character data assumes you mean to
+    // report the contained message.
+    //
+    const void *p;
+    if (IS_STRING(v)) {
+        REBCNT len = VAL_LEN_AT(v);
+        REBCNT index = VAL_INDEX(v);
+        REBSER *utf8 = Temp_Bin_Str_Managed(v, &index, &len);
+        p = BIN_HEAD(utf8);
+    }
+    else {
+        assert(IS_ERROR(v));
+        p = v;
+    }
+
+    // Note that by using the frame's tick instead of TG_Tick, we don't count
+    // the evaluation of the value argument.  Hence the tick count shown in
+    // the dump would be the one that would queue up right to the exact moment
+    // *before* the PANIC FUNCTION! was invoked.
+    //
 #ifdef NDEBUG
-    UNUSED(ARG(chant));
-
-    fail (Error_Debug_Only_Raw());
+    panic_at (p, FRM_FILE(frame_), FRM_LINE(frame_));
 #else
-    RELVAL *arg = ARG(chant);
-    REBCNT len;
-
-    Check_Security(Canon(SYM_DEBUG), POL_READ, 0);
-
-    if (IS_BLOCK(arg)) {
-        len = VAL_LEN_AT(arg);
-        arg = VAL_ARRAY_AT(arg);
-    }
-    else len = 1;
-
-    for (; len > 0; len--, arg++) {
-        if (IS_WORD(arg)) {
-            switch (VAL_WORD_SYM(arg)) {
-            case SYM_CRASH_DUMP:
-                Reb_Opts->crash_dump = TRUE;
-                break;
-
-            case SYM_WATCH_RECYCLE:
-                Reb_Opts->watch_recycle = NOT(Reb_Opts->watch_recycle);
-                break;
-
-            case SYM_CRASH:
-                panic ("evoke 'crash was executed");
-
-            default:
-                Debug_Fmt(RM_EVOKE_HELP);
-            }
-        }
-        if (IS_INTEGER(arg)) {
-            switch (Int32(arg)) {
-            case 0:
-                Check_Memory_Debug();
-                break;
-
-            case 1:
-                Reb_Opts->watch_expand = TRUE;
-                break;
-
-            default:
-                Debug_Fmt(RM_EVOKE_HELP);
-            }
-        }
-    }
-
-    return R_VOID;
+    Panic_Core (p, frame_->tick, FRM_FILE(frame_), FRM_LINE(frame_));
 #endif
 }
 
@@ -314,6 +304,10 @@ REBNATIVE(check)
 #else
     REBVAL *value = ARG(value);
 
+    // For starters, check the memory (if it's bad, all other bets are off)
+    //
+    Check_Memory_Debug();
+
     // !!! Should call generic ASSERT_VALUE macro with more cases
     //
     if (ANY_SERIES(value)) {
@@ -331,35 +325,79 @@ REBNATIVE(check)
 #endif
 }
 
+
 //
-//  c-break-debug: native [
+//  c-debug-break-at: native [
 //
-//  "Break at next evaluation point, use ONLY when running under a C debugger"
+//  {Break at known evaluation point (only use when running under C debugger}
+//
 //      return: [<opt>]
-//      /skip
-//          points [integer!]
-//          {points to skip before breaking: 0 being next point}
-//      /at
-//          point [integer!]
-//          {Break at a certain point}
+//      tick [integer! blank!]
+//          {Get from PANIC, REBFRM.tick, REBSER.tick, REBVAL.extra.tick}
+//      /relative
+//          {TICK parameter represents a count relative to the current tick}
+// ]
+//
+REBNATIVE(c_debug_break_at)
+{
+    INCLUDE_PARAMS_OF_C_DEBUG_BREAK_AT;
+
+#ifndef NDEBUG
+    if (REF(relative))
+        TG_Break_At_Tick = frame_->tick + 1 + VAL_INT64(ARG(tick));
+    else
+        TG_Break_At_Tick = VAL_INT64(ARG(tick));
+    return R_VOID;
+#else
+    UNUSED(ARG(tick));
+    UNUSED(ARG(relative));
+
+    fail (Error_Debug_Only_Raw());
+#endif
+}
+
+
+//
+//  c-debug-break: native [
+//
+//  "Break at next evaluation point (only use when running under C debugger)"
+//
+//      return: [<opt> any-value!]
+//          {Invisibly returns what the expression to the right would have}
+//      :value [<opt> <end> any-value!]
+//          {The head cell of the code to evaluate after the break happens}
 //  ]
 //
-REBNATIVE(c_break_debug)
+REBNATIVE(c_debug_break)
 {
-#ifndef NDEBUG
-    INCLUDE_PARAMS_OF_C_BREAK_DEBUG;
+    INCLUDE_PARAMS_OF_C_DEBUG_BREAK;
 
-    if (REF(skip) && REF(at)) {
-        fail (Error_Bad_Refines_Raw());
-    } else if (REF(skip)) {
-        TG_Break_At = frame_->do_count_debug + 1 + VAL_INT64(ARG(points));
-    } else if (REF(at)) {
-        TG_Break_At = VAL_INT64(ARG(point));
-    } else {
-        TG_Break_At = frame_->do_count_debug + 1;
-    }
+#ifndef NDEBUG
+    TG_Break_At_Tick = frame_->tick + 1;
+
+    // C-DEBUG-BREAK wants to appear invisible to the evaluator, so you can
+    // use it at any position (like PROBE).  But unlike PROBE, it doesn't want
+    // an evaluated argument...because that would defeat the purpose:
+    //
+    //    print c-debug-break mold value
+    //
+    // You would like the break to happen *before* the MOLD, not after it's
+    // happened and been passed as an argument!)
+    //
+    // So we take a hard quoted parameter and then reuse the same mechanic
+    // that EVAL does.  However, the evaluator is picky about voids...and will
+    // assert if it ever is asked to "evaluate" one.  So squash the request
+    // to evaluate if it's a void.
+    //
+    Move_Value(D_CELL, ARG(value));
+    if (IS_VOID(D_CELL))
+        SET_VAL_FLAG(D_CELL, VALUE_FLAG_EVAL_FLIP);
+
+    return R_REEVALUATE_CELL;
+
 #else
-    UNUSED(frame_);
+    UNUSED(ARG(value));
+
+    fail (Error_Debug_Only_Raw());
 #endif
-    return R_VOID;
 }

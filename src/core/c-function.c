@@ -353,18 +353,6 @@ REBARR *Make_Paramlist_Managed_May_Fail(
                     fail (Error_Refinement_Arg_Opt_Raw());
             }
 
-
-            // A hard quote can only get a void if it is an <end>, and that
-            // is not reflected in the typeset but in TYPESET_FLAG_ENDABLE
-            //
-            if (VAL_PARAM_CLASS(typeset) == PARAM_CLASS_HARD_QUOTE) {
-                if (TYPE_CHECK(typeset, REB_MAX_VOID)) {
-                    DECLARE_LOCAL (param_name);
-                    Init_Word(param_name, VAL_PARAM_SPELLING(typeset));
-                    fail (Error_Hard_Quote_Void_Raw(param_name));
-                }
-            }
-
             has_types = TRUE;
             continue;
         }
@@ -2046,7 +2034,7 @@ REB_R Apply_Def_Or_Exemplar(
     // checks.  It also checks the top of stack, so that has to be set as well.
     // So this has to come before Push_Args
     //
-    SNAP_STATE(&f->state_debug);
+    SNAP_STATE(&f->state);
 #endif
 
     Push_Function(f, opt_label, fun, binding);

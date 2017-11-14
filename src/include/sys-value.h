@@ -76,7 +76,7 @@
 
 #if !defined(NDEBUG)
     #define PROBE(v) \
-        Probe_Core_Debug((v), __FILE__, __LINE__)
+        Probe_Core_Debug((v), cb_cast(__FILE__), __LINE__)
 #endif
 
 
@@ -100,11 +100,11 @@
 
 #if !defined NDEBUG
     inline static void Set_Track_Payload_Debug(
-        RELVAL *v, const char *file, int line
+        RELVAL *v, const REBYTE *file, int line
     ){
-        v->payload.track.filename = file;
+        v->payload.track.filename = cs_cast(file); // cast for debug watch
         v->payload.track.line = line;
-        v->extra.do_count = TG_Do_Count;
+        v->extra.tick = TG_Tick;
     }
 #endif
 
@@ -161,7 +161,7 @@
         FLAGIT_LEFT(23)
 
     inline static enum Reb_Kind VAL_TYPE_Debug(
-        const RELVAL *v, const char *file, int line
+        const RELVAL *v, const REBYTE *file, int line
     ){
         // VAL_TYPE is called *a lot*, and this makes it a great place to do
         // sanity checks in the debug build.  But a debug build will not
@@ -211,7 +211,7 @@
     }
 
     #define VAL_TYPE(v) \
-        VAL_TYPE_Debug((v), __FILE__, __LINE__)
+        VAL_TYPE_Debug((v), cb_cast(__FILE__), __LINE__)
 #endif
 
 
@@ -416,7 +416,7 @@ inline static void VAL_RESET_HEADER_common( // don't call directly
 #else
     inline static void Assert_Cell_Writable(
         const RELVAL *v,
-        const char *file,
+        const REBYTE *file,
         int line
     ){
         // REBVALs should not be written at addresses that do not match the
@@ -452,7 +452,7 @@ inline static void VAL_RESET_HEADER_common( // don't call directly
         RELVAL *v,
         enum Reb_Kind kind,
         REBUPT extra,
-        const char *file,
+        const REBYTE *file,
         int line
     ){
         ASSERT_CELL_WRITABLE(v, file, line);
@@ -468,7 +468,8 @@ inline static void VAL_RESET_HEADER_common( // don't call directly
     }
 
     #define VAL_RESET_HEADER_EXTRA(v,kind,extra) \
-        VAL_RESET_HEADER_EXTRA_Debug((v), (kind), (extra), __FILE__, __LINE__)
+        VAL_RESET_HEADER_EXTRA_Debug((v), (kind), (extra), \
+            cb_cast(__FILE__), __LINE__)
 
     // VAL_RESET is a variant of VAL_RESET_HEADER_EXTRA that actually
     // overwrites the payload with tracking information.  It should not be
@@ -479,7 +480,7 @@ inline static void VAL_RESET_HEADER_common( // don't call directly
         RELVAL *v,
         enum Reb_Kind kind,
         REBUPT extra,
-        const char *file,
+        const REBYTE *file,
         int line
     ){
         VAL_RESET_HEADER_EXTRA_Debug(v, kind, extra, file, line);
@@ -487,10 +488,10 @@ inline static void VAL_RESET_HEADER_common( // don't call directly
     }
 
     #define VAL_RESET(v,kind,extra) \
-        VAL_RESET_Debug((v), (kind), (extra), __FILE__, __LINE__)
+        VAL_RESET_Debug((v), (kind), (extra), cb_cast(__FILE__), __LINE__)
 
     inline static void Prep_Non_Stack_Cell_Debug(
-        struct Reb_Cell *c, const char *file, int line
+        struct Reb_Cell *c, const REBYTE *file, int line
     ){
         c->header.bits =
             NODE_FLAG_NODE | NODE_FLAG_FREE | NODE_FLAG_CELL
@@ -499,10 +500,10 @@ inline static void VAL_RESET_HEADER_common( // don't call directly
     }
 
     #define Prep_Non_Stack_Cell(c) \
-        Prep_Non_Stack_Cell_Debug((c), __FILE__, __LINE__)
+        Prep_Non_Stack_Cell_Debug((c), cb_cast(__FILE__), __LINE__)
 
     inline static void Prep_Stack_Cell_Debug(
-        struct Reb_Cell *c, const char *file, int line
+        struct Reb_Cell *c, const REBYTE *file, int line
     ){
         c->header.bits = NODE_FLAG_NODE | NODE_FLAG_FREE | NODE_FLAG_CELL
             | HEADERIZE_KIND(REB_MAX_PLUS_ONE_TRASH) | VALUE_FLAG_STACK;
@@ -510,7 +511,7 @@ inline static void VAL_RESET_HEADER_common( // don't call directly
     }
 
     #define Prep_Stack_Cell(c) \
-        Prep_Stack_Cell_Debug((c), __FILE__, __LINE__)
+        Prep_Stack_Cell_Debug((c), cb_cast(__FILE__), __LINE__)
 #endif
 
 #define VAL_RESET_HEADER(v,t) \
@@ -522,7 +523,7 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
     // the type and bits (e.g. changing ANY-WORD! to another ANY-WORD!).
     // Otherwise the value-specific flags might be misinterpreted.
     //
-    ASSERT_CELL_WRITABLE(v, __FILE__, __LINE__);
+    ASSERT_CELL_WRITABLE(v, cb_cast(__FILE__), __LINE__);
     CLEAR_8_RIGHT_BITS(v->header.bits);
     v->header.bits |= HEADERIZE_KIND(kind);
 }
@@ -547,20 +548,20 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
 #else
     inline static void Set_Trash_Debug(
         RELVAL *v,
-        const char *file,
+        const REBYTE *file,
         int line
-    ) {
+    ){
         ASSERT_CELL_WRITABLE(v, file, line);
 
         v->header.bits &= CELL_MASK_RESET;
         v->header.bits |= NODE_FLAG_FREE
-            | HEADERIZE_KIND(REB_MAX_PLUS_ONE_TRASH);
+          | HEADERIZE_KIND(REB_MAX_PLUS_ONE_TRASH);
 
         Set_Track_Payload_Debug(v, file, line);
     }
 
     #define TRASH_CELL_IF_DEBUG(v) \
-        Set_Trash_Debug((v), __FILE__, __LINE__)
+        Set_Trash_Debug((v), cb_cast(__FILE__), __LINE__)
 
     inline static REBOOL IS_TRASH_DEBUG(const RELVAL *v) {
         assert(v->header.bits & NODE_FLAG_CELL);
@@ -616,7 +617,7 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
 #else
     inline static REBOOL IS_END_Debug(
         const RELVAL *v,
-        const char *file,
+        const REBYTE *file,
         int line
     ){
         if (v->header.bits & NODE_FLAG_FREE) {
@@ -659,9 +660,9 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
 #endif
 
     #define IS_END(v) \
-        IS_END_Debug((v), __FILE__, __LINE__)
+        IS_END_Debug((v), cb_cast(__FILE__), __LINE__)
 
-    inline static void SET_END_Debug(RELVAL *v, const char *file, int line) {
+    inline static void SET_END_Debug(RELVAL *v, const REBYTE *file, int line) {
         ASSERT_CELL_WRITABLE(v, file, line);
         v->header.bits &= CELL_MASK_RESET; // leaves NODE_FLAG_CELL, etc.
         v->header.bits |= NODE_FLAG_END | HEADERIZE_KIND(REB_0);
@@ -669,11 +670,11 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
     }
 
     #define SET_END(v) \
-        SET_END_Debug((v), __FILE__, __LINE__)
+        SET_END_Debug((v), cb_cast(__FILE__), __LINE__)
 
     inline static enum Reb_Kind VAL_TYPE_OR_0_Debug(
         const RELVAL *v,
-        const char *file,
+        const REBYTE *file,
         int line
     ){
         if (v->header.bits & NODE_FLAG_END) {
@@ -690,7 +691,7 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
     // Warning: Only use on valid non-END REBVAL -or- on global END value
     //
     #define VAL_TYPE_OR_0(v) \
-        VAL_TYPE_OR_0_Debug((v), __FILE__, __LINE__)
+        VAL_TYPE_OR_0_Debug((v), cb_cast(__FILE__), __LINE__)
 #endif
 
 #define NOT_END(v) \
@@ -836,7 +837,7 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
     //
     inline static REBVAL *Sink_Debug(
         RELVAL *v,
-        const char *file,
+        const REBYTE *file,
         int line
     ) {
         ASSERT_CELL_WRITABLE(v, file, line);
@@ -860,7 +861,7 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
     }
 
     #define SINK(v) \
-        Sink_Debug((v), __FILE__, __LINE__)
+        Sink_Debug((v), cb_cast(__FILE__), __LINE__)
 
 #endif
 
@@ -894,7 +895,7 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
         GET_VAL_FLAG((v), VALUE_FLAG_FALSEY)
 #else
     inline static REBOOL IS_FALSEY_Debug(
-        const RELVAL *v, const char *file, int line
+        const RELVAL *v, const REBYTE *file, int line
     ){
         if (IS_VOID(v)) {
             printf("Conditional true/false test on void\n");
@@ -904,7 +905,7 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
     }
 
     #define IS_FALSEY(v) \
-        IS_FALSEY_Debug((v), __FILE__, __LINE__)
+        IS_FALSEY_Debug((v), cb_cast(__FILE__), __LINE__)
 #endif
 
 #define IS_TRUTHY(v) \
@@ -1531,7 +1532,7 @@ inline static void Move_Value_Header(RELVAL *out, const RELVAL *v)
         && NOT(v->header.bits & (NODE_FLAG_END | NODE_FLAG_FREE))
     );
 
-    ASSERT_CELL_WRITABLE(out, __FILE__, __LINE__);
+    ASSERT_CELL_WRITABLE(out, cb_cast(__FILE__), __LINE__);
 
     out->header.bits &= CELL_MASK_RESET;
     out->header.bits |= v->header.bits & CELL_MASK_COPY;
@@ -1633,7 +1634,7 @@ inline static void Blit_Cell(RELVAL *out, const RELVAL *v)
         && NOT(v->header.bits & (NODE_FLAG_END | NODE_FLAG_FREE))
     );
 
-    ASSERT_CELL_WRITABLE(out, __FILE__, __LINE__);
+    ASSERT_CELL_WRITABLE(out, cb_cast(__FILE__), __LINE__);
 
     // Examine just the cell's preparation bits.  Are they identical?  If so,
     // we are not losing any information by blindly copying the header in

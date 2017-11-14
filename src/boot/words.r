@@ -317,9 +317,6 @@ sigxcpu
 sigxfsz
 
 bits
-crash
-crash-dump
-watch-recycle
 
 uid
 euid

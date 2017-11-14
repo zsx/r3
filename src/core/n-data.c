@@ -1244,34 +1244,76 @@ REBNATIVE(to_logic)
 //
 //  quote: native/body [
 //
-//  "Returns the value passed to it without evaluation."
+//  "Returns value passed in without evaluation."
 //
-//      return: [any-value!]
+//      return: [<opt> any-value!]
+//          {The input value, verbatim--unless /SOFT and soft quoted type}
 //      :value [any-value!]
+//          {Value to quote, with BAR! or <opt> not allowed (use UNEVAL)}
+//      /soft
+//          {Evaluate if a GROUP!, GET-WORD!, or GET-PATH!}
 //  ][
 //      if bar? :value [
 //          fail "Cannot quote expression barrier" ;-- not actual error
 //      ]
-//      :value ;-- actually also sets unevaluated bit, how could a user do so?
+//      if any [group! :value | get-word? :value | get-path? :value] [
+//          reduce value
+//      ] else [
+//          :value ;-- also sets unevaluated bit, how could a user do so?
+//      ]
 //  ]
 //
 REBNATIVE(quote)
 {
     INCLUDE_PARAMS_OF_QUOTE;
 
-    // Generally speaking, a hard quoting operation is permitted to quote
-    // BAR! if it really wants to.  The general advice is to fail in this
-    // case, but it is not enforced.
+    REBVAL *v = ARG(value);
+
+    // At the moment, a hard quoting operation is permitted to quote BAR! if
+    // it really wants to.  The general advice is to fail in this case, but it
+    // is not enforced.  (Hard quotes are also generally not recommended in
+    // situations where a soft quote would do.)
     //
-    if (IS_BAR(ARG(value)))
+    if (IS_BAR(v))
         fail (Error_Expression_Barrier_Raw());
 
-    Move_Value(D_OUT, ARG(value));
+    // While we could use Eval_Value_Throws() here and do the evaluation
+    // ourself, that call would need to spawn a new frame.  Using the same
+    // re-evaluation feature that EVAL is based on is more efficient, since it
+    // just runs in the current frame.
+    //
+    if (REF(soft) && IS_QUOTABLY_SOFT(v)) {
+        Move_Value(D_CELL, v);
+        return R_REEVALUATE_CELL;
+    }
 
     // We cannot set the VALUE_FLAG_UNEVALUATED bit here and make it stick,
     // because the bit would just get cleared off by Do_Core when the
     // function finished.  Ask evaluator to add the bit for us.
+    //
+    Move_Value(D_OUT, v);
+    return R_OUT_UNEVALUATED;
+}
 
+
+//
+//  uneval: native/body [
+//
+//  "Returns value passed in without evaluation (including BAR! and void)"
+//
+//      return: [<opt> any-value!]
+//          {The input value, verbatim.}
+//      :value [<opt> any-value!]
+//          {Value to quote.  Voids are only possible via C rebDo() API.}
+//  ][
+//      :value ;-- also sets unevaluated bit, how could a user do so?
+//  ]
+//
+REBNATIVE(uneval)
+{
+    INCLUDE_PARAMS_OF_UNEVAL;
+
+    Move_Value(D_OUT, ARG(value));
     return R_OUT_UNEVALUATED;
 }
 

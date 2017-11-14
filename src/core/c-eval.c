@@ -54,20 +54,20 @@
 
 #if !defined(NDEBUG)
     //
-    // The `do_count` should be visible in the C debugger watchlist as a
+    // The evaluator `tick` should be visible in the C debugger watchlist as a
     // local variable in Do_Core() for each stack level.  So if a fail()
     // happens at a deterministic moment in a run, capture the number from
     // the level of interest and recompile with it here to get a breakpoint
     // at that tick.
     //
-    // Notice also that in debug builds, frames carry this value in them.
+    // Notice also that in debug builds, `REBSER.tick` carries this value.
     // *Plus* you can get the initialization tick for void cells, BLANK!s,
     // LOGIC!s, and most end markers by looking at the `track` payload of
-    // the REBVAL cell.  And series contain the do_count where they were
+    // the REBVAL cell.  And series contain the `REBSER.tick` where they were
     // created as well.
     //
     //      *** DON'T COMMIT THIS v-- KEEP IT AT ZERO! ***
-    #define DO_COUNT_BREAKPOINT    0
+    #define TICK_BREAKPOINT        0
     //      *** DON'T COMMIT THIS --^ KEEP IT AT ZERO! ***
     //
     // Note: Taking this number on the command line sounds convenient, though
@@ -118,27 +118,45 @@ static inline REBOOL Start_New_Expression_Throws(REBFRM *f) {
     return FALSE;
 }
 
-#define START_NEW_EXPRESSION_MAY_THROW_COMMON(f,g) \
-    if (Start_New_Expression_Throws(f)) \
-        g; \
-    evaluating = NOT((f)->flags.bits & DO_FLAG_EXPLICIT_EVALUATE); \
 
 #ifdef NDEBUG
+    #define UPDATE_TICK_DEBUG(cur) \
+        NOOP
+
     #define START_NEW_EXPRESSION_MAY_THROW(f,g) \
-        START_NEW_EXPRESSION_MAY_THROW_COMMON(f, g)
+        if (Start_New_Expression_Throws(f)) \
+            g; \
+        evaluating = NOT((f)->flags.bits & DO_FLAG_EXPLICIT_EVALUATE);
 #else
-    // Macro is used to mutate local do_count variable in Do_Core (for easier
-    // browsing in the watchlist) as well as to not be in a deeper stack level
-    // than Do_Core when a DO_COUNT_BREAKPOINT is hit.
-    //
     #define START_NEW_EXPRESSION_MAY_THROW(f,g) \
+        if (Start_New_Expression_Throws(f)) \
+            g; \
+        Do_Core_Expression_Checks_Debug(f); \
+        evaluating = NOT((f)->flags.bits & DO_FLAG_EXPLICIT_EVALUATE);
+
+    // Macro is used to mutate local `tick` variable in Do_Core (for easier
+    // browsing in the watchlist) as well as to not be in a deeper stack level
+    // than Do_Core when a TICK_BREAKPOINT is hit.
+    //
+    // We bound the count at the max unsigned 32-bit, since otherwise it would
+    // roll over to zero and print a message that wasn't asked for, which
+    // is annoying even in a debug build.  (It's actually a REBUPT, so this
+    // wastes possible bits in the 64-bit build, but there's no MAX_REBUPT.)
+    //
+    #define UPDATE_TICK_DEBUG(cur) \
         do { \
-            START_NEW_EXPRESSION_MAY_THROW_COMMON(f, g); \
-            do_count = Do_Core_Expression_Checks_Debug(f); \
-            if (do_count == TG_Break_At || do_count == DO_COUNT_BREAKPOINT) { \
-                Debug_Fmt("DO_COUNT_BREAKPOINT at %d", f->do_count_debug); \
-                Dump_Frame_Location(f); \
+            if (TG_Tick < MAX_U32) \
+                tick = f->tick = ++TG_Tick; \
+            else \
+                tick = f->tick = MAX_U32; \
+            if ( \
+                (TG_Break_At_Tick != 0 && tick >= TG_Break_At_Tick) \
+                || tick == TICK_BREAKPOINT \
+            ){ \
+                Debug_Fmt("TICK_BREAKPOINT at %d", tick); \
+                Dump_Frame_Location((cur), f); \
                 debug_break(); /* see %debug_break.h */ \
+                TG_Break_At_Tick = 0; \
             } \
         } while (FALSE)
 #endif
@@ -280,7 +298,7 @@ static inline void Link_Vararg_Param_To_Frame(REBFRM *f, REBOOL make) {
 void Do_Core(REBFRM * const f)
 {
 #if !defined(NDEBUG)
-    REBUPT do_count = f->do_count_debug = TG_Do_Count; // snapshot start tick
+    REBUPT tick = f->tick = TG_Tick; // snapshot start tick
 #endif
 
     // Capture the data stack pointer on entry.  Refinements are pushed to
@@ -307,7 +325,7 @@ void Do_Core(REBFRM * const f)
     f->eval_type = VAL_TYPE(f->value);
 
 #if !defined(NDEBUG)
-    SNAP_STATE(&f->state_debug); // to make sure stack balances, etc.
+    SNAP_STATE(&f->state); // to make sure stack balances, etc.
     Do_Core_Entry_Checks_Debug(f); // run once per Do_Core()
 #endif
 
@@ -321,7 +339,7 @@ void Do_Core(REBFRM * const f)
 do_next:;
 
     START_NEW_EXPRESSION_MAY_THROW(f, goto finished);
-    // ^-- sets evaluating, do_count, Ctrl-C may abort
+    // ^-- resets local `evaluating` flag, `tick` count, Ctrl-C may abort
 
     const RELVAL *current;
     const REBVAL *current_gotten;
@@ -342,7 +360,7 @@ do_next:;
     // !!! Review how often gotten has hits vs. misses, and what the benefit
     // of the feature actually is.
 
-    current = f->value; // <-- DO_COUNT_BREAKPOINT landing spot
+    current = f->value;
     current_gotten = f->gotten;
     f->gotten = END;
     Fetch_Next_In_Frame(f);
@@ -351,6 +369,9 @@ reevaluate:;
     //
     // ^-- doesn't advance expression index, so `eval x` starts with `eval`
     // also EVAL/ONLY may change `evaluating` to FALSE for a cycle
+
+    UPDATE_TICK_DEBUG(current);
+    // v-- This is the TICK_BREAKPOINT or C-DEBUG-BREAK landing spot --v
 
     if (NOT(evaluating) == NOT_VAL_FLAG(current, VALUE_FLAG_EVAL_FLIP)) {
         //
@@ -2074,7 +2095,10 @@ reevaluate:;
     //=//// IT'S INFIX OR WE'RE DOING TO THE END...DISPATCH LIKE WORD /////=//
 
         START_NEW_EXPRESSION_MAY_THROW(f, goto finished);
-        // ^-- sets evaluating, do_count, Ctrl-C may abort
+        // ^-- resets local `evaluating` flag, `tick` count, Ctrl-C may abort
+
+        UPDATE_TICK_DEBUG(NULL);
+        // v-- This is the TICK_BREAKPOINT or C-DEBUG-BREAK landing spot --v
 
         if (VAL_TYPE_OR_0(f->gotten) != REB_FUNCTION) { // END is REB_0
             current = f->value;

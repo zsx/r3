@@ -362,7 +362,13 @@ host-console: function [
             ]
         ]
         return compose/deep/only [
-            system/console/print-result quote (:result) ; don't run FUNCTION!
+            ;
+            ; Can't pass `result` in directly, because it might be a FUNCTION!
+            ; (which when composed in will execute instead of be passed as a
+            ; parameter).  Can't use QUOTE because it would not allow BAR!.
+            ; Use UNEVAL, which is a stronger QUOTE created for this purpose.
+            ;
+            system/console/print-result uneval (:result)
                 |
             <needs-prompt>
         ]
@@ -398,12 +404,12 @@ host-console: function [
             <no-prompt> [needs-prompt: needs-gap: false]
             <no-gap> [needs-gap: false]
         ] else [
-            return compose/deep [
+            return compose/deep/only [
                 #no-unskin-if-error
                     |
-                print mold (prior)
+                print mold uneval (prior)
                     |
-                fail ["Bad REPL continuation:" quote (result)]
+                fail ["Bad REPL continuation:" uneval (result)]
             ]
         ]
     ]

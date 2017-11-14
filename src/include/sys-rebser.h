@@ -806,7 +806,7 @@ struct Reb_Series {
 
 #if !defined(NDEBUG)
     int *guard; // intentionally alloc'd and freed for use by Panic_Series
-    REBUPT do_count; // also maintains sizeof(REBSER) % sizeof(REBI64) == 0
+    REBUPT tick; // also maintains sizeof(REBSER) % sizeof(REBI64) == 0
 #endif
 };
 

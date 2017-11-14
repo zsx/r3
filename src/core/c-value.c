@@ -62,7 +62,7 @@ ATTRIBUTE_NO_RETURN void Panic_Value_Debug(const RELVAL *v) {
     case REB_BAR:
         printf(
             "REBVAL init on tick #%d at %s:%d\n",
-            cast(unsigned int, v->extra.do_count),
+            cast(unsigned int, v->extra.tick),
             v->payload.track.filename,
             v->payload.track.line
         );
@@ -172,13 +172,13 @@ void Assert_No_Relative(REBARR *array, REBOOL deep)
 //
 void Probe_Core_Debug(
     const void *p,
-    const char *file,
+    const REBYTE *file,
     int line
 ) {
     const struct Reb_Header *h = cast(const struct Reb_Header*, p);
 
     printf("\n** PROBE() ");
-    printf("tick %d %s:%d\n", cast(int, TG_Do_Count), file, line);
+    printf("tick %d %s:%d\n", cast(int, TG_Tick), file, line);
 
     fflush(stdout);
     fflush(stderr);

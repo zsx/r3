@@ -1243,13 +1243,22 @@ void RL_rebPanic(const void *p)
     // because it's a pairing.)  Workaround for the moment by extracting to
     // a non-pairing value.
     //
+    DECLARE_LOCAL (temp);
+    const void *hack;
     if (Detect_Rebol_Pointer(p) == DETECTED_AS_VALUE) {
-        DECLARE_LOCAL (temp);
         Move_Value(temp, cast(const REBVAL*, p));
-        Panic_Core(temp, __FILE__, __LINE__);
+        hack = temp;
     }
+    else
+        hack = p;
 
-    Panic_Core(p, __FILE__, __LINE__);
+    // Like Panic_Core, the underlying API for rebPanic might want to take an
+    // optional file and line.
+    //
+    REBYTE *file_utf8 = NULL;
+    int line = 0;
+
+    panic_at (hack, file_utf8, line);
 }
 
 

@@ -251,7 +251,7 @@ inline static void DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(struct Reb_State *s) {
     #define ASSERT_STATE_BALANCED(s) NOOP
 #else
     #define ASSERT_STATE_BALANCED(s) \
-        Assert_State_Balanced_Debug((s), __FILE__, __LINE__)
+        Assert_State_Balanced_Debug((s), cb_cast(__FILE__), __LINE__)
 #endif
 
 
@@ -368,8 +368,18 @@ inline static void DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(struct Reb_State *s) {
 // NOTE: It's desired that there be a space in `panic (...)` to make it look
 // more "keyword-like" and draw attention to the fact it is a `noreturn` call.
 //
-#define panic(v) \
-    Panic_Core((v), __FILE__, __LINE__);
+#ifdef NDEBUG
+    #define panic(v) \
+        Panic_Core((v), 0, NULL, 0)
 
-#define panic_at(v,file,line) \
-    Panic_Core((v), (file), (line));
+    #define panic_at(v,file,line) \
+        (void)file; \
+        (void)line; \
+        panic(v)
+#else
+    #define panic(v) \
+        Panic_Core((v), TG_Tick, cb_cast(__FILE__), __LINE__)
+
+    #define panic_at(v,file,line) \
+        Panic_Core((v), TG_Tick, (file), (line))
+#endif

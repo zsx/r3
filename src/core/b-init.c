@@ -781,7 +781,7 @@ static void Init_Root_Vars(void)
     //
     Init_Endlike_Header(&PG_End_Node.header, 0); // mutate to read-only end
 #if !defined(NDEBUG)
-    Set_Track_Payload_Debug(&PG_End_Node, __FILE__, __LINE__);
+    Set_Track_Payload_Debug(&PG_End_Node, cb_cast(__FILE__), __LINE__);
 #endif
     assert(IS_END(END)); // sanity check that it took
     assert(VAL_TYPE_RAW(END) == REB_0); // this implicit END marker has this
@@ -952,7 +952,7 @@ static void Init_Contexts_Object(void)
 //
 static void Init_Break_Point(void)
 {
-    TG_Break_At = 0;
+    TG_Break_At_Tick = 0;
 
     const char *env_break_at = getenv("R3_BREAK_AT");
     if (env_break_at != NULL) {
@@ -964,7 +964,7 @@ static void Init_Break_Point(void)
                 "** Will break in Do_Core or crash (if not launched by a debugger)\n"
                 "**\n"
             );
-            TG_Break_At = cast(REBUPT, break_at);
+            TG_Break_At_Tick = cast(REBUPT, break_at);
         }
     }
 }

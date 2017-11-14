@@ -43,7 +43,8 @@
 //
 ATTRIBUTE_NO_RETURN void Panic_Core(
     const void *p, // REBSER* (array, context, etc), REBVAL*, or UTF-8 char*
-    const char *file,
+    REBUPT tick,
+    const REBYTE *file_utf8,
     int line
 ) {
     if (p == NULL)
@@ -55,15 +56,16 @@ ATTRIBUTE_NO_RETURN void Panic_Core(
     GC_Disabled = TRUE;
 
 #if defined(NDEBUG)
-    UNUSED(file);
+    UNUSED(tick);
+    UNUSED(file_utf8);
     UNUSED(line);
 #else
     //
     // First thing's first in the debug build, make sure the file and the
     // line are printed out, as well as the current evaluator tick.
     //
-    printf("C Source File %s, Line %d\n", file, line);
-    printf("On evaluator tick: %lu\n", cast(unsigned long, TG_Do_Count));
+    printf("C Source File %s, Line %d\n", cs_cast(file_utf8), line);
+    printf("At evaluator tick: %lu\n", cast(unsigned long, tick));
 
     // Generally Rebol does not #include <stdio.h>, but the debug build does.
     // It's often used for debug spew--as opposed to Debug_Fmt()--when there
@@ -85,11 +87,13 @@ ATTRIBUTE_NO_RETURN void Panic_Core(
     title[0] = '\0';
     buf[0] = '\0';
 
-#if !defined(NDEBUG)
-    if (Reb_Opts && Reb_Opts->crash_dump) {
-        Dump_Info();
-        Dump_Stack(NULL, 0);
-    }
+#if !defined(NDEBUG) && 0
+    //
+    // These are currently disabled, because they generate too much junk.
+    // Address Sanitizer gives a reasonable idea of the stack.
+    //
+    Dump_Info();
+    Dump_Stack(NULL, 0);
 #endif
 
     strncat(title, "PANIC()", PANIC_TITLE_BUF_SIZE - 0);

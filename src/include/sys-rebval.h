@@ -339,7 +339,7 @@
 
 #if !defined(NDEBUG)
     struct Reb_Track {
-        const char *filename;
+        const char *filename; // is REBYTE (UTF-8), but char* for debug watch
         int line;
     };
 #endif
@@ -747,7 +747,7 @@ union Reb_Value_Extra {
     REBARR *singular;
 
 #if !defined(NDEBUG)
-    REBUPT do_count; // used by track payloads
+    REBUPT tick; // value initialization tick if the payload is Reb_Track
 #endif
 };
 
@@ -910,6 +910,8 @@ struct Reb_Cell
             : p (p) {}
 
         operator const Reb_Relative_Value* () { return p; }
+        
+        const Reb_Relative_Value* operator-> () { return p; } 
 
         const_Reb_Relative_Value_No_End_Ptr operator= (
             const Reb_Relative_Value *rhs

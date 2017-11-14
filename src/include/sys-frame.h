@@ -118,6 +118,34 @@ inline static REBCNT FRM_EXPR_INDEX(REBFRM *f) {
         : f->expr_index - 1;
 }
 
+inline static const REBYTE* FRM_FILE(REBFRM *f) {
+    //
+    // !!! the rebDo function could be a variadic macro in C99 or higher, as
+    // `rebDoFileLine(__FILE__, __LINE__, ...`.  This could let the file and
+    // line information make it into the frame, and be used when loading new
+    // source material -or- if no source material were loaded, it could just
+    // be kept as a UTF-8 string inside the frame without needing interning
+    // as a series.  But for now, just signal that it came from C code.
+    //
+    if (f->source.array == NULL)
+        return cb_cast("(api-client-file).c");
+
+    if (NOT_SER_FLAG(f->source.array, SERIES_FLAG_FILE_LINE))
+        return STR_HEAD(Canon(SYM___ANONYMOUS__));
+
+    return STR_HEAD(LINK(SER(f->source.array)).filename);
+}
+
+inline static int FRM_LINE(REBFRM *f) {
+    if (f->source.array == NULL)
+        return 0;
+
+    if (NOT_SER_FLAG(f->source.array, SERIES_FLAG_FILE_LINE))
+        return 0;
+
+    return MISC(SER(f->source.array)).line;
+}
+
 #define FRM_OUT(f) \
     cast(REBVAL * const, (f)->out) // writable Lvalue
 
@@ -242,9 +270,9 @@ inline static void SET_FRAME_VALUE(REBFRM *f, const RELVAL* value) {
 
 #if !defined(NDEBUG)
     if (IS_END(value))
-        f->kind_debug = REB_0;
+        f->kind = REB_0;
     else
-        f->kind_debug = VAL_TYPE(value);
+        f->kind = VAL_TYPE(value);
 #endif
 
     if (IS_END(value))
@@ -420,8 +448,7 @@ inline static void Push_Function(
     // It's helpful when looking in the debugger to be able to look at a frame
     // and see a cached string for the function it's running.
     //
-    f->label_debug =
-        cast(const char*, Frame_Label_Or_Anonymous_UTF8(f));
+    f->label_utf8 = cast(const char*, Frame_Label_Or_Anonymous_UTF8(f));
 #endif
 
     f->original = f->phase = fun;
@@ -505,7 +532,7 @@ inline static void Drop_Function_Core(
     );
     TRASH_POINTER_IF_DEBUG(f->opt_label);
 #if !defined(NDEBUG)
-    TRASH_POINTER_IF_DEBUG(f->label_debug);
+    TRASH_POINTER_IF_DEBUG(f->label_utf8);
 #endif
 
     f->phase = NULL; // should args_head == NULL be the indicator instead?

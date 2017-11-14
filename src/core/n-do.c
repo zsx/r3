@@ -55,13 +55,11 @@ REBNATIVE(eval)
 {
     INCLUDE_PARAMS_OF_EVAL;
 
-    REBFRM *f = frame_; // implicit parameter to every dispatcher/native
-
     // The REEVALUATE instructions explicitly understand that the value to
     // do reevaluation of is held in the frame's f->cell.  (It would be unsafe
     // to evaluate something held in f->out.)
     //
-    Move_Value(&f->cell, ARG(value));
+    Move_Value(D_CELL, ARG(value));
 
     if (REF(only)) {
         //
@@ -69,7 +67,7 @@ REBNATIVE(eval)
         // mode.  But we still want the eval cell itself to be treated
         // evaluatively despite that.  So flip its special evaluator bit.
         //
-        SET_VAL_FLAG(&f->cell, VALUE_FLAG_EVAL_FLIP);
+        SET_VAL_FLAG(D_CELL, VALUE_FLAG_EVAL_FLIP);
         return R_REEVALUATE_CELL_ONLY;
     }
 

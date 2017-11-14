@@ -153,8 +153,8 @@ TVAR REBUPT Stack_Limit;    // Limit address for CPU stack.
     // used for many purposes...including setting breakpoints in routines
     // other than Do_Next that are contingent on a certain "tick" elapsing.
     //
-    TVAR REBUPT TG_Do_Count;
-    TVAR REBUPT TG_Break_At; // The do_count to break
+    TVAR REBUPT TG_Tick; // expressions, EVAL moments, PARSE steps bump this
+    TVAR REBUPT TG_Break_At_Tick; // runtime break tick set by C-DEBUG_BREAK
 
     TVAR REBIPT TG_Num_Black_Series;
 #endif

@@ -129,7 +129,7 @@ typedef u16 REBUNI;
 #ifdef REB_DEF
     struct Reb_Cell;
 
-    #if  !defined(__cplusplus) || __cplusplus < 201103L
+    #if !defined(__cplusplus) || __cplusplus < 201103L
         #define RELVAL struct Reb_Cell
         #define REBVAL struct Reb_Cell
         #define const_RELVAL_NO_END_PTR const struct Reb_Cell *

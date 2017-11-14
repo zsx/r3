@@ -1322,7 +1322,7 @@ REBNATIVE(subparse)
     const REBCNT *pos_debug = &P_POS;
     (void)pos_debug; // UNUSED() forces corruption in C++11 debug builds
 
-    REBUPT do_count = TG_Do_Count; // helpful to cache for visibility also
+    REBUPT tick = TG_Tick; // helpful to cache for visibility also
 #endif
 
     DECLARE_LOCAL (save);
@@ -1371,9 +1371,9 @@ REBNATIVE(subparse)
         UPDATE_EXPRESSION_START(f);
 
     #if !defined(NDEBUG)
-        ++TG_Do_Count;
-        do_count = TG_Do_Count;
-        cast(void, do_count); // suppress compiler warning about lack of use
+        ++TG_Tick;
+        tick = TG_Tick;
+        cast(void, tick); // suppress compiler warning about lack of use
     #endif
 
     //==////////////////////////////////////////////////////////////////==//

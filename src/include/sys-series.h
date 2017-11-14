@@ -583,7 +583,7 @@ inline static void Drop_Guard_Value_Common(const RELVAL *v) {
 #else
     inline static void Drop_Guard_Series_Debug(
         REBSER *s,
-        const char *file,
+        const REBYTE *file,
         int line
     ) {
         if (s != *SER_LAST(REBSER*, GC_Guarded))
@@ -593,7 +593,7 @@ inline static void Drop_Guard_Value_Common(const RELVAL *v) {
 
     inline static void Drop_Guard_Value_Debug(
         const RELVAL *v,
-        const char *file,
+        const REBYTE *file,
         int line
     ) {
         if (v != *SER_LAST(RELVAL*, GC_Guarded))
@@ -602,10 +602,10 @@ inline static void Drop_Guard_Value_Common(const RELVAL *v) {
     }
 
     #define DROP_GUARD_SERIES(s) \
-        Drop_Guard_Series_Debug(s, __FILE__, __LINE__);
+        Drop_Guard_Series_Debug(s, cb_cast(__FILE__), __LINE__);
 
     #define DROP_GUARD_VALUE(v) \
-        Drop_Guard_Value_Debug(v, __FILE__, __LINE__);
+        Drop_Guard_Value_Debug(v, cb_cast(__FILE__), __LINE__);
 #endif
 
 

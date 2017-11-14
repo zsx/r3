@@ -580,15 +580,15 @@ struct Reb_Frame {
 
 #if !defined(NDEBUG)
     //
-    // `label_debug` [DEBUG]
+    // `label` [DEBUG]
     //
     // Knowing the label symbol is not as handy as knowing the actual string
     // of the function this call represents (if any).  It is in UTF8 format,
     // and cast to `char*` to help debuggers that have trouble with REBYTE.
     //
-    const char *label_debug;
+    const char *label_utf8;
 
-    // `file_debug` [DEBUG]
+    // `file` [DEBUG]
     //
     // An emerging feature in the system is the ability to connect user-seen
     // series to a file and line number associated with their creation,
@@ -596,30 +596,30 @@ struct Reb_Frame {
     // them.  As the feature gets better, it will certainly be useful to be
     // able to quickly see the information in the debugger for f->source.
     //
-    const char *file_debug;
-    int line_debug;
+    const char *file; // is REBYTE (UTF-8), but char* for debug watch
+    int line;
 
-    // `kind_debug` [DEBUG]
+    // `kind` [DEBUG]
     //
     // The fetching mechanics cache the type of f->value
     //
-    enum Reb_Kind kind_debug;
+    enum Reb_Kind kind;
 
-    // `do_count_debug` [DEBUG]
+    // `tick` [DEBUG]
     //
-    // The `do_count` represents the expression evaluation "tick" where the
-    // Reb_Frame is starting its processing.  This is helpful for setting
-    // breakpoints on certain ticks in reproducible situations.
+    // The expression evaluation "tick" where the Reb_Frame is starting its
+    // processing.  This is helpful for setting breakpoints on certain ticks
+    // in reproducible situations.
     //
-    REBUPT do_count_debug; // !!! Should this be available in release builds?
+    REBUPT tick; // !!! Should this be available in release builds?
 
-    // `state_debug` [DEBUG]
+    // `state` [DEBUG]
     //
     // Debug reuses PUSH_TRAP's snapshotting to check for leaks at each stack
     // level.  It can also be made to use a more aggresive leak check at every
     // evaluator step--see BALANCE_CHECK_EVERY_EVALUATION_STEP.
     //
-    struct Reb_State state_debug;
+    struct Reb_State state;
 #endif
 };
 

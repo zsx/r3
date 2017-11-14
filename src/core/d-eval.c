@@ -60,29 +60,39 @@
 //
 //  Dump_Frame_Location: C
 //
-void Dump_Frame_Location(REBFRM *f)
+void Dump_Frame_Location(const RELVAL *current, REBFRM *f)
 {
-    DECLARE_LOCAL (dump);
-    Derelativize(dump, f->value, f->specifier);
-
-    printf("Dump_Frame_Location() value\n");
-    PROBE(dump);
-
     if (FRM_IS_VALIST(f)) {
         //
-        // NOTE: This reifies the va_list in the frame, and hence has
-        // side effects.  It may need to be commented out if the
-        // problem you are trapping with DO_COUNT_BREAKPOINT was
-        // specifically with va_list frame processing.
+        // NOTE: This reifies the va_list in the frame, and hence has side
+        // effects.  It may need to be commented out if the problem you are
+        // trapping with TICK_BREAKPOINT or C-DEBUG-BREAK was specifically
+        // related to va_list frame processing.
         //
         const REBOOL truncated = TRUE;
         Reify_Va_To_Array_In_Frame(f, truncated);
     }
 
+    DECLARE_LOCAL (dump);
+
+    if (current != NULL) {
+        Derelativize(dump, current, f->specifier);
+        printf("Dump_Frame_Location() current\n");
+        PROBE(dump);
+    }
+
+    if (f->value != NULL) {
+        Derelativize(dump, f->value, f->specifier);
+        printf("Dump_Frame_Location() next\n");
+        PROBE(dump);
+    }
+
     if (FRM_AT_END(f)) {
-        printf("...then Dump_Frame_Location() at end of array\n");
+        printf("...then Dump_Frame_Location() is at end of array\n");
     }
     else {
+        printf("Dump_Frame_Location() rest\n");
+
         Init_Any_Series_At_Core(
             dump,
             REB_BLOCK,
@@ -90,8 +100,6 @@ void Dump_Frame_Location(REBFRM *f)
             cast(REBCNT, f->source.index),
             f->specifier
         );
-
-        printf("Dump_Frame_Location() next input\n");
         PROBE(dump);
     }
 }
@@ -132,7 +140,7 @@ void Do_Core_Entry_Checks_Debug(REBFRM *f)
     assert(!IN_DATA_STACK_DEBUG(f->out));
 #endif
 
-    Assert_Cell_Writable(f->out, __FILE__, __LINE__);
+    Assert_Cell_Writable(f->out, cb_cast(__FILE__), __LINE__);
     assert(NOT(IS_TRASH_DEBUG(&f->cell)));
 
     // Caller should have pushed the frame, such that it is the topmost.
@@ -177,14 +185,12 @@ void Do_Core_Entry_Checks_Debug(REBFRM *f)
         NOT(FRM_IS_VALIST(f))
         && GET_SER_FLAG(f->source.array, SERIES_FLAG_FILE_LINE)
     ){
-        f->file_debug = cast(
-            const char*, STR_HEAD(LINK(f->source.array).filename)
-        );
-        f->line_debug = MISC(f->source.array).line;
+        f->file = cast(const char*, STR_HEAD(LINK(f->source.array).filename));
+        f->line = MISC(f->source.array).line;
     }
     else {
-        f->file_debug = "(no file info)";
-        f->line_debug = 0;
+        f->file = "(no file info)";
+        f->line = 0;
     }
 #endif
 
@@ -209,11 +215,11 @@ static void Do_Core_Shared_Checks_Debug(REBFRM *f) {
     // imbalanced state discovered on an exit.
     //
 #ifdef BALANCE_CHECK_EVERY_EVALUATION_STEP
-    ASSERT_STATE_BALANCED(&f->state_debug);
+    ASSERT_STATE_BALANCED(&f->state);
 #endif
 
     assert(f == FS_TOP);
-    assert(f->state_debug.top_chunk == TG_Top_Chunk);
+    assert(f->state.top_chunk == TG_Top_Chunk);
     assert(DSP == f->dsp_orig);
 
     if (f->source.array != NULL) {
@@ -256,7 +262,7 @@ static void Do_Core_Shared_Checks_Debug(REBFRM *f) {
     if (NOT_END(f->out) && THROWN(f->out))
         return;
 
-    assert(f->kind_debug == VAL_TYPE(f->value));
+    assert(f->kind == VAL_TYPE(f->value));
 
     //=//// v-- BELOW CHECKS ONLY APPLY IN EXITS CASE WITH MORE CODE //////=//
 
@@ -291,7 +297,7 @@ static void Do_Core_Shared_Checks_Debug(REBFRM *f) {
 // making the code shareable allows code paths that jump to later spots
 // in the switch (vs. starting at the top) to reuse the work.
 //
-REBUPT Do_Core_Expression_Checks_Debug(REBFRM *f) {
+void Do_Core_Expression_Checks_Debug(REBFRM *f) {
 
     assert(f == FS_TOP); // should be topmost frame, still
 
@@ -334,16 +340,6 @@ REBUPT Do_Core_Expression_Checks_Debug(REBFRM *f) {
         const REBOOL truncated = TRUE;
         Reify_Va_To_Array_In_Frame(f, truncated);
     }
-
-    // We bound the count at the max unsigned 32-bit, since otherwise it would
-    // roll over to zero and print a message that wasn't asked for, which
-    // is annoying even in a debug build.  (It's actually a REBUPT, so this
-    // wastes possible bits in the 64-bit build, but there's no MAX_REBUPT.)
-    //
-    if (TG_Do_Count < MAX_U32)
-        f->do_count_debug = ++TG_Do_Count;
-
-    return f->do_count_debug;
 }
 
 
@@ -356,7 +352,7 @@ void Do_Core_Exit_Checks_Debug(REBFRM *f) {
     // the shared checks.  But if it fires and it's hard to figure out which
     // exact cycle caused the problem, see BALANCE_CHECK_EVERY_EVALUATION_STEP
     //
-    ASSERT_STATE_BALANCED(&f->state_debug);
+    ASSERT_STATE_BALANCED(&f->state);
 
     Do_Core_Shared_Checks_Debug(f);
 

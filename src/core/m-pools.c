@@ -726,7 +726,7 @@ static REBOOL Series_Data_Alloc(REBSER *s, REBCNT length) {
         RELVAL *ultimate = ARR_AT(ARR(s), s->content.dynamic.rest - 1);
         Init_Endlike_Header(&ultimate->header, 0);
     #if !defined(NDEBUG)
-        Set_Track_Payload_Debug(ultimate, __FILE__, __LINE__);
+        Set_Track_Payload_Debug(ultimate, cb_cast(__FILE__), __LINE__);
     #endif
     }
 
@@ -900,7 +900,7 @@ REBSER *Make_Series_Core(REBCNT capacity, REBYTE wide, REBUPT flags)
     // the pool node so pointer-aligned entries are given out, so might as well
     // make that hold a useful value--the tick count when the series was made
     //
-    s->do_count = TG_Do_Count;
+    s->tick = TG_Tick;
 #endif
 
     // The info bits must be able to implicitly terminate the `content`,
@@ -1047,7 +1047,7 @@ REBVAL *Alloc_Pairing(REBFRM *opt_owning_frame) {
     s->guard = cast(int*, malloc(sizeof(*s->guard)));
     free(s->guard);
 
-    s->do_count = TG_Do_Count;
+    s->tick = TG_Tick;
 #endif
 
     return paired;
@@ -1093,7 +1093,7 @@ void Free_Pairing(REBVAL *paired) {
     Free_Node(SER_POOL, series);
 
 #if !defined(NDEBUG)
-    series->do_count = TG_Do_Count;
+    series->tick = TG_Tick; // update to be tick on which node was freed
 #endif
 }
 
@@ -1600,10 +1600,7 @@ void GC_Kill_Series(REBSER *s)
 
 #if !defined(NDEBUG)
     PG_Reb_Stats->Series_Freed++;
-
-    // Update the do count to be the count on which the series was freed
-    //
-    s->do_count = TG_Do_Count;
+    s->tick = TG_Tick; // update to be tick on which series was freed
 #endif
 }
 

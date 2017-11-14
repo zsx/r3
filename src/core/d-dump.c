@@ -273,11 +273,17 @@ void Dump_Stack(REBFRM *f, REBCNT level)
     REBVAL *param = FUNC_PARAMS_HEAD(f->phase);
 
     for (; NOT_END(param); ++param, ++arg, ++n) {
-        Debug_Fmt(
-            "    %s: %72r",
-            STR_HEAD(VAL_PARAM_SPELLING(param)),
-            arg
-        );
+        if (IS_VOID(arg))
+            Debug_Fmt(
+                "    %s:",
+                STR_HEAD(VAL_PARAM_SPELLING(param))
+            );
+        else
+            Debug_Fmt(
+                "    %s: %72r",
+                STR_HEAD(VAL_PARAM_SPELLING(param)),
+                arg
+            );
     }
 
     if (f->prior)

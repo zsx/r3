@@ -73,7 +73,7 @@
         FALSE
 #else
     #define SPORADICALLY(modulus) \
-        (TG_Do_Count % modulus == 0)
+        (TG_Tick % modulus == 0)
 #endif
 
 inline static REBOOL IS_QUOTABLY_SOFT(const RELVAL *v) {
@@ -180,7 +180,7 @@ inline static void Push_Frame_Core(REBFRM *f)
 
     TRASH_POINTER_IF_DEBUG(f->opt_label);
 #if !defined(NDEBUG)
-    TRASH_POINTER_IF_DEBUG(f->label_debug);
+    TRASH_POINTER_IF_DEBUG(f->label_utf8);
 #endif
 }
 
@@ -280,7 +280,7 @@ inline static void Recover_Frame(REBFRM *f)
 
     TRASH_POINTER_IF_DEBUG(f->opt_label);
 #if !defined(NDEBUG)
-    TRASH_POINTER_IF_DEBUG(f->label_debug);
+    TRASH_POINTER_IF_DEBUG(f->label_utf8);
 #endif
 }
 
@@ -313,7 +313,7 @@ inline static void Fetch_Next_In_Frame(REBFRM *f) {
 
         f->value = f->source.pending;
     #if !defined(NDEBUG)
-        f->kind_debug = VAL_TYPE(f->value);
+        f->kind = VAL_TYPE(f->value);
     #endif
 
         ++f->source.pending; // might be becoming an END marker, here
@@ -327,7 +327,7 @@ inline static void Fetch_Next_In_Frame(REBFRM *f) {
     end_of_input:
         f->value = NULL;
     #if !defined(NDEBUG)
-        f->kind_debug = REB_0;
+        f->kind = REB_0;
         TRASH_POINTER_IF_DEBUG(f->source.pending);
     #endif
     }
@@ -378,7 +378,7 @@ inline static void Fetch_Next_In_Frame(REBFRM *f) {
             // take time to answer, but this partial code points toward
             // where the bridge to the scanner would be.
             //
-            panic ("String-based rebDo() not actually ready yet.")
+            panic ("String-based rebDo() not actually ready yet.");
         }
 
         case DETECTED_AS_SERIES: {
@@ -398,7 +398,7 @@ inline static void Fetch_Next_In_Frame(REBFRM *f) {
             SET_VAL_FLAG(&f->cell, VALUE_FLAG_EVAL_FLIP);
             f->value = &f->cell;
         #if !defined(NDEBUG)
-            f->kind_debug = VAL_TYPE(f->value);
+            f->kind = VAL_TYPE(f->value);
         #endif
 
             // !!! Ideally we would free the array here, but since the free
@@ -418,7 +418,7 @@ inline static void Fetch_Next_In_Frame(REBFRM *f) {
             f->source.array = NULL;
             f->value = cast(const RELVAL*, p); // not END, detected separately
         #if !defined(NDEBUG)
-            f->kind_debug = VAL_TYPE(f->value);
+            f->kind = VAL_TYPE(f->value);
         #endif
             assert(
                 (
@@ -490,7 +490,7 @@ inline static REBOOL Do_Next_Mid_Frame_Throws(REBFRM *f) {
 
     REBDSP prior_dsp_orig = f->dsp_orig; // Do_Core() overwrites on entry
 #if !defined(NDEBUG)
-    assert(f->state_debug.dsp == f->dsp_orig);
+    assert(f->state.dsp == f->dsp_orig);
 #endif
 
     SET_END(f->out);
@@ -502,7 +502,7 @@ inline static REBOOL Do_Next_Mid_Frame_Throws(REBFRM *f) {
     
     f->dsp_orig = prior_dsp_orig;
 #if !defined(NDEBUG)
-    f->state_debug.dsp = prior_dsp_orig;
+    f->state.dsp = prior_dsp_orig;
 #endif
 
     // Note: f->eval_type will have changed, but it should not matter to
@@ -557,7 +557,7 @@ inline static REBOOL Do_Next_In_Subframe_Throws(
 
     child->value = parent->value;
 #if !defined(NDEBUG)
-    child->kind_debug = parent->kind_debug;
+    child->kind = parent->kind;
 #endif
 
     child->specifier = parent->specifier;
@@ -579,7 +579,7 @@ inline static REBOOL Do_Next_In_Subframe_Throws(
 
     parent->value = child->value;
 #if !defined(NDEBUG)
-    parent->kind_debug = child->kind_debug;
+    parent->kind = child->kind;
 #endif
 
     parent->gotten = child->gotten;
