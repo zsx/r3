@@ -191,24 +191,21 @@ standard: construct [] [
         leave: make function! [
             [{Leaves a function, giving no result to the caller.}]
             [exit/from (context-of 'leave)]
-        ]
-        #BODY
+        ] #BODY
     ]
 
     func-no-leave-body: [
         return: make function! [
             [{Returns a value from a function.} value [<opt> any-value!]]
             [exit/from/with (context-of 'return) :value]
-        ]
-        #BODY
+        ] #BODY
     ]
 
     proc-body: [
         leave: make function! [
             [{Leaves a procedure, giving no result to the caller.}]
             [exit/from (context-of 'leave)]
-        ]
-        #BODY
+        ] #BODY
         comment {No return value.}
     ]
 

@@ -129,6 +129,7 @@ DEVICE_CMD Open_IO(REBREQ *req)
                 ENABLE_LINE_INPUT
                 | ENABLE_PROCESSED_INPUT
                 | ENABLE_ECHO_INPUT
+                | 0x0080 // ENABLE_EXTENDED_FLAGS (need for quick edit/insert)
                 | 0x0040 // quick edit (not defined in VC6)
                 | 0x0020 // quick insert (not defined in VC6)
             );

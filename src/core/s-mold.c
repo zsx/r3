@@ -348,21 +348,19 @@ void Mold_Array_At(
 
     Push_Pointer_To_Series(TG_Mold_Stack, a);
 
-    if (sep[1]) {
+    if (sep[1])
         Append_Codepoint_Raw(mo->series, sep[0]);
-        mo->indent++;
-    }
 
-    REBOOL line_flag = FALSE; // newline was part of block
     REBOOL had_lines = FALSE;
     RELVAL *item = ARR_AT(a, index);
     while (NOT_END(item)) {
         if (GET_VAL_FLAG(item, VALUE_FLAG_LINE)) {
-            if (sep[1] || line_flag)
+            if (NOT(had_lines))
+                mo->indent++;
+            if (sep[1])
                 New_Indented_Line(mo);
             had_lines = TRUE;
         }
-        line_flag = TRUE;
         Mold_Value(mo, item);
         item++;
         if (NOT_END(item))
@@ -370,9 +368,10 @@ void Mold_Array_At(
     }
 
     if (sep[1]) {
-        mo->indent--;
-        if (had_lines)
+        if (had_lines) {
+            mo->indent--;
             New_Indented_Line(mo);
+        }
         Append_Codepoint_Raw(mo->series, sep[1]);
     }
 

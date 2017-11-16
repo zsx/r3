@@ -1778,7 +1778,7 @@ static REBARR *Scan_Child_Array(SCAN_STATE *ss, REBYTE mode_char);
 REBARR *Scan_Array(
     SCAN_STATE *ss,
     REBYTE mode_char
-) {
+){
     const REBDSP dsp_orig = DSP;
 
     // just_once for load/next see Load_Script for more info.
@@ -2273,6 +2273,23 @@ array_done:
 array_done_relax:
     Drop_Mold_If_Pushed(&mo);
 
+    // The way that newline markers work is they sit on values inside the
+    // array.  So if you wanted to preserve the newline on something like:
+    //
+    //     x: [
+    //     ]
+    //
+    // That would require the ability to put a newline marker on END.  Rebol2
+    // apparently let "END! values" carry the bit, so it would preserve the
+    // above...but neither Red nor R3-Alpha preserve it and just get `[]`.
+    // Preserving it in Ren-C would be hard due to Init_Endlike_Header().
+    //
+    // Since newline markers signify a newline *before* the element in
+    // question, just discard it if there was one.
+    //
+    if (ss->newline_pending)
+        ss->newline_pending = FALSE;
+
     // !!! Because a variadic rebDo() can have rebEval() entries, when it
     // delegates to the scanner that may mean it sees those entries.  This
     // should not be legal in constructors like rebBlock() since rebEval()
@@ -2307,6 +2324,7 @@ static REBARR *Scan_Child_Array(SCAN_STATE *ss, REBYTE mode_char)
     //
     child.start_line = ss->line;
     child.start_line_head = ss->line_head;
+    child.newline_pending = FALSE;
 
     REBARR *result = Scan_Array(&child, mode_char);
 
@@ -2317,12 +2335,14 @@ static REBARR *Scan_Child_Array(SCAN_STATE *ss, REBYTE mode_char)
     REBCNT line_count = ss->line;
     const REBYTE *line_head = ss->line_head;
     enum Reb_Token token = ss->token;
+    REBOOL newline_pending = ss->newline_pending;
 
     *ss = child;
 
     ss->line = line_count;
     ss->line_head = line_head;
     ss->token = token;
+    ss->newline_pending = newline_pending;
 
     return result;
 }

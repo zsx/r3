@@ -1182,7 +1182,7 @@ REBARR *Get_Maybe_Fake_Func_Body(REBOOL *is_fake, const REBVAL *func)
         RELVAL *slot = ARR_AT(fake_body, body_index); // #BODY
         assert(IS_ISSUE(slot));
 
-        VAL_RESET_HEADER_EXTRA(slot, REB_GROUP, VALUE_FLAG_LINE);
+        VAL_RESET_HEADER_EXTRA(slot, REB_GROUP, 0); // clear VAL_FLAG_LINE
         INIT_VAL_ARRAY(slot, VAL_ARRAY(VAL_FUNC_BODY(func)));
         VAL_INDEX(slot) = 0;
         INIT_BINDING(slot, VAL_FUNC(func)); // relative binding
