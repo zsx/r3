@@ -326,6 +326,35 @@ REBNATIVE(check)
 }
 
 
+// Fast count of number of binary digits in a number:
+//
+// https://stackoverflow.com/a/15327567/211160
+//
+int ceil_log2(unsigned long long x) {
+    static const unsigned long long t[6] = {
+        0xFFFFFFFF00000000ull,
+        0x00000000FFFF0000ull,
+        0x000000000000FF00ull,
+        0x00000000000000F0ull,
+        0x000000000000000Cull,
+        0x0000000000000002ull
+    };
+
+    int y = (((x & (x - 1)) == 0) ? 0 : 1);
+    int j = 32;
+    int i;
+
+    for (i = 0; i < 6; i++) {
+    int k = (((x & t[i]) == 0) ? 0 : j);
+        y += k;
+        x >>= k;
+        j >>= 1;
+    }
+
+    return y;
+}
+
+
 //
 //  c-debug-break-at: native [
 //
@@ -336,6 +365,8 @@ REBNATIVE(check)
 //          {Get from PANIC, REBFRM.tick, REBSER.tick, REBVAL.extra.tick}
 //      /relative
 //          {TICK parameter represents a count relative to the current tick}
+//      /compensate
+//          {Round tick up, as in https://math.stackexchange.com/q/2521219/}
 // ]
 //
 REBNATIVE(c_debug_break_at)
@@ -343,6 +374,39 @@ REBNATIVE(c_debug_break_at)
     INCLUDE_PARAMS_OF_C_DEBUG_BREAK_AT;
 
 #ifndef NDEBUG
+    if (REF(compensate)) {
+        //
+        // Imagine two runs of Rebol console initialization.  In the first,
+        // the tick count is 304 when C-DEBUG-BREAK/COMPENSATE is called,
+        // right after command line parsing.  Later on a panic() is hit and
+        // reports tick count 1020 in the crash log.
+        //
+        // Wishing to pick apart the bug before it happens, the Rebol Core
+        // Developer then re-runs the program with `--breakpoint=1020`, hoping
+        // to break at that tick, to catch the downstream appearance of the
+        // tick in the panic().  But since command-line processing is in
+        // usermode, the addition of the parameter throws off the ticks!
+        //
+        // https://en.wikipedia.org/wiki/Observer_effect_(physics)
+        //
+        // Let's say that after the command line processing, it still runs
+        // C-DEBUG-BREAK/COMPENSATE, this time at tick 403.  Imagine our goal
+        // is to make the parameter to /COMPENSATE something that can be used
+        // to conservatively guess the same value to set the tick to, and
+        // that /COMPENSATE ARG(bound) that gives a maximum of how far off we
+        // could possibly be from the "real" tick. (e.g. "argument processing
+        // took no more than 200 additional ticks", which this is consistent
+        // with...since 403-304 = 99).
+        //
+        // The reasoning for why the formula below works for this rounding is
+        // given in this StackExchange question and answer:
+        //
+        // https://math.stackexchange.com/q/2521219/
+        //
+        TG_Tick = (1 << (ceil_log2(TG_Tick) + 1)) + VAL_INT64(ARG(tick)) - 1;
+        return R_VOID;
+    }
+
     if (REF(relative))
         TG_Break_At_Tick = frame_->tick + 1 + VAL_INT64(ARG(tick));
     else
@@ -351,6 +415,7 @@ REBNATIVE(c_debug_break_at)
 #else
     UNUSED(ARG(tick));
     UNUSED(ARG(relative));
+    UNUSED(REF(compensate));
 
     fail (Error_Debug_Only_Raw());
 #endif
