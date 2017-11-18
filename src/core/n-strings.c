@@ -75,8 +75,8 @@ static struct {
     void (*final)(REBYTE *, void *);
     int (*ctxsize)(void);
     REBSYM sym;
-    REBINT len;
-    REBINT hmacblock;
+    REBCNT len;
+    REBCNT hmacblock;
 } digests[] = {
 
 #ifdef HAS_SHA1
@@ -189,7 +189,7 @@ REBNATIVE(spelling_of)
 //          "Methods: SHA1 MD5 CRC32"
 //      /key
 //          "Returns keyed HMAC value"
-//      key-value [any-string!]
+//      key-value [binary! string!]
 //          "Key to use"
 //  ]
 //
@@ -256,13 +256,29 @@ REBNATIVE(checksum)
             else {
                 REBVAL *key = ARG(key_value);
 
-                int blocklen = digests[i].hmacblock;
+                REBCNT blocklen = digests[i].hmacblock;
 
                 REBYTE tmpdigest[20]; // size must be max of all digest[].len
-                REBYTE *keycp = VAL_BIN_AT(key);
-                int keylen = VAL_LEN_AT(key);
+
+                REBSER *temp;
+                REBYTE *keycp;
+                REBCNT keylen;
+                if (IS_BINARY(key)) {
+                    temp = NULL;
+                    keycp = VAL_BIN_AT(key);
+                    keylen = VAL_LEN_AT(key);
+                }
+                else {
+                    assert(IS_STRING(key));
+
+                    REBCNT index = VAL_INDEX(key);
+                    temp = Temp_Bin_Str_Managed(key, &index, &keylen);
+                    PUSH_GUARD_SERIES(temp);
+                    keycp = BIN_AT(temp, index);
+                }
+
                 if (keylen > blocklen) {
-                    digests[i].digest(keycp,keylen,tmpdigest);
+                    digests[i].digest(keycp, keylen, tmpdigest);
                     keycp = tmpdigest;
                     keylen = digests[i].len;
                 }
@@ -275,7 +291,7 @@ REBNATIVE(checksum)
                 memset(opad, 0, blocklen);
                 memcpy(opad, keycp, keylen);
 
-                REBINT j;
+                REBCNT j;
                 for (j = 0; j < blocklen; j++) {
                     ipad[j] ^= 0x36; // !!! why do people write this kind of
                     opad[j] ^= 0x5c; // thing without a comment? !!! :-(
@@ -292,6 +308,9 @@ REBNATIVE(checksum)
                 digests[i].final(BIN_HEAD(digest),ctx);
 
                 FREE_N(char, digests[i].ctxsize(), ctx);
+
+                if (temp != NULL)
+                    DROP_GUARD_SERIES(temp);
             }
 
             TERM_BIN_LEN(digest, digests[i].len);

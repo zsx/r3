@@ -470,7 +470,7 @@ encrypt-data: function [
             ctx/version                         ; version
             to-bin length-of data 2             ; msg content length
             data                                ; msg content
-        ] ctx/hash-method decode 'text ctx/client-mac-key
+        ] ctx/hash-method ctx/client-mac-key
     ]
 
     if ctx/block-size [
@@ -862,7 +862,7 @@ parse-messages: function [
                         ctx/version             ; version
                         to-bin len + 4 2        ; msg content length
                         copy/part data len + 4
-                    ] ctx/hash-method decode 'text ctx/server-mac-key
+                    ] ctx/hash-method ctx/server-mac-key
 
                     if mac <> mac-check [
                         fail "Bad handshake record MAC"
@@ -897,7 +897,7 @@ parse-messages: function [
                 ctx/version             ; version
                 to-bin len 2            ; msg content length
                 msg-obj/content         ; content
-            ] ctx/hash-method decode 'text ctx/server-mac-key
+            ] ctx/hash-method ctx/server-mac-key
 
             if mac <> mac-check [
                 fail "Bad application record MAC"
@@ -953,16 +953,16 @@ prf: function [
     p-md5: copy #{}
     a: seed ; A(0)
     while [output-length > length-of p-md5] [
-        a: checksum/method/key a 'md5 decode 'text s-1 ; A(n)
-        append p-md5 checksum/method/key join-all [a seed] 'md5 decode 'text s-1
+        a: checksum/method/key a 'md5 s-1 ; A(n)
+        append p-md5 checksum/method/key join-all [a seed] 'md5 s-1
 
     ]
 
     p-sha1: copy #{}
     a: seed ; A(0)
     while [output-length > length-of p-sha1] [
-        a: checksum/method/key a 'sha1 decode 'text s-2 ; A(n)
-        append p-sha1 checksum/method/key join-all [a seed] 'sha1 decode 'text s-2
+        a: checksum/method/key a 'sha1 s-2 ; A(n)
+        append p-sha1 checksum/method/key join-all [a seed] 'sha1 s-2
     ]
     return ((copy/part p-md5 output-length) xor+ copy/part p-sha1 output-length)
 ]
