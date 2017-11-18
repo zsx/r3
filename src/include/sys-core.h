@@ -207,7 +207,6 @@
 #include "reb-event.h"
 
 #include "reb-file.h"
-#include "reb-math.h"
 
 #include "sys-rebnod.h"
 
