@@ -480,7 +480,7 @@ REBINT PD_Context(REBPVS *pvs)
         // lookup that fails here is hacked in, but desirable for parity
         // with the behavior of GET-WORD!
         //
-        if (IS_GET_PATH(pvs->orig) && IS_END(pvs->item + 1)) {
+        if (IS_GET_PATH(pvs->any_path) && IS_END(pvs->item + 1)) {
             Init_Void(pvs->store);
             return PE_USE_STORE;
         }

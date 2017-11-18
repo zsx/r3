@@ -41,13 +41,13 @@
 //
 REBINT PD_Fail(REBPVS *pvs)
 {
-    DECLARE_LOCAL (specified_orig);
-    Derelativize(specified_orig, pvs->orig, pvs->item_specifier);
+    DECLARE_LOCAL (any_path);
+    Derelativize(any_path, pvs->any_path, pvs->item_specifier);
 
-    DECLARE_LOCAL (specified_item);
-    Derelativize(specified_item, pvs->item, pvs->item_specifier);
+    DECLARE_LOCAL (item);
+    Derelativize(item, pvs->item, pvs->item_specifier);
 
-    fail (Error_Invalid_Path_Raw(specified_orig, specified_item));
+    fail (Error_Invalid_Path_Raw(item, any_path));
 }
 
 
@@ -78,7 +78,7 @@ REBINT PD_Unhooked(REBPVS *pvs)
 REBOOL Next_Path_Throws(REBPVS *pvs)
 {
     if (IS_VOID(pvs->value))
-        fail (Error_No_Value_Core(pvs->orig, pvs->item_specifier));
+        fail (Error_No_Value_Core(pvs->any_path, pvs->item_specifier));
 
     REBPEF dispatcher = Path_Dispatch[VAL_TYPE(pvs->value)];
     assert(dispatcher != NULL); // &PD_Fail is used instead of NULL
@@ -185,10 +185,20 @@ REBOOL Next_Path_Throws(REBPVS *pvs)
 REBOOL Do_Path_Throws_Core(
     REBVAL *out,
     REBSTR **label_out,
-    const RELVAL *path,
+    const RELVAL *any_path,
     REBSPC *specifier,
     const REBVAL *opt_setval
-) {
+){
+    // !!! `out` may be implicitly guarded in cases where the evaluator is
+    // passing it in, but other callers may not guard it.  Review if Do_Core
+    // and frames can be unified so that path evaluation is just another
+    // form of frame, which would get free protection via the frame stack.
+    //
+    SET_END(out);
+    PUSH_GUARD_VALUE(out);
+
+    assert(ANY_PATH(any_path));
+
     // The pvs contains a cell for the picker into which evaluations are
     // done, e.g. `foo/(1 + 2)`.  Because Next_Path() doesn't commit to not
     // performing any evaluations this cell must be guarded.  In the case of
@@ -207,32 +217,15 @@ REBOOL Do_Path_Throws_Core(
 
     REBDSP dsp_orig = DSP;
 
-    assert(ANY_PATH(path));
-
-    // !!! There is a bug in the dispatch such that if you are running a
-    // set path, it does not always assign the output, because it "thinks you
-    // aren't going to look at it".  This presumably originated from before
-    // parens were allowed in paths, and neglects cases like:
-    //
-    //     foo/(throw 1020): value
-    //
-    // We always have to check to see if a throw occurred.  Until this is
-    // streamlined, we have to at minimum set it to something that is *not*
-    // thrown so that we aren't testing uninitialized memory.  A safe trash
-    // will do, which is unset in release builds.
-    //
-    if (opt_setval)
-        Init_Unreadable_Blank(out);
-
     // None of the values passed in can live on the data stack, because
     // they might be relocated during the path evaluation process.
     //
     assert(!IN_DATA_STACK_DEBUG(out));
-    assert(!IN_DATA_STACK_DEBUG(path));
+    assert(!IN_DATA_STACK_DEBUG(any_path));
     assert(!opt_setval || !IN_DATA_STACK_DEBUG(opt_setval));
 
     // Not currently robust for reusing passed in path or value as the output
-    assert(out != path && out != opt_setval);
+    assert(out != any_path && out != opt_setval);
 
     assert(!opt_setval || !THROWN(opt_setval));
 
@@ -240,8 +233,8 @@ REBOOL Do_Path_Throws_Core(
     //
     pvs.opt_setval = opt_setval;
     pvs.store = out;
-    pvs.orig = path;
-    pvs.item = VAL_ARRAY_AT(pvs.orig); // may not be starting at head of PATH!
+    pvs.any_path = any_path;
+    pvs.item = VAL_ARRAY_AT(pvs.any_path); // may not start at head of PATH!
     pvs.label_out = label_out;
     if (label_out != NULL)
         *label_out = NULL; // initial value if no function label found
@@ -251,7 +244,7 @@ REBOOL Do_Path_Throws_Core(
     // in which case we should use the specifier in the value to process
     // its array contents.
     //
-    pvs.item_specifier = Derive_Specifier(specifier, path);
+    pvs.item_specifier = Derive_Specifier(specifier, any_path);
 
     // Seed the path evaluation process by looking up the first item (to
     // get a datatype to dispatch on for the later path items)
@@ -271,7 +264,9 @@ REBOOL Do_Path_Throws_Core(
         // temporary locations, like this pvs.value...if a set-path sets
         // it, then it will be discarded.
 
-        Derelativize(pvs.store, VAL_ARRAY_AT(pvs.orig), pvs.item_specifier);
+        Derelativize(
+            pvs.store, VAL_ARRAY_AT(pvs.any_path), pvs.item_specifier
+        );
         pvs.value = pvs.store;
         pvs.value_specifier = SPECIFIED;
     }
@@ -284,25 +279,7 @@ REBOOL Do_Path_Throws_Core(
         // !!! Is this the desired behavior, or should it be an error?
     }
     else {
-        REBOOL threw = Next_Path_Throws(&pvs);
-
-        // !!! See comments about why the initialization of out is necessary.
-        // Without it this assertion can change on some things:
-        //
-        //     t: now
-        //     t/time: 10:20:03
-        //
-        // (It thinks pvs.value has its THROWN bit set when it completed
-        // successfully.  It was a PE_USE_STORE case where pvs.value was reset to
-        // pvs.store, and pvs.store has its thrown bit set.  Valgrind does not
-        // catch any uninitialized variables.)
-        //
-        // There are other cases that do trip valgrind when omitting the
-        // initialization, though not as clearly reproducible.
-        //
-        assert(threw == THROWN(pvs.value));
-
-        if (threw)
+        if (Next_Path_Throws(&pvs))
             goto return_thrown;
     }
 
@@ -353,10 +330,20 @@ REBOOL Do_Path_Throws_Core(
 
 return_not_thrown:
     DROP_GUARD_VALUE(&pvs.picker_cell);
+    DROP_GUARD_VALUE(out);
+
+#if !defined(NDEBUG)
+    if (IS_SET_PATH(any_path))
+        TRASH_CELL_IF_DEBUG(out);
+    else
+        assert(NOT(THROWN(out)));
+#endif
     return FALSE;
 
 return_thrown:
+    assert(THROWN(out));
     DROP_GUARD_VALUE(&pvs.picker_cell);
+    DROP_GUARD_VALUE(out);
     return TRUE;
 }
 
@@ -366,13 +353,13 @@ return_thrown:
 //
 REBCTX *Error_Bad_Path_Select(REBPVS *pvs)
 {
-    DECLARE_LOCAL (orig);
-    Derelativize(orig, pvs->orig, pvs->item_specifier);
+    DECLARE_LOCAL (any_path);
+    Derelativize(any_path, pvs->any_path, pvs->item_specifier);
 
     DECLARE_LOCAL (item);
     Derelativize(item, pvs->item, pvs->item_specifier);
 
-    return Error_Invalid_Path_Raw(orig, item);
+    return Error_Invalid_Path_Raw(item, any_path);
 }
 
 
@@ -381,13 +368,13 @@ REBCTX *Error_Bad_Path_Select(REBPVS *pvs)
 //
 REBCTX *Error_Bad_Path_Set(REBPVS *pvs)
 {
-    DECLARE_LOCAL (orig);
-    Derelativize(orig, pvs->orig, pvs->item_specifier);
+    DECLARE_LOCAL (any_path);
+    Derelativize(any_path, pvs->any_path, pvs->item_specifier);
 
     DECLARE_LOCAL (item);
     Derelativize(item, pvs->item, pvs->item_specifier);
 
-    return Error_Bad_Path_Set_Raw(orig, item);
+    return Error_Bad_Path_Set_Raw(item, any_path);
 }
 
 
@@ -535,7 +522,7 @@ REBNATIVE(pick_p)
     pvs->value_specifier = SPECIFIED;
 
     pvs->label_out = NULL; // applies to e.g. :append/only returning APPEND
-    pvs->orig = location; // expected to be a PATH! for errors, but tolerant
+    pvs->any_path = location; // expected to be PATH! for errors, but tolerant
     pvs->opt_setval = NULL;
 
     REBPEF dispatcher = Path_Dispatch[VAL_TYPE(location)];
@@ -623,7 +610,7 @@ REBNATIVE(poke)
     pvs->value_specifier = SPECIFIED;
 
     pvs->label_out = NULL; // applies to e.g. :append/only returning APPEND
-    pvs->orig = location; // expected to be a PATH! for errors, but tolerant
+    pvs->any_path = location; // expected a PATH! for errors, but tolerant
     pvs->opt_setval = value;
 
     REBPEF dispatcher = Path_Dispatch[VAL_TYPE(location)];

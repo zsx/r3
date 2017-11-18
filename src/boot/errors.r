@@ -144,9 +144,8 @@ Script: [
     non-logic-refine:   [:arg1 {refinement must be LOGIC!, not} :arg2]
     refinement-arg-opt: [{refinement arguments cannot be <opt>}]
 
-    invalid-path:       [{cannot access} :arg2 {in path} :arg1]
-    bad-path-type:      [{path} :arg1 {is not valid for} :arg2 {type}]
-    bad-path-set:       [{cannot set} :arg2 {in path} :arg1]
+    invalid-path:       [{cannot access} :arg1 {in path} :arg2]
+    bad-path-set:       [{cannot set} :arg1 {in path} :arg2]
     bad-field-set:      [{cannot set} :arg1 {field to} :arg2 {datatype}]
     dup-vars:           [{duplicate variable specified:} :arg1]
 

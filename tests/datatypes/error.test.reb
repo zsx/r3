@@ -56,7 +56,6 @@
 [error? make error! [type: 'script id: 'bad-refines]]
 [error? make error! [type: 'script id: 'bad-refine]]
 [error? make error! [type: 'script id: 'invalid-path]]
-[error? make error! [type: 'script id: 'bad-path-type]]
 [error? make error! [type: 'script id: 'bad-path-set]]
 [error? make error! [type: 'script id: 'bad-field-set]]
 [error? make error! [type: 'script id: 'dup-vars]]

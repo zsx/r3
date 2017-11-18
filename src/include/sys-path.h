@@ -99,6 +99,10 @@ struct Reb_Path_Value_State {
     //
     const REBVAL *picker;
 
+    // `any_path` original path input, saved for error messages
+    //
+    const RELVAL *any_path;
+
     // `item` is the current element within the path that is being processed.
     // It is advanced as the path is consumed.
     //
@@ -139,10 +143,6 @@ struct Reb_Path_Value_State {
     // look ahead with alternate handling).
     //
     const REBVAL *opt_setval;
-
-    // `orig` original path input, saved for error messages
-    //
-    const RELVAL *orig;
 
     // `label` is a concept that `obj/fun/refinement` would come back with
     // the symbol FUN to identify a function, for the stack trace.  This
