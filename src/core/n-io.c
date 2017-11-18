@@ -138,40 +138,54 @@ REBNATIVE(write_stdout)
 //
 //      position [block! group!]
 //          "Position to change marker (modified)"
-//      mark
+//      mark [logic!]
 //          "Set TRUE for newline"
 //      /all
 //          "Set/clear marker to end of series"
 //      /skip
 //          {Set/clear marker periodically to the end of the series}
-//      size [integer!]
+//      count [integer!]
 //  ]
 //
 REBNATIVE(new_line)
 {
     INCLUDE_PARAMS_OF_NEW_LINE;
 
-    RELVAL *value = VAL_ARRAY_AT(ARG(position));
-    REBOOL mark = IS_TRUTHY(ARG(mark));
-    REBINT skip = 0;
-    REBCNT n;
+    RELVAL *v = VAL_ARRAY_AT(ARG(position));
+    REBOOL mark = VAL_LOGIC(ARG(mark));
 
-    if (REF(all)) skip = 1;
+    // Given that VALUE_FLAG_LINE means "put a newline *before* this value is
+    // output", there's no value cell on which to put an end-of-line marker
+    // at the tail of an array.  Red and R3-Alpha ignore this.  It would be
+    // mechanically possible to add an ARRAY_FLAG_XXX for this case, but
+    // currently it is thrown out--tell user this will have no effect.
+    //
+    if (IS_END(v))
+        fail ("Attempt to set end-of-line marker at tail of array.");
 
-    if (REF(skip)) {
-        skip = Int32s(ARG(size), 1);
-        if (skip < 1) skip = 1;
+    REBINT skip;
+    if (REF(all))
+        skip = 1;
+    else if (REF(skip)) {
+        skip = Int32s(ARG(count), 1);
+        if (skip < 1)
+            skip = 1;
     }
+    else
+        skip = 0;
 
-    for (n = 0; NOT_END(value); n++, value++) {
-        if ((skip != 0) && (n % skip != 0)) continue;
+    REBCNT n;
+    for (n = 0; NOT_END(v); ++n, ++v) {
+        if ((skip != 0) && (n % skip != 0))
+            continue;
 
         if (mark)
-            SET_VAL_FLAG(value, VALUE_FLAG_LINE);
+            SET_VAL_FLAG(v, VALUE_FLAG_LINE);
         else
-            CLEAR_VAL_FLAG(value, VALUE_FLAG_LINE);
+            CLEAR_VAL_FLAG(v, VALUE_FLAG_LINE);
 
-        if (skip == 0) break;
+        if (skip == 0)
+            break;
     }
 
     Move_Value(D_OUT, ARG(position));

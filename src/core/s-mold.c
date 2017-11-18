@@ -348,32 +348,62 @@ void Mold_Array_At(
 
     Push_Pointer_To_Series(TG_Mold_Stack, a);
 
-    if (sep[1])
+    REBOOL had_output = FALSE;
+
+    if (sep[1]) {
         Append_Codepoint_Raw(mo->series, sep[0]);
+        had_output = TRUE;
+    }
 
     REBOOL had_lines = FALSE;
+
     RELVAL *item = ARR_AT(a, index);
     while (NOT_END(item)) {
-        if (GET_VAL_FLAG(item, VALUE_FLAG_LINE)) {
-            if (NOT(had_lines))
+        //
+        // Consider:
+        //
+        //     [
+        //         [a b c] d e f
+        //         [g h i] j k l
+        //     ]
+        //
+        // There are newline markers on both the embedded blocks.  We
+        // indent a maximum of one time per block level in a normal mold.
+        // If there were no delimiters then this is a MOLD/ONLY, and hence
+        // it should not indent at all, but still honor the newlines.
+        //
+        // Additionally, the newline marker on the first element is not
+        // desired in a MOLD/ONLY (nor is a newline desired after the last)
+        //
+        if (GET_VAL_FLAG(item, VALUE_FLAG_LINE) && had_output) {
+           if (NOT(had_lines) && sep[1])
                 mo->indent++;
-            if (sep[1])
-                New_Indented_Line(mo);
+
+            New_Indented_Line(mo);
             had_lines = TRUE;
         }
+
         Mold_Value(mo, item);
+        had_output = TRUE;
+
         item++;
         if (NOT_END(item))
             Append_Codepoint_Raw(mo->series, (sep[0] == '/') ? '/' : ' ');
     }
 
-    if (sep[1]) {
-        if (had_lines) {
-            mo->indent--;
-            New_Indented_Line(mo);
-        }
-        Append_Codepoint_Raw(mo->series, sep[1]);
+    // The newline markers in arrays are on values, and indicate a newline
+    // should be output *before* that value.  Hence there is no way to put
+    // a newline marker on the tail.  Use a heuristic that if any newlines
+    // were output on behalf of any values in the array, it is assumed there
+    // should be a final newline at the end (if it's not a MOLD/ONLY)
+    //
+    if (had_lines && sep[1]) {
+        mo->indent--;
+        New_Indented_Line(mo);
     }
+
+    if (sep[1])
+        Append_Codepoint_Raw(mo->series, sep[1]);
 
     Drop_Pointer_From_Series(TG_Mold_Stack, a);
 }
