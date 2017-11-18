@@ -412,7 +412,7 @@ host-start: function [
     ; that arise will be reported and result in exit code 1.
     ;
     instruction: copy [
-        [#quit-if-halt #quit-if-error]
+        [#quit-if-halt #countdown-if-error]
             |
     ]
 

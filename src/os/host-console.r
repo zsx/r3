@@ -317,11 +317,18 @@ host-console: function [
         if find directives #quit-if-halt [
             return [quit/with 130] ; standard exit code for bash (128 + 2)
         ]
+        if find directives #console-if-halt [
+            return [
+                start-console
+                    |
+                <needs-prompt>
+            ]
+        ]
         if find directives #unskin-if-halt [
             print "** UNSAFE HALT ENCOUNTERED IN CONSOLE SKIN"
             print "** REVERTING TO DEFAULT SKIN"
             system/console: make console! []
-            print mold prior
+            print mold prior ;-- Might help debug to see what was running
         ]
         return compose/deep [
             #unskin-if-halt
@@ -334,21 +341,61 @@ host-console: function [
 
     if error? status [
         assert [not set? 'result]
+
+        instruction: compose/deep [
+            ;
+            ; Errors can occur during HOST-START, before the SYSTEM/CONSOLE
+            ; has a chance to be initialized.
+            ;
+            if all [
+                function? :system/console ;-- starts as BLANK!
+                function? :system/console/print-error ;-- may not be set
+            ][
+                system/console/print-error (status)
+            ] else [
+                print (status)
+            ]
+                |
+        ]
         if find directives #quit-if-error [
-            print mold status
-            return [quit/with 1] ;-- catch-all bash code for general errors
+            append instruction [
+                quit/with 1 ;-- catch-all bash code for general errors
+            ]
+            return instruction
+        ]
+        if find directives #halt-if-error [
+            append instruction [halt]
+            return instruction
+        ]
+        if find directives #countdown-if-error [
+            insert instruction [
+                #console-if-halt 
+                    |
+            ]
+            append instruction compose/deep [
+                print-newline
+                print "** Hit Ctrl-C to break into the console in 5 seconds"
+                repeat n 25 [
+                    if 1 = remainder n 5 [
+                        print/only [5 - to-integer divide n 5]
+                    ] else [
+                        print/only "."
+                    ]
+                    wait 0.25
+                ]
+                print-newline
+                quit/with 1
+            ]
+            return instruction
         ]
         if all [block? prior | not find directives #no-unskin-if-error] [
             print "** UNSAFE ERROR ENCOUNTERED IN CONSOLE SKIN"
             print "** REVERTING TO DEFAULT SKIN"
             system/console: make console! []
-            print mold prior
+            print mold prior ;-- Might help debug to see what was running
         ]
-        return compose/deep [
-            system/console/print-error (status)
-                |
-            <needs-prompt>
-        ]
+        append instruction [<needs-prompt>]
+        return instruction
     ]
 
     assert [blank? status] ;-- no failure or halts during last execution
