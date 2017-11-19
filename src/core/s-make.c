@@ -336,7 +336,7 @@ REBCHR *Val_Str_To_OS_Managed(REBSER **out, REBVAL *val)
     }
     else {
         // !!! "Leaks" in the sense that the GC has to take care of this
-        REBSER *ser = Temp_Bin_Str_Managed(val, 0, NULL);
+        REBSER *ser = Temp_UTF8_At_Managed(val, 0, NULL);
 
         if (out) *out = ser;
 
@@ -398,12 +398,12 @@ REBSER *Append_Unencoded(REBSER *dst, const char *src)
 
 
 //
-//  Append_Codepoint_Raw: C
+//  Append_Codepoint: C
 //
 // Optimized function to append a non-encoded character.
 // Destination can be 1 or 2 bytes wide, but DOES NOT WIDEN.
 //
-REBSER *Append_Codepoint_Raw(REBSER *dst, REBCNT codepoint)
+REBSER *Append_Codepoint(REBSER *dst, REBCNT codepoint)
 {
     REBCNT tail = SER_LEN(dst);
 
@@ -443,7 +443,7 @@ REBSER *Make_Series_Codepoint(REBCNT codepoint)
     out = (codepoint > 255) ? Make_Unicode(1) : Make_Binary(1);
     TERM_SEQUENCE(out);
 
-    Append_Codepoint_Raw(out, codepoint);
+    Append_Codepoint(out, codepoint);
 
     return out;
 }

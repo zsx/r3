@@ -145,7 +145,7 @@ REBYTE *Temp_Byte_Chars_May_Fail(
 
 
 //
-//  Temp_Bin_Str_Managed: C
+//  Temp_UTF8_At_Managed: C
 //
 // Determines if UTF8 conversion is needed for a series before it
 // is used with a byte-oriented function.
@@ -168,7 +168,7 @@ REBYTE *Temp_Byte_Chars_May_Fail(
 // instead of managing a created result they could be responsible
 // for freeing it if so.
 //
-REBSER *Temp_Bin_Str_Managed(const RELVAL *val, REBCNT *index, REBCNT *length)
+REBSER *Temp_UTF8_At_Managed(const RELVAL *val, REBCNT *index, REBCNT *length)
 {
     REBCNT len = (length && *length) ? *length : VAL_LEN_AT(val);
     REBSER *series;

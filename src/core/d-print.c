@@ -252,10 +252,10 @@ void Debug_String(const void *p, REBCNT len, REBOOL unicode, REBINT lines)
 
         for (; len > 0; len--) {
             uni = unicode ? *up++ : *bp++;
-            Append_Codepoint_Raw(Trace_Buffer, uni);
+            Append_Codepoint(Trace_Buffer, uni);
         }
 
-        for (; lines > 0; lines--) Append_Codepoint_Raw(Trace_Buffer, LF);
+        for (; lines > 0; lines--) Append_Codepoint(Trace_Buffer, LF);
         /* Append_Unencoded_Len(Trace_Buffer, bp, len); */ // !!! alternative?
     }
     else {
@@ -658,7 +658,7 @@ void Form_Args_Core(REB_MOLD *mo, const char *fmt, va_list *vaptr)
         // Copy format string until next % escape
         //
         while ((*fmt != '\0') && (*fmt != '%'))
-            Append_Codepoint_Raw(ser, *fmt++);
+            Append_Codepoint(ser, *fmt++);
 
         if (*fmt != '%') break;
 
@@ -698,7 +698,8 @@ pick:
             if (pad < 0) {
                 pad = -pad;
                 pad -= LEN_BYTES(cp);
-                for (; pad > 0; pad--) Append_Codepoint_Raw(ser, ' ');
+                for (; pad > 0; pad--)
+                    Append_Codepoint(ser, ' ');
             }
             Append_Unencoded(ser, s_cast(cp));
 
@@ -708,7 +709,8 @@ pick:
             //
             pad -= LEN_BYTES(cp);
 
-            for (; pad > 0; pad--) Append_Codepoint_Raw(ser, ' ');
+            for (; pad > 0; pad--)
+                Append_Codepoint(ser, ' ');
             break;
 
         case 'r':   // use Mold
@@ -749,14 +751,14 @@ pick:
         }
 
         case 'c':
-            Append_Codepoint_Raw(
+            Append_Codepoint(
                 ser,
                 cast(REBYTE, va_arg(*vaptr, REBINT))
             );
             break;
 
         case 'x':
-            Append_Codepoint_Raw(ser, '#');
+            Append_Codepoint(ser, '#');
             if (pad == 1) pad = 8;
             cp = Form_Hex_Pad(
                 buf,
@@ -767,7 +769,7 @@ pick:
             break;
 
         default:
-            Append_Codepoint_Raw(ser, *fmt);
+            Append_Codepoint(ser, *fmt);
         }
     }
 
@@ -795,5 +797,5 @@ void Form_Args(REB_MOLD *mo, const char *fmt, ...)
 //
 void Startup_Raw_Print(void)
 {
-    Init_String(TASK_BYTE_BUF,  Make_Binary(1000));
+    Init_Binary(TASK_BYTE_BUF, Make_Binary(1000));
 }

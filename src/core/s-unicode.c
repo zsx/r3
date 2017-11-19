@@ -933,7 +933,7 @@ REBOOL Decode_UTF8_Maybe_Astral_Throws(
 ) {
     TRASH_CELL_IF_DEBUG(out_if_thrown);
 
-    assert(SER_WIDE(dst) == sizeof(REBUNI)); // Append_Codepoint_Raw is used
+    assert(SER_WIDE(dst) == sizeof(REBUNI)); // Append_Codepoint is used
 
     UTF32 ch;
 
@@ -968,7 +968,7 @@ REBOOL Decode_UTF8_Maybe_Astral_Throws(
                     break; // tolerate void or blank as meaning nothing
 
                 case REB_CHAR:
-                    Append_Codepoint_Raw(dst, VAL_CHAR(item));
+                    Append_Codepoint(dst, VAL_CHAR(item));
                     break;
 
                 case REB_STRING:
@@ -991,7 +991,7 @@ REBOOL Decode_UTF8_Maybe_Astral_Throws(
             if (src[1] == LF) continue;
             ch = LF;
         }
-        Append_Codepoint_Raw(dst, ch);
+        Append_Codepoint(dst, ch);
     }
 
     return FALSE; // no throw

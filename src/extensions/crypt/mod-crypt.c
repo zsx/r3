@@ -651,9 +651,8 @@ REBNATIVE(sha256)
     REBCNT index;
     REBCNT len;
     REBSER *series;
-    if (NOT(VAL_BYTE_SIZE(ARG(data)))) { // wide string
-        series = Temp_Bin_Str_Managed(ARG(data), &index, &len);
-    }
+    if (IS_STRING(ARG(data)))
+        series = Temp_UTF8_At_Managed(ARG(data), &index, &len);
     else {
         series = VAL_SERIES(ARG(data));
         index = VAL_INDEX(ARG(data));
@@ -721,7 +720,7 @@ static REBOOL Cloak(
             break;
 
         case REB_STRING:
-            ser = Temp_Bin_Str_Managed(val, &i, &klen);
+            ser = Temp_UTF8_At_Managed(val, &i, &klen);
             kp = BIN_AT(ser, i);
             break;
 

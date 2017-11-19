@@ -150,7 +150,7 @@ REBNATIVE(make_routine)
     REBVAL *name = ARG(name);
     REBCNT b_index = VAL_INDEX(name);
     REBCNT b_len = VAL_LEN_AT(name);
-    REBSER *byte_sized = Temp_Bin_Str_Managed(name, &b_index, &b_len);
+    REBSER *byte_sized = Temp_UTF8_At_Managed(name, &b_index, &b_len);
 
     CFUNC *cfunc = OS_FIND_FUNCTION(
         LIB_FD(lib),

@@ -903,7 +903,7 @@ static inline REBCNT Finalize_Remove_Each(struct Remove_Each_State *res)
         REBCNT orig_len = VAL_LEN_HEAD(res->data);
         assert(res->start <= orig_len);
         for (; res->start != orig_len; ++res->start) {
-            Append_Codepoint_Raw(
+            Append_Codepoint(
                 res->mo->series,
                 cast(REBUNI, BIN_HEAD(res->series)[res->start])
             );
@@ -940,7 +940,7 @@ static inline REBCNT Finalize_Remove_Each(struct Remove_Each_State *res)
         assert(res->start <= orig_len);
 
         for (; res->start != orig_len; ++res->start) {
-            Append_Codepoint_Raw(
+            Append_Codepoint(
                 res->mo->series,
                 GET_ANY_CHAR(res->series, res->start)
             );
@@ -1074,7 +1074,7 @@ static REB_R Remove_Each_Core(REBFRM *frame_, struct Remove_Each_State *res)
 
             do {
                 assert(res->start <= len);
-                Append_Codepoint_Raw(
+                Append_Codepoint(
                    res->mo->series,
                    IS_BINARY(res->data)
                        ? cast(REBUNI, BIN_HEAD(res->series)[res->start])

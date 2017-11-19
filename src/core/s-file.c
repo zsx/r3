@@ -223,7 +223,7 @@ REBSER *To_Local_Path(const void *p, REBCNT len, REBOOL unicode, REBOOL full)
             SET_SERIES_LEN(dst, abs(clen));
             //Append_Unencoded(dst, lpath);
         #endif
-            Append_Codepoint_Raw(dst, OS_DIR_SEP);
+            Append_Codepoint(dst, OS_DIR_SEP);
             OS_FREE(lpath);
         }
         else

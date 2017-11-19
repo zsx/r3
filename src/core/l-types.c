@@ -1297,7 +1297,7 @@ REBNATIVE(scan_net_header)
     //
     REBVAL *header = ARG(header);
     REBCNT index;
-    REBSER *utf8 = Temp_Bin_Str_Managed(header, &index, NULL);
+    REBSER *utf8 = Temp_UTF8_At_Managed(header, &index, NULL);
     INIT_VAL_SERIES(header, utf8); // GC protect, unnecessary?
 
     REBYTE *cp = BIN_HEAD(utf8) + index;

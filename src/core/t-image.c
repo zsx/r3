@@ -961,9 +961,9 @@ void MF_Image(REB_MOLD *mo, const RELVAL *v, REBOOL form)
         Post_Mold(mo, v);
     }
     else {
-        Append_Codepoint_Raw(mo->series, '[');
+        Append_Codepoint(mo->series, '[');
         Mold_Image_Data(const_KNOWN(v), mo);
-        Append_Codepoint_Raw(mo->series, ']');
+        Append_Codepoint(mo->series, ']');
         End_Mold(mo);
     }
 }

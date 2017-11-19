@@ -120,7 +120,7 @@ void Emit(REB_MOLD *mo, const char *fmt, ...)
             break;
 
         case 'C': // Char
-            Append_Codepoint_Raw(s, va_arg(va, REBCNT));
+            Append_Codepoint(s, va_arg(va, REBCNT));
             break;
 
         case 'E': { // Series (byte or uni)
@@ -166,21 +166,21 @@ void Emit(REB_MOLD *mo, const char *fmt, ...)
                 Append_UTF8_May_Fail(
                     s, STR_HEAD(canon), STR_NUM_BYTES(canon)
                 );
-                Append_Codepoint_Raw(s, ' ');
+                Append_Codepoint(s, ' ');
             }
             else
                 va_arg(va, REBCNT); // ignore it
             break;
 
         default:
-            Append_Codepoint_Raw(s, *fmt);
+            Append_Codepoint(s, *fmt);
         }
     }
 
     va_end(va);
 
     if (ender != '\0')
-        Append_Codepoint_Raw(s, ender);
+        Append_Codepoint(s, ender);
 }
 
 
@@ -216,7 +216,7 @@ void Pre_Mold(REB_MOLD *mo, const RELVAL *v)
 void End_Mold(REB_MOLD *mo)
 {
     if (GET_MOLD_FLAG(mo, MOLD_FLAG_ALL))
-        Append_Codepoint_Raw(mo->series, ']');
+        Append_Codepoint(mo->series, ']');
 }
 
 
@@ -229,11 +229,11 @@ void End_Mold(REB_MOLD *mo)
 void Post_Mold(REB_MOLD *mo, const RELVAL *v)
 {
     if (VAL_INDEX(v)) {
-        Append_Codepoint_Raw(mo->series, ' ');
+        Append_Codepoint(mo->series, ' ');
         Append_Int(mo->series, VAL_INDEX(v) + 1);
     }
     if (GET_MOLD_FLAG(mo, MOLD_FLAG_ALL))
-        Append_Codepoint_Raw(mo->series, ']');
+        Append_Codepoint(mo->series, ']');
 }
 
 
@@ -259,7 +259,7 @@ void New_Indented_Line(REB_MOLD *mo)
 
     // Add terminator:
     if (cp == NULL)
-        Append_Codepoint_Raw(mo->series, '\n');
+        Append_Codepoint(mo->series, '\n');
 
     // Add proper indentation:
     if (NOT_MOLD_FLAG(mo, MOLD_FLAG_INDENT)) {
@@ -351,7 +351,7 @@ void Mold_Array_At(
     REBOOL had_output = FALSE;
 
     if (sep[1]) {
-        Append_Codepoint_Raw(mo->series, sep[0]);
+        Append_Codepoint(mo->series, sep[0]);
         had_output = TRUE;
     }
 
@@ -388,7 +388,7 @@ void Mold_Array_At(
 
         item++;
         if (NOT_END(item))
-            Append_Codepoint_Raw(mo->series, (sep[0] == '/') ? '/' : ' ');
+            Append_Codepoint(mo->series, (sep[0] == '/') ? '/' : ' ');
     }
 
     // The newline markers in arrays are on values, and indicate a newline
@@ -403,7 +403,7 @@ void Mold_Array_At(
     }
 
     if (sep[1])
-        Append_Codepoint_Raw(mo->series, sep[1]);
+        Append_Codepoint(mo->series, sep[1]);
 
     Drop_Pointer_From_Series(TG_Mold_Stack, a);
 }
@@ -435,14 +435,14 @@ void Form_Array_At(
         Mold_Or_Form_Value(mo, item, LOGICAL(wval == NULL));
         n++;
         if (GET_MOLD_FLAG(mo, MOLD_FLAG_LINES)) {
-            Append_Codepoint_Raw(mo->series, LF);
+            Append_Codepoint(mo->series, LF);
         } else {
             // Add a space if needed:
             if (n < len && SER_LEN(mo->series)
                 && *UNI_LAST(mo->series) != LF
                 && NOT_MOLD_FLAG(mo, MOLD_FLAG_TIGHT)
             ){
-                Append_Codepoint_Raw(mo->series, ' ');
+                Append_Codepoint(mo->series, ' ');
             }
         }
     }
@@ -622,7 +622,7 @@ REBOOL Form_Reduce_Throws(
         }
 
         if (IS_BAR(f->value)) { // newline
-            Append_Codepoint_Raw(mo->series, '\n');
+            Append_Codepoint(mo->series, '\n');
             pending = FALSE;
             Fetch_Next_In_Frame(f);
             continue;
@@ -637,13 +637,13 @@ REBOOL Form_Reduce_Throws(
             continue;
 
         if (IS_BAR(out)) { // newline
-            Append_Codepoint_Raw(mo->series, '\n');
+            Append_Codepoint(mo->series, '\n');
             pending = FALSE;
             continue;
         }
 
         if (IS_CHAR(out)) {
-            Append_Codepoint_Raw(mo->series, VAL_CHAR(out));
+            Append_Codepoint(mo->series, VAL_CHAR(out));
             pending = FALSE;
         }
         else if (IS_BLANK(delimiter)) // no delimiter

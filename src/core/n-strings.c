@@ -272,7 +272,7 @@ REBNATIVE(checksum)
                     assert(IS_STRING(key));
 
                     REBCNT index = VAL_INDEX(key);
-                    temp = Temp_Bin_Str_Managed(key, &index, &keylen);
+                    temp = Temp_UTF8_At_Managed(key, &index, &keylen);
                     PUSH_GUARD_SERIES(temp);
                     keycp = BIN_AT(temp, index);
                 }
@@ -368,7 +368,7 @@ REBNATIVE(compress)
     Partial1(ARG(data), ARG(limit), &len);
 
     REBCNT index;
-    REBSER *ser = Temp_Bin_Str_Managed(ARG(data), &index, &len);
+    REBSER *ser = Temp_UTF8_At_Managed(ARG(data), &index, &len);
 
     assert(BYTE_SIZE(ser)); // must be BINARY!
 
@@ -467,7 +467,7 @@ REBNATIVE(debase)
 
     REBCNT index;
     REBCNT len = 0;
-    REBSER *ser = Temp_Bin_Str_Managed(ARG(value), &index, &len);
+    REBSER *ser = Temp_UTF8_At_Managed(ARG(value), &index, &len);
 
     REBINT base = 64;
     if (REF(base))
@@ -511,7 +511,7 @@ REBNATIVE(enbase)
     // Will convert STRING!s to UTF-8 if necessary.
     //
     REBCNT index;
-    REBSER *temp = Temp_Bin_Str_Managed(arg, &index, NULL);
+    REBSER *temp = Temp_UTF8_At_Managed(arg, &index, NULL);
     Init_Any_Series_At(arg, REB_BINARY, temp, index);
 
     REBSER *ser;

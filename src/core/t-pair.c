@@ -272,7 +272,7 @@ void MF_Pair(REB_MOLD *mo, const RELVAL *v, REBOOL form)
         mo->digits / 2
     );
     Append_Unencoded_Len(mo->series, s_cast(buf), len);
-    Append_Codepoint_Raw(mo->series, 'x');
+    Append_Codepoint(mo->series, 'x');
     len = Emit_Decimal(
         buf,
         VAL_PAIR_Y(v),

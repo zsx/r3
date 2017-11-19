@@ -91,7 +91,7 @@ static REB_R DNS_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         else if (IS_STRING(arg)) {
             REBCNT index = VAL_INDEX(arg);
             REBCNT string_len = VAL_LEN_AT(arg);
-            REBSER *utf8 = Temp_Bin_Str_Managed(arg, &index, &string_len);
+            REBSER *utf8 = Temp_UTF8_At_Managed(arg, &index, &string_len);
 
             DECLARE_LOCAL (tmp);
             if (Scan_Tuple(tmp, BIN_AT(utf8, index), string_len) != NULL) {

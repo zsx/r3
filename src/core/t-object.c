@@ -658,12 +658,12 @@ void MF_Context(REB_MOLD *mo, const RELVAL *v, REBOOL form)
     if (Find_Pointer_In_Series(TG_Mold_Stack, c) != NOT_FOUND) {
         if (NOT(form)) {
             Pre_Mold(mo, v); // If molding, get #[object! etc.
-            Append_Codepoint_Raw(mo->series, '[');
+            Append_Codepoint(mo->series, '[');
         }
         Append_Unencoded(mo->series, "...");
 
         if (NOT(form)) {
-            Append_Codepoint_Raw(mo->series, ']');
+            Append_Codepoint(mo->series, ']');
             End_Mold(mo);
         }
         return;
@@ -699,7 +699,7 @@ void MF_Context(REB_MOLD *mo, const RELVAL *v, REBOOL form)
 
     Pre_Mold(mo, v);
 
-    Append_Codepoint_Raw(mo->series, '[');
+    Append_Codepoint(mo->series, '[');
 
     mo->indent++;
 
@@ -717,7 +717,7 @@ void MF_Context(REB_MOLD *mo, const RELVAL *v, REBOOL form)
     // with functions, they would "forget" their help strings in MOLDing.
 
     New_Indented_Line(mo);
-    Append_Codepoint_Raw(mo->series, '[');
+    Append_Codepoint(mo->series, '[');
 
     REBVAL *keys_head = CTX_KEYS_HEAD(c);
     REBVAL *vars_head;
@@ -738,7 +738,7 @@ void MF_Context(REB_MOLD *mo, const RELVAL *v, REBOOL form)
             continue;
 
         if (key != keys_head)
-            Append_Codepoint_Raw(mo->series, ' ');
+            Append_Codepoint(mo->series, ' ');
 
         // !!! Feature of "private" words in object specs not yet implemented,
         // but if it paralleled how <local> works for functions then it would
@@ -749,9 +749,9 @@ void MF_Context(REB_MOLD *mo, const RELVAL *v, REBOOL form)
         Mold_Value(mo, any_word);
     }
 
-    Append_Codepoint_Raw(mo->series, ']');
+    Append_Codepoint(mo->series, ']');
     New_Indented_Line(mo);
-    Append_Codepoint_Raw(mo->series, '[');
+    Append_Codepoint(mo->series, '[');
 
     mo->indent++;
 
@@ -786,10 +786,10 @@ void MF_Context(REB_MOLD *mo, const RELVAL *v, REBOOL form)
 
     mo->indent--;
     New_Indented_Line(mo);
-    Append_Codepoint_Raw(mo->series, ']');
+    Append_Codepoint(mo->series, ']');
     mo->indent--;
     New_Indented_Line(mo);
-    Append_Codepoint_Raw(mo->series, ']');
+    Append_Codepoint(mo->series, ']');
 
     End_Mold(mo);
 

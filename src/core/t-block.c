@@ -187,7 +187,7 @@ void TO_Array(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
         // used with the scanner.
         //
         REBCNT index;
-        REBSER *utf8 = Temp_Bin_Str_Managed(arg, &index, NULL);
+        REBSER *utf8 = Temp_UTF8_At_Managed(arg, &index, NULL);
         PUSH_GUARD_SERIES(utf8);
         REBSTR * const filename = Canon(SYM___ANONYMOUS__);
         Init_Any_Array(
@@ -670,10 +670,10 @@ void MF_Array(REB_MOLD *mo, const RELVAL *v, REBOOL form)
         SET_MOLD_FLAG(mo, MOLD_FLAG_ALL);
         Pre_Mold(mo, v); // #[block! part
 
-        Append_Codepoint_Raw(mo->series, '[');
+        Append_Codepoint(mo->series, '[');
         Mold_Array_At(mo, VAL_ARRAY(v), 0, 0);
         Post_Mold(mo, v);
-        Append_Codepoint_Raw(mo->series, ']');
+        Append_Codepoint(mo->series, ']');
     }
     else {
         const char *sep;
@@ -693,12 +693,12 @@ void MF_Array(REB_MOLD *mo, const RELVAL *v, REBOOL form)
             break;
 
         case REB_GET_PATH:
-            Append_Codepoint_Raw(mo->series, ':');
+            Append_Codepoint(mo->series, ':');
             sep = "/";
             break;
 
         case REB_LIT_PATH:
-            Append_Codepoint_Raw(mo->series, '\'');
+            Append_Codepoint(mo->series, '\'');
             // fall through
         case REB_PATH:
         case REB_SET_PATH:
@@ -715,7 +715,7 @@ void MF_Array(REB_MOLD *mo, const RELVAL *v, REBOOL form)
             Mold_Array_At(mo, VAL_ARRAY(v), VAL_INDEX(v), sep);
 
         if (VAL_TYPE(v) == REB_SET_PATH)
-            Append_Codepoint_Raw(mo->series, ':');
+            Append_Codepoint(mo->series, ':');
     }
 }
 

@@ -249,7 +249,7 @@ inline static REBSTR* STR(const void *p)
         //
         REBCNT index = VAL_INDEX(v);
         REBCNT len = VAL_LEN_AT(v);
-        REBSER *temp = Temp_Bin_Str_Managed(v, &index, &len);
+        REBSER *temp = Temp_UTF8_At_Managed(v, &index, &len);
         return Intern_UTF8_Managed(BIN_AT(temp, index), len); }
 
     default:

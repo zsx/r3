@@ -150,26 +150,26 @@ void MF_Word(REB_MOLD *mo, const RELVAL *v, REBOOL form) {
 
     case REB_SET_WORD:
         Append_UTF8_May_Fail(s, STR_HEAD(spelling), STR_NUM_BYTES(spelling));
-        Append_Codepoint_Raw(s, ':');
+        Append_Codepoint(s, ':');
         break;
 
     case REB_GET_WORD:
-        Append_Codepoint_Raw(s, ':');
+        Append_Codepoint(s, ':');
         Append_UTF8_May_Fail(s, STR_HEAD(spelling), STR_NUM_BYTES(spelling));
         break;
 
     case REB_LIT_WORD:
-        Append_Codepoint_Raw(s, '\'');
+        Append_Codepoint(s, '\'');
         Append_UTF8_May_Fail(s, STR_HEAD(spelling), STR_NUM_BYTES(spelling));
         break;
 
     case REB_REFINEMENT:
-        Append_Codepoint_Raw(s, '/');
+        Append_Codepoint(s, '/');
         Append_UTF8_May_Fail(s, STR_HEAD(spelling), STR_NUM_BYTES(spelling));
         break;
 
     case REB_ISSUE:
-        Append_Codepoint_Raw(s, '#');
+        Append_Codepoint(s, '#');
         Append_UTF8_May_Fail(s, STR_HEAD(spelling), STR_NUM_BYTES(spelling));
         break;
 

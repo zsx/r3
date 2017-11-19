@@ -1756,7 +1756,7 @@ static void Mold_Simple_Block(REB_MOLD *mo, RELVAL *block, REBCNT len)
         Mold_Value(mo, block);
         block++;
         if (NOT_END(block))
-            Append_Codepoint_Raw(mo->series, ' ');
+            Append_Codepoint(mo->series, ' ');
     }
 
     // If it's too large, truncate it:
@@ -1801,7 +1801,7 @@ void MF_Error(REB_MOLD *mo, const RELVAL *v, REBOOL form)
     // Form: ** Where: function
     REBVAL *where = KNOWN(&vars->where);
     if (NOT(IS_BLANK(where))) {
-        Append_Codepoint_Raw(mo->series, '\n');
+        Append_Codepoint(mo->series, '\n');
         Append_Unencoded(mo->series, RM_ERROR_WHERE);
         Form_Value(mo, where);
     }
@@ -1809,7 +1809,7 @@ void MF_Error(REB_MOLD *mo, const RELVAL *v, REBOOL form)
     // Form: ** Near: location
     REBVAL *nearest = KNOWN(&vars->nearest);
     if (NOT(IS_BLANK(nearest))) {
-        Append_Codepoint_Raw(mo->series, '\n');
+        Append_Codepoint(mo->series, '\n');
         Append_Unencoded(mo->series, RM_ERROR_NEAR);
 
         if (IS_STRING(nearest)) {
@@ -1839,7 +1839,7 @@ void MF_Error(REB_MOLD *mo, const RELVAL *v, REBOOL form)
     //
     REBVAL *file = KNOWN(&vars->file);
     if (NOT(IS_BLANK(file))) {
-        Append_Codepoint_Raw(mo->series, '\n');
+        Append_Codepoint(mo->series, '\n');
         Append_Unencoded(mo->series, RM_ERROR_FILE);
         if (IS_WORD(file))
             Form_Value(mo, file);
@@ -1850,7 +1850,7 @@ void MF_Error(REB_MOLD *mo, const RELVAL *v, REBOOL form)
     // Form: ** Line: line-number
     REBVAL *line = KNOWN(&vars->line);
     if (NOT(IS_BLANK(line))) {
-        Append_Codepoint_Raw(mo->series, '\n');
+        Append_Codepoint(mo->series, '\n');
         Append_Unencoded(mo->series, RM_ERROR_LINE);
         if (IS_INTEGER(line))
             Form_Value(mo, line);

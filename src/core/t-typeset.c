@@ -303,7 +303,7 @@ void MF_Typeset(REB_MOLD *mo, const RELVAL *v, REBOOL form)
 
     if (NOT(form)) {
         Pre_Mold(mo, v);  // #[typeset! or make typeset!
-        Append_Codepoint_Raw(mo->series, '[');
+        Append_Codepoint(mo->series, '[');
     }
 
 #if !defined(NDEBUG)
@@ -356,7 +356,7 @@ skip_types:
 #endif
 
     if (NOT(form)) {
-        Append_Codepoint_Raw(mo->series, ']');
+        Append_Codepoint(mo->series, ']');
         End_Mold(mo);
     }
 }

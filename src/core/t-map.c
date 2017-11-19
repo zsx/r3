@@ -611,7 +611,7 @@ void MF_Map(REB_MOLD *mo, const RELVAL *v, REBOOL form)
 
     if (NOT(form)) {
         Pre_Mold(mo, v);
-        Append_Codepoint_Raw(mo->series, '[');
+        Append_Codepoint(mo->series, '[');
     }
 
     // Mold all entries that are set.  As with contexts, void values are not
@@ -629,13 +629,13 @@ void MF_Map(REB_MOLD *mo, const RELVAL *v, REBOOL form)
             New_Indented_Line(mo);
         Emit(mo, "V V", key, key + 1);
         if (form)
-            Append_Codepoint_Raw(mo->series, '\n');
+            Append_Codepoint(mo->series, '\n');
     }
     mo->indent--;
 
     if (NOT(form)) {
         New_Indented_Line(mo);
-        Append_Codepoint_Raw(mo->series, ']');
+        Append_Codepoint(mo->series, ']');
     }
 
     End_Mold(mo);

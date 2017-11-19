@@ -660,12 +660,8 @@ static REBCTX *Error_Syntax(SCAN_STATE *ss) {
 // report all the unclosed terms.
 //
 static REBCTX *Error_Missing(SCAN_STATE *ss, char wanted) {
-    REBYTE tmp_buf[2];
-    tmp_buf[0] = wanted;
-    tmp_buf[1] = 0;
-
     DECLARE_LOCAL (expected);
-    Init_String(expected, Copy_Bytes(tmp_buf, 1));
+    Init_String(expected, Make_Series_Codepoint(wanted));
 
     REBCTX *error = Error(RE_SCAN_MISSING, expected, END);
     Update_Error_Near_For_Line(error, ss->start_line, ss->start_line_head);
@@ -679,12 +675,8 @@ static REBCTX *Error_Missing(SCAN_STATE *ss, char wanted) {
 // For instance, `load "abc ]"`
 //
 static REBCTX *Error_Extra(SCAN_STATE *ss, char seen) {
-    REBYTE tmp_buf[2];  // Temporary error string
-    tmp_buf[0] = seen;
-    tmp_buf[1] = 0;
-
     DECLARE_LOCAL (unexpected);
-    Init_String(unexpected, Copy_Bytes(tmp_buf, 1));
+    Init_String(unexpected, Make_Series_Codepoint(seen));
 
     REBCTX *error = Error(RE_SCAN_EXTRA, unexpected, END);
     Update_Error_Near_For_Line(error, ss->line, ss->line_head);

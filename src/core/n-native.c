@@ -677,7 +677,7 @@ REBNATIVE(compile)
         REBVAL *stored_state = KNOWN(VAL_ARRAY_AT_HEAD(info, 2));
 
         REBCNT index;
-        REBSER *utf8 = Temp_Bin_Str_Managed(name, &index, 0);
+        REBSER *utf8 = Temp_UTF8_At_Managed(name, &index, 0);
 
         void *sym = tcc_get_symbol(state, cs_cast(BIN_AT(utf8, index)));
         if (sym == NULL)

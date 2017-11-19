@@ -259,7 +259,7 @@ static REBSER *MAKE_TO_String_Common(const REBVAL *arg)
     // MAKE/TO <type> #"A"
     else if (IS_CHAR(arg)) {
         ser = (VAL_CHAR(arg) > 0xff) ? Make_Unicode(2) : Make_Binary(2);
-        Append_Codepoint_Raw(ser, VAL_CHAR(arg));
+        Append_Codepoint(ser, VAL_CHAR(arg));
     }
     else
         ser = Copy_Form_Value(arg, MOLD_FLAG_TIGHT);
@@ -682,11 +682,11 @@ REBINT PD_String(REBPVS *pvs)
         //
         REBCNT len = SER_LEN(copy);
         if (len == 0)
-            Append_Codepoint_Raw(copy, '/');
+            Append_Codepoint(copy, '/');
         else {
             REBUNI ch_last = GET_ANY_CHAR(copy, len - 1);
             if (ch_last != '/')
-                Append_Codepoint_Raw(copy, '/');
+                Append_Codepoint(copy, '/');
         }
 
         DECLARE_MOLD (mo);
@@ -1015,7 +1015,7 @@ static void Mold_File(REB_MOLD *mo, const RELVAL *v)
 
 static void Mold_Tag(REB_MOLD *mo, const RELVAL *v)
 {
-    Append_Codepoint_Raw(mo->series, '<');
+    Append_Codepoint(mo->series, '<');
     Insert_String(
         mo->series,
         SER_LEN(mo->series), // "insert" at tail (append)
@@ -1024,7 +1024,7 @@ static void Mold_Tag(REB_MOLD *mo, const RELVAL *v)
         VAL_LEN_AT(v),
         FALSE
     );
-    Append_Codepoint_Raw(mo->series, '>');
+    Append_Codepoint(mo->series, '>');
 
 }
 
@@ -1058,7 +1058,7 @@ void MF_Binary(REB_MOLD *mo, const RELVAL *v, REBOOL form)
 
     case 2: {
         const REBOOL brk = LOGICAL(len > 8);
-        Append_Codepoint_Raw(mo->series, '2');
+        Append_Codepoint(mo->series, '2');
         out = Encode_Base2(NULL, v, brk);
         break; }
     }

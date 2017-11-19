@@ -223,7 +223,7 @@ REBNATIVE(panic)
     if (IS_STRING(v)) {
         REBCNT len = VAL_LEN_AT(v);
         REBCNT index = VAL_INDEX(v);
-        REBSER *utf8 = Temp_Bin_Str_Managed(v, &index, &len);
+        REBSER *utf8 = Temp_UTF8_At_Managed(v, &index, &len);
         p = BIN_HEAD(utf8);
     }
     else {

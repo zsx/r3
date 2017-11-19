@@ -456,7 +456,7 @@ void MF_Event(REB_MOLD *mo, const RELVAL *v, REBOOL form)
     };
 
     Pre_Mold(mo, v);
-    Append_Codepoint_Raw(mo->series, '[');
+    Append_Codepoint(mo->series, '[');
     mo->indent++;
 
     DECLARE_LOCAL (var); // declare outside loop (has init code)
@@ -474,13 +474,13 @@ void MF_Event(REB_MOLD *mo, const RELVAL *v, REBOOL form)
         );
         Append_Unencoded(mo->series, ": ");
         if (IS_WORD(var))
-            Append_Codepoint_Raw(mo->series, '\'');
+            Append_Codepoint(mo->series, '\'');
         Mold_Value(mo, var);
     }
 
     mo->indent--;
     New_Indented_Line(mo);
-    Append_Codepoint_Raw(mo->series, ']');
+    Append_Codepoint(mo->series, ']');
 
     End_Mold(mo);
 }

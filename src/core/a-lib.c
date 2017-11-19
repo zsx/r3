@@ -1029,7 +1029,7 @@ REBCNT RL_rebSpellingOf(
     if (ANY_STRING(v)) {
         index = VAL_INDEX(v);
         len = VAL_LEN_AT(v);
-        REBSER *temp = Temp_Bin_Str_Managed(v, &index, &len);
+        REBSER *temp = Temp_UTF8_At_Managed(v, &index, &len);
         utf8 = BIN_AT(temp, index);
     }
     else {
