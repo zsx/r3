@@ -847,6 +847,46 @@ REBSER *Pop_Molded_String_Core(REB_MOLD *mo, REBCNT len)
 
 
 //
+//  Pop_Molded_Binary: C
+//
+// Give back a BINARY! series, assuming that only bytes were pushed to the
+// molding stack.
+//
+REBSER *Pop_Molded_Binary(REB_MOLD *mo)
+{
+    assert(mo->series); // if NULL there was no Push_Mold()
+
+    ASSERT_SERIES_TERM(mo->series);
+    Throttle_Mold(mo);
+
+    REBCNT len = SER_LEN(mo->series) - mo->start;
+
+    REBSER *result = Make_Binary(len);
+    REBUNI *src = UNI_AT(mo->series, mo->start);
+    REBYTE *dst = BIN_HEAD(result);
+
+    REBCNT n;
+    for (n = 0; n < len; ++n, ++src, ++dst) {
+        assert(*src <= 255);
+        *dst = cast(REBYTE, *src);
+    }
+    TERM_BIN_LEN(result, len);
+
+    // Though the protocol of Mold_Value does terminate, it only does so if
+    // it adds content to the buffer.  If we did not terminate when we
+    // reset the size, then these no-op molds (e.g. mold of "") would leave
+    // whatever value in the terminator spot was there.  This could be
+    // addressed by making no-op molds terminate.
+    //
+    TERM_UNI_LEN(mo->series, mo->start);
+
+    mo->series = NULL;
+
+    return result;
+}
+
+
+//
 //  Pop_Molded_UTF8: C
 //
 // Same as Pop_Molded_String() except gives back the data in UTF8 byte-size

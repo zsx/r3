@@ -909,16 +909,10 @@ static inline REBCNT Finalize_Remove_Each(struct Remove_Each_State *res)
             );
         }
 
-        REBSER *popped = Pop_Molded_String(res->mo);
-
-        // We should have only added codepoints between 0x00 and 0xFF, and
-        // Pop_Molded_String() should always use Copy_String_Slimming() and
-        // realize that can be done as a byte-size series.  But it's very
-        // bad if it's not, so keep a panic on it even in release build for
-        // now until this gets some review.
+        // We should have only added codepoints between 0x00 and 0xFF
+        // (This checks that.)
         //
-        if (NOT(BYTE_SIZE(popped)))
-            panic ("Internal error in REMOVE-EACH, non-BYTE-SIZE BINARY!");
+        REBSER *popped = Pop_Molded_Binary(res->mo);
 
         assert(SER_LEN(popped) <= VAL_LEN_HEAD(res->data));
         count = VAL_LEN_HEAD(res->data) - SER_LEN(popped);
