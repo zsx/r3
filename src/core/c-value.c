@@ -53,7 +53,7 @@ ATTRIBUTE_NO_RETURN void Panic_Value_Debug(const RELVAL *v) {
     fflush(stdout);
     fflush(stderr);
 
-    REBSER *containing = Try_Find_Containing_Series_Debug(v);
+    REBNOD *containing = Try_Find_Containing_Node_Debug(v);
 
     switch (VAL_TYPE_RAW(v)) {
     case REB_MAX_VOID:
@@ -76,9 +76,14 @@ ATTRIBUTE_NO_RETURN void Panic_Value_Debug(const RELVAL *v) {
     printf("Kind=%d\n", cast(int, VAL_TYPE_RAW(v)));
     fflush(stdout);
 
-    if (containing != NULL) {
+    if (containing != NULL && NOT(containing->header.bits & NODE_FLAG_CELL)) {
         printf("Containing series for value pointer found, panicking it:\n");
-        Panic_Series_Debug(containing);
+        Panic_Series_Debug(SER(containing));
+    }
+
+    if (containing != NULL) {
+        printf("Containing pairing for value pointer found, panicking it:\n");
+        Panic_Series_Debug(cast(REBSER*, containing)); // won't pass SER()
     }
 
     printf("No containing series for value...panicking to make stack dump:\n");

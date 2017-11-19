@@ -1655,7 +1655,7 @@ void Guard_Node_Core(const REBNOD *node)
         // being able to resize and reallocate the data pointer.  But this is
         // a somewhat expensive check, so only feasible to run occasionally.
         //
-        REBSER *containing = Try_Find_Containing_Series_Debug(value);
+        REBNOD *containing = Try_Find_Containing_Node_Debug(value);
         if (containing != NULL)
             panic (containing);
     #endif

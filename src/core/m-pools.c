@@ -737,13 +737,13 @@ static REBOOL Series_Data_Alloc(REBSER *s, REBCNT length) {
 #if !defined(NDEBUG)
 
 //
-//  Try_Find_Containing_Series_Debug: C
+//  Try_Find_Containing_Node_Debug: C
 //
 // This debug-build-only routine will look to see if it can find what series
 // a data pointer lives in.  It returns NULL if it can't find one.  It's very
 // slow, because it has to look at all the series.  Use sparingly!
 //
-REBSER *Try_Find_Containing_Series_Debug(const void *p)
+REBNOD *Try_Find_Containing_Node_Debug(const void *p)
 {
     REBSEG *seg;
 
@@ -754,12 +754,9 @@ REBSER *Try_Find_Containing_Series_Debug(const void *p)
             if (IS_FREE_NODE(s))
                 continue;
 
-            if (s->header.bits & NODE_FLAG_CELL) { // a pairing, REBSER is REBVAL[2]
-                if ((p >= cast(void*, s)) && (p < cast(void*, s + 1))) {
-                    printf("pointer found in 'pairing' series");
-                    printf("not a real REBSER, no information available");
-                    assert(FALSE);
-                }
+            if (s->header.bits & NODE_FLAG_CELL) { // a "pairing"
+                if ((p >= cast(void*, s)) && (p < cast(void*, s + 1)))
+                    return NOD(s); // REBSER is REBVAL[2]
                 continue;
             }
 
@@ -768,7 +765,7 @@ REBSER *Try_Find_Containing_Series_Debug(const void *p)
                     p >= cast(void*, &s->content)
                     && p < cast(void*, &s->content + 1)
                 ){
-                    return s;
+                    return NOD(s);
                 }
                 continue;
             }
@@ -799,7 +796,7 @@ REBSER *Try_Find_Containing_Series_Debug(const void *p)
             if (p < cast(void*, s->content.dynamic.data)) {
                 printf("Pointer found in freed head capacity of series\n");
                 fflush(stdout);
-                return s;
+                return NOD(s);
             }
 
             if (p >= cast(void*,
@@ -808,10 +805,10 @@ REBSER *Try_Find_Containing_Series_Debug(const void *p)
             )) {
                 printf("Pointer found in freed tail capacity of series\n");
                 fflush(stdout);
-                return s;
+                return NOD(s);
             }
 
-            return s;
+            return NOD(s);
         }
     }
 

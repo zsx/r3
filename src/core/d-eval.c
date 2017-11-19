@@ -120,9 +120,9 @@ void Do_Core_Entry_Checks_Debug(REBFRM *f)
     // !!! A non-contiguous data stack which is not a series is a possibility.
     //
 #ifdef STRESS_CHECK_DO_OUT_POINTER
-    REBSER *containing = Try_Find_Containing_Series_Debug(f->out);
+    REBNOD *containing = Try_Find_Containing_Node_Debug(f->out);
 
-    if (containing) {
+    if (containing && NOT(containing->header.bits & NODE_FLAG_CELL)) {
         if (GET_SER_FLAG(containing, SERIES_FLAG_FIXED_SIZE)) {
             //
             // Currently it's considered OK to be writing into a fixed size
