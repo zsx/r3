@@ -369,7 +369,7 @@ host-console: function [
         ]
         if find directives #countdown-if-error [
             insert instruction [
-                #console-if-halt 
+                #console-if-halt
                     |
             ]
             append instruction compose/deep [

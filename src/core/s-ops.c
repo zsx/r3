@@ -650,15 +650,19 @@ REBSER *Detab_Bytes(REBYTE *bp, REBCNT index, REBCNT len, REBINT tabsize)
 //
 // Detab a unicode string and return a new series.
 //
-REBSER *Detab_Unicode(REBUNI *bp, REBCNT index, REBCNT len, REBINT tabsize)
-{
+REBSER *Detab_Unicode(
+    const REBUNI *up,
+    REBCNT index,
+    REBCNT len,
+    REBINT tabsize
+){
     DECLARE_MOLD (mo);
 
     // Estimate new length based on tab expansion:
     REBCNT count = 0;
-    REBCNT n = 0;
+    REBCNT n;
     for (n = index; n < len; n++)
-        if (bp[n] == '\t') // tab character
+        if (up[n] == '\t') // tab character
             ++count;
 
     SET_MOLD_FLAG(mo, MOLD_FLAG_RESERVE);
@@ -668,8 +672,9 @@ REBSER *Detab_Unicode(REBUNI *bp, REBCNT index, REBCNT len, REBINT tabsize)
 
     REBUNI *dp = UNI_AT(mo->series, mo->start);
 
+    n = 0;
     while (index < len) {
-        REBUNI c = bp[index++];
+        REBUNI c = up[index++];
 
         if (c == '\t') {
             *dp++ = ' ';
