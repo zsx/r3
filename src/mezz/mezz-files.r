@@ -12,6 +12,9 @@ REBOL [
 ]
 
 
+file-to-local*: specialize 'file-to-local [only: true]
+local-to-file*: specialize 'local-to-file [only: true]
+
 clean-path: function [
     "Returns new directory path with `//` `.` and `..` processed."
     file [file! url! string!]
@@ -175,7 +178,7 @@ list-dir: procedure [
     switch type-of :path [
         _ [] ; Stay here
         :file! [change-dir path]
-        :string! [change-dir to-rebol-file path]
+        :string! [change-dir local-to-file path]
         :word! :path! [change-dir to-file path]
     ]
 
@@ -255,17 +258,17 @@ to-relative-file: function [
         "Convert to local-style filename if not"
 ][
     either string? file [ ; Local file
-        ; Note: to-local-file drops trailing / in R2, not in R3
-        ; if tmp: find/match file to-local-file what-dir [file: next tmp]
-        file: any [find/match file to-local-file what-dir | file]
+        ; Note: file-to-local drops trailing / in R2, not in R3
+        ; if tmp: find/match file file-to-local what-dir [file: next tmp]
+        file: any [find/match file file-to-local what-dir | file]
         if as-rebol [
-            file: to-rebol-file file
+            file: local-to-file file
             no-copy: true
         ]
     ][
         file: any [find/match file what-dir | file]
         if as-local [
-            file: to-local-file file
+            file: file-to-local file
             no-copy: true
         ]
     ]

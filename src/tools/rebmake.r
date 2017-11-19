@@ -7,14 +7,21 @@ default-linker: _
 default-strip: _
 target-platform: _
 
-map-to-local-file: func [
+; !!! Slipping definitions into the module is difficult, as top-level names
+; will be cleared by the module logic itself.  Try this workaround for now.
+;
+file-to-local: :lib/file-to-local-hack
+local-to-file: :lib/local-to-file-hack
+
+map-files-to-local: func [
+    return: [block!]
     files [file! block!]
     <local>
     f
 ][
     unless block? files [files: reduce [files]]
     map-each f files [
-        to-local-file f
+        file-to-local f
     ]
 ]
 
@@ -190,7 +197,7 @@ windows: make platform-class [
     gen-cmd-create: function [
         cmd [object!]
     ][
-        d: to-local-file cmd/file
+        d: file-to-local cmd/file
         if #"\" = last d [remove back tail d]
         either dir? cmd/file [
             spaced ["mkdir" d]
@@ -201,7 +208,7 @@ windows: make platform-class [
     gen-cmd-delete: function [
         cmd [object!]
     ][
-        d: to-local-file cmd/file
+        d: file-to-local cmd/file
         if #"\" = last d [remove back tail d]
         either dir? cmd/file [
             spaced ["rmdir /S /Q" d]
@@ -423,18 +430,20 @@ gcc: make compiler-class [
         flg
         fs
     ][
-        if file? output [output: to-local-file output]
-        if file? source [source: to-local-file source]
+        if file? output [output: file-to-local output]
+        if file? source [source: file-to-local source]
         spaced [
             case [
-                file? exec-file [to-local-file exec-file]
+                file? exec-file [file-to-local exec-file]
                 exec-file [exec-file]
                 true [to string! name]
             ]
             either E ["-E"]["-c"]
 
             if PIC ["-fPIC"]
-            if all [I not empty? includes] [unspaced ["-I" delimit map-to-local-file includes " -I"]]
+            if all [I not empty? includes] [
+                unspaced ["-I" delimit map-files-to-local includes " -I"]
+            ]
             if all [D not empty? definitions] [
                 unspaced [
                     "-D"
@@ -502,7 +511,9 @@ tcc: make compiler-class [
             either E ["-E"]["-c"]
 
             if PIC ["-fPIC"]
-            if all [I not empty? includes] [unspaced ["-I" delimit map-to-local-file includes " -I"]]
+            if all [I not empty? includes] [
+                unspaced ["-I" delimit map-files-to-local includes " -I"]
+            ]
             if all [D not empty? definitions] [
                 unspaced [
                     "-D"
@@ -571,14 +582,16 @@ cl: make compiler-class [
     ][
         spaced [
             case [
-                file? exec-file [to-local-file exec-file]
+                file? exec-file [file-to-local exec-file]
                 exec-file [exec-file]
                 true [{cl}]
             ]
             "/nologo" ;suppress display of logo
             either E ["/P"]["/c"]
 
-            if all [I not empty? includes] [unspaced ["/I" delimit map-to-local-file includes " /I"]]
+            if all [I not empty? includes] [
+                unspaced ["/I" delimit file-to-local includes " /I"]
+            ]
             if all [D not empty? definitions][
                 unspaced [
                     "/D"
@@ -624,7 +637,7 @@ cl: make compiler-class [
                 ]
             ]
 
-            either file? source [to-local-file source][source]
+            either file? source [file-to-local source][source]
         ]
     ]
 ]
@@ -670,19 +683,19 @@ ld: make linker-class [
         ]
         spaced [
             case [
-                file? exec-file [to-local-file exec-file]
+                file? exec-file [file-to-local exec-file]
                 exec-file [exec-file]
                 true [{gcc}]
             ]
             if dynamic ["-shared"]
-            "-o" to-local-file either ends-with? output suffix [
+            "-o" file-to-local either ends-with? output suffix [
                 output
             ][
                 unspaced [output suffix]
             ]
 
             unless any [blank? searches empty? searches] [
-                unspaced ["-L" delimit map-to-local-file searches " -L"]
+                unspaced ["-L" delimit map-files-to-local searches " -L"]
             ]
 
             if block? ldflags [
@@ -710,7 +723,7 @@ ld: make linker-class [
                     ;    dump ddep
                     ;]
                 ;]
-                to-local-file dep/output
+                file-to-local dep/output
             ]
             ext-dynamic-class [
                 either tag? dep/output [
@@ -725,11 +738,11 @@ ld: make linker-class [
                 ]
             ]
             ext-static-class [
-                to-local-file dep/output
+                file-to-local dep/output
             ]
             object-library-class [
                 spaced map-each ddep dep/depends [
-                    to-local-file ddep/output
+                    file-to-local ddep/output
                 ]
                 ;pass
             ]
@@ -782,11 +795,11 @@ llvm-link: make linker-class [
         ]
         spaced [
             case [
-                file? exec-file [to-local-file exec-file]
+                file? exec-file [file-to-local exec-file]
                 exec-file [exec-file]
                 true [{llvm-link}]
             ]
-            "-o" to-local-file either ends-with? output suffix [
+            "-o" file-to-local either ends-with? output suffix [
                 output
             ][
                 unspaced [output suffix]
@@ -794,7 +807,7 @@ llvm-link: make linker-class [
 
             ; llvm-link doesn't seem to deal with libraries
             ;unless any [blank? searches empty? searches] [
-            ;    unspaced ["-L" delimit map-to-local-file searches " -L"]
+            ;    unspaced ["-L" delimit map-files-to-local searches " -L"]
             ;]
 
             if block? ldflags [
@@ -822,7 +835,7 @@ llvm-link: make linker-class [
                     ;    dump ddep
                     ;]
                 ;]
-                to-local-file dep/output
+                file-to-local dep/output
             ]
             ext-dynamic-class [
                 ;ignored
@@ -832,7 +845,7 @@ llvm-link: make linker-class [
             ]
             object-library-class [
                 spaced map-each ddep dep/depends [
-                    to-local-file ddep/output
+                    file-to-local ddep/output
                 ]
                 ;pass
             ]
@@ -875,13 +888,13 @@ link: make linker-class [
         ]
         spaced [
             case [
-                file? exec-file [to-local-file exec-file]
+                file? exec-file [file-to-local exec-file]
                 exec-file [exec-file]
                 true [{link}]
             ]
             "/NOLOGO"
             if dynamic ["/DLL"]
-            unspaced ["/OUT:" to-local-file either ends-with? output suffix [
+            unspaced ["/OUT:" file-to-local either ends-with? output suffix [
                     output
                 ][
                     unspaced [output suffix]
@@ -889,7 +902,7 @@ link: make linker-class [
             ]
 
             unless any [blank? searches empty? searches] [
-                unspaced ["/LIBPATH:" delimit map-to-local-file searches " /LIBPATH:"]
+                unspaced ["/LIBPATH:" delimit map-files-to-local searches " /LIBPATH:"]
             ]
 
             if block? ldflags [
@@ -916,7 +929,7 @@ link: make linker-class [
                     ;    dump ddep
                     ;]
                 ;]
-                to-local-file to-file dep/output
+                file-to-local to-file dep/output
             ]
             ext-dynamic-class [
                 ;static property is ignored
@@ -933,16 +946,16 @@ link: make linker-class [
                 ]
             ]
             ext-static-class [
-                to-local-file dep/file
+                file-to-local dep/file
             ]
             object-library-class [
                 spaced map-each ddep dep/depends [
-                    to-local-file to-file ddep/output
+                    file-to-local to-file ddep/output
                 ]
                 ;pass
             ]
             application-class [
-                to-local-file any [dep/implib join-of dep/basename ".lib"]
+                file-to-local any [dep/implib join-of dep/basename ".lib"]
             ]
             var-class [
                 ;pass
@@ -971,7 +984,7 @@ strip-class: make object! [
     ][
         spaced [
             case [
-                file? exec-file [to-local-file exec-file]
+                file? exec-file [file-to-local exec-file]
                 exec-file [exec-file]
                 true [ {strip} ]
             ]
@@ -990,7 +1003,7 @@ strip-class: make object! [
                     ]
                 ]
             ]
-            to-local-file target
+            file-to-local target
         ]
     ]
 ]
@@ -1149,12 +1162,14 @@ generator-class: make object! [
     ]
 
     reify: function [
-        "Substitue variables in the command with its value, will recursively substitue if the value has variables"
+        "Substitue variables in the command with its value"
+        "will recursively substitue if the value has variables"
+
         cmd [object! any-string!]
         <static>
         letter (charset [#"a" - #"z" #"A" - #"Z"])
         digit (charset "0123456789")
-        localize (func [v][either file? v [to-local-file v][v]])
+        localize (func [v][either file? v [file-to-local v][v]])
     ][
         if object? cmd [
             assert [find? [cmd-create-class cmd-delete-class cmd-strip-class] cmd/class-name]
@@ -1330,7 +1345,11 @@ makefile: make generator-class [
             ]
             entry-class [
                 unspaced [
-                    either file? entry/target [to-local-file entry/target][entry/target]
+                    either file? entry/target [
+                        file-to-local entry/target
+                    ][
+                        entry/target
+                    ]
                     ":" space case [
                         block? entry/depends [
                             spaced map-each w entry/depends [
@@ -1347,10 +1366,10 @@ makefile: make generator-class [
                                 ][
                                     case [
                                         file? w [
-                                            to-local-file w
+                                            file-to-local w
                                         ]
                                         file? w/output [
-                                            to-local-file w/output
+                                            file-to-local w/output
                                         ]
                                         true [
                                             w/output
@@ -1859,7 +1878,7 @@ visual-studio: make generator-class [
             inc: make string! 1024
             for-each i project/includes [
                 if i: filter-flag/leading-char i "msc" "" [
-                    append inc unspaced [to-local-file i ";"]
+                    append inc unspaced [file-to-local i ";"]
                 ]
             ]
             append inc "%(AdditionalIncludeDirectories)"
@@ -1867,7 +1886,7 @@ visual-studio: make generator-class [
             def: make string! 1024
             for-each i project/definitions [
                 if i: filter-flag/leading-char i "msc" "" [
-                    append def unspaced [to-local-file i ";"]
+                    append def unspaced [file-to-local i ";"]
                 ]
             ]
             append def "%(PreprocessorDefinitions)"
@@ -1898,7 +1917,7 @@ visual-studio: make generator-class [
             if find? [dynamic-library-class application-class] project/class-name [
                 for-each i project/searches [
                     if i: filter-flag/leading-char i "msc" "" [
-                        append searches unspaced [to-local-file i ";"]
+                        append searches unspaced [file-to-local i ";"]
                     ]
                 ]
 
@@ -2076,7 +2095,7 @@ visual-studio: make generator-class [
                         o-inc: make string! 1024
                         for-each i o/includes [
                             if i: filter-flag/leading-char i "msc" "" [
-                                append o-inc unspaced [to-local-file i ";"]
+                                append o-inc unspaced [file-to-local i ";"]
                             ]
                         ]
                         unless empty? o-inc [
@@ -2090,7 +2109,7 @@ visual-studio: make generator-class [
                         o-def: make string! 1024
                         for-each i o/definitions [
                             if i: filter-flag/leading-char i "msc" "" [
-                                append o-def unspaced [to-local-file i ";"]
+                                append o-def unspaced [file-to-local i ";"]
                             ]
                         ]
                         unless empty? o-def [
@@ -2104,7 +2123,7 @@ visual-studio: make generator-class [
                     if o/output [
                         unspaced [
                             {        <ObjectFileName>}
-                            to-local-file o/output
+                            file-to-local o/output
                             {</ObjectFileName>^/}
                         ]
                     ]

@@ -17,8 +17,8 @@ launch: func [
     /args arg [string! block! blank!] "Arguments to the script"
     /wait "Wait for the process to terminate"
 ][
-    if file? script [script: to-local-file clean-path script]
-    args: reduce [to-local-file system/options/boot script]
+    if file? script [script: file-to-local clean-path script]
+    args: reduce [file-to-local system/options/boot script]
     unless void? :arg [append args arg]
     either wait [call/wait args] [call args]
 ]

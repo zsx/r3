@@ -4,6 +4,14 @@ do %common.r
 do %systems.r
 file-base: make object! load %file-base.r
 
+; !!! Since %rebmake.r is a module, it presents a challenge for the "shim"
+; code when it depends on a change.  This needs to be addressed in a generic
+; way, but that requires foundational work on modules.
+;
+append lib compose [
+    file-to-local-hack: (:file-to-local)
+    local-to-file-hack: (:local-to-file)
+]
 rebmake: import %rebmake.r
 
 config-dir: %../../make

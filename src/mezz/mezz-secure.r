@@ -67,7 +67,7 @@ secure: function [
     ][
         case [
             file? target [
-                val: to-local-file/full target
+                val: file-to-local/full target
                 ; This string must have OS-local encoding, because
                 ; the check is done at a lower level of I/O.
                 if system/version/4 != 3 [val: to binary! val]
@@ -144,7 +144,7 @@ secure: function [
                 block? pol [
                     for-each [item pol] pol [
                         if binary? item [item: to-string item] ; utf-8 decode
-                        if string? item [item: to-rebol-file item]
+                        if string? item [item: local-to-file item]
                         join out [item word-policy pol]
                     ]
                 ]

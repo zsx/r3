@@ -285,6 +285,21 @@ prin: procedure [
 ]
 
 
+to-rebol-file: func [dummy:] [
+    fail/where [
+        {TO-REBOL-FILE is now LOCAL-TO-FILE} |
+        {Take note it only accepts STRING! input and returns FILE!} |
+        {(unless you use LOCAL-TO-FILE*, which is a no-op on FILE!)}
+    ] 'dummy
+]
+
+to-local-file: func [dummy:] [
+    fail/where [
+        {TO-LOCAL-FILE is now FILE-TO-LOCAL} |
+        {Take note it only accepts FILE! input and returns STRING!} |
+        {(unless you use FILE-TO-LOCAL*, which is a no-op on STRING!)}
+    ] 'dummy
+]
 
 ; AJOIN is a kind of ugly name for making an unspaced string from a block.
 ; REFORM is nonsensical looking.  Ren-C has UNSPACED and SPACED.

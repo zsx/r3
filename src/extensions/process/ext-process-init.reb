@@ -23,7 +23,7 @@ browse*: procedure [
     ;
     for-each template get-os-browsers [
         command: replace/all (copy template) "%1" either file? location [
-            to-local-file location
+            file-to-local location
         ][
             location
         ]

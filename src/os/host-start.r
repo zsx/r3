@@ -313,7 +313,7 @@ host-start: function [
         dir [string!]
     ][
         if empty? dir [return _]
-        dir: clean-path/dir to-rebol-file dir
+        dir: clean-path/dir local-to-file dir
         all [exists? dir | dir]
     ]
 
@@ -382,7 +382,7 @@ host-start: function [
             o/boot: exec-path
             take argv ;consume argv[0] anyway
         ][ ;-- on most systems, argv[0] is the exe path
-            o/boot: clean-path to-rebol-file take argv
+            o/boot: clean-path local-to-file take argv
         ]
         o/bin: first split-path o/boot
     ]
@@ -478,7 +478,7 @@ host-start: function [
             )
         |
             "--import" end (
-                lib/import to-rebol-file param-or-die "IMPORT"
+                lib/import local-to-file param-or-die "IMPORT"
             )
         |
             ["--quiet" | "-q"] end (
@@ -538,7 +538,7 @@ host-start: function [
             )
         |
             "--script" end (
-                o/script: to-rebol-file param-or-die "SCRIPT"
+                o/script: local-to-file param-or-die "SCRIPT"
                 quit-when-done: default [true] ;-- overrides blank, not false
             )
         |
@@ -601,7 +601,7 @@ host-start: function [
     ; the first item after the options is implicitly the script.
     ;
     if all [not o/script | not tail? argv] [
-        o/script: to-rebol-file take argv
+        o/script: local-to-file take argv
         quit-when-done: default [true]
     ]
 

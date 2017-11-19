@@ -35,4 +35,4 @@ run-tests: function [tests] [
     set [log-file: summary:] do-recover tests [] blank log-file-prefix
 ]
 
-run-tests to-rebol-file first system/options/args
+run-tests local-to-file first system/options/args

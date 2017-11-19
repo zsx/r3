@@ -499,18 +499,37 @@ REBNATIVE(wake_up)
 
 
 //
-//  to-rebol-file: native [
+//  local-to-file: native [
 //
-//  {Converts a local system file path to a REBOL file path.}
+//  {Converts a local system file path STRING! to a Rebol FILE! path.}
 //
-//      path [file! string!]
+//      return: [file!]
+//          {The returned value should be a valid natural FILE! literal}
+//      path [string! file!]
+//          {Path to convert (by default, only STRING! for type safety)}
+//      /only
+//          {Convert STRING!s, but copy FILE!s to pass through unmodified}
 //  ]
 //
-REBNATIVE(to_rebol_file)
+REBNATIVE(local_to_file)
 {
-    INCLUDE_PARAMS_OF_TO_REBOL_FILE;
+    INCLUDE_PARAMS_OF_LOCAL_TO_FILE;
 
     REBVAL *arg = ARG(path);
+    if (IS_FILE(arg)) {
+        if (NOT(REF(only)))
+            fail ("LOCAL-TO-FILE only passes through FILE! if /ONLY used");
+
+        Init_File(
+            D_OUT,
+            Copy_Sequence_At_Len( // Copy (callers frequently modify result)
+                VAL_SERIES(arg),
+                VAL_INDEX(arg),
+                VAL_LEN_AT(arg)
+            )
+        );
+        return R_OUT;
+    }
 
     REBSER *ser = Value_To_REBOL_Path(arg, FALSE);
     if (ser == NULL)
@@ -522,20 +541,39 @@ REBNATIVE(to_rebol_file)
 
 
 //
-//  to-local-file: native [
+//  file-to-local: native [
 //
-//  {Converts a REBOL file path to the local system file path.}
+//  {Converts a Rebol FILE! path to a STRING! of the local system file path.}
 //
+//      return: [string!]
+//          {A STRING! like "\foo\bar" is not a "natural" FILE! %\foo\bar}
 //      path [file! string!]
+//          {Path to convert (by default, only FILE! for type safety)}
+//      /only
+//          {Convert FILE!s, but copy STRING!s to pass through unmodified}
 //      /full
-//          {Prepends current dir for full path (for relative paths only)}
+//          {For relative paths, prepends current dir for full path}
 //  ]
 //
-REBNATIVE(to_local_file)
+REBNATIVE(file_to_local)
 {
-    INCLUDE_PARAMS_OF_TO_LOCAL_FILE;
+    INCLUDE_PARAMS_OF_FILE_TO_LOCAL;
 
     REBVAL *arg = ARG(path);
+    if (IS_STRING(arg)) {
+        if (NOT(REF(only)))
+            fail ("FILE-TO-LOCAL only passes through STRING! if /ONLY used");
+
+        Init_String(
+            D_OUT,
+            Copy_Sequence_At_Len( // Copy (callers frequently modify result)
+                VAL_SERIES(arg),
+                VAL_INDEX(arg),
+                VAL_LEN_AT(arg)
+            )
+        );
+        return R_OUT;
+    }
 
     REBSER *ser = Value_To_Local_Path(arg, REF(full));
     if (ser == NULL)

@@ -49,6 +49,14 @@ if :choose = () [
     ]
 ]
 
+; Renamed, tightened, and extended with new features (add /ONLY feature?)
+;
+if :file-to-local = () [
+    file-to-local: :to-local-file
+    local-to-file: :to-rebol-file
+]
+
+
 if true = attempt [void? :some-undefined-thing] [
     ;
     ; THEN and ELSE use a mechanic (non-tight infix evaluation) that is simply
@@ -168,7 +176,6 @@ any-value?: func [item [<opt> any-value!]] [not void? :item]
 ;
 any-context!: :any-object!
 any-context?: :any-object?
-
 
 set?: func [
     "Returns whether a bound word has a value (fails if unbound)"

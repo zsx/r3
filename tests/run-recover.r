@@ -33,7 +33,7 @@ do-core-tests: procedure [] [
         ]
         string? system/script/args [
             interpreter-checksum: checksum/method read-binary
-                to-rebol-file system/script/args 'sha1
+                local-to-file system/script/args 'sha1
         ]
     ] else [
         ; use system/build

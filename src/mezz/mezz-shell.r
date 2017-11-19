@@ -28,7 +28,7 @@ cd: func [
     switch type-of :path [
         _ [print what-dir]
         :file! [change-dir path]
-        :string! [change-dir to-rebol-file path]
+        :string! [change-dir local-to-file path]
         :word! :path! [change-dir to-file path]
     ]
 ]
@@ -41,7 +41,7 @@ more: func [
     ; !!! to-word necessary as long as OPTIONS_DATATYPE_WORD_STRICT exists
     print deline to-string read switch to-word type-of :file [
         file! [file]
-        string! [to-rebol-file file]
+        string! [local-to-file file]
         word! path! [to-file file]
     ]
 ]
