@@ -46,7 +46,7 @@ ATTRIBUTE_NO_RETURN void Panic_Core(
     REBUPT tick,
     const REBYTE *file_utf8,
     int line
-) {
+){
     if (p == NULL)
         p = "panic (...) was passed NULL"; // avoid later NULL tests
 

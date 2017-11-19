@@ -133,7 +133,7 @@ REBSER *To_REBOL_Path(const void *p, REBCNT len, REBFLGS flags)
 //
 // Helper to above function.
 //
-REBSER *Value_To_REBOL_Path(REBVAL *val, REBOOL is_dir)
+REBSER *Value_To_REBOL_Path(const REBVAL *val, REBOOL is_dir)
 {
     assert(ANY_BINSTR(val));
     return To_REBOL_Path(
@@ -287,7 +287,7 @@ REBSER *To_Local_Path(const void *p, REBCNT len, REBOOL unicode, REBOOL full)
 //
 // Helper to above function.
 //
-REBSER *Value_To_Local_Path(REBVAL *val, REBOOL full)
+REBSER *Value_To_Local_Path(const REBVAL *val, REBOOL full)
 {
     assert(ANY_BINSTR(val));
     return To_Local_Path(

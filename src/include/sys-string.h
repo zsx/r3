@@ -239,13 +239,9 @@ inline static const REBYTE *Back_Scan_UTF8_Char(
 
 // Basic string initialization from UTF8.
 //
-inline static REBSER *Make_UTF8_May_Fail(const char *utf8)
+inline static REBSER *Make_UTF8_May_Fail(const REBYTE *utf8)
 {
-    return Append_UTF8_May_Fail(
-        NULL,
-        cast(const REBYTE*, utf8),
-        LEN_BYTES(cast(const REBYTE*, utf8))
-    );
+    return Append_UTF8_May_Fail(NULL, utf8, LEN_BYTES(utf8));
 }
 
 

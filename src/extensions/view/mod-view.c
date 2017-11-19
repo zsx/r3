@@ -166,7 +166,7 @@ REBNATIVE(request_file_p)
         //
         DECLARE_LOCAL (hack);
         Init_String(hack, ser);
-        lpstrFilter = rebValWstringAlloc(NULL, hack);
+        lpstrFilter = rebSpellingOfAllocW(NULL, hack);
     }
     else {
         // Currently the implementation of default filters is in usermode,
@@ -230,7 +230,7 @@ REBNATIVE(request_file_p)
             //
             DECLARE_LOCAL (hack);
             Init_String(hack, ser); // manages the series, can't free it
-            lpstrInitialDir = rebValWstringAlloc(NULL, hack);
+            lpstrInitialDir = rebSpellingOfAllocW(NULL, hack);
         }
 
     }
@@ -240,7 +240,7 @@ REBNATIVE(request_file_p)
 
     wchar_t *lpstrTitle;
     if (REF(title))
-        lpstrTitle = rebValWstringAlloc(NULL, ARG(text));
+        lpstrTitle = rebSpellingOfAllocW(NULL, ARG(text));
     else
         lpstrTitle = NULL; // Will use "Save As" or "Open" defaults
     ofn.lpstrTitle = lpstrTitle;
@@ -359,9 +359,9 @@ REBNATIVE(request_file_p)
         UNUSED(ARG(list));
     }
 
-    REBYTE *title;
+    char *title;
     if (REF(title))
-        title = rebValUTF8Alloc(NULL, ARG(text));
+        title = rebSpellingOfAlloc(NULL, ARG(text));
     else
         title = NULL;
 
@@ -373,7 +373,7 @@ REBNATIVE(request_file_p)
     GtkWidget *dialog = gtk_file_chooser_dialog_new(
         title == NULL
             ? (REF(save) ? "Save file" : "Open File")
-            : cs_cast(title),
+            : title,
         parent,
         REF(save)
             ? GTK_FILE_CHOOSER_ACTION_SAVE
@@ -396,7 +396,7 @@ REBNATIVE(request_file_p)
 
     REBYTE *name;
     if (REF(file)) {
-        name = rebValUTF8Alloc(NULL, ARG(name));
+        name = rebSpellingOfAlloc(NULL, ARG(name));
         gtk_file_chooser_set_current_folder(chooser, cast(gchar*, name));
     }
     else
@@ -595,7 +595,7 @@ REBNATIVE(request_dir_p)
     bi.pszDisplayName = display; // assumed length is MAX_PATH
 
     if (REF(title))
-        bi.lpszTitle = rebValWstringAlloc(NULL, ARG(text));
+        bi.lpszTitle = rebSpellingOfAllocW(NULL, ARG(text));
     else
         bi.lpszTitle = L"Please, select a directory...";
 
@@ -615,7 +615,7 @@ REBNATIVE(request_dir_p)
     //
     bi.lpfn = ReqDirCallbackProc;
     if (REF(path))
-        bi.lParam = cast(LPARAM, rebValWstringAlloc(NULL, ARG(dir)));
+        bi.lParam = cast(LPARAM, rebSpellingOfAllocW(NULL, ARG(dir)));
     else
         bi.lParam = cast(LPARAM, NULL);
 

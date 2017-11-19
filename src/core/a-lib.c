@@ -805,13 +805,13 @@ REBOOL RL_rebValLogic(const REBVAL *v) {
 }
 
 //
-//  rebValType: RL_API
+//  rebTypeOf: RL_API
 //
 // !!! Among the few concepts from the original host kit API that may make
 // sense, it could be a good idea to abstract numbers for datatypes from the
 // REB_XXX numbering scheme.  So for the moment, REBRXT is being kept as is.
 //
-REBRXT RL_rebValType(const REBVAL *v) {
+REBRXT RL_rebTypeOf(const REBVAL *v) {
     Enter_Api_Clear_Last_Error();
 
     return IS_VOID(v)
@@ -1012,12 +1012,12 @@ void RL_rebInitDate(
 
 
 //
-//  rebValUTF8: RL_API
+//  rebSpellingOf: RL_API
 //
 // Extract UTF-8 data from an ANY-STRING! or ANY-WORD!.
 //
-REBCNT RL_rebValUTF8(
-    REBYTE *buf,
+REBCNT RL_rebSpellingOf(
+    char *buf,
     REBCNT buf_chars,
     const REBVAL *v
 ){
@@ -1045,72 +1045,41 @@ REBCNT RL_rebValUTF8(
     }
 
     REBCNT limit = MIN(buf_chars, len);
-    memcpy(s_cast(buf), cs_cast(utf8), limit);
+    memcpy(buf, cs_cast(utf8), limit);
     buf[limit] = '\0';
     return len;
 }
 
 
 //
-//  rebValUTF8Alloc: RL_API
+//  rebSpellingOfAlloc: RL_API
 //
-REBYTE *RL_rebValUTF8Alloc(REBCNT *out_len, const REBVAL *v)
+char *RL_rebSpellingOfAlloc(REBCNT *len_out, const REBVAL *v)
 {
     Enter_Api_Clear_Last_Error();
 
-    REBCNT len = rebValUTF8(NULL, 0, v);
-    REBYTE *result = OS_ALLOC_N(REBYTE, len + 1);
-    rebValUTF8(result, len, v);
-    if (out_len != NULL)
-        *out_len = len;
+    REBCNT len = rebSpellingOf(NULL, 0, v);
+    char *result = OS_ALLOC_N(char, len + 1);
+    rebSpellingOf(result, len, v);
+    if (len_out != NULL)
+        *len_out = len;
     return result;
 }
 
 
 //
-//  rebValWstring: RL_API
+//  rebSpellingOfW: RL_API
 //
 // Extract wchar_t data from an ANY-STRING! or ANY-WORD!.  Note that while
 // the size of a wchar_t varies on Linux, it is part of the windows platform
 // standard to be two bytes.
 //
-REBCNT RL_rebValWstring(
+REBCNT RL_rebSpellingOfW(
     wchar_t *buf,
     REBCNT buf_chars, // characters buffer can hold (not including terminator)
     const REBVAL *v
 ){
     Enter_Api_Clear_Last_Error();
-
-/*
-    if (VAL_BYTE_SIZE(val)) {
-        // On windows, we need to convert byte to wide:
-        REBINT n = VAL_LEN_AT(val);
-        REBSER *up = Make_Unicode(n);
-
-        // !!!"Leaks" in the sense that the GC has to take care of this
-        MANAGE_SERIES(up);
-
-        n = Decode_UTF8_Negative_If_Latin1(
-            UNI_HEAD(up),
-            VAL_BIN_AT(val),
-            n,
-            FALSE
-        );
-        TERM_UNI_LEN(up, abs(n));
-
-        if (out) *out = up;
-
-        return cast(REBCHR*, UNI_HEAD(up));
-    }
-    else {
-        // Already wide, we can use it as-is:
-        // !Assumes the OS uses same wide format!
-
-        if (out) *out = VAL_SERIES(val);
-
-        return cast(REBCHR*, VAL_UNI_AT(val));
-    }
-*/
 
     REBCNT index;
     REBCNT len;
@@ -1141,17 +1110,62 @@ REBCNT RL_rebValWstring(
 
 
 //
-//  rebValWstringAlloc: RL_API
+//  rebSpellingOfAllocW: RL_API
 //
-wchar_t *RL_rebValWstringAlloc(REBCNT *out_len, const REBVAL *v)
+wchar_t *RL_rebSpellingOfAllocW(REBCNT *len_out, const REBVAL *v)
 {
     Enter_Api_Clear_Last_Error();
 
-    REBCNT len = rebValWstring(NULL, 0, v);
+    REBCNT len = rebSpellingOfW(NULL, 0, v);
     wchar_t *result = OS_ALLOC_N(wchar_t, len + 1);
-    rebValWstring(result, len, v);
-    if (out_len != NULL)
-        *out_len = len;
+    rebSpellingOfW(result, len, v);
+    if (len_out != NULL)
+        *len_out = len;
+    return result;
+}
+
+
+//
+//  rebValBin: RL_API
+//
+// Extract binary data from a BINARY!
+//
+REBCNT RL_rebValBin(
+    REBYTE *buf,
+    REBCNT buf_chars,
+    const REBVAL *binary
+){
+    Enter_Api_Clear_Last_Error();
+
+    if (NOT(IS_BINARY(binary)))
+        fail ("rebValBin() only works on BINARY!");
+
+    REBCNT len = VAL_LEN_AT(binary);
+
+    if (buf == NULL) {
+        assert(buf_chars == 0);
+        return len; // caller must allocate a buffer of size len + 1
+    }
+
+    REBCNT limit = MIN(buf_chars, len);
+    memcpy(s_cast(buf), cs_cast(VAL_BIN_AT(binary)), limit);
+    buf[limit] = '\0';
+    return len;
+}
+
+
+//
+//  rebValBinAlloc: RL_API
+//
+REBYTE *RL_rebValBinAlloc(REBCNT *len_out, const REBVAL *binary)
+{
+    Enter_Api_Clear_Last_Error();
+
+    REBCNT len = rebValBin(NULL, 0, binary);
+    REBYTE *result = OS_ALLOC_N(REBYTE, len + 1);
+    rebValBin(result, len, binary);
+    if (len_out != NULL)
+        *len_out = len;
     return result;
 }
 
@@ -1166,11 +1180,58 @@ REBVAL *RL_rebString(const char *utf8)
     // Default the returned handle's lifetime to the currently running FRAME!.
     // The user can unmanage it if they want it to live longer.
     //
-    assert(FS_TOP != NULL);
-    REBVAL *pairing = Alloc_Pairing(FS_TOP);
-    Init_String(pairing, Make_UTF8_May_Fail(utf8));
-    Manage_Pairing(pairing);
+    REBVAL *pairing = Alloc_Pairing(NULL);
+    Init_String(pairing, Make_UTF8_May_Fail(cb_cast(utf8)));
+    Init_Blank(PAIRING_KEY(pairing));
     return pairing;
+}
+
+
+//
+//  rebFile: RL_API
+//
+REBVAL *RL_rebFile(const char *utf8)
+{
+    REBVAL *result = rebString(utf8);
+    VAL_RESET_HEADER(result, REB_FILE);
+    return result;
+}
+
+
+//
+//  rebStringW: RL_API
+//
+REBVAL *RL_rebStringW(const wchar_t *wstr)
+{
+    Enter_Api_Clear_Last_Error();
+
+    REBCNT num_chars;
+#ifdef TO_WINDOWS
+    num_chars = wcslen(wstr);
+#else
+    fail("wide character counting on wchar_t not implemented yet on linux");
+#endif
+
+    REBSER *ser = Make_Unicode(num_chars);
+    memcpy(UNI_HEAD(ser), wstr, sizeof(wchar_t) * num_chars);
+    TERM_UNI_LEN(ser, num_chars);
+
+    REBVAL *pairing = Alloc_Pairing(NULL);
+    Init_String(pairing, ser);
+    Init_Blank(PAIRING_KEY(pairing));
+
+    return pairing;
+}
+
+
+//
+//  rebFileW: RL_API
+//
+REBVAL *RL_rebFileW(const wchar_t *wstr)
+{
+    REBVAL *result = rebStringW(wstr);
+    VAL_RESET_HEADER(result, REB_FILE);
+    return result;
 }
 
 
@@ -1259,6 +1320,56 @@ void RL_rebPanic(const void *p)
     int line = 0;
 
     panic_at (hack, file_utf8, line);
+}
+
+
+//
+//  rebFileToLocal: RL_API
+//
+// This is the API exposure of TO-LOCAL-FILE.  It takes in a FILE! and
+// returns a STRING!...using the data type to help guide whether a file has
+// had the appropriate transformation applied on it or not.
+//
+REBVAL *RL_rebFileToLocal(const REBVAL *file, REBOOL full)
+{
+    Enter_Api_Clear_Last_Error();
+
+    if (NOT(IS_FILE(file)))
+        fail ("rebFileToLocal() only works on FILE!");
+
+    REBVAL *result = Alloc_Pairing(NULL);
+    Init_String(
+        result,
+        Value_To_Local_Path(file, full)
+    );
+    Init_Blank(PAIRING_KEY(result));
+
+    return result;
+}
+
+
+//
+//  rebLocalToFile: RL_API
+//
+// This is the API exposure of TO-REBOL-FILE.  It takes in a STRING! and
+// returns a FILE!, as with rebFileToLocal() in order to help cue whether the
+// translations have been done or not.
+//
+REBVAL *RL_rebLocalToFile(const REBVAL *string, REBOOL is_dir)
+{
+    Enter_Api_Clear_Last_Error();
+
+    if (NOT(IS_STRING(string)))
+        fail ("rebLocalToFile() only works on STRING!");
+
+    REBVAL *result = Alloc_Pairing(NULL);
+    Init_File(
+        result,
+        Value_To_REBOL_Path(string, is_dir)
+    );
+    Init_Blank(PAIRING_KEY(result));
+
+    return result;
 }
 
 

@@ -357,7 +357,7 @@ int main(int argc, char **argv_ansi)
             continue; // shell bug
 
         Init_String(
-            Alloc_Tail_Array(argv), Make_UTF8_May_Fail(argv_ansi[i])
+            Alloc_Tail_Array(argv), Make_UTF8_May_Fail(cb_cast(argv_ansi[i]))
         );
     }
 #endif

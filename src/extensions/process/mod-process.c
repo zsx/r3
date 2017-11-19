@@ -1873,16 +1873,16 @@ REBNATIVE(get_os_browsers)
     // Caller should try xdg-open first, then try x-www-browser otherwise
     //
     DS_PUSH_TRASH;
-    Init_String(DS_TOP, Make_UTF8_May_Fail("xdg-open %1"));
+    Init_String(DS_TOP, Make_UTF8_May_Fail(cb_cast("xdg-open %1")));
     DS_PUSH_TRASH;
-    Init_String(DS_TOP, Make_UTF8_May_Fail("x-www-browser %1"));
+    Init_String(DS_TOP, Make_UTF8_May_Fail(cb_cast("x-www-browser %1")));
 
 #else // Just try /usr/bin/open on POSIX, OS X, Haiku, etc.
 
     // Just use /usr/bin/open
     //
     DS_PUSH_TRASH;
-    Init_String(DS_TOP, Make_UTF8_May_Fail("/usr/bin/open %1"));
+    Init_String(DS_TOP, Make_UTF8_May_Fail(cb_cast("/usr/bin/open %1")));
 
 #endif
 
@@ -2031,7 +2031,7 @@ static REBNATIVE(get_env)
 #ifdef TO_WINDOWS
     // Note: The Windows variant of this API is NOT case-sensitive
 
-    wchar_t *key = rebValWstringAlloc(NULL, variable);
+    wchar_t *key = rebSpellingOfAllocW(NULL, variable);
 
     DWORD val_len_plus_one = GetEnvironmentVariable(key, NULL, 0);
     if (val_len_plus_one == 0) { // some failure...
@@ -2054,17 +2054,17 @@ static REBNATIVE(get_env)
 #else
     // Note: The Posix variant of this API is case-sensitive
 
-    REBYTE *key = rebValUTF8Alloc(NULL, variable);
+    char *key = rebSpellingOfAlloc(NULL, variable);
 
-    const REBYTE* val = cb_cast(getenv(cs_cast(key)));
+    const char* val = getenv(key);
     if (val == NULL) // key not present in environment
         Init_Blank(D_OUT);
     else {
-        REBCNT len = LEN_BYTES(val);
+        REBCNT len_bytes = strlen(val);
 
         /* assert(len != 0); */ // Is this true?  Should it return BLANK!?
 
-        Init_String(D_OUT, Decode_UTF_String(val, len, 8));
+        Init_String(D_OUT, Decode_UTF_String(cb_cast(val), len_bytes, 8));
     }
 
     OS_FREE(key);
@@ -2109,7 +2109,7 @@ static REBNATIVE(set_env)
     REBCTX *error = NULL;
 
 #ifdef TO_WINDOWS
-    wchar_t *key = rebValWstringAlloc(NULL, variable);
+    wchar_t *key = rebSpellingOfAllocW(NULL, variable);
 
     REBOOL success;
 
@@ -2119,7 +2119,7 @@ static REBNATIVE(set_env)
     else {
         assert(IS_STRING(value));
         
-        wchar_t *val = rebValWstringAlloc(NULL, value);
+        wchar_t *val = rebSpellingOfAllocW(NULL, value);
         success = SetEnvironmentVariable(key, val);
         OS_FREE(val);
     }
@@ -2131,7 +2131,7 @@ static REBNATIVE(set_env)
 #else
 
     REBCNT key_len;
-    REBYTE *key = rebValUTF8Alloc(&key_len, variable);
+    char *key = rebSpellingOfAlloc(&key_len, variable);
 
     REBOOL success;
 
@@ -2152,7 +2152,7 @@ static REBNATIVE(set_env)
         //
         // going to hope this case doesn't hold onto the string...
         //
-        if (putenv(s_cast(key)) == -1) // !!! Why mutable?
+        if (putenv(key) == -1) // !!! Why mutable?
             success = FALSE;
     #endif
     }
@@ -2162,12 +2162,12 @@ static REBNATIVE(set_env)
     #ifdef setenv
         UNUSED(key_len);
 
-        REBYTE *val = rebValUTF8Alloc(NULL, value);
+        char *val = rebSpellingOfAlloc(NULL, value);
 
         // we pass 1 for overwrite (make call to OS_Get_Env if you
         // want to check if already exists)
 
-        if (setenv(cs_cast(key), cs_cast(val), 1) == -1)
+        if (setenv(key, val, 1) == -1)
             success = FALSE;
 
         OS_FREE(val);
@@ -2189,17 +2189,17 @@ static REBNATIVE(set_env)
         // each string added in some sort of a map...which is currently deemed
         // not worth the work.
 
-        REBCNT val_len = rebValUTF8(NULL, 0, value);
+        REBCNT val_len_bytes = rebSpellingOf(NULL, 0, value);
 
-        REBYTE *key_equals_val = OS_ALLOC_N(REBYTE,
-            key_len + 1 + val_len + 1
+        char *key_equals_val = OS_ALLOC_N(char,
+            key_len + 1 + val_len_bytes + 1
         );
 
-        rebValUTF8(key_equals_val, key_len, variable);
+        rebSpellingOf(key_equals_val, key_len, variable);
         key_equals_val[key_len] = '=';
-        rebValUTF8(key_equals_val + key_len + 1, val_len, value);
+        rebSpellingOf(key_equals_val + key_len + 1, val_len_bytes, value);
 
-        if (putenv(s_cast(key_equals_val)) == -1) // !!! why mutable?  :-/
+        if (putenv(key_equals_val) == -1) // !!! why mutable?  :-/
             success = FALSE;
 
         /* OS_FREE(key_equals_val); */ // !!! Can't do this, crashes getenv()
@@ -2295,17 +2295,25 @@ static REBNATIVE(list_env)
         // isn't set...and even if the key contains UTF-8 characters, there
         // won't be any occurrences of such bytes in multi-byte-characters.
         //
-        const REBYTE *key_equals_val = cb_cast(environ[n]);
-        const REBYTE *eq = cb_cast(strchr(cs_cast(key_equals_val), '='));
+        const char *key_equals_val = environ[n];
+        const char *eq_pos = strchr(key_equals_val, '=');
 
-        REBCNT len = LEN_BYTES(key_equals_val);
+        REBCNT len_bytes = strlen(key_equals_val);
         Init_String(
             Alloc_Tail_Array(array),
-            Decode_UTF_String(key_equals_val, eq - key_equals_val, 8)
+            Decode_UTF_String(
+                cb_cast(key_equals_val),
+                eq_pos - key_equals_val,
+                8
+            )
         );
         Init_String(
             Alloc_Tail_Array(array),
-            Decode_UTF_String(eq + 1, len - (eq - key_equals_val) - 1, 8)
+            Decode_UTF_String(
+                cb_cast(eq_pos + 1),
+                len_bytes - (eq_pos - key_equals_val) - 1,
+                8
+            )
         );
     }
 

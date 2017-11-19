@@ -184,7 +184,7 @@ void MF_Char(REB_MOLD *mo, const RELVAL *v, REBOOL form)
 //
 REBTYPE(Char)
 {
-    REBCNT chr = VAL_CHAR(D_ARG(1)); // !!! Larger than REBCHR for math ops?
+    REBCNT chr = VAL_CHAR(D_ARG(1));
     REBINT arg;
 
     switch (action) {

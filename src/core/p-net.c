@@ -117,7 +117,7 @@ static REB_R Transport_Actor(
     REBCTX *port,
     REBSYM action,
     enum Transport_Types proto
-) {
+){
     FAIL_IF_BAD_PORT(port);
 
     // Initialize the IO request
