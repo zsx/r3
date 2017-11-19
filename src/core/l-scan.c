@@ -631,12 +631,23 @@ static void Update_Error_Near_For_Line(
 // e.g. where the end point of the token is seen.
 //
 static REBCTX *Error_Syntax(SCAN_STATE *ss) {
+    //
+    // The scanner code has `bp` and `ep` locals which mirror ss->begin and
+    // ss->end.  However, they get out of sync.  If they are updated, they
+    // should be sync'd before calling here, since it's used to find the
+    // range of text to report.
+    //
+    // !!! Would it be safer to go to ss->b and ss->e, or something similar,
+    // to get almost as much brevity and not much less clarity than bp and
+    // ep, while avoiding the possibility of the state getting out of sync?
+    //
+    assert(ss->begin != NULL && NOT(IS_POINTER_TRASH_DEBUG(ss->begin)));
+    assert(ss->end != NULL && NOT(IS_POINTER_TRASH_DEBUG(ss->end)));
+    assert(ss->end >= ss->begin);
+
     DECLARE_LOCAL (token_name);
     Init_String(token_name, Copy_Bytes(cb_cast(Token_Names[ss->token]), -1));
 
-    // !!! Note: This uses Copy_Bytes, which assumes Latin1 safe characters.
-    // But this could be UTF8.
-    //
     DECLARE_LOCAL (token_text);
     Init_String(
         token_text,
@@ -1809,6 +1820,7 @@ REBARR *Scan_Array(
         (ss->token != TOKEN_END)
     ){
         assert(ss->begin != NULL && ss->end != NULL);
+        assert(ss->begin < ss->end);
 
         const REBYTE *bp = ss->begin;
         const REBYTE *ep = ss->end;
@@ -2236,15 +2248,15 @@ REBARR *Scan_Array(
 
         // Check for end of path:
         if (mode_char == '/') {
-            if (*ep == '/') {
-                ep++;
-                ss->begin = ep;  // skip next /
-                if (*ep != '(' && IS_LEX_DELIMIT(*ep)) {
-                    ss->token = TOKEN_PATH;
-                    fail (Error_Syntax(ss));
-                }
+            if (*ep != '/')
+                goto array_done;
+
+            ep++;
+            if (*ep != '(' && IS_LEX_DELIMIT(*ep)) {
+                ss->token = TOKEN_PATH;
+                fail (Error_Syntax(ss));
             }
-            else goto array_done;
+            ss->begin = ep;  // skip next /
         }
 
         // Added for load/next
