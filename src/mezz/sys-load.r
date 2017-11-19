@@ -1022,12 +1022,23 @@ load-extension: function [
         return ext
     ]
     case [
+        ; !!! This used to treat BINARY! scripts as compressed and STRING!
+        ; as uncompressed, but it used byte-oriented data to back the STRING!
+        ; which temporarily requires UTF-8 to wide string expansion.  Hence
+        ; decompression is done in the C, and all are assumed to be UTF8
+        ; binary for the moment.  This can do a usermode decompress after
+        ; UTF-8 everywhere is implemented, because byte-oriented UTF-8 will
+        ; be a legal string series.
+        ;
         string? ext/script [
+            fail "STRING! ext/script shouldn't happen right now (temporary)"
             script: load/header ext/script
         ]
         binary? ext/script [
-            script: decompress ext/script
-            script: load/header script
+            comment [
+                script: load/header decompress ext/script
+            ]
+            script: load/header ext/script
         ]
     ] else [
         ; ext/script should ALWAYS be set by the extension but if it's not,

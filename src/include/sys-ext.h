@@ -26,7 +26,7 @@ EXT_API int EXT_INIT(e) (REBVAL *header, REBVAL *out)
 EXT_API int EXT_INIT(e) (REBVAL *script, REBVAL *out) \
 {\
     code \
-    Init_String(script, Copy_Bytes(script_bytes, sizeof(script_bytes) - 1)); \
+    Init_Binary(script, Copy_Bytes(script_bytes, sizeof(script_bytes) - 1)); \
     return 0;\
 }
 
@@ -34,8 +34,13 @@ EXT_API int EXT_INIT(e) (REBVAL *script, REBVAL *out) \
 EXT_API int EXT_INIT(e) (REBVAL *script, REBVAL *out) \
 {\
     code \
+    REBOOL gzip = FALSE; \
+    REBOOL raw = FALSE; \
+    REBOOL only = FALSE; \
     /* binary does not have a \0 terminator */ \
-    Init_Binary(script, Copy_Bytes(script_bytes, sizeof(script_bytes))); \
+    Init_Binary(script, Inflate_To_Series( \
+        script_bytes, sizeof(script_bytes), -1, gzip, raw, only \
+    )); \
     return 0;\
 }
 
