@@ -284,10 +284,6 @@ prin: procedure [
     print/only/eval either block? :value [spaced :value] [:value]
 ]
 
-; Common debug abbreviations that should be console-only (if anything)
-;
-dt: :delta-time
-dp: :delta-profile
 
 
 ; AJOIN is a kind of ugly name for making an unspaced string from a block.

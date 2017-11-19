@@ -144,6 +144,9 @@ console!: make object! [
         d: [dump]
         h: [help]
         q: [quit]
+        dt: [delta-time]
+        dp: [delta-profile]
+
         list-shortcuts: [print system/console/shortcuts]
         changes: [
             say-browser
@@ -587,11 +590,7 @@ host-console: function [
 
     if shortcut: select system/console/shortcuts first code [
         ;
-        ; Shortcuts.  Built-ins are:
-        ;
-        ;     d => [dump]
-        ;     h => [help]
-        ;     q => [quit]
+        ; Shortcuts (defaults include `q => [quit]`, `d => [dump]`)
         ;
         if all [bound? code/1 | set? code/1] [
             ;
