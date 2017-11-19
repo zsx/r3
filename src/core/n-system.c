@@ -205,7 +205,7 @@ REBNATIVE(recycle)
 //
 //  "Cause abnormal termination of Rebol (dumps debug info in debug builds)"
 //
-//      :value [string! error!]
+//      value [string! error!]
 //          "Error or message to report (evaluation not counted in ticks)"
 //  ]
 //
@@ -217,7 +217,7 @@ REBNATIVE(panic)
 
     // panic() on the string value itself would report information about the
     // string cell...but panic() on UTF-8 character data assumes you mean to
-    // report the contained message.
+    // report the contained message.  Use PANIC* if the latter is the intent.
     //
     const void *p;
     if (IS_STRING(v)) {
@@ -240,6 +240,39 @@ REBNATIVE(panic)
     panic_at (p, FRM_FILE(frame_), FRM_LINE(frame_));
 #else
     Panic_Core (p, frame_->tick, FRM_FILE(frame_), FRM_LINE(frame_));
+#endif
+}
+
+
+//
+//  panic*: native [
+//
+//  "Cause abnormal termination of Rebol, with diagnostics on a value cell"
+//
+//      value [any-value!]
+//          "Suspicious value to panic on (debug build shows diagnostics)"
+//  ]
+//
+REBNATIVE(panic_p)
+{
+    INCLUDE_PARAMS_OF_PANIC_P;
+
+    // Unlike PANIC, the PANIC* will panic directly on the value.  So instead
+    // of displaying a message, PANIC* on a STRING! will show diagnostics of
+    // where that string series was allocated (or freed, but that would only
+    // happen if it were corrupt...since users shouldn't have freed nodes)
+    //
+    REBVAL *v = ARG(value);
+
+    // Note that by using the frame's tick instead of TG_Tick, we don't count
+    // the evaluation of the value argument.  Hence the tick count shown in
+    // the dump would be the one that would queue up right to the exact moment
+    // *before* the PANIC* FUNCTION! was invoked.
+    //
+#ifdef NDEBUG
+    panic_at (v, FRM_FILE(frame_), FRM_LINE(frame_));
+#else
+    Panic_Core (v, frame_->tick, FRM_FILE(frame_), FRM_LINE(frame_));
 #endif
 }
 

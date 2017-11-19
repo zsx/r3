@@ -98,7 +98,7 @@ static REB_R Console_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         if (result < 0) fail (Error_On_Port(RE_READ_ERROR, port, req->error));
 
         // !!! Among many confusions in this file, it said "Another copy???"
-        //Init_String(D_OUT, Copy_OS_Str(ser->data, result));
+        //
         Init_Binary(D_OUT, Copy_Bytes(req->common.data, req->actual));
         break; }
 
