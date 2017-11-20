@@ -131,12 +131,6 @@ extern void Open_StdIO(void);
 extern void Close_StdIO(void);
 
 
-/* coverity[+kill] */
-void Host_Crash(const char *reason) {
-    OS_CRASH(cb_cast("REBOL Host Failure"), cb_cast(reason));
-}
-
-
 // Assume that Ctrl-C is enabled in a console application by default.
 // (Technically it may be set to be ignored by a parent process or context,
 // in which case conventional wisdom is that we should not be enabling it
@@ -172,7 +166,7 @@ BOOL WINAPI Handle_Break(DWORD dwCtrlType)
         //
         // !!! Review arbitrary "100" exit code here.
         //
-        OS_EXIT(100);
+        exit(100);
         return TRUE; // TRUE = "we handled it"
 
     default:

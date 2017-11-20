@@ -175,95 +175,19 @@ void Prin_OS_String(const void *p, REBCNT len, REBFLGS opts)
 
 
 
-/***********************************************************************
-**
-**  Debug Print Interface
-**
-**      If the Trace_Buffer exists, then output goes there,
-**      otherwise output goes to OS output.
-**
-***********************************************************************/
-
-
-//
-//  Enable_Backtrace: C
-//
-void Enable_Backtrace(REBOOL on)
-{
-    if (on) {
-        if (Trace_Limit == 0) {
-            Trace_Limit = 100000;
-            Trace_Buffer = Make_Binary(Trace_Limit);
-        }
-    }
-    else {
-        if (Trace_Limit) Free_Series(Trace_Buffer);
-        Trace_Limit = 0;
-        Trace_Buffer = 0;
-    }
-}
-
-
-//
-//  Display_Backtrace: C
-//
-void Display_Backtrace(REBCNT lines)
-{
-    REBCNT tail;
-    REBCNT i;
-
-    if (Trace_Limit > 0) {
-        tail = SER_LEN(Trace_Buffer);
-        i = tail - 1;
-        for (lines++ ;lines > 0; lines--, i--) {
-            i = Find_Str_Char(LF, Trace_Buffer, 0, i, tail, -1, 0);
-            if (i == NOT_FOUND || i == 0) {
-                i = 0;
-                break;
-            }
-        }
-
-        if (lines == 0) i += 2; // start of next line
-        Prin_OS_String(BIN_AT(Trace_Buffer, i), tail - i, OPT_ENC_CRLF_MAYBE);
-    }
-    else {
-        Debug_Fmt(RM_BACKTRACE_NOT_ENABLED);
-    }
-}
-
-
 //
 //  Debug_String: C
 //
 void Debug_String(const void *p, REBCNT len, REBOOL unicode, REBINT lines)
 {
-    REBUNI uni;
-    const REBYTE *bp = unicode ? NULL : cast(const REBYTE *, p);
-    const REBUNI *up = unicode ? cast(const REBUNI *, p) : NULL;
-
     REBOOL disabled = GC_Disabled;
     GC_Disabled = TRUE;
 
-    if (Trace_Limit > 0) {
-        if (SER_LEN(Trace_Buffer) >= Trace_Limit)
-            Remove_Series(Trace_Buffer, 0, 2000);
-
-        if (len == UNKNOWN) len = unicode ? Strlen_Uni(up) : LEN_BYTES(bp);
-
-        for (; len > 0; len--) {
-            uni = unicode ? *up++ : *bp++;
-            Append_Codepoint(Trace_Buffer, uni);
-        }
-
-        for (; lines > 0; lines--) Append_Codepoint(Trace_Buffer, LF);
-        /* Append_Unencoded_Len(Trace_Buffer, bp, len); */ // !!! alternative?
-    }
-    else {
-        Prin_OS_String(
-            p, len, (unicode ? OPT_ENC_UNISRC : 0) | OPT_ENC_CRLF_MAYBE
-        );
-        for (; lines > 0; lines--) Print_OS_Line();
-    }
+    Prin_OS_String(
+        p, len, (unicode ? OPT_ENC_UNISRC : 0) | OPT_ENC_CRLF_MAYBE
+    );
+    for (; lines > 0; lines--)
+        Print_OS_Line();
 
     assert(GC_Disabled == TRUE);
     GC_Disabled = disabled;

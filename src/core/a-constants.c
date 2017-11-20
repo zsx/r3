@@ -167,5 +167,3 @@ const char RM_TRACE_ERROR[] = "**: error : %r %r";
 
 const char RM_TRACE_PARSE_VALUE[] = "Parse %s: %r";
 const char RM_TRACE_PARSE_INPUT[] = "Parse input: %s";
-
-const char RM_BACKTRACE_NOT_ENABLED[] = "backtrace not enabled";

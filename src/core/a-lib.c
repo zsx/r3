@@ -219,7 +219,7 @@ void Shutdown_Api(void)
 //          RL_Version(&vers[0]);
 //
 //          if (vers[1] != RL_VER || vers[2] != RL_REV)
-//              OS_CRASH(cb_cast("Incompatible reb-lib DLL"));
+//              rebPanic ("Incompatible reb-lib DLL");
 //
 void RL_rebVersion(REBYTE vers[])
 {
@@ -1295,23 +1295,30 @@ void RL_rebFail(const void *p)
 //
 //  rebPanic: RL_API
 //
+// panic() and panic_at() are used internally to the interpreter for
+// situations which are so corrupt that the interpreter cannot safely run
+// any more functions (a "blue screen of death").  However, panics at the
+// API level should not be that severe.
+//
+// So this routine is willing to do delegation.  If it receives a UTF-8
+// string, it will convert it to a STRING! and call the PANIC native on that
+// string.  If it receives a REBVAL*, it will call the PANIC-VALUE native on
+// that string.
+//
+// By dispatching to FUNCTION!s to do the dirty work of crashing out and
+// exiting Rebol, this allows a console or user to HIJACK those functions
+// with custom behavior (such as more graceful exits, writing to logs).
+// That hijacking would also affect any other "safe" PANIC calls in userspace.
+//
 void RL_rebPanic(const void *p)
 {
     Enter_Api_Cant_Error();
 
-    // !! Panic on values needs to be updated to give good diagnostics for API
-    // handles.  (At the moment it just says it can't find an enclosing series
-    // because it's a pairing.)  Workaround for the moment by extracting to
-    // a non-pairing value.
-    //
-    DECLARE_LOCAL (temp);
-    const void *hack;
-    if (Detect_Rebol_Pointer(p) == DETECTED_AS_VALUE) {
-        Move_Value(temp, cast(const REBVAL*, p));
-        hack = temp;
-    }
-    else
-        hack = p;
+#ifdef NDEBUG
+    REBCNT tick = 0;
+#else
+    REBCNT tick = TG_Tick;
+#endif
 
     // Like Panic_Core, the underlying API for rebPanic might want to take an
     // optional file and line.
@@ -1319,7 +1326,49 @@ void RL_rebPanic(const void *p)
     REBYTE *file_utf8 = NULL;
     int line = 0;
 
-    panic_at (hack, file_utf8, line);
+    // !!! Should there be a special bit or dispatcher used on the PANIC and
+    // PANIC-VALUE functions that ensures they exit?  If it were a dispatcher
+    // then HIJACK would have to be aware of it and preserve it.
+
+    const void *p2 = p; // keep original p for examining in the debugger
+
+    switch (Detect_Rebol_Pointer(p)) {
+    case DETECTED_AS_UTF8:
+        rebDo(
+            BLANK_VALUE, // temp workaround, can't rebEval() first slot yet
+            rebEval(NAT_VALUE(panic)),
+            rebString(cast(char*, p)),
+            END
+        );
+        p2 = "HIJACK'd PANIC function did not exit Rebol";
+        break;
+
+    case DETECTED_AS_SERIES:
+    case DETECTED_AS_FREED_SERIES:
+        //
+        // !!! The libRebol API might use REBSER nodes as an exposed type for
+        // special operations (it's already the return result of rebEval()).
+        // So it could be reasonable that API-based panics on them are "known"
+        // API types that should give more information than a low-level crash.
+        //
+        break;
+
+    case DETECTED_AS_VALUE:
+        rebDo(
+            BLANK_VALUE, // temp workaround, can't rebEval() first slot yet
+            rebEval(NAT_VALUE(panic_value)),
+            cast(const REBVAL*, p),
+            END
+        );
+        p2 = "HIJACK'd PANIC-VALUE function did not exit Rebol";
+        break;
+
+    case DETECTED_AS_END:
+    case DETECTED_AS_TRASH_CELL:
+        break;
+    };
+
+    Panic_Core(p2, tick, file_utf8, line);
 }
 
 

@@ -106,55 +106,6 @@ REBINT OS_Config(int id, REBYTE *result)
 
 
 //
-//  OS_Exit: C
-//
-// Called in cases where REBOL needs to quit immediately
-// without returning from the main() function.
-//
-void OS_Exit(int code)
-{
-    //OS_Call_Device(RDI_STDIO, RDC_CLOSE); // close echo
-    OS_Quit_Devices(0);
-#ifndef REB_CORE
-    OS_Destroy_Graphics();
-#endif
-    exit(code);
-}
-
-
-//
-//  OS_Crash: C
-//
-// Tell user that REBOL has crashed. This function must use
-// the most obvious and reliable method of displaying the
-// crash message.
-//
-// If the title is NULL, then REBOL is running in a server mode.
-// In that case, we do not want the crash message to appear on
-// the screen, because the system may be unattended.
-//
-// On some systems, the error may be recorded in the system log.
-//
-void OS_Crash(const REBYTE *title, const REBYTE *content)
-{
-    // Echo crash message if echo file is open:
-    ///PUTE(content);
-    OS_Call_Device(RDI_STDIO, RDC_CLOSE); // close echo
-
-    // A title tells us we should alert the user:
-    if (title) {
-    //  OS_Put_Str(title);
-    //  OS_Put_Str(":\n");
-        // Use ASCII only
-        MessageBoxA(NULL, cs_cast(content), cs_cast(title), MB_ICONHAND);
-    }
-    //  OS_Put_Str(content);
-    exit(100);
-}
-
-
-
-//
 //  OS_Get_Time: C
 //
 // Get the current system date/time in UTC plus zone offset (mins).
@@ -186,7 +137,7 @@ i64 OS_Delta_Time(i64 base)
 {
     LARGE_INTEGER time;
     if (!QueryPerformanceCounter(&time))
-        OS_Crash(cb_cast("Missing resource"), cb_cast("High performance timer"));
+        rebPanic ("Missing high performance timer");
 
     if (base == 0) return time.QuadPart; // counter (may not be time)
 

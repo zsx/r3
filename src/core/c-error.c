@@ -1530,27 +1530,29 @@ int Exit_Status_From_Value(REBVAL *value)
     assert(!THROWN(value));
 
     if (IS_INTEGER(value)) {
-        // Fairly obviously, an integer should return an integer
-        // result.  But Rebol integers are 64 bit and signed, while
-        // exit statuses don't go that large.
+        //
+        // Fairly obviously, an integer should return an integer result.
+        // But Rebol integers are 64 bit and signed, while exit statuses don't
+        // go that large.
         //
         return VAL_INT32(value);
     }
     else if (IS_VOID(value) || IS_BLANK(value)) {
-        // An unset would happen with just QUIT or EXIT and no /WITH,
-        // so treating that as a 0 for success makes sense.  A NONE!
-        // seems like nothing to report as well, for instance:
         //
-        //     exit/with if badthing [badthing-code]
+        // An void would happen with just QUIT or EXIT and no /WITH, so
+        // treating that as a 0 for success makes sense.  A blank could also
+        // make sense as success.
+        //
+        //     exit/with any [bad-code-a | bad-code-b]
         //
         return 0;
     }
     else if (IS_ERROR(value)) {
+        //
         // Rebol errors do have an error number in them, and if your
         // program tries to return a Rebol error it seems it wouldn't
         // hurt to try using that.  They may be out of range for
-        // platforms using byte-sized error codes, however...but if
-        // that causes bad things OS_EXIT() should be graceful about it.
+        // platforms using byte-sized error codes, however...
         //
         return VAL_ERR_NUM(value);
     }
@@ -1709,7 +1711,8 @@ void Trap_Security(REBCNT flag, REBSTR *sym, REBVAL *value)
         }
         fail (Error_Security_Raw(value));
     }
-    else if (flag == SEC_QUIT) OS_EXIT(101);
+    else if (flag == SEC_QUIT)
+        exit(101);
 }
 
 

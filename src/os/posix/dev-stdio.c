@@ -62,8 +62,6 @@ extern int Read_Line(STD_TERM*, REBYTE*, int);
 STD_TERM *Term_IO;
 #endif
 
-extern void Put_Str(const REBYTE *buf);
-
 
 static void Close_Stdio(void)
 {

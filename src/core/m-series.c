@@ -496,30 +496,30 @@ ATTRIBUTE_NO_RETURN void Panic_Series_Debug(REBSER *s)
     fflush(stderr);
 
     if (s->header.bits & NODE_FLAG_MANAGED)
-        printf("managed");
+        fprintf(stderr, "managed");
     else
-        printf("unmanaged");
-    printf(" series was likely ");
-    if (s->header.bits & NODE_FLAG_FREE)
-        printf("freed");
-    else
-        printf("created");
-    printf(" during evaluator tick: %lu\n", cast(unsigned long, s->tick));
+        fprintf(stderr, "unmanaged");
+    fprintf(stderr, " series was likely ");
+    fflush(stderr);
 
-    fflush(stdout);
+    if (s->header.bits & NODE_FLAG_FREE)
+        fprintf(stderr, "freed");
+    else
+        fprintf(stderr, "created");
+    fflush(stderr);
+
+    fprintf(
+        stderr, " during evaluator tick: %lu\n", cast(unsigned long, s->tick)
+    );
+    fflush(stderr);
 
     if (*s->guard == 1020) // should make valgrind or asan alert
         panic ("series guard didn't trigger ASAN/valgrind trap");
 
-    OS_CRASH(
-        cb_cast("series guard didn't trigger ASAN/Valgrind trap\n"),
-        cb_cast("either not a REBSER, or you're not running ASAN/Valgrind\n")
+    panic (
+        "series guard didn't trigger ASAN/Valgrind trap\n"
+        "either not a REBSER, or you're not running ASAN/Valgrind\n"
     );
-
-    while (TRUE)
-        NOOP; // just in case it didn't crash, don't return
-
-    DEAD_END;
 }
 
 #endif

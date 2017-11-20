@@ -212,7 +212,6 @@ os-posix: [
 
     + posix/host-browse.c
     + posix/host-config.c
-    + posix/host-error.c
     + posix/host-library.c
     + posix/host-process.c
     + posix/host-time.c
@@ -232,7 +231,6 @@ os-osx: [
 
     + posix/host-browse.c
     + posix/host-config.c
-    + posix/host-error.c
     + posix/host-library.c
     + posix/host-process.c
     + posix/host-time.c
@@ -254,7 +252,6 @@ os-linux: [
 
     ; It also uses POSIX for most host functions
     + posix/host-config.c
-    + posix/host-error.c
     + posix/host-library.c
     + posix/host-process.c
     + posix/host-time.c
@@ -286,7 +283,6 @@ os-android: [
 
     ; It also uses POSIX for most host functions
     + posix/host-config.c
-    + posix/host-error.c
     + posix/host-library.c
     + posix/host-process.c
     + posix/host-time.c

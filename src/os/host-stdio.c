@@ -41,9 +41,8 @@
 #include <string.h>
 #include "reb-host.h"
 
-void Host_Crash(const char *reason);
-
 // Temporary globals: (either move or remove?!)
+//
 REBREQ Std_IO_Req;
 static REBYTE *inbuf;
 static REBCNT inbuf_len = 32*1024;
@@ -65,7 +64,8 @@ void Open_StdIO(void)
 
     OS_Do_Device(&Std_IO_Req, RDC_OPEN);
 
-    if (Std_IO_Req.error) Host_Crash("stdio open");
+    if (Std_IO_Req.error)
+        rebPanic ("Could not Open_StdIO()");
 
     inbuf = OS_ALLOC_N(REBYTE, inbuf_len);
     inbuf[0] = 0;
@@ -80,32 +80,4 @@ void Open_StdIO(void)
 void Close_StdIO(void)
 {
     OS_FREE(inbuf);
-}
-
-
-//
-//  Put_Str: C
-//
-// Outputs a null terminated UTF-8 string.
-// If buf is larger than StdIO Device allows, error out.
-// OS dependent line termination must be done prior to call.
-//
-void Put_Str(const REBYTE *buf)
-{
-    /* This function could be called by signal handler and inside of Fetch_Buf */
-    REBREQ req;
-    memcpy(&req, &Std_IO_Req, sizeof(req));
-
-    // !!! A request should ideally have a way to enforce that it is not
-    // going to modify the data.  For now we "trust it" and use m_cast.
-    // Undefined behavior will result should a RDC_WRITE request make
-    // modifications to the data pointed to.
-    //
-    req.common.data = m_cast(REBYTE*, buf);
-    req.length = LEN_BYTES(buf);
-    req.actual = 0;
-
-    OS_Do_Device(&req, RDC_WRITE);
-
-    if (req.error) Host_Crash("stdio write");
 }

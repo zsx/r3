@@ -35,11 +35,29 @@
 #define PANIC_TITLE_BUF_SIZE 80
 #define PANIC_BUF_SIZE 512
 
+#ifdef HAVE_EXECINFO_AVAILABLE
+    #include <execinfo.h>
+    #include <unistd.h>  // STDERR_FILENO
+#endif
+
 
 //
 //  Panic_Core: C
 //
-// See comments on `panic (...)` macro, which calls this routine.
+// Abnormal termination of Rebol.  The debug build is designed to present
+// as much diagnostic information as it can on the passed-in pointer, which
+// includes where a REBSER* was allocated or freed.  Or if a REBVAL* is
+// passed in it tries to say what tick it was initialized on and what series
+// it lives in.  If the pointer is a simple UTF-8 string pointer, then that
+// is delivered as a message.
+//
+// This can be triggered via the macros panic() and panic_at(), which are
+// unsalvageable situations in the core code.  It can also be triggered by
+// the PANIC and PANIC-VALUE natives, which in turn can be triggered by the
+// rebPanic() API.  (Since PANIC and PANIC-VALUE may be hijacked, this offers
+// hookability for "recoverable" forms of PANIC.)
+//
+// coverity[+kill]
 //
 ATTRIBUTE_NO_RETURN void Panic_Core(
     const void *p, // REBSER* (array, context, etc), REBVAL*, or UTF-8 char*
@@ -94,6 +112,22 @@ ATTRIBUTE_NO_RETURN void Panic_Core(
     //
     Dump_Info();
     Dump_Stack(NULL, 0);
+#endif
+
+#if !defined(NDEBUG) && defined(HAVE_EXECINFO_AVAILABLE)
+    //
+    // Backtrace is a GNU extension.  There should be a way to turn this on
+    // or off, as it will be redundant with a valgrind or address sanitizer
+    // trace (and contain less information).
+    //
+    void *backtrace_buf[1024];
+    int n_backtrace = backtrace(
+        backtrace_buf,
+        sizeof(backtrace_buf) / sizeof(backtrace_buf[0])
+    );
+    fputs("Backtrace:\n", stderr);
+    backtrace_symbols_fd(backtrace_buf, n_backtrace, STDERR_FILENO);
+    fflush(stdout);
 #endif
 
     strncat(title, "PANIC()", PANIC_TITLE_BUF_SIZE - 0);
@@ -182,7 +216,79 @@ ATTRIBUTE_NO_RETURN void Panic_Core(
     debug_break(); // see %debug_break.h
 #endif
 
-    OS_CRASH(cb_cast(Str_Panic_Title), cb_cast(buf));
+    // 255 is standardized as "exit code out of range", but it seems like the
+    // best choice for an anomalous exit.
+    //
+    exit (255);
+
+    // If for some reason that didn't exit, try and force a crash with a
+    // NULL-dereference, and do it in a loop so we never return.
+    //
+    while (TRUE) {
+        int *crasher = NULL;
+        *crasher = 1020;
+    }
 
     DEAD_END;
+}
+
+
+//
+//  panic: native [
+//
+//  "Cause abnormal termination of Rebol (dumps debug info in debug builds)"
+//
+//      value [string!]
+//          "Message to report (evaluation not counted in ticks)"
+//  ]
+//
+REBNATIVE(panic)
+{
+    INCLUDE_PARAMS_OF_PANIC;
+
+    // panic() on the string value itself would report information about the
+    // string cell...but panic() on UTF-8 character data assumes you mean to
+    // report the contained message.  Use PANIC* if the latter is the intent.
+    //
+    REBCNT len = VAL_LEN_AT(ARG(value));
+    REBCNT index = VAL_INDEX(ARG(value));
+    REBSER *temp = Temp_UTF8_At_Managed(ARG(value), &index, &len);
+    REBYTE *utf8 = BIN_HEAD(temp);
+
+    // Note that by using the frame's tick instead of TG_Tick, we don't count
+    // the evaluation of the value argument.  Hence the tick count shown in
+    // the dump would be the one that would queue up right to the exact moment
+    // *before* the PANIC FUNCTION! was invoked.
+    //
+#ifdef NDEBUG
+    const REBUPT tick = 0;
+    Panic_Core(utf8, tick, FRM_FILE(frame_), FRM_LINE(frame_));
+#else
+    Panic_Core(utf8, frame_->tick, FRM_FILE(frame_), FRM_LINE(frame_));
+#endif
+}
+
+
+//
+//  panic-value: native [
+//
+//  "Cause abnormal termination of Rebol, with diagnostics on a value cell"
+//
+//      value [any-value!]
+//          "Suspicious value to panic on (debug build shows diagnostics)"
+//  ]
+//
+REBNATIVE(panic_value)
+{
+    INCLUDE_PARAMS_OF_PANIC_VALUE;
+
+    // Using frame's tick instead of TG_Tick so that tick count shown in the
+    // dump is the exact moment before the PANIC-VALUE FUNCTION! was invoked.
+    //
+#ifdef NDEBUG
+    const REBUPT tick = 0;
+    Panic_Core(ARG(value), tick, FRM_FILE(frame_), FRM_LINE(frame_));
+#else
+    Panic_Core(ARG(value), frame_->tick, FRM_FILE(frame_), FRM_LINE(frame_));
+#endif
 }

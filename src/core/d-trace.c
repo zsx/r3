@@ -376,37 +376,24 @@ REB_R Apply_Core_Traced(REBFRM * const f)
 //
 //      return: [<opt>]
 //      mode [integer! logic!]
-//      /back
-//          {Set mode ON to enable or integer for lines to display}
 //      /function
 //          "Traces functions only (less output)"
 //  ]
 //
 REBNATIVE(trace)
+//
+// !!! R3-Alpha had a kind of interesting concept of storing the backtrace in
+// a buffer, up to a certain number of lines.  So it wouldn't be visible and
+// interfering with your interactive typing, but you could ask for lines out
+// of it after the fact.  This makes more sense as a usermode feature, where
+// the backtrace is stored structurally, vs trying to implement in C.
+//
 {
     INCLUDE_PARAMS_OF_TRACE;
 
     REBVAL *mode = ARG(mode);
 
     Check_Security(Canon(SYM_DEBUG), POL_READ, 0);
-
-    // The /back option: ON and OFF, or INTEGER! for # of lines:
-    if (REF(back)) {
-        if (IS_LOGIC(mode)) {
-            Enable_Backtrace(VAL_LOGIC(mode));
-        }
-        else if (IS_INTEGER(mode)) {
-            REBINT lines = Int32(mode);
-            Trace_Flags = 0;
-            if (lines < 0)
-                fail (mode);
-
-            Display_Backtrace(cast(REBCNT, lines));
-            return R_VOID;
-        }
-    }
-    else
-        Enable_Backtrace(FALSE);
 
     // Set the trace level:
     if (IS_LOGIC(mode))
@@ -429,30 +416,3 @@ REBNATIVE(trace)
 
     return R_VOID;
 }
-
-
-#if !defined(NDEBUG)
-
-//
-//  Trace_Fetch_Debug: C
-//
-// When down to the wire and wanting to debug the evaluator, it can be very
-// useful to see the steps of the states it's going through to see what is
-// wrong.  This routine hooks the individual fetch and writes at a more
-// fine-grained level than a breakpoint at each DO/NEXT point.
-//
-void Trace_Fetch_Debug(const char* msg, REBFRM *f, REBOOL after) {
-    Debug_Fmt(
-        "%d - %s : %s",
-        cast(REBCNT, f->source.index),
-        msg,
-        after ? "AFTER" : "BEFORE"
-    );
-
-    if (FRM_AT_END(f))
-        Debug_Fmt("f is finished");
-    else
-        PROBE(f->value);
-}
-
-#endif

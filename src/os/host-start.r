@@ -242,6 +242,26 @@ host-start: function [
     <static>
         o (system/options) ;-- shorthand since options are often read/written
 ][
+    ; The core presumes no built-in I/O ability in the release build, hence
+    ; during boot PANIC and PANIC-VALUE can only do printf() in the debug
+    ; build.  While there's no way to hook the core panic() or panic_at()
+    ; calls, the rebPanic() API dispatches to PANIC and PANIC-VALUE.  Hook
+    ; them just to show we can...use I/O to print a message.
+    ;
+    hijack 'panic adapt (copy :panic) [
+        print "PANIC FUNCTION! called (explicitly or by rebPanic() API)"
+        ;
+        ; ...adaptation falls through to our copy of the original PANIC
+    ]
+    hijack 'panic-value adapt (copy :panic-value) [
+        print "PANIC-VALUE FUNCTION! called (explicitly or by rebPanic() API)"
+        ;
+        ; ...adaptation falls through to our copy of the original PANIC-VALUE
+    ]
+
+    ; can only output do not assume they have any ability to write out
+    ; information to the user, because the
+
     ; Currently there is just one monolithic "initialize all schemes", e.g.
     ; FILE:// and HTTP:// and CONSOLE:// -- this will need to be broken down
     ; into finer granularity.  Formerly all of them were loaded at the end
