@@ -945,37 +945,28 @@ static void Mold_String_Series(REB_MOLD *mo, const RELVAL *v)
 }
 
 
-/*
-    http://www.blooberry.com/indexdot/html/topics/urlencoding.htm
-
-    Only alphanumerics [0-9a-zA-Z], the special characters $-_.+!*'(),
-    and reserved characters used for their reserved purposes may be used
-    unencoded within a URL.
-*/
-
+// R3-Alpha's philosophy on URL! was:
+//
+// "Only alphanumerics [0-9a-zA-Z], the special characters $-_.+!*'(),
+//  and reserved characters used for their reserved purposes may be used
+//  unencoded within a URL."
+//
+// http://www.blooberry.com/indexdot/html/topics/urlencoding.htm
+//
+// Ren-C is working with a different model, where URL! is generic to custom
+// schemes which may or may not follow the RFC for Internet URLs.  It also
+// wishes to preserve round-trip copy-and-paste from URL bars in browsers
+// to source and back.  Encoding concerns are handled elsewhere.
+//
 static void Mold_Url(REB_MOLD *mo, const RELVAL *v)
 {
     REBSER *series = VAL_SERIES(v);
     REBCNT len = VAL_LEN_AT(v);
-
-    // Compute extra space needed for hex encoded characters:
-    //
-    REBCNT n;
-    for (n = VAL_INDEX(v); n < VAL_LEN_HEAD(v); ++n) {
-        REBUNI c = GET_ANY_CHAR(series, n);
-        if (IS_URL_ESC(c))
-            len += 2; // c => %xx
-    }
-
     REBUNI *dp = Prep_Uni_Series(mo, len);
 
-    for (n = VAL_INDEX(v); n < VAL_LEN_HEAD(v); ++n) {
-        REBUNI c = GET_ANY_CHAR(series, n);
-        if (IS_URL_ESC(c))
-            dp = Form_Hex_Esc_Uni(dp, c); // c => %xx
-        else
-            *dp++ = c;
-    }
+    REBCNT n;
+    for (n = VAL_INDEX(v); n < VAL_LEN_HEAD(v); ++n)
+        *dp++ = GET_ANY_CHAR(series, n);
 
     *dp = '\0';
 }
