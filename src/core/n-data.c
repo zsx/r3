@@ -330,30 +330,115 @@ REBNATIVE(use)
 
 
 //
+//  Get_Context_Of: C
+//
+REBOOL Get_Context_Of(REBVAL *out, const REBVAL *v)
+{
+    switch (VAL_TYPE(v)) {
+    case REB_FUNCTION: {
+        //
+        // The only examples of functions bound to contexts that exist at the
+        // moment are RETURN and LEAVE.  While there are archetypal natives
+        // for these functions, the REBVAL instances can contain a binding
+        // to the specific frame they exit.  Assume what is desired is that
+        // frame...
+        //
+        REBNOD *n = VAL_BINDING(v);
+        if (n == UNBOUND)
+            return FALSE;
+
+        REBCTX *c;
+        if (n->header.bits & NODE_FLAG_CELL) {
+            REBFRM *f = cast(REBFRM*, n);
+            c = Context_For_Frame_May_Reify_Managed(f);
+        }
+        else {
+            assert(n->header.bits & (SERIES_FLAG_ARRAY | ARRAY_FLAG_VARLIST));
+            c = cast(REBCTX*, n);
+        }
+        Move_Value(out, CTX_VALUE(c));
+        assert(IS_FRAME(out));
+        break; }
+
+    case REB_WORD:
+    case REB_SET_WORD:
+    case REB_GET_WORD:
+    case REB_LIT_WORD:
+    case REB_REFINEMENT:
+    case REB_ISSUE: {
+        if (IS_WORD_UNBOUND(v))
+            return FALSE;
+
+        // Requesting the context of a word that is relatively bound may
+        // result in that word having a FRAME! incarnated as a REBSER node (if
+        // it was not already reified.)
+        //
+        // !!! In the future Reb_Context will refer to a REBNOD*, and only
+        // be reified based on the properties of the cell into which it is
+        // moved (e.g. OUT would be examined here to determine if it would
+        // have a longer lifetime than the REBFRM* or other node)
+        //
+        REBCTX *c = VAL_WORD_CONTEXT(v);
+        Move_Value(out, CTX_VALUE(c));
+        break; }
+
+    default:
+        //
+        // Will OBJECT!s or FRAME!s have "contexts"?  Or if they are passed
+        // in should they be passed trough as "the context"?  For now, keep
+        // things clear?
+        //
+        assert(FALSE);
+    }
+
+    // A FRAME! has special properties of ->phase and ->binding which
+    // affect the interpretation of which layer of a function composition
+    // they correspond to.  If you REDO a FRAME! value it will restart at
+    // different points based on these properties.  Assume the time of
+    // asking is the layer in the composition the user is interested in.
+    //
+    // !!! This may not be the correct answer, but it seems to work in
+    // practice...keep an eye out for counterexamples.
+    //
+    if (IS_FRAME(out)) {
+        REBCTX *c = VAL_CONTEXT(out);
+        REBFRM *f = CTX_FRAME_IF_ON_STACK(c);
+        if (f != NULL) {
+            out->payload.any_context.phase = f->phase;
+            INIT_BINDING(out, f->binding);
+        }
+        else {
+            // !!! Assume the canon FRAME! value in varlist[0] is useful?
+            //
+            assert(VAL_BINDING(out) == UNBOUND); // canons have no binding
+        }
+
+        assert(
+            SER(FUNC_PARAMLIST(out->payload.any_context.phase))->header.bits
+            & ARRAY_FLAG_PARAMLIST
+        );
+    }
+
+    return TRUE;
+}
+
+
+//
 //  context-of: native [
 //
-//  "Returns the context in which a word is bound."
+//  "Returns the context in which a word or function is bound."
 //
-//      word [any-word!]
+//      value [any-word! function!]
 //  ]
 //
 REBNATIVE(context_of)
 {
     INCLUDE_PARAMS_OF_CONTEXT_OF;
 
-    if (IS_WORD_UNBOUND(ARG(word)))
-        return R_BLANK;
+    if (Get_Context_Of(D_OUT, ARG(value)))
+        return R_OUT;
 
-    // Requesting the context of a word that is relatively bound may result
-    // in that word having a FRAME! incarnated as a REBSER node (if it
-    // was not already reified.)
-    //
-    // !!! Mechanically it is likely that in the future, all FRAME!s for
-    // user functions will be reified from the moment of invocation.
-    //
-    Move_Value(D_OUT, CTX_VALUE(VAL_WORD_CONTEXT(ARG(word))));
-
-    return R_OUT;
+    return R_BLANK;
 }
 
 

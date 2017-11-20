@@ -242,19 +242,14 @@ REBNATIVE(do)
     case REB_FRAME: {
         REBCTX *c = VAL_CONTEXT(source);
 
-        // It doesn't matter if a FRAME! is currently running or not, because
-        // the variables are copied and a new frame is made.  However, the
-        // variables must be available, so the function can't have finished
-        // and thrown them away.  (This doesn't happen with a frame that
-        // was made with `MAKE FRAME!`)
-        //
-        // !!! It may come to pass that a trick lets you reuse a stack context
-        // and unwind it as a kind of tail recursion to reuse it.  But one
-        // would not want that strange voodoo to be what DO does on a FRAME!,
-        // it would have to be another operation (REDO ?)
-        //
-        if (CTX_VARS_UNAVAILABLE(c))
+        if (CTX_VARS_UNAVAILABLE(c)) // frame already ran, no data left
             fail (Error_Do_Expired_Frame_Raw());
+
+        // See REBNATIVE(redo) for how tail-call recursion works.
+        //
+        REBFRM *f = CTX_FRAME_IF_ON_STACK(c);
+        if (f != NULL)
+            fail ("Use REDO to restart a running FRAME! (not DO)");
 
         REBSTR *opt_label = NULL; // no label available
         return Apply_Def_Or_Exemplar(
@@ -320,6 +315,69 @@ REBNATIVE(do)
     // functions only, EVAL generalizes it.
     //
     fail (Error_Use_Eval_For_Eval_Raw());
+}
+
+
+//
+//  redo: native [
+//
+//  {Restart the function of a FRAME! from the top with its current state}
+//
+//      return: []
+//          {Does not return at all (either errors or restarts).}
+//      restartee [frame! function! any-word!]
+//          {FRAME! to restart, or FUNCTION!/WORD! bound to FRAME! to restart}
+//  ]
+//
+REBNATIVE(redo)
+//
+// This can be used to implement tail-call recursion:
+//
+// https://en.wikipedia.org/wiki/Tail_call
+//
+{
+    INCLUDE_PARAMS_OF_REDO;
+
+    REBVAL *restartee = ARG(restartee);
+    if (NOT(IS_FRAME(restartee))) {
+        if (NOT(Get_Context_Of(D_OUT, restartee)))
+            fail ("No context found from restartee in REDO");
+
+        if (NOT(IS_FRAME(D_OUT)))
+            fail ("Context of restartee in REDO is not a FRAME!");
+
+        Move_Value(restartee, D_OUT);
+    }
+
+    // Phase needs to always be initialized in FRAME! values.
+    //
+    assert(
+        SER(FUNC_PARAMLIST(restartee->payload.any_context.phase))->header.bits
+        & ARRAY_FLAG_PARAMLIST
+    );
+
+    REBCTX *c = VAL_CONTEXT(restartee);
+
+    if (CTX_VARS_UNAVAILABLE(c)) // frame already ran, no data left
+        fail (Error_Do_Expired_Frame_Raw());
+
+    REBFRM *f = CTX_FRAME_IF_ON_STACK(c);
+    if (f == NULL)
+        fail ("Use DO to start a not-currently running FRAME! (not REDO)");
+
+    // We need to cooperatively throw a restart instruction up to the level
+    // of the frame.  Use REDO as the label of the throw that Do_Core() will
+    // identify for that behavior.
+    //
+    Move_Value(D_OUT, NAT_VALUE(redo));
+    INIT_BINDING(D_OUT, c);
+
+    // The FRAME! contains its ->phase and ->binding, which should be enough
+    // to restart the phase at the point of parameter checking.  Make that
+    // the actual value that Do_Core() catches.
+    //
+    CONVERT_NAME_TO_THROWN(D_OUT, restartee);
+    return R_OUT_IS_THROWN;
 }
 
 

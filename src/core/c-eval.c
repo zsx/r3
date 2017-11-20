@@ -1374,30 +1374,46 @@ reevaluate:;
         case R_OUT_IS_THROWN: {
             assert(THROWN(f->out));
 
-            if (
-                IS_FUNCTION(f->out)
-                && VAL_FUNC(f->out) == NAT_FUNC(exit)
-                && Same_Binding(VAL_BINDING(f->out), f)
-            ){
-                // Do_Core catches "definitional exits" to current frame, e.g.
-                // throws where the "/name" is the EXIT native with a binding
-                // to this frame, and the thrown value is the return code.
-                //
-                // !!! This might be a little more natural if the name of the
-                // throw was a FRAME! value.  But that also would mean throws
-                // named by frames couldn't be taken advantage by the user for
-                // other features, while this only takes one function away.
-                //
-                CATCH_THROWN(f->out, f->out);
-                assert(NOT_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED));
+            if (IS_FUNCTION(f->out)) {
+                if (
+                    VAL_FUNC(f->out) == NAT_FUNC(exit)
+                    && Same_Binding(VAL_BINDING(f->out), f)
+                ){
+                    // Do_Core catches "definitional exits" to current frame,
+                    // e.g. throws where the "/name" is the EXIT native with a
+                    // binding to this frame, and the thrown value is the
+                    // return code.
+                    //
+                    // !!! This might be a little more natural if the name of
+                    // the throw was a FRAME! value.  But that also would mean
+                    // throws named by frames couldn't be taken advantage by
+                    // the user for other features, while this only takes one
+                    // function away.
+                    //
+                    CATCH_THROWN(f->out, f->out);
+                    assert(NOT_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED));
+                    goto apply_completed;
+                }
+                else if (
+                    VAL_FUNC(f->out) == NAT_FUNC(redo)
+                    && Same_Binding(VAL_BINDING(f->out), f)
+                ){
+                    // This was issued by REDO, and should be a FRAME! with
+                    // the phase and binding we are to resume with.
+                    //
+                    CATCH_THROWN(f->out, f->out);
+                    assert(IS_FRAME(f->out));
+                    assert(Same_Binding(f, VAL_CONTEXT(f->out)));
+                    f->phase = f->out->payload.any_context.phase;
+                    f->binding = VAL_BINDING(f->out);
+                    goto redo_checked;
+                }
             }
-            else {
-                // Stay THROWN and let stack levels above try and catch
-                //
-                Abort_Function(f);
-                goto finished;
-            }
-            break; }
+
+            // Stay THROWN and let stack levels above try and catch
+            //
+            Abort_Function(f);
+            goto finished; }
 
         case R_OUT_TRUE_IF_WRITTEN:
             if (IS_END(f->out))
@@ -1423,6 +1439,7 @@ reevaluate:;
             break;
 
         case R_REDO_CHECKED:
+        redo_checked:
             f->special = f->args_head;
             f->refine = ORDINARY_ARG; // no gathering, but need for assert
             SET_END(f->out);
@@ -1470,6 +1487,7 @@ reevaluate:;
             assert(FALSE);
         }
 
+    apply_completed:
         assert(NOT_END(f->out)); // should have overwritten
         assert(NOT(THROWN(f->out))); // throws must be R_OUT_IS_THROWN
         if (Is_Bindable(f->out))

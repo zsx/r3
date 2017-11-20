@@ -143,6 +143,7 @@
 %functions/chain.test.reb
 %functions/enclose.test.reb
 %functions/hijack.test.reb
+%functions/redo.test.reb
 %functions/specialize.test.reb
 %math/absolute.test.reb
 %math/add.test.reb
