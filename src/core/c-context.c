@@ -1047,12 +1047,13 @@ REBCTX *Merge_Contexts_Selfish(REBCTX *parent1, REBCTX *parent2)
     rootvar->payload.any_context.phase = NULL;
     INIT_BINDING(rootvar, UNBOUND);
 
-    // Copy parent1 values:
-    memcpy(
-        CTX_VARS_HEAD(merged),
-        CTX_VARS_HEAD(parent1),
-        CTX_LEN(parent1) * sizeof(REBVAL)
-    );
+    // Copy parent1 values.  (Can't use memcpy() because it would copy things
+    // like protected bits...)
+    //
+    REBVAL *copy_dest = CTX_VARS_HEAD(merged);
+    const REBVAL *copy_src = CTX_VARS_HEAD(parent1);
+    for (; NOT_END(copy_src); ++copy_src, ++copy_dest)
+        Move_Value(copy_dest, copy_src);
 
     // Update the child tail before making calls to CTX_VAR(), because the
     // debug build does a length check.
