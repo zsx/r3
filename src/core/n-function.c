@@ -342,7 +342,7 @@ REBNATIVE(typechecker)
 //  {Create a new function through partial or full specialization of another}
 //
 //      return: [function!]
-//      value [function! any-word! any-path!]
+//      specializee [function! any-word! any-path!]
 //          {Function or specifying word (preserves word name for debug info)}
 //      def [block!]
 //          {Definition for FRAME! fields for args and refinements}
@@ -352,17 +352,13 @@ REBNATIVE(specialize)
 {
     INCLUDE_PARAMS_OF_SPECIALIZE;
 
+    REBVAL *specializee = ARG(specializee);
+
     REBSTR *opt_name;
-
-    // We don't limit to taking a FUNCTION! value directly, because that loses
-    // the symbol (for debugging, errors, etc.)  If caller passes a WORD!
-    // then we lookup the variable to get the function, but save the symbol.
-    //
-    DECLARE_LOCAL (specializee);
-    Get_If_Word_Or_Path_Arg(specializee, &opt_name, ARG(value));
-
-    if (!IS_FUNCTION(specializee))
-        fail (Error_Apply_Non_Function_Raw(ARG(value))); // for APPLY too
+    Get_If_Word_Or_Path_Arg(D_OUT, &opt_name, specializee);
+    if (!IS_FUNCTION(D_OUT))
+        fail (specializee);
+    Move_Value(specializee, D_OUT);
 
     if (Specialize_Function_Throws(D_OUT, specializee, opt_name, ARG(def)))
         return R_OUT_IS_THROWN;
@@ -484,8 +480,7 @@ REBNATIVE(adapt)
     REBSTR *opt_adaptee_name;
     Get_If_Word_Or_Path_Arg(D_OUT, &opt_adaptee_name, adaptee);
     if (!IS_FUNCTION(D_OUT))
-        fail (Error_Apply_Non_Function_Raw(adaptee));
-
+        fail (adaptee);
     Move_Value(adaptee, D_OUT);
 
     // For the binding to be correct, the indices that the words use must be
@@ -566,6 +561,99 @@ REBNATIVE(adapt)
     VAL_INDEX(body) = 0;
     INIT_BINDING(body, underlying); // relative binding
     MANAGE_ARRAY(adaptation);
+
+    Move_Value(D_OUT, FUNC_VALUE(fun));
+    assert(VAL_BINDING(D_OUT) == UNBOUND);
+
+    return R_OUT;
+}
+
+
+//
+//  enclose: native [
+//
+//  {Wrap code around a FUNCTION! with access to its FRAME! and return value}
+//
+//      return: [function!]
+//      inner [function! any-word! any-path!]
+//          {Function that a FRAME! will be built for (and optionally called)}
+//      outer [function! any-word! any-path!]
+//          {Gets a FRAME! for INNER before invocation, can DO it (or not)}
+//  ]
+//
+REBNATIVE(enclose)
+{
+    INCLUDE_PARAMS_OF_ENCLOSE;
+
+    REBVAL *inner = ARG(inner);
+    REBVAL *outer = ARG(outer);
+
+    REBSTR *opt_inner_name;
+    Get_If_Word_Or_Path_Arg(D_OUT, &opt_inner_name, inner);
+    if (!IS_FUNCTION(D_OUT))
+        fail (inner);
+    Move_Value(inner, D_OUT);
+
+    REBSTR *opt_outer_name;
+    Get_If_Word_Or_Path_Arg(D_OUT, &opt_outer_name, outer);
+    if (!IS_FUNCTION(D_OUT))
+        fail (outer);
+    Move_Value(outer, D_OUT);
+
+    // The paramlist needs to be unique to designate this function, but
+    // will be identical typesets to the inner.  It's [0] element must
+    // identify the function we're creating vs the original, however.
+    //
+    REBARR *paramlist = Copy_Array_Shallow(
+        VAL_FUNC_PARAMLIST(inner), SPECIFIED
+    );
+    ARR_HEAD(paramlist)->payload.function.paramlist = paramlist;
+    SET_SER_FLAG(paramlist, ARRAY_FLAG_PARAMLIST);
+    MANAGE_ARRAY(paramlist);
+
+    // See %sysobj.r for `enclosed-meta:` object template
+
+    REBVAL *example = Get_System(SYS_STANDARD, STD_ENCLOSED_META);
+
+    REBCTX *meta = Copy_Context_Shallow(VAL_CONTEXT(example));
+    Init_Void(CTX_VAR(meta, STD_ENCLOSED_META_DESCRIPTION)); // default
+    Move_Value(CTX_VAR(meta, STD_ENCLOSED_META_INNER), inner);
+    if (opt_inner_name == NULL)
+        Init_Void(CTX_VAR(meta, STD_ENCLOSED_META_INNER_NAME));
+    else
+        Init_Word(
+            CTX_VAR(meta, STD_ENCLOSED_META_INNER_NAME),
+            opt_inner_name
+        );
+    Move_Value(CTX_VAR(meta, STD_ENCLOSED_META_OUTER), outer);
+    if (opt_outer_name == NULL)
+        Init_Void(CTX_VAR(meta, STD_ENCLOSED_META_OUTER_NAME));
+    else
+        Init_Word(
+            CTX_VAR(meta, STD_ENCLOSED_META_OUTER_NAME),
+            opt_outer_name
+        );
+
+    MANAGE_ARRAY(CTX_VARLIST(meta));
+    MISC(paramlist).meta = meta;
+
+    REBFUN *fun = Make_Function(
+        paramlist,
+        &Encloser_Dispatcher,
+        FUNC_FACADE(VAL_FUNC(inner)), // same interface as inner
+        FUNC_EXEMPLAR(VAL_FUNC(inner)) // same exemplar as inner
+    );
+
+    // We need to store the 2 values describing the enclosure so that the
+    // dispatcher knows what to do when it gets called and inspects FUNC_BODY.
+    //
+    // [0] is the inner FUNCTION!, [2] is the outer FUNCTION!
+    //
+    REBARR *enclosure = Make_Array(2);
+    Append_Value(enclosure, inner);
+    Append_Value(enclosure, outer);
+
+    Init_Block(FUNC_BODY(fun), enclosure);
 
     Move_Value(D_OUT, FUNC_VALUE(fun));
     assert(VAL_BINDING(D_OUT) == UNBOUND);

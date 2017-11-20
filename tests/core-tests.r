@@ -141,6 +141,7 @@
 %functions/adapt.test.reb
 %functions/apply.test.reb
 %functions/chain.test.reb
+%functions/enclose.test.reb
 %functions/hijack.test.reb
 %functions/specialize.test.reb
 %math/absolute.test.reb

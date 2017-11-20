@@ -1520,7 +1520,8 @@ reevaluate:;
             DECLARE_LOCAL (fun);
             Move_Value(fun, DS_TOP);
 
-            if (Apply_Only_Throws(f->out, TRUE, fun, &f->cell, END)) {
+            const REBOOL fully = TRUE;
+            if (Apply_Only_Throws(f->out, fully, fun, &f->cell, END)) {
                 Abort_Function(f);
                 goto finished;
             }

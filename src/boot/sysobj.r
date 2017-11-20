@@ -258,6 +258,15 @@ standard: construct [] [
             _
     ]
 
+    enclosed-meta: construct [] [
+        description:
+        inner:
+        inner-name:
+        outer:
+        outer-name:
+            _
+    ]
+
     chained-meta: construct [] [
         description:
         chainees:

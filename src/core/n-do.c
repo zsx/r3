@@ -483,7 +483,7 @@ repush:
 //  {Invoke a function with all required arguments specified.}
 //
 //      return: [<opt> any-value!]
-//      value [function! any-word! any-path!]
+//      applicand [function! any-word! any-path!]
 //          {Function or specifying word (preserves word name for debug info)}
 //      def [block!]
 //          {Frame definition block (will be bound and evaluated)}
@@ -493,24 +493,20 @@ REBNATIVE(apply)
 {
     INCLUDE_PARAMS_OF_APPLY;
 
-    REBVAL *def = ARG(def);
+    REBVAL *applicand = ARG(applicand);
 
-    // We don't limit to taking a FUNCTION! value directly, because that loses
-    // the symbol (for debugging, errors, etc.)  If caller passes a WORD!
-    // then we lookup the variable to get the function, but save the symbol.
-    //
     REBSTR *opt_label;
-    Get_If_Word_Or_Path_Arg(D_OUT, &opt_label, ARG(value));
-
+    Get_If_Word_Or_Path_Arg(D_OUT, &opt_label, applicand);
     if (!IS_FUNCTION(D_OUT))
-        fail (Error_Apply_Non_Function_Raw(ARG(value))); // for SPECIALIZE too
+        fail (applicand);
+    Move_Value(applicand, D_OUT);
 
     return Apply_Def_Or_Exemplar(
         D_OUT,
-        VAL_FUNC(D_OUT),
-        VAL_BINDING(D_OUT),
+        VAL_FUNC(applicand),
+        VAL_BINDING(applicand),
         opt_label,
-        NOD(def)
+        NOD(ARG(def))
     );
 }
 

@@ -1908,6 +1908,65 @@ REB_R Adapter_Dispatcher(REBFRM *f)
 
 
 //
+//  Encloser_Dispatcher: C
+//
+// Dispatcher used by ENCLOSE.
+//
+REB_R Encloser_Dispatcher(REBFRM *f)
+{
+    RELVAL *enclosure = FUNC_BODY(f->phase);
+    assert(ARR_LEN(VAL_ARRAY(enclosure)) == 2);
+
+    RELVAL* inner = KNOWN(VAL_ARRAY_AT_HEAD(enclosure, 0)); // same args as f
+    assert(IS_FUNCTION(inner));
+    REBVAL* outer = KNOWN(VAL_ARRAY_AT_HEAD(enclosure, 1)); // 1 FRAME! arg
+    assert(IS_FUNCTION(outer));
+
+    // We want to call OUTER with a FRAME! value that will dispatch to INNER
+    // when it runs DO on it.  The contents of the arguments for that call to
+    // inner should start out as the same as what has been built for the
+    // passed in F.  (OUTER may mutate these before the call if it likes.)
+    //
+    // !!! It is desirable in the general case to just reuse the values in
+    // the chunk stack that f already has for inner.  However, inner is going
+    // to be called at a deeper stack level than outer.  This tampers with
+    // the logic of the system for things like Move_Value(), which have to
+    // make decisions about the relative lifetimes of cells in order to
+    // decide whether to reify things (like REBFRM* to a REBSER* for FRAME!)
+    //
+    // !!! To get the ball rolling with testing the feature, pass a copy of
+    // the frame values in a heap-allocated FRAME!...which it will turn around
+    // and stack allocate again when DO is called.  That's triply inefficient
+    // because it forces reification of the stub frame just to copy it...
+    // which is not necessary, but easier code to write since it can use
+    // Copy_Context_Core().  Tune this all up as it becomes more mainstream,
+    // since you don't need to make 1 copy of the values...much less 2.
+
+    const REBOOL deep = FALSE;
+    const REBU64 types = 0;
+    REBCTX *copy = Copy_Context_Core(
+        Context_For_Frame_May_Reify_Managed(f), deep, types
+    );
+
+    DECLARE_LOCAL (arg);
+    Init_Any_Context(arg, REB_FRAME, copy);
+
+    // !!! Review how exactly this update to the phase and binding is supposed
+    // to work.  We know that when `outer` tries to DO its frame argument,
+    // it needs to run inner with the correct binding.
+    //
+    arg->payload.any_context.phase = VAL_FUNC(inner);
+    INIT_BINDING(arg, VAL_BINDING(inner));
+
+    const REBOOL fully = TRUE;
+    if (Apply_Only_Throws(f->out, fully, outer, arg, END))
+        return R_OUT_IS_THROWN;
+
+    return R_OUT;
+}
+
+
+//
 //  Chainer_Dispatcher: C
 //
 // Dispatcher used by CHAIN.
