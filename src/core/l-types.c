@@ -1054,45 +1054,32 @@ const REBYTE *Scan_Email(
 //
 //  Scan_URL: C
 //
-// Scan and convert a URL.
+// While Rebol2, R3-Alpha, and Red attempted to apply some amount of decoding
+// (e.g. how %20 is "space" in http:// URL!s), Ren-C leaves URLs "as-is".
+// This means a URL may be copied from a web browser bar and pasted back.
+// It also means that the URL may be used with custom schemes (odbc://...)
+// that have different ideas of the meaning of characters like `%`.
+//
+// !!! The current concept is that URL!s typically represent the *decoded*
+// forms, and thus express unicode codepoints normally...preserving either of:
+//
+//     https://duckduckgo.com/?q=hergé+&+tintin
+//     https://duckduckgo.com/?q=hergé+%26+tintin
+//
+// Then, the encoded forms with UTF-8 bytes expressed in %XX form would be
+// converted as STRING!, where their datatype suggests the encodedness:
+//
+//     {https://duckduckgo.com/?q=herg%C3%A9+%26+tintin}
+//
+// (This is similar to how local FILE!s, where e.g. slashes become backslash
+// on Windows, are expressed as STRING!.)
 //
 const REBYTE *Scan_URL(
     REBVAL *out, // may live in data stack (do not call DS_PUSH, GC, eval)
     const REBYTE *cp,
     REBCNT len
-) {
-    TRASH_CELL_IF_DEBUG(out);
-
-//  !!! Need to check for any possible scheme followed by ':'
-
-//  for (n = 0; n < URL_MAX; n++) {
-//      if (str = Match_Bytes(cp, (REBYTE *)(URL_Schemes[n]))) break;
-//  }
-//  if (n >= URL_MAX) return_NULL;
-//  if (*str != ':') return_NULL;
-
-    REBSER *series = Make_Binary(len);
-
-    REBYTE *str = BIN_HEAD(series);
-    for (; len > 0; len--) {
-        //if (*cp == '%' && len > 2 && Scan_Hex2(cp+1, &n, FALSE)) {
-        if (*cp == '%') {
-            REBUNI n;
-            if (len <= 2 || !Scan_Hex2(cp + 1, &n, FALSE))
-                return_NULL;
-
-            *str++ = cast(REBYTE, n);
-            cp += 3;
-            len -= 2;
-        }
-        else
-            *str++ = *cp++;
-    }
-    *str = 0;
-    SET_SERIES_LEN(series, cast(REBCNT, str - BIN_HEAD(series)));
-
-    Init_Url(out, series);
-    return cp;
+){
+    return Scan_Any(out, cp, len, REB_URL);
 }
 
 
