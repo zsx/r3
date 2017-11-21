@@ -197,6 +197,10 @@
 // release C++ builds on Travis are relied upon to do the proper optimizations
 // as well as report any static analysis errors.
 //
+// !!! C++14 gcc release builds seem to trigger bad behavior on cast() to
+// a CFUNC*, and non-C++14 builds are allowing cast of `const void*` to
+// non-const `char` with plain `cast()`.  Investigate as time allows, but
+// in the meantime SYM_FUNC() uses a plain C-style cast.
 
 #if !defined(__cplusplus) || !defined(NDEBUG)
     /* These macros are easier-to-spot variants of the parentheses cast.

@@ -145,7 +145,7 @@ e-syms/emit {#include "sys-core.h"
 // !!! Also, void pointers and function pointers are not guaranteed to be
 // the same size, even if TCC assumes so for these symbol purposes.
 //
-#define SYM_FUNC(x) {#x, cast(CFUNC*, x)}
+#define SYM_FUNC(x) {#x, (CFUNC*)(x)}
 #define SYM_DATA(x) {#x, &x}
 
 struct rebol_sym_func_t {

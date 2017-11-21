@@ -1337,7 +1337,7 @@ void RL_rebPanic(const void *p)
         rebDo(
             BLANK_VALUE, // temp workaround, can't rebEval() first slot yet
             rebEval(NAT_VALUE(panic)),
-            rebString(cast(char*, p)),
+            rebString(cast(const char*, p)),
             END
         );
         p2 = "HIJACK'd PANIC function did not exit Rebol";
