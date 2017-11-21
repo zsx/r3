@@ -916,6 +916,13 @@ reevaluate:;
 
                     ++f->special;
                     goto check_arg; // normal checking, handles errors also
+
+                    // !!! If SPECIALIZE checked the argument slots at
+                    // specialization-time, it would not be necessary to check
+                    // it here.  It could just `goto continue_arg_loop`.
+                    // Since there are many common specializations in use,
+                    // it's probably worth it to do the optimization and then
+                    // just assert types match here in the debug build.
                 }
             }
 
@@ -1403,7 +1410,49 @@ reevaluate:;
                     //
                     CATCH_THROWN(f->out, f->out);
                     assert(IS_FRAME(f->out));
-                    assert(Same_Binding(f, VAL_CONTEXT(f->out)));
+
+                    // !!! We are reusing the frame and may be jumping to an
+                    // "earlier phase" of a composite function, or even to
+                    // a "not-even-earlier-just-compatible" phase of another
+                    // function.  Type checking is necessary, as is zeroing
+                    // out any locals...but if we're jumping to any higher
+                    // or different phase we need to reset the specialization
+                    // values as well.
+                    //
+                    // Since dispatchers run arbitrary code to pick how (and
+                    // if) they want to change the phase on each redo, we
+                    // have no easy way to tell if a phase is "earlier" or
+                    // "later".  The only thing we have is if it's the same
+                    // we know we couldn't have touched the specialized args
+                    // (no binding to them) so no need to fill those slots
+                    // in via the exemplar.  Otherwise, we have to use the
+                    // exemplar of the phase.
+                    //
+                    // REDO is a fairly esoteric feature to start with, and
+                    // REDO of a frame phase that isn't the running one even
+                    // more esoteric, with REDO/OTHER being *extremely*
+                    // esoteric.  So having a fourth state of how to handle
+                    // f->special (in addition to the three described above)
+                    // seems like more branching in the baseline argument
+                    // loop.  Hence, do a pre-pass here to fill in just the
+                    // specializations and leave everything else alone.
+                    //
+                    REBCTX *exemplar;
+                    if (
+                        f->phase != f->out->payload.any_context.phase
+                        && NULL != (exemplar = FUNC_EXEMPLAR(
+                            f->out->payload.any_context.phase
+                        ))
+                    ){
+                        f->special = CTX_VARS_HEAD(exemplar);
+                        f->arg = f->args_head;
+                        for (; NOT_END(f->arg); ++f->arg, ++f->special) {
+                            if (IS_VOID(f->special)) // no specialization
+                                continue;
+                            Move_Value(f->arg, f->special); // reset it
+                        }
+                    }
+
                     f->phase = f->out->payload.any_context.phase;
                     f->binding = VAL_BINDING(f->out);
                     goto redo_checked;

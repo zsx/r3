@@ -325,8 +325,12 @@ REBNATIVE(do)
 //
 //      return: []
 //          {Does not return at all (either errors or restarts).}
-//      restartee [frame! function! any-word!]
-//          {FRAME! to restart, or FUNCTION!/WORD! bound to FRAME! to restart}
+//      restartee [frame! any-word!]
+//          {FRAME! to restart, or WORD! bound to FRAME! (e.g. REDO 'RETURN)}
+//      /other
+//          {Restart in a frame-compatible function ("Sibling Tail-Call")}
+//      sibling [function!]
+//          {A FUNCTION! derived from the same underlying FRAME! as restartee}
 //  ]
 //
 REBNATIVE(redo)
@@ -349,13 +353,6 @@ REBNATIVE(redo)
         Move_Value(restartee, D_OUT);
     }
 
-    // Phase needs to always be initialized in FRAME! values.
-    //
-    assert(
-        SER(FUNC_PARAMLIST(restartee->payload.any_context.phase))->header.bits
-        & ARRAY_FLAG_PARAMLIST
-    );
-
     REBCTX *c = VAL_CONTEXT(restartee);
 
     if (CTX_VARS_UNAVAILABLE(c)) // frame already ran, no data left
@@ -364,6 +361,33 @@ REBNATIVE(redo)
     REBFRM *f = CTX_FRAME_IF_ON_STACK(c);
     if (f == NULL)
         fail ("Use DO to start a not-currently running FRAME! (not REDO)");
+
+    // If we were given a sibling to restart, make sure it is frame compatible
+    // (e.g. the product of ADAPT-ing, CHAIN-ing, ENCLOSE-ing, HIJACK-ing a
+    // common underlying function).
+    //
+    // !!! It is possible for functions to be frame-compatible even if they
+    // don't come from the same heritage (e.g. two functions that take an
+    // INTEGER! and have 2 locals).  Such compatibility may seem random to
+    // users--e.g. not understanding why a function with 3 locals is not
+    // compatible with one that has 2, and the test would be more expensive
+    // than the established check for a common "ancestor".
+    //
+    if (REF(other)) {
+        REBVAL *sibling = ARG(sibling);
+        if (FRM_UNDERLYING(f) != FUNC_UNDERLYING(VAL_FUNC(sibling)))
+            fail ("/OTHER function passed to REDO has incompatible FRAME!");
+
+        restartee->payload.any_context.phase = VAL_FUNC(sibling);
+        INIT_BINDING(restartee, VAL_BINDING(sibling));
+    }
+
+    // Phase needs to always be initialized in FRAME! values.
+    //
+    assert(
+        SER(FUNC_PARAMLIST(restartee->payload.any_context.phase))->header.bits
+        & ARRAY_FLAG_PARAMLIST
+    );
 
     // We need to cooperatively throw a restart instruction up to the level
     // of the frame.  Use REDO as the label of the throw that Do_Core() will
