@@ -387,7 +387,7 @@ for-each-record type boot-types [
     for-each ts compose [(type/typesets)] [
         spot: any [
             select typeset-sets ts
-            first back insert tail typeset-sets reduce [ts copy []]
+            first back insert tail-of typeset-sets reduce [ts copy []]
         ]
         append spot type/name
     ]
@@ -887,7 +887,7 @@ boot-task: load %task.r
 write-if-changed boot/tmp-boot-block.r mold reduce sections
 data: mold/flat reduce sections
 insert data reduce ["; Copyright (C) REBOL Technologies " now newline]
-insert tail data make char! 0 ; scanner requires zero termination
+insert tail-of data make char! 0 ; scanner requires zero termination
 
 comp-data: compress data: to-binary data
 

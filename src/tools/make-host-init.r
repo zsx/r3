@@ -54,7 +54,7 @@ write-c-file: function [
     append data newline ; BUG? why does MOLD not provide it?
 
     insert data reduce ["; Copyright REBOL Technologies " now newline]
-    insert tail data make char! 0 ; zero termination required
+    insert tail-of data make char! 0 ; zero termination required
 
     comp-data: compress data
     comp-size: length-of comp-data

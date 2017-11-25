@@ -104,7 +104,7 @@ process-conditional: procedure [
 ][
     emitter/emit-line [
         directive
-        ;;; " // " the-file " #" line-of head dir-position dir-position
+        ;;; " // " the-file " #" line-of head-of dir-position dir-position
     ]
 
     ; Minimise conditionals for the reader - unnecessary for compilation.
@@ -113,7 +113,7 @@ process-conditional: procedure [
     ;
     if all [
         find/match directive "#endif"
-        position: find/last tail emitter/buf-emit "#if"
+        position: find/last tail-of emitter/buf-emit "#if"
     ][
         rewrite-if-directives position
     ]

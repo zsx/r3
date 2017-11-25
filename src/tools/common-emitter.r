@@ -82,7 +82,7 @@ make-emitter: function [
             data [char!]
         ][
             if data != last buf-emit [
-                probe skip (tail buf-emit) -100
+                probe skip (tail-of buf-emit) -100
                 fail ["UNEMIT did not match" data "as the last piece of input"]
             ]
             assert [data = last buf-emit]
@@ -92,7 +92,7 @@ make-emitter: function [
 
         emit-line: proc [data /indent] [
             unless any [tail? buf-emit | newline = last buf-emit] [
-                probe skip (tail buf-emit) -100
+                probe skip (tail-of buf-emit) -100
                 fail "EMIT-LINE should always start a new line"
             ]
             data: reduce data
@@ -164,7 +164,7 @@ make-emitter: function [
             /tabbed
         ][
             if newline != last buf-emit [
-                probe skip (tail buf-emit) -100
+                probe skip (tail-of buf-emit) -100
                 fail "WRITE-EMITTED needs NEWLINE as last character in buffer"
             ]
 

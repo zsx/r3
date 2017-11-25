@@ -32,7 +32,7 @@ ends-with?: func [
     any [
         blank? suffix
         empty? suffix
-        suffix = (skip tail s negate length suffix)
+        suffix = (skip tail-of s negate length suffix)
     ]
 ]
 
@@ -198,7 +198,7 @@ windows: make platform-class [
         cmd [object!]
     ][
         d: file-to-local cmd/file
-        if #"\" = last d [remove back tail d]
+        if #"\" = last d [remove back tail-of d]
         either dir? cmd/file [
             spaced ["mkdir" d]
         ][
@@ -209,7 +209,7 @@ windows: make platform-class [
         cmd [object!]
     ][
         d: file-to-local cmd/file
-        if #"\" = last d [remove back tail d]
+        if #"\" = last d [remove back tail-of d]
         either dir? cmd/file [
             spaced ["rmdir /S /Q" d]
         ][
@@ -1912,7 +1912,7 @@ visual-studio: make generator-class [
                     ]
                 ]
             ]
-            remove back tail lib ;move the trailing ";"
+            remove back tail-of lib ;move the trailing ";"
 
             if find? [dynamic-library-class application-class] project/class-name [
                 for-each i project/searches [

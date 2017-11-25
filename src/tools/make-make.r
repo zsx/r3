@@ -48,7 +48,10 @@ for-each [name value] args [
                 ][
                     user-ext: load value
                     unless block? user-ext [
-                        fail ["Selected extensions must be a block, not" (type-of user-ext)]
+                        fail [
+                            "Selected extensions must be a block, not"
+                            (type-of user-ext)
+                        ]
                     ]
                     user-config/extensions: user-ext
                 ]
@@ -104,8 +107,8 @@ to-obj-path: func [
     ext:
 ][
     ext: find/last file #"."
-    remove/part ext (length ext)
-    join-of %objs/ head append ext rebmake/target-platform/obj-suffix
+    remove/part ext (length-of ext)
+    join-of %objs/ head-of append ext rebmake/target-platform/obj-suffix
 ]
 
 gen-obj: func [
@@ -1588,7 +1591,7 @@ for-each file os-file-block [
 ]
 add-new-obj-folders ext-objs folders
 
-;print ["ext-objs: (" length ext-objs ")" mold ext-objs]
+;print ["ext-objs: (" length-of ext-objs ")" mold ext-objs]
 ;print ["app-config/ldflags:" mold app-config/ldflags]
 app: make rebmake/application-class [
     name: 'main

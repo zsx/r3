@@ -60,7 +60,6 @@ disable-user-includes: procedure [
     open-include (charset {"<"})
     close-include (charset {">"})
 ] [
-    line-iter: lines
     include-rule: copy [
         {"} copy name to {"}
     ]
@@ -71,23 +70,25 @@ disable-user-includes: procedure [
         ]
     ]
 
-    while [line-iter <> tail lines] [
-        line: first line-iter
-        if parse line [any space {#} any space {include} some space include-rule to end][
+    for-each line lines [
+        if parse line [
+            any space {#}
+            any space {include}
+            some space include-rule to end
+        ][
             either all [
                 inline
                 pos: find headers to file! name
-            ] [
+            ][
                 change/part line-iter (read/lines join-all [path-zlib name]) 1 
                 take pos
-            ] [
+            ][
                 insert line unspaced [{//} space]
                 append line unspaced [
                     space {/* REBOL: see make-zlib.r */}
                 ]
             ]
         ] 
-        line-iter: next line-iter
     ]
 
     if inline [
@@ -186,7 +187,7 @@ fix-kr: function [
                 insert param-ser "^/"
                 length-diff: 1 - (length param-spec)
 
-                param-len: (index-of close-paren) - (index-of open-paren)
+                param-len: (index of close-paren) - (index of open-paren)
                 params: copy/part open-paren param-len
                 remove/part open-paren param-len
                 length-diff: length-diff - param-len
@@ -214,23 +215,33 @@ fix-kr: function [
                     any white-space
                     some [
                         (typed?: true)
-                       single-param-start: single-param (
-                           spec-type: copy/part single-param-start (index-of name-start) - (index-of single-param-start)
+                        single-param-start: single-param (
+                            spec-type: (
+                                copy/part single-param-start
+                                    (index of name-start)
+                                    - (index of single-param-start)
+                            )
                            ;dump spec-type
                        )
                        any [
                            any white-space
                            param-end: #"," (
-                               ; case 2)
-                               ; spec-type should be "int ", and name should be "i"
-                               poke (find/skip param-block name 2) 2
-                                   either typed? [
-                                       copy/part single-param-start (index-of param-end) - (index-of single-param-start)
-                                   ][
-                                       ; handling "j" in case 2)
-                                       unspaced [
-                                           spec-type    ; "int "
-                                           copy/part single-param-start (index-of param-end) - (index-of single-param-start) ; " *j"
+                                ; case 2)
+                                ; spec-type should be "int ", and name should be "i"
+                                poke (find/skip param-block name 2) 2
+                                    either typed? [
+                                        (copy/part single-param-start
+                                            (index of param-end)
+                                            - (index of single-param-start)
+                                        )
+                                    ][
+                                    ; handling "j" in case 2)
+                                        unspaced [
+                                            spec-type    ; "int "
+                                            (copy/part single-param-start
+                                                (index of param-end)
+                                                - (index of single-param-start)
+                                            ) ; " *j"
                                        ]
                                    ]
                                    typed?: false
@@ -245,12 +256,18 @@ fix-kr: function [
                        (
                            poke (find/skip param-block name 2) 2
                                either typed? [
-                                   copy/part single-param-start (index-of param-end) - (index-of single-param-start)
+                                   (copy/part single-param-start
+                                        (index of param-end)
+                                        - (index of single-param-start)
+                                    )
                                ][
                                    ; handling "k" in case 2)
                                    unspaced [
                                        spec-type    ; "int "
-                                       copy/part single-param-start (index-of param-end) - (index-of single-param-start) ; " **k"
+                                       (copy/part single-param-start
+                                            (index of param-end)
+                                            - (index of single-param-start)
+                                       ) ; " **k"
                                    ]
                                ]
                            )

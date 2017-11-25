@@ -56,6 +56,37 @@ if :file-to-local = () [
     local-to-file: :to-rebol-file
 ]
 
+; OF is an action-like dispatcher which is used for property extraction.  It
+; quotes its left argument, which R3-Alpha cannot do.  One might think it
+; could be quoted by turning the properties being asked for by WORD! into
+; functions, and letting them handle the dispatch...ignoring the OF:
+;
+;     length: func ['w [word!] series] [
+;         assert [w = 'of]
+;         return length? series
+;     ]
+;
+; The problem with this is that you now can't call your variables LENGTH or
+; TYPE or WORDS--which are all very common.  Instead they are set by default
+; to functions that warn you about this.  They can be overwritten.
+;
+if :of = () [
+    index: func [dummy:] [
+        fail/where "INDEX OF not supported in R3-Alpha, use INDEX-OF" 'dummy
+    ]
+    offset: func [dummy:] [
+        fail/where "OFFSET OF not supported in R3-Alpha, use OFFSET-OF" 'dummy
+    ]
+    length: func [dummy:] [
+        fail/where "LENGTH OF not supported in R3-Alpha, use LENGTH-OF" 'dummy
+    ]
+    type: func [dummy:] [
+        fail/where "TYPE OF not supported in R3-Alpha, use TYPE-OF" 'dummy
+    ]
+    words: func [dummy:] [
+        fail/where "WORDS OF not supported in R3-Alpha, use WORDS-OF" 'dummy
+    ]
+]
 
 if true = attempt [void? :some-undefined-thing] [
     ;

@@ -49,7 +49,7 @@ decode-key-value-text: function [
 
     emit-meta: func [<local> key] [
         key: replace/all copy/part position eof #" " #"-"
-        remove back tail key
+        remove back tail-of key
         append meta reduce [
             to word! key
             trim/auto copy/part eof eol
@@ -85,7 +85,7 @@ decode-lines: function [
             {and end with newline.}
         ]
     ]
-    remove back tail text
+    remove back tail-of text
     text
 ]
 
@@ -96,8 +96,7 @@ encode-lines: func [
     line-prefix [string!] {Usually "**" or "//".}
     indent [string!] {Usually "  ".}
     <local> bol pos
-] [
-
+][
     ; Note: Preserves newline formatting of the block.
 
     ; Encode newlines.
@@ -108,7 +107,7 @@ encode-lines: func [
     if not equal? newline :pos/1 [insert pos indent]
 
     ; Clear indent from tail if present.
-    if indent = pos: skip tail text 0 - length indent [clear pos]
+    if indent = pos: skip tail-of text 0 - length-of indent [clear pos]
     append text newline
 
     text
@@ -142,7 +141,7 @@ load-next: function [
     string [string!]
 ] [
     out: transcode/next to binary! string
-    out/2: skip string subtract length string length to string! out/2
+    out/2: skip string subtract length-of string length-of to string! out/2
     out
 ] ; by @rgchris.
 
