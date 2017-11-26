@@ -632,13 +632,13 @@ reevaluate:;
         // not all params will consume arguments for all calls.
 
     process_function:
-        TRASH_POINTER_IF_DEBUG(current); // shouldn't be used below
-        TRASH_POINTER_IF_DEBUG(current_gotten);
-
         assert(
             (f->refine == ORDINARY_ARG && IS_END(f->out))
-            || f->refine == LOOKBACK_ARG
-        ); // ORDINARY_ARG and LOOKBACK_ARG are local to this file
+            || (f->refine == LOOKBACK_ARG && NOT(IS_TRASH_DEBUG(f->out)))
+        );
+
+        TRASH_POINTER_IF_DEBUG(current); // shouldn't be used below
+        TRASH_POINTER_IF_DEBUG(current_gotten);
 
         // There may be refinements pushed to the data stack to process, if
         // the call originated from a path dispatch.
@@ -1621,15 +1621,9 @@ reevaluate:;
 //==//////////////////////////////////////////////////////////////////////==//
 
     case REB_WORD:
-        if (current_gotten == END) {
+        if (current_gotten == END)
             current_gotten = Get_Opt_Var_May_Fail(current, f->specifier);
-            goto do_word_in_current_unchecked;
-        }
 
-    do_word_in_current:
-        assert(current_gotten == Get_Opt_Var_May_Fail(current, f->specifier));
-
-    do_word_in_current_unchecked:
         if (IS_FUNCTION(current_gotten)) { // before IS_VOID() is common case
             Push_Function(
                 f,
@@ -1641,7 +1635,7 @@ reevaluate:;
             // If a function gets dispatched here by a word, then it can't
             // have any enfix arguments.  It will just see an <end>
             //
-            assert(IS_UNREADABLE_IF_DEBUG(f->out));
+            assert(IS_END(f->out) || IS_UNREADABLE_IF_DEBUG(f->out));
             SET_END(f->out);
             if (GET_VAL_FLAG(current_gotten, VALUE_FLAG_ENFIXED))
                 f->refine = LOOKBACK_ARG;
@@ -2181,7 +2175,19 @@ reevaluate:;
             current_gotten = f->gotten; // if END, the word will error
             f->gotten = END;
             Fetch_Next_In_Frame(f);
-            goto do_word_in_current;
+
+            // Were we to jump to the REB_WORD switch case here, LENGTH would
+            // cause an error in the expression below:
+            //
+            //     if true [] length of "hello"
+            //
+            // `reevaluate` accounts for the extra lookahead of when after
+            // evaluating something like IF TRUE [] you have a case where
+            // even though LENGTH isn't enfix itself, enfix accounting must
+            // be done by looking ahead to see if something after it (like
+            // OF) is enfix and wants to quote it!
+            //
+            goto reevaluate;
         }
 
         if (GET_VAL_FLAG(f->gotten, VALUE_FLAG_ENFIXED)) {
