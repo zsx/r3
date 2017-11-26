@@ -63,7 +63,7 @@ if :file-to-local = () [
 ;
 ;     length: func ['w [word!] series] [
 ;         assert [w = 'of]
-;         return length? series
+;         return length of series
 ;     ]
 ;
 ; The problem with this is that you now can't call your variables LENGTH or

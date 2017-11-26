@@ -10,8 +10,8 @@
 ; the "result" of throw should not be passable to functions, bug#1509
 [a: 1 catch [a: error? throw 2] :a =? 1]
 ; bug#1535
-[catch [words-of throw blank] true]
-[catch [values-of throw blank] true]
+[catch [word of throw blank] true]
+[catch [values of throw blank] true]
 ; bug#1945
 [catch [spec-of throw blank] true]
 [a: 1 catch/name [a: error? throw/name 2 'b] 'b :a =? 1]

@@ -10,19 +10,19 @@
     ; small
     data: copy {}
     call/wait/output [%../make/r3 "--suppress" "*" %call/print.reb "100"] data
-    100 == (length-of data)
+    100 == (length of data)
 ]
 [
     ; medium
     data: copy {}
     call/wait/output [%../make/r3 "--suppress" "*" %call/print.reb "9000"] data
-    9000 == (length-of data)
+    9000 == (length of data)
 ]
 [
     ; large
     data: copy {}
     call/wait/output [%../make/r3 "--suppress" "*" %call/print.reb "80000"] data
-    80'000 == (length-of data)
+    80'000 == (length of data)
 ]
 
 ;; git log crash (inconsistent)
@@ -34,7 +34,7 @@
         data: copy {}
         call/wait/output [%/usr/bin/git "log" {--pretty=format:'[commit: {%h} author: {%an} email: {%ae} date-string: {%ai} summary: {%s}]'}] data
         and?
-            (length-of data) > 500'000
+            (length of data) > 500'000
             find? data "summary: {Initial commit}]"  ;; bottom of log
     ] else [true] ;; test wasn't run but no way to skip :(
 ]

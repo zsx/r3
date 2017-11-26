@@ -42,7 +42,7 @@ intern: function [
     data [block! any-word!] "Word or block of words to be added (deeply)"
 ][
     ; for optimization below (index for resolve)
-    index: 1 + length-of usr: system/contexts/user
+    index: 1 + length of usr: system/contexts/user
 
     ; Extend the user context with new words
     data: bind/new :data usr
@@ -149,7 +149,7 @@ load-header: function [
         string? source [tmp: to binary! source]
 
         not data: script? tmp [ ; no script header found
-            return either required ['no-header] [reduce [_ tmp tail tmp]]
+            return either required ['no-header] [reduce [_ tmp tail of tmp]]
         ]
 
         ; get 'rebol keyword
@@ -186,7 +186,7 @@ load-header: function [
             end: skip rest tmp
         ]
 
-        not end [end: tail data]
+        not end [end: tail of data]
 
         only [
             ; decompress and checksum not done
@@ -396,7 +396,7 @@ load: function [
             all_LOAD
             header
             empty? data
-            1 < length-of data
+            1 < length of data
         ][
             data: first data
         ]
@@ -441,7 +441,7 @@ do-needs: function [
                     cause-error 'syntax 'needs reduce ['core needs]
                 ]
 
-                3 >= length-of needs [ ; no platform id
+                3 >= length of needs [ ; no platform id
                     blank
                 ]
 
@@ -460,7 +460,7 @@ do-needs: function [
     ]
 
     ; Parse the needs dialect [source <version> <checksum-hash>]
-    mods: make block! length-of needs
+    mods: make block! length of needs
     name: vers: hash: _
     unless parse needs [
         here:
@@ -542,7 +542,7 @@ load-ext-module: function [
             :f
         ]
     ]
-    mod: make module! (length-of code) / 2
+    mod: make module! (length of code) / 2
     set-meta mod hdr
     if errors: find code to set-word! 'errors [
         eo: construct make object! [
@@ -702,7 +702,7 @@ load-module: function [
                 cause-error 'script 'bad-refines blank
             ]
 
-            data: make block! length-of source
+            data: make block! length of source
 
             unless parse source [
                 any [
@@ -1097,8 +1097,8 @@ unload-extension: procedure [
     remove find system/extensions ext
     for-each m ext/modules [
         remove/part back find system/modules m 3
-        ;print ["words-of m:" words-of m]
-        for-each w words-of m [
+        ;print ["words of m:" words of m]
+        for-each w words of m [
             v: get w
             if all [function? :v 1 = func-class-of :v] [
                 unload-native :v

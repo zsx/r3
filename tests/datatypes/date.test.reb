@@ -1,7 +1,7 @@
 ; datatypes/date.r
 [date? 25/Sep/2006]
 [not date? 1]
-[date! = type-of 25/Sep/2006]
+[date! = type of 25/Sep/2006]
 ; alternative formats
 [25/Sep/2006 = 25/9/2006]
 [25/Sep/2006 = 25-Sep-2006]

@@ -1,7 +1,7 @@
 ; datatypes/object.r
 [object? make object! [x: 1]]
 [not object? 1]
-[object! = type-of make object! [x: 1]]
+[object! = type of make object! [x: 1]]
 ; minimum
 [object? make object! []]
 ; literal form
@@ -77,12 +77,12 @@
 [
     o: make object! []
     append o [b: 1 b: 2]
-    1 == length? words-of o
+    1 == length of words of o
 ]
 [
     o: make object! [b: 0]
     append o [b: 1 b: 2]
-    1 == length? words-of o
+    1 == length of words of o
 ]
 [
     o: make object! []

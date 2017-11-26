@@ -157,7 +157,7 @@ gtk-container-add:
 
 init-gtk: function [app] [
     arg0: make struct! compose/deep [
-        appn [uint8 [(1 + length? app)]]
+        appn [uint8 [(1 + length of app)]]
     ]
     change arg0 append to binary! app #{00}
 

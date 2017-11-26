@@ -119,13 +119,13 @@
 ;; rid of /local on all the internal generators.
 ; bug#2076
 [
-    o: context-of use [x] ['x]
-    3 == length? words-of append o 'self ; !!! weird test, includes /local
+    o: context of use [x] ['x]
+    3 == length of words of append o 'self ; !!! weird test, includes /local
 ]
 ; bug#2076
 [
-    o: context-of use [x] ['x]
-    3 == length? words-of append o [self: 1] ; weird test, includes /local
+    o: context of use [x] ['x]
+    3 == length of words of append o [self: 1] ; weird test, includes /local
 ]
 
 [equal? mold/all #[email! ""] {#[email! ""]}]
@@ -437,7 +437,7 @@
 
 [
     o: make object! [a: _]
-    same? context-of in o 'self context-of in o 'a
+    same? context of in o 'self context-of in o 'a
 ]
 
 ; bug#1745
@@ -531,7 +531,7 @@
 ; bug#1613
 [exists? http://www.rebol.com/index.html]
 
-[0 = sign? USD$0]
+[0 = sign-of USD$0]
 
 ; bug#1894
 [
@@ -540,7 +540,7 @@
 ]
 
 #64bit
-[[1] = copy/part tail [1] -9223372036854775808]
+[[1] = copy/part tail of [1] -9223372036854775808]
 
 #64bit
 [[] = copy/part [] 9223372036854775807]

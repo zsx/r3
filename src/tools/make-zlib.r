@@ -183,9 +183,9 @@ fix-kr: function [
             ]
             #"^{" check-point: (
                 ;print ["func:" to string! fn]
-                remove/part param-ser length param-spec
+                remove/part param-ser length of param-spec
                 insert param-ser "^/"
-                length-diff: 1 - (length param-spec)
+                length-diff: 1 - (length of param-spec)
 
                 param-len: (index of close-paren) - (index of open-paren)
                 params: copy/part open-paren param-len
@@ -280,7 +280,7 @@ fix-kr: function [
                 insert open-paren new-param: delimit (extract/index param-block 2 2) ",^/    "
                 insert open-paren "^/    "
 
-                length-diff: length-diff + length new-param
+                length-diff: length-diff + length of new-param
 
                 check-point: skip check-point length-diff
             )

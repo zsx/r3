@@ -1,7 +1,7 @@
 ; datatypes/char.r
 [char? #"a"]
 [not char? 1]
-[char! = type-of #"a"]
+[char! = type of #"a"]
 [#"^@" = #"^(00)"]
 [#"^A" = #"^(01)"]
 [#"^B" = #"^(02)"]

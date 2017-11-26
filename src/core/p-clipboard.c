@@ -41,6 +41,24 @@ static REB_R Clipboard_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
     REBREQ *req = Ensure_Port_State(port, RDI_CLIPBOARD);
 
     switch (action) {
+
+    case SYM_REFLECT: {
+        INCLUDE_PARAMS_OF_REFLECT;
+
+        UNUSED(ARG(value)); // implied by `port`
+        REBSYM property = VAL_WORD_SYM(ARG(property));
+        assert(property != 0);
+
+        switch (property) {
+        case SYM_OPEN_Q:
+            return R_FROM_BOOL(LOGICAL(req->flags & RRF_OPEN));
+
+        default:
+            break;
+        }
+
+        break; }
+
     case SYM_ON_WAKE_UP:
         // Update the port object after a READ or WRITE operation.
         // This is normally called by the WAKE-UP function.
@@ -200,7 +218,7 @@ static REB_R Clipboard_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
         if (result < 0)
             fail (Error_On_Port(RE_WRITE_ERROR, port, req->error));
-        break; }
+        goto return_port; }
 
     case SYM_OPEN: {
         INCLUDE_PARAMS_OF_OPEN;
@@ -221,20 +239,20 @@ static REB_R Clipboard_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
         if (OS_DO_DEVICE(req, RDC_OPEN))
             fail (Error_On_Port(RE_CANNOT_OPEN, port, req->error));
-        break; }
+        goto return_port; }
 
     case SYM_CLOSE:
         OS_DO_DEVICE(req, RDC_CLOSE);
-        break;
-
-    case SYM_OPEN_Q:
-        return R_FROM_BOOL(LOGICAL(req->flags & RRF_OPEN));
+        goto return_port;
 
     default:
-        fail (Error_Illegal_Action(REB_PORT, action));
+        break;
     }
 
-    Move_Value(D_OUT, D_ARG(1)); // port
+    fail (Error_Illegal_Action(REB_PORT, action));
+
+return_port:
+    Move_Value(D_OUT, D_ARG(1));
     return R_OUT;
 }
 

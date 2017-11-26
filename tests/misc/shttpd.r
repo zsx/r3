@@ -22,7 +22,7 @@ start-response: func [port res <local> code text type body] [
     write port unspaced [
         "HTTP/1.0" space code space code-map/:code crlf
         "Content-type:" space type crlf
-        "Content-length:" space length? body crlf
+        "Content-length:" space length of body crlf
         crlf
     ]
     ;; Manual chunking is only necessary because of several bugs in R3's

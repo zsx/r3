@@ -204,7 +204,7 @@ do*: function [
             result: import catch/quit/with [
                 module/mixin hdr code (opt do-needs/no-user hdr)
             ] :finalizer
-            if next_DO* [set var tail code]
+            if next_DO* [set var tail of code]
         ][
             do-needs hdr  ; Load the script requirements
             intern code   ; Bind the user script

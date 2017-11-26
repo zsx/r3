@@ -1,7 +1,7 @@
 ; datatypes/none.r
 [blank? blank]
 [not blank? 1]
-[blank! = type-of blank]
+[blank! = type of blank]
 ; literal form
 [blank = _]
 ; bug#845

@@ -132,7 +132,9 @@ rebsource: context [
                 malloc-found: make block! []
 
                 malloc-check: [
-                    and identifier "malloc" (append malloc-found line-of head position position)
+                    and identifier "malloc" (
+                        append malloc-found line-of head of position position
+                    )
                 ]
 
                 parse/case data [
@@ -261,7 +263,7 @@ rebsource: context [
 
             either all [
                 position: find data #{0a}
-                1 < index-of position
+                1 < index of position
                 13 = first back position
             ] [
                 set [line-ending alt-ending] reduce [crlf newline]
@@ -271,7 +273,7 @@ rebsource: context [
 
             count-line: [
                 (
-                    line-len: subtract index-of position index-of bol 
+                    line-len: subtract index of position index of bol 
                     if line-len > standard/std-line-length [
                         append over-std-len line
                         if line-len > standard/max-line-length [
@@ -324,7 +326,7 @@ rebsource: context [
                 ]
             ]
 
-            foreach list [tabbed eol-wsp] [
+            for-each list [tabbed eol-wsp] [
                 if not empty? get list [
                     emit analysis [(list) (file) (get list)]
                 ]
@@ -337,8 +339,10 @@ rebsource: context [
             if all [
                 not tail? data
                 not equal? 10 last data ; Check for newline.
-            ] [
-                emit analysis [eof-eol-missing (file) (reduce [line-of data tail data])]
+            ][
+                emit analysis [
+                    eof-eol-missing (file) (reduce [line-of data tail of data])
+                ]
             ]
 
             analysis
@@ -352,7 +356,7 @@ rebsource: context [
         ][
             if not src-folder [fail {Configuration required.}]
 
-            files: make block! 1 + (2 * length-of fixed-source-paths)
+            files: make block! 1 + (2 * length of fixed-source-paths)
 
             for-each path fixed-source-paths [
                 for-each file read join-of src-folder path [
@@ -397,7 +401,7 @@ rebsource: context [
     ] proto-parser c.lexical/grammar
 
     emit: function [log body] [
-        insert position: tail log new-line/all compose/only body false
+        insert position: tail of log new-line/all compose/only body false
         new-line position true
     ]
 

@@ -1,6 +1,6 @@
 [tag? <tag>]
 [not tag? 1]
-[tag! = type-of <tag>]
+[tag! = type of <tag>]
 
 [tag? #[tag! ""]]
 [strict-equal? #[tag! ""] make tag! 0]

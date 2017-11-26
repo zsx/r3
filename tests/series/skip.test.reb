@@ -25,29 +25,29 @@
 ]
 [
     blk: next [1 2 3]
-    same? tail blk skip blk 2
+    same? tail of blk skip blk 2
 ]
 [
     blk: next [1 2 3]
-    same? tail blk skip blk 2147483647
+    same? tail of blk skip blk 2147483647
 ]
 [
     blk: at [1 2 3] 3
-    same? tail blk skip blk 2147483646
+    same? tail of blk skip blk 2147483646
 ]
 [
     blk: at [1 2 3] 4
-    same? tail blk skip blk 2147483645
+    same? tail of blk skip blk 2147483645
 ]
 [
     blk: [1 2 3]
-    same? head blk skip blk -1
+    same? head of blk skip blk -1
 ]
 [
     blk: [1 2 3]
-    same? head blk skip blk -2147483647
+    same? head of blk skip blk -2147483647
 ]
 [
     blk: next [1 2 3]
-    same? head blk skip blk -2147483648
+    same? head of blk skip blk -2147483648
 ]

@@ -25,19 +25,19 @@ dump-obj: function [
     clip-str: func [str] [
         ; Keep string to one line.
         trim/lines str
-        if (length str) > 48 [str: append copy/part str 45 "..."]
+        if (length of str) > 48 [str: append copy/part str 45 "..."]
         str
     ]
 
     form-val: func [val [any-value!]] [
         ; Form a limited string from the value provided.
-        if any-block? :val [return spaced ["length:" length-of val]]
+        if any-block? :val [return spaced ["length:" length of val]]
         if image? :val [return spaced ["size:" val/size]]
         if datatype? :val [return form val] 
         if function? :val [
             return clip-str any [title-of :val mold spec-of :val]
         ]
-        if object? :val [val: words-of val]
+        if object? :val [val: words of val]
         if typeset? :val [val: to-block val]
         if port? :val [val: reduce [val/spec/title val/spec/ref]]
         if gob? :val [return spaced ["offset:" val/offset "size:" val/size]]
@@ -47,7 +47,7 @@ dump-obj: function [
     form-pad: func [val size] [
         ; Form a value with fixed size (space padding follows).
         val: form val
-        insert/dup tail val #" " size - length-of val
+        insert/dup tail of val #" " size - length of val
         val
     ]
 
@@ -56,10 +56,10 @@ dump-obj: function [
         wild: all [set? 'pat | string? pat | find pat "*"]
 
         for-each [word val] obj [
-            type: type-of :val
+            type: type of :val
 
             str: either maybe [function! object!] :type [
-                spaced [word _ mold spec-of :val _ words-of :val]
+                spaced [word _ mold spec-of :val _ words of :val]
             ][
                 form word
             ]
@@ -84,7 +84,7 @@ dump-obj: function [
             ][
                 str: form-pad word 15
                 append str #" "
-                append str form-pad type 10 - ((length-of str) - 15)
+                append str form-pad type 10 - ((length of str) - 15)
                 keep spaced [
                     "  " str
                     if type [form-val :val]
@@ -107,9 +107,9 @@ dump: proc [
         leave
     ] ;-- treat this DUMP as disabled, `dump | x`
 
-    clip-string: function [str len][
-       either len < length-of str [
-          delimit [ copy/part str len - 3 "..." ] _
+    clip-string: function [str len] [
+       either len < length of str [
+          unspaced [copy/part str len - 3 "..."]
        ][
           str
        ]
@@ -226,7 +226,7 @@ spec-of: function [
         select original-meta 'parameter-notes
     ]
 
-    for-each param words-of :value [
+    for-each param words of :value [
         append spec param
         if any [type: select types param] [append/only spec type]
         if any [note: select notes param] [append spec note]
@@ -241,8 +241,8 @@ title-of: function [
 
     value [any-value!]
 ][
-    switch type-of :value [
-        :function! [
+    switch type of :value [
+        (function!) [
             all [
                 object? meta: meta-of :value
                 string? description: select meta 'description
@@ -250,13 +250,13 @@ title-of: function [
             ]
         ]
 
-        :datatype! [
+        (datatype!) [
             spec: spec-of value
             assert [string? spec] ;-- !!! Consider simplifying "type specs"
             spec/title
         ]
-
-        (blank)
+    ] else [
+        blank
     ]
 ]
 
@@ -354,7 +354,7 @@ help: procedure [
         leave
     ]
 
-    if all [word? :topic | blank? context-of topic] [
+    if all [word? :topic | blank? context of topic] [
         print [topic "is an unbound WORD!"]
         leave
     ]
@@ -387,7 +387,7 @@ help: procedure [
             tmp: %.MD
             https://github.com/gchiu/reboldocs/blob/master/
         ][
-            remove back tail item ; the !
+            remove back tail of item ; the !
             tmp: %.html
             http://www.rebol.com/r3/docs/datatypes/
         ]
@@ -418,8 +418,8 @@ help: procedure [
 
     ; Print type name with proper singular article:
     type-name: func [value [any-value!]] [
-        value: mold type-of :value
-        clear back tail value
+        value: mold type of :value
+        clear back tail of value
         spaced [(either find "aeiou" first value ["an"]["a"]) value]
     ]
 
@@ -475,7 +475,7 @@ help: procedure [
     args: _ ;-- plain arguments
     refinements: _ ;-- refinements and refinement arguments
 
-    parse words-of :value [
+    parse words of :value [
         copy args any [word! | get-word! | lit-word! | issue!]
         copy refinements any [
             refinement! | word! | get-word! | lit-word! | issue!
@@ -623,7 +623,7 @@ source: make function! [[
     case [
         tag? :arg [
             f: copy "unknown tag"
-            for-each location words-of system/locale/library [
+            for-each location words of system/locale/library [
                 if location: select load get location arg [
                     f: location/1
                     break
@@ -690,7 +690,7 @@ source: make function! [[
             print f
         ]
         true [
-            print [name "is a" mold type-of :f "and not a FUNCTION!"]
+            print [name "is a" mold type of :f "and not a FUNCTION!"]
         ]
     ]
     () ;-- return nothing, as with a PROCEDURE
@@ -712,21 +712,25 @@ what: procedure [
     for-each [word val] ctx [
         if function? :val [
             arg: either args [
-                arg: words-of :val
+                arg: words of :val
                 clear find arg /local
                 mold arg
             ][
                 title-of :val
             ]
             append list reduce [word arg]
-            size: max size length-of to-string word
+            size: max size length of to-string word
         ]
     ]
 
     vals: make string! size
     for-each [word arg] sort/skip list 2 [
         append/dup clear vals #" " size
-        print [head change vals word | :arg]
+        print [
+            head of change vals word
+                |
+            :arg
+        ]
     ]
 ]
 

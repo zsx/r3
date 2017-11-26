@@ -58,7 +58,7 @@
 [true = all [true]]
 [blank? all [false]]
 [$1 == all [$1]]
-[same? :type-of all [:type-of]]
+[same? :append all [:append]]
 [blank? all [_]]
 [
     a-value: make object! []
@@ -154,7 +154,7 @@
     :a-value == all [true :a-value]
 ]
 [$1 == all [true $1]]
-[same? :type-of all [true :type-of]]
+[same? :append all [true :append]]
 [blank? all [true _]]
 [
     a-value: make object! []
@@ -252,7 +252,7 @@
 [blank? all [false true]]
 [blank? all [true false]]
 [true = all [$1 true]]
-[true = all [:type-of true]]
+[true = all [:append true]]
 [blank? all [_ true]]
 [
     a-value: make object! []

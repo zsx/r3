@@ -226,7 +226,7 @@ make-http-request: func [
     ]
     if content [
         content: to binary! content
-        join result ["Content-Length:" space (length-of content) CRLF]
+        join result ["Content-Length:" space (length of content) CRLF]
     ]
     append result CRLF
     result: to binary! result
@@ -318,7 +318,11 @@ check-response: function [port] [
             if trap? [
                 body: to string! conn/data
                 dump body
-            ][print unspaced ["S: " length-of conn/data " binary bytes in buffer ..."]]
+            ][
+                print unspaced [
+                    "S: " length of conn/data " binary bytes in buffer ..."
+                ]
+            ]
         ]
     ]
     unless headers [
@@ -364,7 +368,7 @@ check-response: function [port] [
     ]
     switch/all info/response-parsed [
         ok [
-            either spec/method = 'head [
+            either spec/method = 'HEAD [
                 state/state: 'ready
                 res: awake make event! [type: 'done port: port]
                 unless res [res: awake make event! [type: 'ready port: port]]
@@ -377,7 +381,7 @@ check-response: function [port] [
             ]
         ]
         redirect see-other [
-            either spec/method = 'head [
+            either spec/method = 'HEAD [
                 state/state: 'ready
                 res: awake make event! [type: 'custom port: port code: 0]
             ] [
@@ -407,7 +411,7 @@ check-response: function [port] [
             ]
         ]
         unauthorized client-error server-error proxy-auth [
-            either spec/method = 'head [
+            either spec/method = 'HEAD [
                 state/state: 'ready
             ] [
                 check-data port
@@ -514,7 +518,7 @@ check-data: function [port] [
         headers/transfer-encoding = "chunked" [
             data: conn/data
             ;clear the port data only at the beginning of the request --Richard
-            unless port/data [port/data: make binary! length-of data]
+            unless port/data [port/data: make binary! length of data]
             out: port/data
             loop-until [
                 either parse data [
@@ -541,7 +545,7 @@ check-data: function [port] [
                         either parse mk1 [
                             chunk-size skip mk2: crlfbin to end
                         ] [
-                            insert/part tail out mk1 mk2
+                            insert/part tail of out mk1 mk2
                             remove/part data skip mk2 2
                             empty? data
                         ] [
@@ -561,7 +565,7 @@ check-data: function [port] [
         ]
         integer? headers/content-length [
             port/data: conn/data
-            either headers/content-length <= length-of port/data [
+            either headers/content-length <= length of port/data [
                 state/state: 'ready
                 conn/data: make binary! 32000
                 res: state/awake make event! [
@@ -726,7 +730,7 @@ sys/make-scheme [
         copy: func [
             port [port!]
         ][
-            either all [port/spec/method = 'head port/state] [
+            either all [port/spec/method = 'HEAD | port/state] [
                 reduce bind [name size date] port/state/info
             ][
                 if port/data [copy port/data]
@@ -751,7 +755,7 @@ sys/make-scheme [
             port [port!]
         ][
             ; actor is not an object!, so this isn't a recursive length call
-            either port/data [length-of port/data] [0]
+            if port/data [length of port/data] else [0]
         ]
     ]
 ]

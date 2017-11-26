@@ -93,11 +93,28 @@ REBTYPE(Unit)
     assert(!IS_VOID(val));
 
     switch (action) {
-    case SYM_TAIL_Q:
-        return R_TRUE;
 
-    case SYM_INDEX_OF:
-    case SYM_LENGTH_OF:
+    case SYM_REFLECT: {
+        INCLUDE_PARAMS_OF_REFLECT;
+
+        UNUSED(ARG(value)); // covered by `val` above
+        REBSYM property = VAL_WORD_SYM(ARG(property));
+        assert(property != SYM_0);
+
+        switch (property) {
+        case SYM_TAIL_Q:
+            return R_TRUE;
+
+        case SYM_INDEX:
+        case SYM_LENGTH:
+            return R_BLANK;
+
+        default:
+            break;
+        }
+
+        break; }
+
     case SYM_SELECT_P:
     case SYM_FIND:
     case SYM_REMOVE:

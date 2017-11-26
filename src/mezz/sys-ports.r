@@ -87,14 +87,16 @@ make-port*: function [
     pass-char:   complement make bitset! "^/ ^-@"
     s1: s2: _ ; in R3, input datatype is preserved - these are now URL strings!
     out: []
-    emit: func ['w v] [reduce/into [to set-word! w if :v [to string! :v]] tail out]
+    emit: func ['w v] [
+        reduce/into [to set-word! w if :v [to string! :v]] tail of out
+    ]
 
     rules: [
         ; Scheme://user-host-part
         [
             ; scheme name: [//]
             copy s1 some scheme-char ":" opt "//" ; we allow it
-            (reduce/into [to set-word! 'scheme to lit-word! to string! s1] tail out)
+            (reduce/into [to set-word! 'scheme to lit-word! to string! s1] tail of out)
 
             ; optional user [:pass]
             opt [
@@ -110,7 +112,7 @@ make-port*: function [
                     #":" copy s2 digits (
                         compose/into [
                             port-id: (to-integer/unsigned s2)
-                        ] tail out
+                        ] tail of out
                     )
                 ] (
                     ; Note: This code has historically attempted to convert
@@ -177,7 +179,7 @@ make-scheme: function [
 
     ; If actor is block build a non-contextual actor object:
     if block? :scheme/actor [
-        actor: make object! (length-of scheme/actor) / 4
+        actor: make object! (length of scheme/actor) / 4
         for-each [name func* args body] scheme/actor [
             ; !!! Comment here said "Maybe PARSE is better here", though
             ; knowing would depend on understanding precisely what the goal
@@ -196,7 +198,7 @@ make-scheme: function [
     ]
 
     unless maybe [object! handle!] :scheme/actor [
-        fail ["Scheme actor" :scheme/name "can't be" type-of :scheme/actor]
+        fail ["Scheme actor" :scheme/name "can't be" type of :scheme/actor]
     ]
 
     append system/schemes reduce [scheme/name scheme]

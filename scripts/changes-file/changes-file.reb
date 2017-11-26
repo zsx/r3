@@ -84,7 +84,7 @@ make-changes-block: function [
         ]    
 
         ;; append change to changes
-        append block/(length? block)/changes/:category co
+        append block/(length of block)/changes/:category co
     ]
 
     for-each c commits [
@@ -322,7 +322,7 @@ make-changes-file: procedure [
         ]
 
         ;; ### Category (type)
-        for-each type words-of release/changes [
+        for-each type (words of release/changes) [
             unless empty? release/changes/:type [
                 write-line [{### } type]
 

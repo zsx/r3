@@ -2,7 +2,7 @@
 
 [module? module [] []]
 [not module? 1]
-[module! = type-of module [] []]
+[module! = type of module [] []]
 
 [
     a-module: module [

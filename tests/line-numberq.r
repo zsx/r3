@@ -18,7 +18,7 @@ line-number?: func [
     <local> t line-number
 ] [
     line-number: 1
-    t: head s
+    t: head of s
     parse t [
         any [
             (if greater-or-equal? index? t index? s [return line-number])

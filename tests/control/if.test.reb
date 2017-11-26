@@ -61,7 +61,7 @@
 [if true [true]]
 [void? if false [true]]
 [if $1 [true]]
-[if :type-of [true]]
+[if (specialize 'of [property: 'type]) [true]]
 [void? if blank [true]]
 [if make object! [] [true]]
 [if get '+ [true]]

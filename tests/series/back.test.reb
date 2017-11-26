@@ -4,8 +4,8 @@
     same? a back a
 ]
 [
-    a: tail [1]
-    same? head a back a
+    a: tail of [1]
+    same? head of a back a
 ]
 ; path
 [
@@ -13,13 +13,13 @@
     same? a back a
 ]
 [
-    a: tail 'b/c
-    same? head a back back a
+    a: tail of 'b/c
+    same? head of a back back a
 ]
 ; string
 [
-    a: tail "1"
-    same? head a back a
+    a: tail of "1"
+    same? head of a back a
 ]
 [
     a: "1"

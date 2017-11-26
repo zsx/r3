@@ -743,7 +743,7 @@ void Rebind_Context_Deep(
 // keylist of words to the result if provided.
 //
 // The resulting context will have a SELF: defined as a hidden key (will not
-// show up in `words-of` but will be bound during creation).  As part of
+// show up in `words of` but will be bound during creation).  As part of
 // the migration away from SELF being a keyword, the logic for adding and
 // managing SELF has been confined to this function (called by `make object!`
 // and some other context-creating routines).  This will ultimately turn

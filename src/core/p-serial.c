@@ -50,14 +50,29 @@ static REB_R Serial_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
     if (path == NULL)
         fail (Error_Invalid_Spec_Raw(spec));
 
-    Move_Value(D_OUT, D_ARG(1));
-
     REBREQ *req = Ensure_Port_State(port, RDI_SERIAL);
     struct devreq_serial *serial = DEVREQ_SERIAL(req);
 
     // Actions for an unopened serial port:
     if (NOT(req->flags & RRF_OPEN)) {
         switch (action) {
+
+        case SYM_REFLECT: {
+            INCLUDE_PARAMS_OF_REFLECT;
+
+            UNUSED(ARG(value));
+            REBSYM property = VAL_WORD_SYM(ARG(property));
+            assert(property != SYM_0);
+
+            switch (property) {
+            case SYM_OPEN_Q:
+                return R_FALSE;
+
+            default:
+                break; }
+
+            fail (Error_On_Port(RE_NOT_OPEN, port, -12)); }
+
         case SYM_OPEN:
             arg = Obj_Value(spec, STD_PORT_SPEC_SERIAL_PATH);
             if (! (IS_FILE(arg) || IS_STRING(arg) || IS_BINARY(arg)))
@@ -138,13 +153,10 @@ static REB_R Serial_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
             if (OS_DO_DEVICE(req, RDC_OPEN))
                 fail (Error_On_Port(RE_CANNOT_OPEN, port, -12));
             req->flags |= RRF_OPEN;
-            return R_OUT;
+            goto return_port;
 
         case SYM_CLOSE:
-            return R_OUT;
-
-        case SYM_OPEN_Q:
-            return R_FALSE;
+            goto return_port;
 
         default:
             fail (Error_On_Port(RE_NOT_OPEN, port, -12));
@@ -153,6 +165,23 @@ static REB_R Serial_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
     // Actions for an open socket:
     switch (action) {
+
+    case SYM_REFLECT: {
+        INCLUDE_PARAMS_OF_REFLECT;
+
+        UNUSED(ARG(value));
+        REBSYM property = VAL_WORD_SYM(ARG(property));
+        assert(property != SYM_0);
+
+        switch (property) {
+        case SYM_OPEN_Q:
+            return R_TRUE;
+
+        default:
+            break;
+        }
+
+        break; }
 
     case SYM_READ: {
         INCLUDE_PARAMS_OF_READ;
@@ -198,8 +227,7 @@ static REB_R Serial_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         }
         printf("\n");
 #endif
-        Move_Value(D_OUT, arg);
-        return R_OUT; }
+        goto return_port; }
 
     case SYM_WRITE: {
         INCLUDE_PARAMS_OF_WRITE;
@@ -237,7 +265,7 @@ static REB_R Serial_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         result = OS_DO_DEVICE(req, RDC_WRITE); // send can happen immediately
         if (result < 0)
             fail (Error_On_Port(RE_WRITE_ERROR, port, req->error));
-        break; }
+        goto return_port; }
 
     case SYM_ON_WAKE_UP:
         // Update the port object after a READ or WRITE operation.
@@ -256,20 +284,21 @@ static REB_R Serial_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         }
         return R_BLANK;
 
-    case SYM_OPEN_Q:
-        return R_TRUE;
-
     case SYM_CLOSE:
         if (req->flags & RRF_OPEN) {
             OS_DO_DEVICE(req, RDC_CLOSE);
             req->flags &= ~RRF_OPEN;
         }
-        break;
+        goto return_port;
 
     default:
-        fail (Error_Illegal_Action(REB_PORT, action));
+        break;
     }
 
+    fail (Error_Illegal_Action(REB_PORT, action));
+
+return_port:
+    Move_Value(D_OUT, D_ARG(1));
     return R_OUT;
 }
 

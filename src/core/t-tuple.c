@@ -441,10 +441,25 @@ REBTYPE(Tuple)
     }
 
     switch (action) {
-    case SYM_LENGTH_OF:
-        len = MAX(len, 3);
-        Init_Integer(D_OUT, len);
-        return R_OUT;
+
+    case SYM_REFLECT: {
+        INCLUDE_PARAMS_OF_REFLECT;
+
+        UNUSED(ARG(value));
+        REBSYM property = VAL_WORD_SYM(ARG(property));
+        assert(property != SYM_0);
+
+        switch (property) {
+        case SYM_LENGTH:
+            len = MAX(len, 3);
+            Init_Integer(D_OUT, len);
+            return R_OUT;
+
+        default:
+            break;
+        }
+
+        break; }
 
     case SYM_REVERSE: {
         INCLUDE_PARAMS_OF_REVERSE;

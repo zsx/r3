@@ -149,8 +149,8 @@
 ; Reflexivity for past-tail blocks
 ; Error in R2.
 [
-    a-value: tail [1]
-    clear head a-value
+    a-value: tail of [1]
+    clear head of a-value
     equal? a-value a-value
 ]
 ; Reflexivity for cyclic blocks

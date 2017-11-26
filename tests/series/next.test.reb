@@ -1,9 +1,9 @@
 ; functions/series/next.r
 [
     blk: [1]
-    same? tail blk next blk
+    same? tail of blk next blk
 ]
 [
-    blk: tail [1]
+    blk: tail of [1]
     same? blk next blk
 ]

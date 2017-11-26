@@ -299,7 +299,7 @@ host-console: function [
         ; properties passed from the C main() as a BLOCK! in result.  (These
         ; should probably be injected into the environment somehow instead.)
         ;
-        assert [not set? 'status | block? result | 3 = length-of result]
+        assert [not set? 'status | block? result | 3 = length of result]
         set [exec-path: argv: boot-exts:] result
         return (host-start exec-path argv boot-exts)
     ]

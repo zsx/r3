@@ -313,9 +313,9 @@
     ]
 ]
 [
-    b: head insert copy [] try [1 / 0]
+    b: head of insert copy [] try [1 / 0]
     pokus1: func [[catch] block [block!] /local elem] [
-        for i 1 length? block 1 [
+        for i 1 length of block 1 [
             if error? set/only 'elem first block [
                 throw make error! {Dangerous element}
             ]

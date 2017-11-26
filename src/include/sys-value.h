@@ -1359,11 +1359,33 @@ inline static void SET_EVENT_KEY(RELVAL *v, REBCNT k, REBCNT c) {
 // would hook the memory pools directly.
 //
 
-#define VAL_GOB(v) \
-    ((v)->payload.gob.gob)
+#if defined(NDEBUG) || !defined(__cplusplus)
+    #define VAL_GOB(v) \
+        (v)->payload.gob.gob
 
-#define VAL_GOB_INDEX(v) \
-    ((v)->payload.gob.index)
+    #define VAL_GOB_INDEX(v) \
+        (v)->payload.gob.index
+#else
+    inline static REBGOB* const &VAL_GOB(const RELVAL *v) {
+        assert(IS_GOB(v));
+        return v->payload.gob.gob;
+    }
+
+    inline static REBCNT const &VAL_GOB_INDEX(const RELVAL *v) {
+        assert(IS_GOB(v));
+        return v->payload.gob.index;
+    }
+
+    inline static REBGOB* &VAL_GOB(RELVAL *v) {
+        assert(IS_GOB(v));
+        return v->payload.gob.gob;
+    }
+
+    inline static REBCNT &VAL_GOB_INDEX(RELVAL *v) {
+        assert(IS_GOB(v));
+        return v->payload.gob.index;
+    }
+#endif
 
 inline static void SET_GOB(RELVAL *v, REBGOB *g) {
     VAL_RESET_HEADER(v, REB_GOB);

@@ -137,26 +137,39 @@ REBVAL *Find_Last_Event(REBINT model, REBINT type)
 //
 static REB_R Event_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 {
-    REBVAL *spec;
-    REBVAL *state;
-    REB_R result;
-    REBVAL *arg;
-
-    DECLARE_LOCAL (save_port);
-
-    arg = D_ARGC > 1 ? D_ARG(2) : NULL;
-    Move_Value(D_OUT, D_ARG(1));
+    REBVAL *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
 
     // Validate and fetch relevant PORT fields:
-    state = CTX_VAR(port, STD_PORT_STATE);
-    spec = CTX_VAR(port, STD_PORT_SPEC);
-    if (!IS_OBJECT(spec)) fail (Error_Invalid_Spec_Raw(spec));
+    //
+    REBVAL *state = CTX_VAR(port, STD_PORT_STATE);
+    REBVAL *spec = CTX_VAR(port, STD_PORT_SPEC);
+    if (!IS_OBJECT(spec))
+        fail (Error_Invalid_Spec_Raw(spec));
 
     // Get or setup internal state data:
+    //
     if (!IS_BLOCK(state))
         Init_Block(state, Make_Array(EVENTS_CHUNK - 1));
 
     switch (action) {
+
+    case SYM_REFLECT: {
+        INCLUDE_PARAMS_OF_REFLECT;
+
+        UNUSED(ARG(value)); // implicit in port
+        REBSYM property = VAL_WORD_SYM(ARG(property));
+        assert(property != SYM_0);
+
+        switch (property) {
+        case SYM_LENGTH:
+            Init_Integer(D_OUT, VAL_LEN_HEAD(state));
+            return R_OUT;
+
+        default:
+            break;
+        }
+
+        break; }
 
     case SYM_ON_WAKE_UP:
         return R_BLANK;
@@ -168,16 +181,23 @@ static REB_R Event_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         goto act_blk;
     case SYM_INSERT:
     case SYM_APPEND:
-    //case A_PATH:      // not allowed: port/foo is port object field access
-    //case A_PATH_SET:  // not allowed: above
         if (!IS_EVENT(arg))
             fail (arg);
         // falls through
-    case SYM_PICK_P:
-act_blk:
-        Move_Value(save_port, D_ARG(1)); // save for return
+    case SYM_PICK_P: {
+    act_blk:;
+        //
+        // !!! For performance, this reuses the same frame built for the
+        // INSERT/etc. on a PORT! to do an INSERT/etc. on whatever kind of
+        // value the state is.  It saves the value of the port, substitutes
+        // the state value in the first slot of the frame, and calls the
+        // array type dispatcher.  :-/
+        //
+        DECLARE_LOCAL (save_port);
+        Move_Value(save_port, D_ARG(1));
         Move_Value(D_ARG(1), state);
-        result = T_Array(frame_, action);
+
+        REB_R r = T_Array(frame_, action);
         SET_SIGNAL(SIG_EVENT_PORT);
         if (
             action == SYM_INSERT
@@ -185,18 +205,14 @@ act_blk:
             || action == SYM_REMOVE
         ){
             Move_Value(D_OUT, save_port);
-            break;
+            return R_OUT;
         }
-        return result; // return condition
+        return r; }
 
     case SYM_CLEAR:
         TERM_ARRAY_LEN(VAL_ARRAY(state), 0);
         CLR_SIGNAL(SIG_EVENT_PORT);
-        break;
-
-    case SYM_LENGTH_OF:
-        Init_Integer(D_OUT, VAL_LEN_HEAD(state));
-        break;
+        goto return_port;
 
     case SYM_OPEN: {
         INCLUDE_PARAMS_OF_OPEN;
@@ -222,7 +238,7 @@ act_blk:
                 OS_DO_DEVICE(req, RDC_CONNECT);     // stays queued
             }
         }
-        break; }
+        goto return_port; }
 
     case SYM_CLOSE:
         OS_ABORT_DEVICE(req);
@@ -230,14 +246,19 @@ act_blk:
         // free req!!!
         req->flags &= ~RRF_OPEN;
         req = NULL;
-        break;
+        goto return_port;
 
-    case SYM_FIND: // add it
+    case SYM_FIND:
+        break; // !!! R3-Alpha said "add it" (e.g. unimplemented)
 
     default:
-        fail (Error_Illegal_Action(REB_PORT, action));
+        break;
     }
 
+    fail (Error_Illegal_Action(REB_PORT, action));
+
+return_port:
+    Move_Value(D_OUT, D_ARG(1));
     return R_OUT;
 }
 

@@ -5,7 +5,7 @@
     for-next str [append out first str]
     all [
         head? str
-        out = head str
+        out = head of str
     ]
 ]
 [

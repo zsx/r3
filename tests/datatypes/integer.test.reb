@@ -3,7 +3,7 @@
 ; bug#33
 [integer? -0]
 [not integer? 1.1]
-[integer! = type-of 0]
+[integer! = type of 0]
 [integer? 1]
 [integer? -1]
 [integer? 2]

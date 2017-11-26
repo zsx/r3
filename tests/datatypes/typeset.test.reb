@@ -22,7 +22,7 @@
 [typeset? make typeset! [integer! blank!]]
 [typeset? make typeset! reduce [integer! blank!]]
 [typeset? to-typeset [integer! blank!]]
-[typeset! = type-of any-series!]
+[typeset! = type of any-series!]
 ; bug#92
 [
     x: to typeset! []

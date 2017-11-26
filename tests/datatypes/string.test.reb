@@ -1,7 +1,7 @@
 ; datatypes/string.r
 [string? "ahoj"]
 [not string? 1]
-[string! = type-of "ahoj"]
+[string! = type of "ahoj"]
 ; minimum
 [string? ""]
 ; alternative literal form

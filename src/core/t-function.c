@@ -253,6 +253,11 @@ REBTYPE(Function)
 
         switch (sym) {
 
+        case SYM_CONTEXT: {
+            if (Get_Context_Of(D_OUT, value))
+                return R_OUT;
+            return R_BLANK; }
+
         case SYM_WORDS:
             Init_Block(D_OUT, List_Func_Words(value, FALSE)); // no locals
             return R_OUT;

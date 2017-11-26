@@ -68,4 +68,4 @@ len: sprintf reduce [
     join-of "hello %s" newline
     "world" [pointer]
 ]
-prin ["h:" copy/part to string! values-of h len]
+prin ["h:" copy/part to string! values of h len]

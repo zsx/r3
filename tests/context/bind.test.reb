@@ -1,6 +1,6 @@
 ; functions/context/bind.r
 ; bug#50
-[blank? context-of to word! "zzz"]
+[blank? context of to word! "zzz"]
 ; BIND works 'as expected' in object spec
 ; bug#1549
 [

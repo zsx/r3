@@ -44,7 +44,7 @@ secure: function [
         if word? pol [
             n: find acts pol
             assert-policy n target pol
-            return (index-of n) - 1 * 1.1.1
+            return (index of n) - 1 * 1.1.1
         ]
         ; Detailed case: [file [allow read throw write]]
         flags: 0.0.0
@@ -54,7 +54,7 @@ secure: function [
             assert-policy n target act
             m: select [read 1.0.0 write 0.1.0 execute 0.0.1] perm
             assert-policy m target perm
-            flags: (index-of n) - 1 * m or+ flags
+            flags: (index of n) - 1 * m or+ flags
         ]
         flags
     ])
@@ -135,7 +135,7 @@ secure: function [
     ]
 
     if policy = 'query [
-        out: make block! 2 * length-of pol-obj
+        out: make block! 2 * length of pol-obj
         for-each [target pol] pol-obj [
             case [
                 ; file 0.0.0 (policies)
@@ -163,7 +163,7 @@ secure: function [
     ; Bulk-set all policies:
     if word? policy [
         n: make-policy 'all policy
-        for-each word words-of pol-obj [set word n]
+        for-each word words of pol-obj [set word n]
         set-policies pol-obj
         return ()
     ]

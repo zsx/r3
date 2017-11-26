@@ -1,6 +1,6 @@
 ; functions/series/remove.r
 [[] = remove []]
-[[] = head remove [1]]
+[[] = head of remove [1]]
 ; blank
 [blank = remove blank]
 ; bitset

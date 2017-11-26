@@ -508,6 +508,9 @@ static REBOOL Set_GOB_Var(REBGOB *gob, const REBVAL *word, const REBVAL *val)
 //
 //  Get_GOB_Var: C
 //
+// !!! Things like this Get_GOB_Var routine could be replaced with ordinary
+// OBJECT!-style access if GOB! was an ANY-CONTEXT.
+//
 static REBOOL Get_GOB_Var(REBGOB *gob, const REBVAL *word, REBVAL *val)
 {
     switch (VAL_WORD_SYM(word)) {
@@ -524,7 +527,8 @@ static REBOOL Get_GOB_Var(REBGOB *gob, const REBVAL *word, REBVAL *val)
         if (GOB_TYPE(gob) == GOBT_IMAGE) {
             // image
         }
-        else goto is_blank;
+        else
+            return FALSE;
         break;
 
     case SYM_DRAW:
@@ -532,7 +536,8 @@ static REBOOL Get_GOB_Var(REBGOB *gob, const REBVAL *word, REBVAL *val)
             // !!! comment said "compiler optimizes" the init "calls below" (?)
             Init_Block(val, ARR(GOB_CONTENT(gob)));
         }
-        else goto is_blank;
+        else
+            return FALSE;
         break;
 
     case SYM_TEXT:
@@ -542,21 +547,24 @@ static REBOOL Get_GOB_Var(REBGOB *gob, const REBVAL *word, REBVAL *val)
         else if (GOB_TYPE(gob) == GOBT_STRING) {
             Init_String(val, GOB_CONTENT(gob));
         }
-        else goto is_blank;
+        else
+            return FALSE;
         break;
 
     case SYM_EFFECT:
         if (GOB_TYPE(gob) == GOBT_EFFECT) {
             Init_Block(val, ARR(GOB_CONTENT(gob)));
         }
-        else goto is_blank;
+        else
+            return FALSE;
         break;
 
     case SYM_COLOR:
         if (GOB_TYPE(gob) == GOBT_COLOR) {
             Set_Tuple_Pixel((REBYTE*)&GOB_CONTENT(gob), val);
         }
-        else goto is_blank;
+        else
+            return FALSE;
         break;
 
     case SYM_ALPHA:
@@ -575,7 +583,6 @@ static REBOOL Get_GOB_Var(REBGOB *gob, const REBVAL *word, REBVAL *val)
             SET_GOB(val, GOB_PARENT(gob));
         }
         else
-is_blank:
             Init_Blank(val);
         break;
 
@@ -593,9 +600,10 @@ is_blank:
             Init_Binary(val, GOB_DATA(gob));
         }
         else if (GOB_DTYPE(gob) == GOBD_INTEGER) {
-            Init_Integer(val, (REBIPT)GOB_DATA(gob));
+            Init_Integer(val, cast(REBIPT, GOB_DATA(gob)));
         }
-        else goto is_blank;
+        else
+            return FALSE;
         break;
 
     case SYM_FLAGS:
@@ -694,7 +702,8 @@ REBARR *Gob_To_Array(REBGOB *gob)
             fail ("Unknown GOB! type");
         }
         Init_Set_Word(val1, Canon(sym));
-        Get_GOB_Var(gob, val1, val);
+        if (NOT(Get_GOB_Var(gob, val1, val)))
+            Init_Blank(val);
     }
 
     return array;
@@ -1001,24 +1010,56 @@ void MF_Gob(REB_MOLD *mo, const RELVAL *v, REBOOL form)
 //
 REBTYPE(Gob)
 {
-    REBVAL *val = D_ARG(1);
+    const REBVAL *val = D_ARG(1);
+
+    REBGOB *gob = VAL_GOB(val);
+    REBCNT index = VAL_GOB_INDEX(val);
+    REBCNT tail = GOB_PANE(gob) ? GOB_LEN(gob) : 0;
+
     REBVAL *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
-    REBGOB *gob = NULL;
-    REBGOB *ngob;
-    REBCNT index;
-    REBCNT tail;
-    REBCNT len;
-
-    Move_Value(D_OUT, val);
-
-    assert(IS_GOB(val));
-    gob = VAL_GOB(val);
-    index = VAL_GOB_INDEX(val);
-    tail = GOB_PANE(gob) ? GOB_LEN(gob) : 0;
 
     // unary actions
     switch(action) {
-    //
+    case SYM_REFLECT: {
+        INCLUDE_PARAMS_OF_REFLECT;
+
+        UNUSED(ARG(value)); // covered by `val`
+        REBSYM property = VAL_WORD_SYM(ARG(property));
+        assert(property != SYM_0);
+
+        switch (property) {
+        case SYM_HEAD:
+            index = 0;
+            goto set_index;
+
+        case SYM_TAIL:
+            index = tail;
+            goto set_index;
+
+        case SYM_HEAD_Q:
+            return R_FROM_BOOL(LOGICAL(index == 0));
+
+        case SYM_TAIL_Q:
+            return R_FROM_BOOL(LOGICAL(index >= tail));
+
+        case SYM_PAST_Q:
+            return R_FROM_BOOL(LOGICAL(index > tail));
+
+        case SYM_INDEX:
+            Init_Integer(D_OUT, index + 1);
+            break;
+
+        case SYM_LENGTH:
+            index = (tail > index) ? tail - index : 0;
+            Init_Integer(D_OUT, index);
+            break;
+
+        default:
+            break;
+        }
+
+        break; }
+
     // !!! Note: PICK* and POKE were unified with path dispatch.  The general
     // goal is to unify these mechanisms.  However, GOB! is tricky in terms
     // of what it tried to do with a synthesized PAIR!, calling back into
@@ -1030,9 +1071,11 @@ REBTYPE(Gob)
         if (NOT(ANY_NUMBER(arg) || IS_BLANK(arg)))
             fail (arg);
 
-        if (!GOB_PANE(gob)) goto is_blank;
+        if (!GOB_PANE(gob))
+            return R_BLANK;
         index += Get_Num_From_Arg(arg) - 1;
-        if (index >= tail) goto is_blank;
+        if (index >= tail)
+            return R_BLANK;
         gob = *GOB_AT(gob, index);
         index = 0;
         goto set_index;
@@ -1048,7 +1091,8 @@ REBTYPE(Gob)
         UNUSED(PAR(value)); // handled as `arg`
 
         if (!IS_GOB(arg))
-            goto is_arg_error;
+            fail (Error_Unexpected_Type(REB_GOB, VAL_TYPE(arg)));
+
         if (!GOB_PANE(gob) || index >= tail)
             fail (Error_Past_End_Raw());
         if (
@@ -1083,6 +1127,7 @@ REBTYPE(Gob)
             fail (Error_Not_Done_Raw());
         }
 
+        REBCNT len;
         if (IS_GOB(arg)) {
             len = 1;
         }
@@ -1091,14 +1136,19 @@ REBTYPE(Gob)
             arg = KNOWN(VAL_ARRAY_AT(arg)); // !!! REVIEW
         }
         else
-            goto is_arg_error;
+            fail (Error_Unexpected_Type(REB_GOB, VAL_TYPE(arg)));
 
         Insert_Gobs(gob, arg, index, len, FALSE);
-        break; }
+
+        Move_Value(D_OUT, val);
+        return R_OUT; }
 
     case SYM_CLEAR:
-        if (tail > index) Remove_Gobs(gob, index, tail - index);
-        break;
+        if (tail > index)
+            Remove_Gobs(gob, index, tail - index);
+
+        Move_Value(D_OUT, val);
+        return R_OUT;
 
     case SYM_REMOVE: {
         INCLUDE_PARAMS_OF_REMOVE;
@@ -1110,10 +1160,14 @@ REBTYPE(Gob)
             fail (Error_Bad_Refines_Raw());
         }
 
-        len = REF(part) ? Get_Num_From_Arg(ARG(limit)) : 1;
-        if (index + len > tail) len = tail - index;
-        if (index < tail && len != 0) Remove_Gobs(gob, index, len);
-        break; }
+        REBCNT len = REF(part) ? Get_Num_From_Arg(ARG(limit)) : 1;
+        if (index + len > tail)
+            len = tail - index;
+        if (index < tail && len != 0)
+            Remove_Gobs(gob, index, len);
+
+        Move_Value(D_OUT, val);
+        return R_OUT; }
 
     case SYM_TAKE_P: {
         INCLUDE_PARAMS_OF_TAKE_P;
@@ -1125,9 +1179,12 @@ REBTYPE(Gob)
         if (REF(last))
             fail (Error_Bad_Refines_Raw());
 
-        len = REF(part) ? Get_Num_From_Arg(ARG(limit)) : 1;
-        if (index + len > tail) len = tail - index;
-        if (index >= tail) goto is_blank;
+        REBCNT len = REF(part) ? Get_Num_From_Arg(ARG(limit)) : 1;
+        if (index + len > tail)
+            len = tail - index;
+        if (index >= tail)
+            return R_BLANK;
+
         if (NOT(REF(part))) { // just one value
             VAL_RESET_HEADER(D_OUT, REB_GOB);
             VAL_GOB(D_OUT) = *GOB_AT(gob, index);
@@ -1135,10 +1192,10 @@ REBTYPE(Gob)
             Remove_Gobs(gob, index, 1);
             return R_OUT;
         }
-        else {
-            Init_Block(D_OUT, Pane_To_Array(gob, index, len));
-            Remove_Gobs(gob, index, len);
-        }
+
+        Init_Block(D_OUT, Pane_To_Array(gob, index, len));
+        Remove_Gobs(gob, index, len);
+        Move_Value(D_OUT, val);
         return R_OUT; }
 
     case SYM_AT:
@@ -1148,46 +1205,18 @@ REBTYPE(Gob)
         index += VAL_INT32(arg);
         goto set_index;
 
-    case SYM_HEAD_OF:
-        index = 0;
-        goto set_index;
-
-    case SYM_TAIL_OF:
-        index = tail;
-        goto set_index;
-
-    case SYM_HEAD_Q:
-        if (index == 0) goto is_true;
-        goto is_false;
-
-    case SYM_TAIL_Q:
-        if (index >= tail) goto is_true;
-        goto is_false;
-
-    case SYM_PAST_Q:
-        if (index > tail) goto is_true;
-        goto is_false;
-
-    case SYM_INDEX_OF:
-        Init_Integer(D_OUT, index + 1);
-        break;
-
-    case SYM_LENGTH_OF:
-        index = (tail > index) ? tail - index : 0;
-        Init_Integer(D_OUT, index);
-        break;
-
     case SYM_FIND:
         if (IS_GOB(arg)) {
             index = Find_Gob(gob, VAL_GOB(arg));
-            if (index == NOT_FOUND) goto is_blank;
+            if (index == NOT_FOUND)
+                return R_BLANK;
             goto set_index;
         }
-        goto is_blank;
+        return R_BLANK;
 
     case SYM_REVERSE:
         for (index = 0; index < tail/2; index++) {
-            ngob = *GOB_AT(gob, tail-index-1);
+            REBGOB *ngob = *GOB_AT(gob, tail-index-1);
             *GOB_AT(gob, tail-index-1) = *GOB_AT(gob, index);
             *GOB_AT(gob, index) = ngob;
         }
@@ -1195,25 +1224,14 @@ REBTYPE(Gob)
         return R_OUT;
 
     default:
-        fail (Error_Illegal_Action(REB_GOB, action));
+        break;
     }
-    return R_OUT;
+
+    fail (Error_Illegal_Action(REB_GOB, action));
 
 set_index:
     VAL_RESET_HEADER(D_OUT, REB_GOB);
     VAL_GOB(D_OUT) = gob;
     VAL_GOB_INDEX(D_OUT) = index;
     return R_OUT;
-
-is_blank:
-    return R_BLANK;
-
-is_arg_error:
-    fail (Error_Unexpected_Type(REB_GOB, VAL_TYPE(arg)));
-
-is_false:
-    return R_FALSE;
-
-is_true:
-    return R_TRUE;
 }

@@ -424,25 +424,6 @@ REBOOL Get_Context_Of(REBVAL *out, const REBVAL *v)
 
 
 //
-//  context-of: native [
-//
-//  "Returns the context in which a word or function is bound."
-//
-//      value [any-word! function!]
-//  ]
-//
-REBNATIVE(context_of)
-{
-    INCLUDE_PARAMS_OF_CONTEXT_OF;
-
-    if (Get_Context_Of(D_OUT, ARG(value)))
-        return R_OUT;
-
-    return R_BLANK;
-}
-
-
-//
 //  any-value?: native [
 //
 //  "Returns whether a data cell contains a value."
@@ -995,28 +976,6 @@ REBNATIVE(set)
 
 
 //
-//  type-of: native [
-//
-//  "Returns the datatype of a value."
-//
-//      value [<opt> any-value!]
-//  ]
-//
-REBNATIVE(type_of)
-{
-    INCLUDE_PARAMS_OF_TYPE_OF;
-
-    enum Reb_Kind kind = VAL_TYPE(ARG(value));
-    if (kind == REB_MAX_VOID)
-        return R_BLANK;
-
-    Val_Init_Datatype(D_OUT, kind);
-    return R_OUT;
-}
-
-
-
-//
 //  unset: native [
 //
 //  {Unsets the value of a word (in its current context.)}
@@ -1410,7 +1369,7 @@ REBNATIVE(uneval)
 //
 //      value [<opt> any-value!]
 //  ][
-//      blank? type-of :value
+//      blank? type of :value
 //  ]
 //
 REBNATIVE(void_q)

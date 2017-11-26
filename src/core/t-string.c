@@ -656,7 +656,7 @@ REBINT PD_String(REBPVS *pvs)
         // generate a new FILE! or URL! with a slash in it.
         //
         //     >> x: %foo
-        //     >> type-of quote x/bar
+        //     >> type of quote x/bar
         //     == path!
         //
         //     >> x/bar
@@ -665,7 +665,7 @@ REBINT PD_String(REBPVS *pvs)
         // This can only be done with evaluations, since FILE! and URL! have
         // slashes in their literal form:
         //
-        //     >> type-of quote %foo/bar
+        //     >> type of quote %foo/bar
         //     == file!
         //
         // Because Ren-C unified picking and pathing, this somewhat odd

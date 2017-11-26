@@ -93,8 +93,8 @@
 ]
 ; reflexivity for past-tail blocks
 [
-    a-value: tail [1]
-    clear head a-value
+    a-value: tail of [1]
+    clear head of a-value
     same? a-value a-value
 ]
 ; reflexivity for cyclic blocks

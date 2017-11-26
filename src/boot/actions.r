@@ -124,31 +124,6 @@ even?: action [
 
 ;-- Series Navigation
 
-head-of: action [
-    {Returns the series at its beginning.}
-    series [any-series! gob! port!]
-]
-
-tail-of: action [
-    {Returns the series just past its end.}
-    series [any-series! gob! port!]
-]
-
-head?: action [
-    {Returns TRUE if a series is at its beginning.}
-    series [any-series! gob! port!]
-]
-
-tail?: action [
-    {Returns TRUE if series is at or past its end; or empty for other types.}
-    series [any-series! object! gob! port! bitset! map! blank! varargs!]
-]
-
-past?: action [
-    {Returns TRUE if series is past its end.}
-    series [any-series! gob! port!]
-]
-
 skip: action [
     {Returns the series forward or backward from the current position.}
     series [any-series! gob! port!]
@@ -159,17 +134,6 @@ at: action [
     {Returns the series at the specified index.}
     series [any-series! gob! port!]
     index [any-number! logic! pair!]
-]
-
-index-of: action [
-    {Returns the current position (index) of the series.}
-    series [any-series! gob! port! blank!]
-    /xy {Returns index as an XY pair offset}
-]
-
-length-of: action [
-    {Returns the length (from the current position for series.)}
-    series [any-series! port! map! tuple! bitset! object! gob! struct! any-word! blank!]
 ]
 
 ;-- Series Search
@@ -209,12 +173,14 @@ select*: action [
 
 ]
 
-;;;;!!! MATCH
 
 reflect: action [
     {Returns specific details about a datatype.}
-    value [any-value!]
-    field [word!] "Such as: spec, body, words, values, title"
+
+    return: [any-value!]
+    value [<opt> any-value!] ; accepts void for REFLECT () 'TYPE to be BLANK!
+    property [word!]
+        "Such as: type, length, spec, body, words, values, title"
 ]
 
 ;-- Making, copying, modifying
@@ -389,11 +355,6 @@ write: action [
     /lines {Write each value in a block as a separate line}
 ;   /as {Convert string to a specified encoding}
 ;       encoding [blank! any-number!] {UTF number (0 8 16 -16)}
-]
-
-open?: action [
-    {Returns TRUE if port is open.}
-    port [port!]
 ]
 
 query: action [

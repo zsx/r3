@@ -68,4 +68,4 @@ len: (sprintf
     "world" [pointer]
 )
 
-prin ["5. h:" copy/part to string! values-of h len]
+prin ["5. h:" copy/part to string! values of h len]

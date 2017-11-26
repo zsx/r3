@@ -47,7 +47,7 @@ clean-path: function [
 
     if all [dir | not dir? file] [append file #"/"]
 
-    out: make type-of file length-of file ; same datatype
+    out: make type of file length of file ; same datatype
     count: 0 ; back dir counter
 
     parse reverse file [
@@ -67,7 +67,7 @@ clean-path: function [
         ]
     ]
 
-    if all [#"/" = last out | #"/" <> last file] [remove back tail out]
+    if all [#"/" = last out | #"/" <> last file] [remove back tail of out]
     reverse out
 ]
 
@@ -88,7 +88,7 @@ input: function [
     ]
 
     data: read system/ports/input
-    if 0 = length-of data [
+    if 0 = length of data [
         ;
         ; !!! While zero-length data is the protocol being used to signal a
         ; halt in the (deprecated) Host OS layer, even in more ideal
@@ -99,7 +99,7 @@ input: function [
     ]
 
     if all [
-        1 = length-of data
+        1 = length of data
         escape = to-char data/1
     ][
         ; Input Aborted (e.g. Ctrl-D on Windows, ESC on POSIX)--this does not
@@ -137,7 +137,7 @@ confirm: function [
     /with
     choices [string! block!]
 ][
-    if all [block? :choices | 2 < length-of choices] [
+    if all [block? :choices | 2 < length of choices] [
         cause-error 'script 'invalid-arg join-of "maximum 2 arguments allowed for choices [true false] got: " mold choices
     ]
 
@@ -148,7 +148,7 @@ confirm: function [
     to-value case [
         empty? choices [true]
         string? choices [find?/match response choices]
-        2 > length-of choices [find?/match response first choices]
+        2 > length of choices [find?/match response first choices]
         find? first choices response [true]
         find? second choices response [false]
     ]
@@ -175,22 +175,22 @@ list-dir: procedure [
         fail ["No directory listing protocol registered for" save-dir]
     ]
 
-    switch type-of :path [
+    switch type of :path [
         _ [] ; Stay here
-        :file! [change-dir path]
-        :string! [change-dir local-to-file path]
-        :word! :path! [change-dir to-file path]
+        (file!) [change-dir path]
+        (string!) [change-dir local-to-file path]
+        (word!) (path!) [change-dir to-file path]
     ]
 
     if r [l: true]
-    unless l [l: make string! 62] ; approx width    
-    
+    unless l [l: make string! 62] ; approx width
+ 
     if not (files: attempt [read %./]) [
         print ["Not found:" :path]
         change-dir save-dir
         leave
     ]
-    
+
     for-each file files [
         if any [
             all [f | dir? file]
@@ -199,8 +199,8 @@ list-dir: procedure [
 
         either string? l [
             append l file
-            append/dup l #" " 15 - remainder length-of l 15
-            if greater? length-of l 60 [print l clear l]
+            append/dup l #" " 15 - remainder length of l 15
+            if greater? length of l 60 [print l clear l]
         ][
             info: get query file
             change info second split-path info/1
@@ -210,9 +210,9 @@ list-dir: procedure [
             ]
         ]
     ]
-    
+
     if all [string? l | not empty? l] [print l]
-    
+
     change-dir save-dir
 ]
 
@@ -223,7 +223,7 @@ undirize: function [
     path [file! string! url!]
 ][
     path: copy path
-    if #"/" = last path [clear back tail path]
+    if #"/" = last path [clear back tail of path]
     path
 ]
 
@@ -297,6 +297,6 @@ set-net: procedure [
     {sets the system/user/identity email smtp pop3 esmtp-usr esmtp-pass fqdn}
     bl [block!]
 ][
-    if 6 <> length-of bl [fail "Needs all 6 parameters for set-net"]
-    set words-of system/user/identity bl
+    if 6 <> length of bl [fail "Needs all 6 parameters for set-net"]
+    set (words of system/user/identity) bl
 ]

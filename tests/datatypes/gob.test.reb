@@ -1,7 +1,7 @@
 ; datatypes/gob.r
 ; minimum
 [gob? make gob! []]
-[gob! = type-of make gob! []]
+[gob! = type of make gob! []]
 ; bug#62
 [
     g: make gob! []

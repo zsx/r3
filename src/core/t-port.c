@@ -168,11 +168,12 @@ REBTYPE(Port)
     case SYM_CREATE:
     case SYM_DELETE:
     case SYM_RENAME: {
+        //
         // !!! We are going to "re-apply" the call frame with routines that
         // are going to read the D_ARG(1) slot *implicitly* regardless of
         // what value points to.
         //
-        if (!IS_PORT(value)) {
+        if (!IS_PORT(D_ARG(1))) {
             DECLARE_LOCAL (temp);
             MAKE_Port(temp, REB_PORT, value);
             Move_Value(value, temp);
@@ -182,12 +183,16 @@ REBTYPE(Port)
     case SYM_ON_WAKE_UP:
         break;
 
-    case SYM_REFLECT:
-        return T_Context(frame_, action);
+    // Once handled SYM_REFLECT here by delegating to T_Context(), but common
+    // reflectors should be handled by Context_Common_Action_Maybe_Unhandled()
 
     default:
         break;
     }
+
+    REB_R r = Context_Common_Action_Maybe_Unhandled(frame_, action);
+    if (r != R_UNHANDLED)
+        return r;
 
     return Do_Port_Action(frame_, VAL_CONTEXT(value), action);
 }

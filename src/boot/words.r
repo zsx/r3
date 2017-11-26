@@ -75,12 +75,22 @@ rebol
 system
 
 ;reflectors:
+index
+xy ;-- !!! There was an INDEX?/XY, which is an XY reflector for the time being 
+length
+head
+tail
+head?
+tail?
+past?
+open?
 spec
 body
 words
 values
 types
 title
+context
 
 value ; used by TYPECHECKER to name the argument of the generated function
 

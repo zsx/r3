@@ -193,18 +193,37 @@ REBTYPE(Word)
     assert(ANY_WORD(val));
 
     switch (action) {
-    case SYM_LENGTH_OF: {
-        const REBYTE *bp = STR_HEAD(VAL_WORD_SPELLING(val));
-        REBCNT len = 0;
-        while (TRUE) {
-            REBUNI ch;
-            if ((bp = Back_Scan_UTF8_Char(&ch, bp, &len)) == NULL)
-                fail (Error_Bad_Utf8_Raw());
-            if (ch == 0)
-                break;
+    case SYM_REFLECT: {
+        INCLUDE_PARAMS_OF_REFLECT;
+
+        UNUSED(ARG(value));
+        REBSYM property = VAL_WORD_SYM(ARG(property));
+        assert(property != SYM_0);
+
+        switch (property) {
+        case SYM_LENGTH: {
+            const REBYTE *bp = STR_HEAD(VAL_WORD_SPELLING(val));
+            REBCNT len = 0;
+            while (TRUE) {
+                REBUNI ch;
+                if ((bp = Back_Scan_UTF8_Char(&ch, bp, &len)) == NULL)
+                    fail (Error_Bad_Utf8_Raw());
+                if (ch == 0)
+                    break;
+            }
+            Init_Integer(D_OUT, len);
+            return R_OUT; }
+
+        case SYM_CONTEXT: {
+            if (Get_Context_Of(D_OUT, val))
+                return R_OUT;
+            return R_BLANK; }
+
+        default:
+            break;
         }
-        Init_Integer(D_OUT, len);
-        return R_OUT; }
+
+        break; }
 
     default:
         break;

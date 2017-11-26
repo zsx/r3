@@ -656,6 +656,40 @@ REBTYPE(Map)
     REBCNT tail;
 
     switch (action) {
+
+    case SYM_REFLECT: {
+        INCLUDE_PARAMS_OF_REFLECT;
+
+        UNUSED(ARG(value)); // covered by `val`
+        REBSYM property = VAL_WORD_SYM(ARG(property));
+        assert(property != SYM_0);
+
+        switch (property) {
+        case SYM_LENGTH:
+            Init_Integer(D_OUT, Length_Map(map));
+            return R_OUT;
+
+        case SYM_VALUES:
+            Init_Block(D_OUT, Map_To_Array(map, 1));
+            return R_OUT;
+
+        case SYM_WORDS:
+            Init_Block(D_OUT, Map_To_Array(map, -1));
+            return R_OUT;
+
+        case SYM_BODY:
+            Init_Block(D_OUT, Map_To_Array(map, 0));
+            return R_OUT;
+
+        case SYM_TAIL_Q:
+            return R_FROM_BOOL(LOGICAL(Length_Map(map) == 0));
+
+        default:
+            break;
+        }
+
+        fail (Error_Cannot_Reflect(REB_MAP, arg)); }
+
     case SYM_FIND:
     case SYM_SELECT_P: {
         INCLUDE_PARAMS_OF_FIND;
@@ -754,10 +788,6 @@ REBTYPE(Map)
         );
         return R_OUT; }
 
-    case SYM_LENGTH_OF:
-        Init_Integer(D_OUT, Length_Map(map));
-        return R_OUT;
-
     case SYM_COPY: {
         INCLUDE_PARAMS_OF_COPY;
 
@@ -791,27 +821,6 @@ REBTYPE(Map)
 
         Init_Map(D_OUT, map);
         return R_OUT;
-
-    case SYM_REFLECT: {
-        REBSYM sym = VAL_WORD_SYM(arg);
-
-        REBINT n;
-        if (sym == SYM_VALUES)
-            n = 1;
-        else if (sym == SYM_WORDS)
-            n = -1;
-        else if (sym == SYM_BODY)
-            n = 0;
-        else
-            fail (Error_Cannot_Reflect(REB_MAP, arg));
-
-        REBARR *array = Map_To_Array(map, n);
-        Init_Block(D_OUT, array);
-        return R_OUT;
-    }
-
-    case SYM_TAIL_Q:
-        return (Length_Map(map) == 0) ? R_TRUE : R_FALSE;
 
     default:
         break;

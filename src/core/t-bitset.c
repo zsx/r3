@@ -571,13 +571,34 @@ REBTYPE(Bitset)
     REBVAL *value = D_ARG(1);
     REBVAL *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
     REBSER *ser;
-    REBINT len;
-    REBOOL diff;
 
     // !!! Set_Bits does locked series check--what should the more general
     // responsibility be for checking?
 
     switch (action) {
+
+    case SYM_REFLECT: {
+        INCLUDE_PARAMS_OF_REFLECT;
+
+        UNUSED(ARG(value)); // covered by `value`
+        REBSYM property = VAL_WORD_SYM(ARG(property));
+        assert(property != SYM_0);
+
+        switch (property) {
+        case SYM_LENGTH: {
+            REBINT len = VAL_LEN_HEAD(value) * 8;
+            Init_Integer(value, len);
+            break; }
+
+        case SYM_TAIL_Q:
+            // Necessary to make EMPTY? work:
+            return R_FROM_BOOL(LOGICAL(VAL_LEN_HEAD(value) == 0));
+
+        default:
+            break;
+        }
+
+        break; }
 
     // Add AND, OR, XOR
 
@@ -615,10 +636,11 @@ REBTYPE(Bitset)
         ser = Copy_Sequence(VAL_SERIES(value));
         INIT_BITS_NOT(ser, NOT(BITS_NOT(VAL_SERIES(value))));
         Init_Bitset(value, ser);
-        break;
+        goto return_bitset;
 
     case SYM_APPEND:  // Accepts: #"a" "abc" [1 - 10] [#"a" - #"z"] etc.
-    case SYM_INSERT:
+    case SYM_INSERT: {
+        REBOOL diff;
         if (BITS_NOT(VAL_SERIES(value)))
             diff = FALSE;
         else
@@ -626,7 +648,7 @@ REBTYPE(Bitset)
 
         if (NOT(Set_Bits(VAL_SERIES(value), arg, diff)))
             fail (arg);
-        break;
+        goto return_bitset; }
 
     case SYM_REMOVE: {
         INCLUDE_PARAMS_OF_REMOVE;
@@ -640,10 +662,10 @@ REBTYPE(Bitset)
         if (NOT(REF(part)))
             fail (Error_Missing_Arg_Raw());
 
-        if (Set_Bits(VAL_SERIES(value), ARG(limit), FALSE))
-            break;
+        if (NOT(Set_Bits(VAL_SERIES(value), ARG(limit), FALSE)))
+            fail (ARG(limit));
 
-        fail (ARG(limit)); }
+        goto return_bitset; }
 
     case SYM_COPY: {
         INCLUDE_PARAMS_OF_COPY;
@@ -669,19 +691,10 @@ REBTYPE(Bitset)
         INIT_BITS_NOT(VAL_SERIES(D_OUT), BITS_NOT(VAL_SERIES(value)));
         return R_OUT; }
 
-    case SYM_LENGTH_OF:
-        len = VAL_LEN_HEAD(value) * 8;
-        Init_Integer(value, len);
-        break;
-
-    case SYM_TAIL_Q:
-        // Necessary to make EMPTY? work:
-        return (VAL_LEN_HEAD(value) == 0) ? R_TRUE : R_FALSE;
-
     case SYM_CLEAR:
         FAIL_IF_READ_ONLY_SERIES(VAL_SERIES(value));
         Clear_Series(VAL_SERIES(value));
-        break;
+        goto return_bitset;
 
     case SYM_AND_T:
     case SYM_OR_T:
@@ -694,9 +707,12 @@ REBTYPE(Bitset)
         return R_OUT;
 
     default:
-        fail (Error_Illegal_Action(REB_BITSET, action));
+        break;
     }
 
+    fail (Error_Illegal_Action(REB_BITSET, action));
+
+return_bitset:
     Move_Value(D_OUT, value);
     return R_OUT;
 }

@@ -20,19 +20,19 @@
     same? blk at blk -2147483648
 ]
 [
-    blk: tail [1 2 3]
+    blk: tail of [1 2 3]
     same? blk at blk 1
 ]
 [
-    blk: tail [1 2 3]
+    blk: tail of [1 2 3]
     same? blk at blk 0
 ]
 [
-    blk: tail [1 2 3]
+    blk: tail of [1 2 3]
     equal? [3] at blk -1
 ]
 [
-    blk: tail [1 2]
+    blk: tail of [1 2]
     same? blk at blk 2147483647
 ]
 [
@@ -65,19 +65,19 @@
     same? str at str -2147483648
 ]
 [
-    str: tail "123"
+    str: tail of "123"
     same? str at str 1
 ]
 [
-    str: tail "123"
+    str: tail of "123"
     same? str at str 0
 ]
 [
-    str: tail "123"
+    str: tail of "123"
     equal? "3" at str -1
 ]
 [
-    str: tail "12"
+    str: tail of "12"
     same? str at str 2147483647
 ]
 [

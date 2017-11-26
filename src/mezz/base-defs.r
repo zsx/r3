@@ -29,18 +29,50 @@ blank: _
 bar: '|
 
 ; Despite being very "noun-like", HEAD and TAIL have classically been "verbs"
-; in Rebol.  Ren-C defines the core operations as HEAD-OF and TAIL-OF, but
-; establishes quick synonyms.  The synonym of LENGTH for LENGTH-OF is a
-; controversial idea, and so it is not done until much later in the bootstrap. 
+; in Rebol.  Ren-C builds on the concept of REFLECT, so that REFLECT STR 'HEAD
+; will get the head of a string.  An enfix left-soft-quoting operation is
+; introduced called OF, so that you can write HEAD OF STR and get the same
+; ultimate effect.
 ;
-head: :head-of
-tail: :tail-of
+set/enfix quote of: func [ ;-- NOTE can't be (quote of:), OF: top-level...
+    'property [word!]
+    value [<opt> any-value!] ;-- TYPE OF () needs to be BLANK!, so <opt> okay
+][
+    reflect :value property
+]
 
+; While NEXT and BACK might be seen as somewhat "noun-like" themselves, it
+; doesn't seem NEXT-OF or BACK-OF are as necessary.
+;
 next: specialize 'skip [offset: 1]
 back: specialize 'skip [offset: -1]
 
 unspaced: specialize 'delimit [delimiter: blank]
 spaced: specialize 'delimit [delimiter: space]
+
+
+; !!! REDESCRIBE not defined yet
+;
+; head?
+; {Returns TRUE if a series is at its beginning.}
+; series [any-series! gob! port!]
+;
+; tail?
+; {Returns TRUE if series is at or past its end; or empty for other types.}
+; series [any-series! object! gob! port! bitset! map! blank! varargs!]
+;
+; past?
+; {Returns TRUE if series is past its end.}
+; series [any-series! gob! port!]
+;
+; open?
+; {Returns TRUE if port is open.}
+; port [port!]
+
+head?: specialize 'reflect [property: 'head?]
+tail?: specialize 'reflect [property: 'tail?]
+past?: specialize 'reflect [property: 'past?]
+open?: specialize 'reflect [property: 'open?]
 
 
 eval proc [
@@ -50,7 +82,7 @@ eval proc [
         set-word type-name tester meta
 ][
     while [any-value? set-word: take* set-word...] [
-        type-name: append (head clear find (spelling-of set-word) {?}) "!"
+        type-name: append (head of clear find (spelling-of set-word) {?}) "!"
         tester: typechecker (get bind (to word! type-name) set-word)
         set set-word :tester
 
@@ -184,40 +216,6 @@ probe: func [
     print mold :value
     :value
 ]
-
-
-eval proc [
-    {Make reflector functions (variadic to quote "top-level" words)}
-    'set-word... [set-word! <...>]
-    :divider... [bar! <...>]
-    'categories... [string! <...>]
-    <local>
-        set-word categories name
-][
-    while [any-value? set-word: take* set-word...] [
-        take* divider... ;-- so it doesn't look like we're setting to a string
-        categories: take* categories...
-
-        ; extract XXX string from XXX-OF
-        name: head clear find (spelling-of set-word) {-of}
-
-        set set-word make function! compose/deep [
-            [
-                (spaced [{Returns a copy of the} name {of a} categories])
-                value [any-value!]
-            ][
-                reflect :value (to lit-word! name)
-            ]
-        ]
-    ]
-]
-    spec-of: | {function, object, or module}
-    body-of: | {function or module} ; %mezz-func.r overwrites
-    words-of: | {function, object, or module}
-    values-of: | {object or module}
-    types-of: | {function}
-    title-of: | {function} ; should work for module
-|
 
 
 decode-url: _ ; set in sys init

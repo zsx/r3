@@ -13,11 +13,11 @@
         not same? blk copy blk
     ]
 ]
-[[1] = copy/part tail [1] -1]
-[[1] = copy/part tail [1] -2147483647]
+[[1] = copy/part tail of [1] -1]
+[[1] = copy/part tail of [1] -2147483647]
 ; bug#853
 ; bug#1118
-[[1] = copy/part tail [1] -2147483648]
+[[1] = copy/part tail of [1] -2147483648]
 [[] = copy/part [] 0]
 [[] = copy/part [] 1]
 [[] = copy/part [] 2147483647]
@@ -38,4 +38,4 @@
 ; bug#648
 [["a"] = deline/lines "a"]
 ; bug#1794
-[1 = length? deline/lines "Slovenščina"]
+[1 = length of deline/lines "Slovenščina"]

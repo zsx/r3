@@ -1210,7 +1210,7 @@ REBARR *Get_Maybe_Fake_Func_Body(REBOOL *is_fake, const REBVAL *func)
 //
 //     return: make function! [
 //         [{Returns a value from a function.} value [<opt> any-value!]]
-//         [exit/from/with (context-of 'return) :value]
+//         [exit/from/with (context of 'return) :value]
 //     ]
 //     (body goes here)
 //
@@ -1679,12 +1679,46 @@ REBTYPE(Fail)
 //
 REB_R Action_Dispatcher(REBFRM *f)
 {
-    enum Reb_Kind type = VAL_TYPE(FRM_ARG(f, 1));
-    assert(type < REB_MAX); // actions should not allow void first arguments
-    REBSYM sym = STR_SYMBOL(VAL_WORD_SPELLING(FUNC_BODY(f->phase)));
+    enum Reb_Kind kind = VAL_TYPE(FRM_ARG(f, 1));
+    REBSYM sym = VAL_WORD_SYM(FUNC_BODY(f->phase));
     assert(sym != SYM_0);
 
-    REBACT subdispatch = Value_Dispatch[type];
+    // !!! Some reflectors are more general and apply to all types (e.g. TYPE)
+    // while others only apply to some types (e.g. LENGTH or HEAD only to
+    // series, or perhaps things like PORT! that wish to act like a series).
+    // This suggests a need for a kind of hierarchy of handling.
+    //
+    // The series common code is in Series_Common_Action_Maybe_Unhandled(),
+    // but that is only called from series.  Handle a few extra cases here.
+    //
+    if (sym == SYM_REFLECT) {
+        REBFRM *frame_ = f;
+        INCLUDE_PARAMS_OF_REFLECT;
+
+        UNUSED(ARG(value));
+        REBSYM property = VAL_WORD_SYM(ARG(property));
+        assert(property != SYM_0);
+
+        switch (property) {
+        case SYM_TYPE:
+            if (kind == REB_MAX_VOID)
+                return R_BLANK;
+            Val_Init_Datatype(f->out, kind);
+            return R_OUT;
+
+        default:
+            // !!! Are there any other universal reflectors?
+            break;
+        }
+    }
+
+    // !!! The reflector for TYPE is universal and so it is allowed on voids,
+    // but in general actions should not allow void first arguments...there's
+    // no entry in the dispatcher table for them.
+    //
+    assert(kind < REB_MAX);
+
+    REBACT subdispatch = Value_Dispatch[kind];
     return subdispatch(f, sym);
 }
 

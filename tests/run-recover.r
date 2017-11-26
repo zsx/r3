@@ -42,7 +42,7 @@ do-core-tests: procedure [] [
     ]
 
     log-file-prefix: copy %r
-    repeat i length? version: system/version [
+    repeat i length of version: system/version [
         append log-file-prefix "_"
         append log-file-prefix mold version/:i
     ]

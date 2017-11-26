@@ -25,8 +25,8 @@
 ; the "result" of return should not be passable to functions, bug#1509
 [a: 1 eval does [a: error? return 2] :a =? 1]
 ; bug#1535
-[eval does [words-of return blank] true]
-[eval does [values-of return blank] true]
+[eval does [words of return blank] true]
+[eval does [values of return blank] true]
 ; bug#1945
 [eval does [spec-of return blank] true]
 ; return should not be caught by try

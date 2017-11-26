@@ -453,12 +453,26 @@ REBTYPE(Varargs)
     switch (action) {
     // !!! SYM_PICK_P moved into PD_Varargs functionality, which PICK* uses
 
-    case SYM_TAIL_Q: {
-        REB_R r = Do_Vararg_Op_May_Throw(
-            m_cast(REBVAL*, END), value, VARARG_OP_TAIL_Q // won't write `out`
-        );
-        assert(r == R_TRUE || r == R_FALSE); // cannot throw
-        return r; }
+    case SYM_REFLECT: {
+        INCLUDE_PARAMS_OF_REFLECT;
+
+        UNUSED(ARG(value)); // already have `value`
+        REBSYM property = VAL_WORD_SYM(ARG(property));
+        assert(property != SYM_0);
+
+        switch (property) {
+        case SYM_TAIL_Q: {
+            REB_R r = Do_Vararg_Op_May_Throw(
+                m_cast(REBVAL*, END), value, VARARG_OP_TAIL_Q // won't write `out`
+            );
+            assert(r == R_TRUE || r == R_FALSE); // cannot throw
+            return r; }
+
+        default:
+            break;
+        }
+
+        break; }
 
     case SYM_TAKE_P: {
         INCLUDE_PARAMS_OF_TAKE_P;
@@ -501,8 +515,7 @@ REBTYPE(Varargs)
         // !!! What if caller wanted a REB_GROUP, REB_PATH, or an /INTO?
         //
         Init_Block(D_OUT, Pop_Stack_Values(dsp_orig));
-        return R_OUT;
-    }
+        return R_OUT; }
 
     default:
         break;

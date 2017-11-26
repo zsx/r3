@@ -1,10 +1,10 @@
 ; datatypes/error.r
 [error? try [1 / 0]]
 [not error? 1]
-[error! = type-of try [1 / 0]]
+[error! = type of try [1 / 0]]
 
 ; error evaluation
-[error? do head insert copy [] try [1 / 0]]
+[error? do head of insert copy [] try [1 / 0]]
 
 ; error that does not exist in the SCRIPT category--all of whose ids are
 ; reserved by the system and must be formed from mezzanine/user code in

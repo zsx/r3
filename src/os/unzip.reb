@@ -118,9 +118,9 @@ ctx-zip: context [
             "Data to compress"
     ][
         ; info on data before compression
-        crc: head reverse crc-32 data
+        crc: head of reverse crc-32 data
 
-        uncompressed-size: to-ilong length-of data
+        uncompressed-size: to-ilong length of data
 
         either empty? data [
             method: 'store
@@ -128,10 +128,10 @@ ctx-zip: context [
             ; zlib stream
             compressed-data: compress data
             ; if compression inefficient, store the data instead
-            either (length-of data) > (length-of compressed-data) [
+            either (length of data) > (length of compressed-data) [
                 data: copy/part
                     skip compressed-data 2
-                    skip tail compressed-data -8
+                    skip tail of compressed-data -8
                 method: 'deflate
             ][
                 method: 'store
@@ -140,7 +140,7 @@ ctx-zip: context [
         ]
 
         ; info on data after compression
-        compressed-size: to-ilong length-of data
+        compressed-size: to-ilong length of data
 
         reduce [
             ; local file entry
@@ -158,7 +158,7 @@ ctx-zip: context [
                 crc     ; crc-32
                 compressed-size
                 uncompressed-size
-                to-ishort length-of name ; filename length
+                to-ishort length of name ; filename length
                 #{0000} ; extrafield length
                 name    ; filename
                         ; no extrafield
@@ -180,7 +180,7 @@ ctx-zip: context [
                 crc     ; crc-32
                 compressed-size
                 uncompressed-size
-                to-ishort length-of name ; filename length
+                to-ishort length of name ; filename length
                 #{0000} ; extrafield length
                 #{0000} ; filecomment length
                 #{0000} ; disknumber start
@@ -286,7 +286,7 @@ ctx-zip: context [
                 append central-directory entry/2
                 ; compressed file + header
                 out entry/1
-                files-size: files-size + length-of entry/1
+                files-size: files-size + length of entry/1
             ]
             ; next arg
             source: next source
@@ -298,7 +298,7 @@ ctx-zip: context [
             #{0000} ; disk central dir
             to-ishort nb-entries ; nb entries disk
             to-ishort nb-entries ; nb entries
-            to-ilong length-of central-directory
+            to-ilong length of central-directory
             to-ilong files-size
             #{0000} ; zip file comment length
                     ; zip file comment
@@ -389,7 +389,7 @@ ctx-zip: context [
                             throw blank
                         ]
 
-                        if uncompressed-size != length-of data [
+                        if uncompressed-size != length of data [
                             info "^- -> failed [wrong output size]^/"
                             throw blank
                         ]

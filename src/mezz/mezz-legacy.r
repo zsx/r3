@@ -81,13 +81,47 @@ to-paren: :to-group
 context: object: :has
 
 
+; To be more visually pleasing, properties like LENGTH can be extracted using
+; a reflector as simply `length of series`, with no hyphenation.  This is
+; because OF quotes the word on the left, and passes it to REFLECT.
+;
+; There are bootstrap reasons to keep versions like WORDS-OF alive.  Though
+; WORDS OF syntax could be faked in R3-Alpha (by making WORDS a function that
+; quotes the OF and throws it away, then runs the reflector on the second
+; argument), that faking would preclude naming variables "words".
+;
+; Beyond the bootstrap, there could be other reasons to have hyphenated
+; versions.  It could be that performance-critical code would want faster
+; processing (a TYPE-OF specialization is slightly faster than TYPE OF, and
+; a TYPE-OF native written specifically for the purpose would be even faster).
+;
+; Also, HELP isn't designed to "see into" reflectors, to get a list of them
+; or what they do.  (This problem parallels others like not being able to
+; type HELP PARSE and get documentation of the parse dialect...there's no
+; link between HELP OF and all the things you could ask about.)  There's also
+; no information about specific return types, which could be given here
+; with REDESCRIBE.
+;
+length-of: specialize 'reflect [property: 'length]
+words-of: specialize 'reflect [property: 'words]
+values-of: specialize 'reflect [property: 'values]
+index-of: specialize 'reflect [property: 'index]
+type-of: specialize 'reflect [property: 'type]
+context-of: specialize 'reflect [property: 'context]
+head-of: specialize 'reflect [property: 'head]
+tail-of: specialize 'reflect [property: 'tail]
+
+
 ; General renamings away from non-LOGIC!-ending-in-?-functions
 ; https://trello.com/c/DVXmdtIb
 ;
-index?: :index-of
+index?: specialize 'reflect [property: 'index]
 offset?: :offset-of
 sign?: :sign-of
 suffix?: :suffix-of
+length?: :length-of
+head: :head-of
+tail: :tail-of
 
 comment [
     ; !!! Less common cases still linger as question mark routines that
@@ -101,13 +135,6 @@ comment [
     info?: _
     exists?: _
 ]
-
-
-; Semi-controversial choice to take a noun to avoid "lengthening LENGTH?"
-; https://trello.com/c/4OT7qvdu
-; Due to controversy, LENGTH-OF is used in the mezzanine
-;
-length: length?: :length-of
 
 
 ; FOREACH isn't being taken for anything else, may stay a built-in synonym
@@ -168,8 +195,7 @@ any-type!: any-value!
 ; type of the return result, which makes it more useful than BINDING-OF or
 ; BIND-OF as a name.  (Result can be an ANY-CONTEXT!, including FRAME!)
 ;
-bound?: :context-of
-bind?: :context-of
+bound?: bind?: specialize 'reflect [property: 'context]
 
 
 ; !!! Technically speaking all frames should be "selfless" in the sense that
@@ -407,7 +433,7 @@ r3-alpha-apply: function [
         "Use arg values as-is, do not reduce the block"
 ][
     frame: make frame! :action
-    params: words-of :action
+    params: words of :action
     using-args: true
 
     until [tail? block] [
@@ -534,7 +560,7 @@ make: function [
     ; This is of questionable utility.
     ;
     unless datatype? :type [
-        type: type-of :type
+        type: type of :type
     ]
 
     if all [find any-array! :type | any-array? :def] [
@@ -604,8 +630,8 @@ set 'r3-legacy* func [<local> if-flags] [
         ;
         unset?: (:void?)
 
-        ; Result from TYPE-OF () is a NONE!, so this should allow one to write
-        ; `unset! = type-of ()`.  Also, a NONE! value in a typeset spec is
+        ; Result from TYPE OF () is a BLANK!, so this should allow writing
+        ; `unset! = type of ()`.  Also, a BLANK! value in a typeset spec is
         ; used to indicate a willingness to tolerate optional arguments, so
         ; `foo: func [x [unset! integer!] x][...]` should work in legacy mode
         ; for making an optional x argument.
@@ -640,7 +666,7 @@ set 'r3-legacy* func [<local> if-flags] [
             /word
         ][
             case [
-                not word [type-of :value]
+                not word [type of :value]
 
                 not set? 'value [
                     quote unset! ;-- https://trello.com/c/rmsTJueg
@@ -657,7 +683,7 @@ set 'r3-legacy* func [<local> if-flags] [
                     quote paren! ;-- https://trello.com/c/ANlT44nH
                 ]
             ] else [
-                to-word type-of :value
+                to-word type of :value
             ]
         ])
 
@@ -702,7 +728,7 @@ set 'r3-legacy* func [<local> if-flags] [
             some: :lib/some
 
             apply 'lib-set [
-                target: either any-context? target [words-of target] [target]
+                target: either any-context? target [words of target] [target]
                 value: :value
                 only: any? [set_ANY only]
                 some: set_SOME
@@ -743,7 +769,7 @@ set 'r3-legacy* func [<local> if-flags] [
                 ; the WORDS-OF block, covering things like hidden fields etc.
 
                 apply 'lib-get [
-                    source: words-of source
+                    source: words of source
                     opt: any? [any_GET opt_GET] ;-- will error if voids found
                 ]
             ][
@@ -826,15 +852,16 @@ set 'r3-legacy* func [<local> if-flags] [
 
             either function? :source [
                 code: reduce [:source]
-                params: words-of :source
+                params: words of :source
                 for-next params [
-                    append code switch type-of params/1 [
-                        :word! [take normals]
-                        :lit-word! [take softs]
-                        :get-word! [take hards]
-                        :set-word! [()] ;-- unset appends nothing (for local)
-                        :refinement! [break]
-                        (fail ["bad param type" params/1])
+                    append code switch type of params/1 [
+                        (word!) [take normals]
+                        (lit-word!) [take softs]
+                        (get-word!) [take hards]
+                        (set-word!) [[]] ;-- empty block appends nothing
+                        (refinement!) [break]
+                    ] else [
+                        fail ["bad param type" params/1]
                     ]
                 ]
                 lib/do code
@@ -1074,7 +1101,7 @@ set 'r3-legacy* func [<local> if-flags] [
         ;
         blankify-refinement-args: (procedure [f [frame!]] [
             seen-refinement: false
-            for-each (quote any-word:) words-of function-of f [
+            for-each (quote any-word:) words of function-of f [
                 if refinement? any-word [
                     if not seen-refinement [seen-refinement: true]
                     frame/(to-word any-word):
@@ -1165,7 +1192,7 @@ set 'r3-legacy* func [<local> if-flags] [
             vars [block!] {List of words that are local to the function}
             body [block!] {The body block of the function}
         ][
-            func (head insert copy vars /local) body
+            func (head of insert copy vars /local) body
         ])
 
         ; CONSTRUCT is now the generalized arity-2 object constructor.  What
@@ -1257,7 +1284,6 @@ set 'r3-legacy* func [<local> if-flags] [
         ]
     ]
 
-    ;
     ; The Ren-C invariant for control constructs that don't run their cases
     ; is to return VOID, not a "NONE!" (BLANK!) as in R3-Alpha.  We assume
     ; that converting void results from these operations gives compatibility,
@@ -1269,7 +1295,7 @@ set 'r3-legacy* func [<local> if-flags] [
     if-flags [none-instead-of-voids] [
         for-each word [
             if unless either case
-            while foreach loop repeat forall forskip
+            while for-each loop repeat forall forskip
         ][
             append system/contexts/user compose [
                 (to-set-word word)

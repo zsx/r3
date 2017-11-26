@@ -129,7 +129,7 @@ make-action: func [
         new-body exclusions locals defaulters statics
 ][
     exclusions: copy []
-    new-spec: make block! length-of spec
+    new-spec: make block! length of spec
     new-body: _
     statics: _
     defaulters: _
@@ -459,7 +459,7 @@ redescribe: function [
                             fail [param "not found in frame to describe"]
                         ]
 
-                        actual: first find words-of :value param
+                        actual: first find words of :value param
                         unless strict-equal? param actual [
                             fail [param {doesn't match word type of} actual]
                         ]
@@ -684,7 +684,7 @@ really: redescribe [
     specialize 'either-test [
         branch: func [value [<opt> any-value!]] [
             fail [
-                "REALLY did not expect argument of type" type-of :value
+                "REALLY did not expect argument of type" type of :value
             ]
 
             ; !!! There is currently no good way to SPECIALIZE a conditional
@@ -1170,7 +1170,7 @@ fail: function [
 ][
     ; By default, make the originating frame the FAIL's frame
     ;
-    unless where [location: context-of 'reason]
+    unless where [location: context of 'reason]
 
     ; Ultimately we might like FAIL to use some clever error-creating dialect
     ; when passed a block, maybe something like:

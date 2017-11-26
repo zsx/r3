@@ -68,7 +68,7 @@
 [#[true] == do [#[true]]]
 [#[false] == do [#[false]]]
 [$1 == do [$1]]
-[same? :type-of do [:type-of]]
+[same? :append do [:append]]
 [blank? do [_]]
 [
     a-value: make object! []
@@ -159,7 +159,7 @@
 [true = eval true]
 [false = eval false]
 [$1 == eval $1]
-[_ = eval :type-of ()]
+[_ = eval (specialize 'of [property: 'type]) ()]
 [blank? do _]
 [
     a-value: make object! []

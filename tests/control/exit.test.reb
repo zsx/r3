@@ -16,7 +16,7 @@
 ; the "result" of exit should not be passable to functions, bug#1509
 [a: 1 eval does [a: error? exit] :a =? 1]
 ; bug#1535
-[eval does [words-of exit] true]
-[eval does [values-of exit] true]
+[eval does [words of exit] true]
+[eval does [values of exit] true]
 ; bug#1945
 [eval does [spec-of exit] true]

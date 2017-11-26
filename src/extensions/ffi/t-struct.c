@@ -1539,12 +1539,9 @@ REBSTU *Copy_Struct_Managed(REBSTU *src)
 //
 REBTYPE(Struct)
 {
-    REBVAL *val;
+    REBVAL *val = D_ARG(1);
     REBVAL *arg;
 
-    val = D_ARG(1);
-
-    Init_Void(D_OUT);
     // unary actions
     switch(action) {
 
@@ -1562,11 +1559,20 @@ REBTYPE(Struct)
             VAL_STRUCT_DATA_LEN(val)
         );
         Move_Value(D_OUT, val);
-        break; }
+        return R_OUT; }
 
     case SYM_REFLECT: {
-        arg = D_ARG(2);
-        switch (VAL_WORD_SYM(arg)) {
+        INCLUDE_PARAMS_OF_REFLECT;
+
+        UNUSED(ARG(value));
+        REBSYM property = VAL_WORD_SYM(ARG(property));
+        assert(property != SYM_0);
+
+        switch (property) {
+        case SYM_LENGTH_OF:
+            Init_Integer(D_OUT, VAL_STRUCT_DATA_LEN(val));
+            return R_OUT;
+
         case SYM_VALUES: {
             fail_if_non_accessible(val);
             REBSER *bin = Make_Binary(VAL_STRUCT_SIZE(val));
@@ -1577,23 +1583,20 @@ REBTYPE(Struct)
             );
             TERM_BIN_LEN(bin, VAL_STRUCT_SIZE(val));
             Init_Binary(D_OUT, bin);
-            break; }
+            return R_OUT; }
 
         case SYM_SPEC:
             Init_Block(D_OUT, Struct_To_Array(VAL_STRUCT(val)));
-            break;
+            return R_OUT;
 
         default:
-            fail (Error_Cannot_Reflect(REB_STRUCT, arg));
+            break;
         }
-        break; }
-
-    case SYM_LENGTH_OF:
-        Init_Integer(D_OUT, VAL_STRUCT_DATA_LEN(val));
-        break;
+        fail (Error_Cannot_Reflect(REB_STRUCT, ARG(property))); }
 
     default:
-        fail (Error_Illegal_Action(REB_STRUCT, action));
+        break;
     }
-    return R_OUT;
+
+    fail (Error_Illegal_Action(REB_STRUCT, action));
 }

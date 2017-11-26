@@ -1,7 +1,7 @@
 ; datatypes/closure.r
 [closure? closure [] ["OK"]]
 [not closure? 1]
-[closure! = type-of closure [] ["OK"]]
+[closure! = type of closure [] ["OK"]]
 ; minimum
 [closure? closure [] []]
 ; return-less return value tests
@@ -113,8 +113,8 @@
     $1 == f
 ]
 [
-    f: closure [] [:type-of]
-    same? :type-of f
+    f: closure [] [:append]
+    same? :append f
 ]
 [
     f: closure [] [_]

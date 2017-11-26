@@ -16,16 +16,16 @@ fseek: make routine! compose [[ fp [pointer] offset [int64] where [int32] return
 
 fp: fopen "/tmp/test.txt" "w+"
 cnt: "hello world"
-fwrite cnt length? cnt 1 fp
+fwrite cnt length of cnt 1 fp
 
 buf: make struct! [s [uint8 [128]]]
 fseek fp 0 0
-fread (reflect buf 'addr) length? buf 1 fp
-print ["read:" to string! values-of buf "(" values-of buf ")"]
+fread (reflect buf 'addr) length of buf 1 fp
+print ["read:" to string! values of buf "(" values of buf ")"]
 
 a: "XXXXXXXXXXXXXX"
 fseek fp 0 0
-fread a length? a 1 fp
+fread a length of a 1 fp
 print ["read: " a]
 fclose fp
 

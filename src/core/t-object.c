@@ -798,28 +798,92 @@ void MF_Context(REB_MOLD *mo, const RELVAL *v, REBOOL form)
 
 
 //
+//  Context_Common_Action_Maybe_Unhandled: C
+//
+// Similar to Series_Common_Action_Maybe_Unhandled.  Introduced because
+// PORT! wants to act like a context for some things, but if you ask an
+// ordinary object if it's OPEN? it doesn't know how to do that.
+//
+REB_R Context_Common_Action_Maybe_Unhandled(
+    REBFRM *frame_,
+    REBSYM action
+){
+    REBVAL *value = D_ARG(1);
+    REBVAL *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
+
+    REBCTX *c = VAL_CONTEXT(value);
+
+    switch (action) {
+
+    case SYM_REFLECT: {
+        REBSYM property = VAL_WORD_SYM(arg);
+        assert(property != SYM_0);
+
+        switch (property) {
+        case SYM_LENGTH: // !!! Should this be legal?
+            Init_Integer(D_OUT, CTX_LEN(c));
+            return R_OUT;
+
+        case SYM_TAIL_Q: // !!! Should this be legal?
+            Init_Logic(D_OUT, LOGICAL(CTX_LEN(c) == 0));
+            return R_OUT;
+
+        case SYM_WORDS:
+            Init_Block(D_OUT, Context_To_Array(c, 1));
+            return R_OUT;
+
+        case SYM_VALUES:
+            Init_Block(D_OUT, Context_To_Array(c, 2));
+            return R_OUT;
+
+        case SYM_BODY:
+            Init_Block(D_OUT, Context_To_Array(c, 3));
+            return R_OUT;
+
+        // Noticeably not handled by average objects: SYM_OPEN_Q (`open?`)
+
+        default:
+            break;
+        }
+
+        break; }
+
+    default:
+        break;
+    }
+
+    return R_UNHANDLED; // not a common operation, not handled
+}
+
+
+//
 //  REBTYPE: C
 //
 // Handles object!, module!, and error! datatypes.
 //
 REBTYPE(Context)
 {
+    REB_R r = Context_Common_Action_Maybe_Unhandled(frame_, action);
+    if (r != R_UNHANDLED)
+        return r;
+
     REBVAL *value = D_ARG(1);
     REBVAL *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
 
+    REBCTX *c = VAL_CONTEXT(value);
+
     switch (action) {
+
+    case SYM_REFLECT:
+        // should be handled by the common handler
+        break;
+
     case SYM_APPEND:
-        FAIL_IF_READ_ONLY_CONTEXT(VAL_CONTEXT(value));
+        FAIL_IF_READ_ONLY_CONTEXT(c);
         if (!IS_OBJECT(value) && !IS_MODULE(value))
             fail (Error_Illegal_Action(VAL_TYPE(value), action));
-        Append_To_Context(VAL_CONTEXT(value), arg);
+        Append_To_Context(c, arg);
         Move_Value(D_OUT, D_ARG(1));
-        return R_OUT;
-
-    case SYM_LENGTH_OF:
-        if (!IS_OBJECT(value))
-            fail (Error_Illegal_Action(VAL_TYPE(value), action));
-        Init_Integer(D_OUT, CTX_LEN(VAL_CONTEXT(value)));
         return R_OUT;
 
     case SYM_COPY: { // Note: words are not copied and bindings not changed!
@@ -847,7 +911,7 @@ REBTYPE(Context)
         Init_Any_Context(
             D_OUT,
             VAL_TYPE(value),
-            Copy_Context_Core(VAL_CONTEXT(value), REF(deep), types)
+            Copy_Context_Core(c, REF(deep), types)
         );
         return R_OUT; }
 
@@ -856,36 +920,19 @@ REBTYPE(Context)
         if (!IS_WORD(arg))
             return R_BLANK;
 
-        REBCNT n = Find_Canon_In_Context(
-            VAL_CONTEXT(value), VAL_WORD_CANON(arg), FALSE
-        );
+        REBCNT n = Find_Canon_In_Context(c, VAL_WORD_CANON(arg), FALSE);
 
         if (n == 0)
             return R_BLANK;
 
-        if (cast(REBCNT, n) > CTX_LEN(VAL_CONTEXT(value)))
+        if (cast(REBCNT, n) > CTX_LEN(c))
             return R_BLANK;
 
         if (action == SYM_FIND) return R_TRUE;
 
-        Move_Value(D_OUT, CTX_VAR(VAL_CONTEXT(value), n));
+        Move_Value(D_OUT, CTX_VAR(c, n));
         return R_OUT;
     }
-
-    case SYM_REFLECT: {
-        REBSYM sym = VAL_WORD_SYM(arg);
-        REBCNT reflector;
-
-        switch (sym) {
-        case SYM_WORDS: reflector = 1; break;
-        case SYM_VALUES: reflector = 2; break;
-        case SYM_BODY: reflector = 3; break;
-        default:
-            fail (Error_Cannot_Reflect(VAL_TYPE(value), arg));
-        }
-
-        Init_Block(D_OUT, Context_To_Array(VAL_CONTEXT(value), reflector));
-        return R_OUT; }
 
     case SYM_TRIM: {
         INCLUDE_PARAMS_OF_TRIM;
@@ -904,19 +951,8 @@ REBTYPE(Context)
             fail (Error_Bad_Refines_Raw());
         }
 
-        Init_Any_Context(
-            D_OUT,
-            VAL_TYPE(value),
-            Trim_Context(VAL_CONTEXT(value))
-        );
+        Init_Any_Context(D_OUT, VAL_TYPE(value), Trim_Context(c));
         return R_OUT; }
-
-    case SYM_TAIL_Q:
-        if (IS_OBJECT(value)) {
-            Init_Logic(D_OUT, LOGICAL(CTX_LEN(VAL_CONTEXT(value)) == 0));
-            return R_OUT;
-        }
-        fail (Error_Illegal_Action(VAL_TYPE(value), action));
 
     default:
         break;

@@ -2,7 +2,7 @@
 [path? 'a/b]
 ['a/b == first [a/b]]
 [not path? 1]
-[path! = type-of 'a/b]
+[path! = type of 'a/b]
 ; the minimum
 ; bug#1947
 [path? load "#[path! [[a] 1]]"]
@@ -138,7 +138,7 @@
 [
     a: make object! []
     path: 'a/a
-    change/only back tail path path
+    change/only back tail of path path
     error? try [do path]
     true
 ]

@@ -1,8 +1,8 @@
 ; functions/series/emptyq.r
 [empty? []]
 [
-    blk: tail [1]
-    clear head blk
+    blk: tail of [1]
+    clear head of blk
     empty? blk
 ]
 [empty? blank]

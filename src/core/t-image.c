@@ -976,17 +976,17 @@ REBTYPE(Image)
 {
     REBVAL  *value = D_ARG(1);
     REBVAL  *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
-    REBSER  *series;
-    REBINT  index;
-    REBINT  tail;
     REBINT  diff, len, w, h;
     REBVAL  *val;
 
+    REBSER *series = VAL_SERIES(value);
+    REBINT index = VAL_INDEX(value);
+    REBINT tail = cast(REBINT, SER_LEN(series));
+
     // Clip index if past tail:
-    series = VAL_SERIES(value);
-    index = VAL_INDEX(value);
-    tail = (REBINT)SER_LEN(series);
-    if (index > tail) index = tail;
+    //
+    if (index > tail)
+        index = tail;
 
     // Check must be in this order (to avoid checking a non-series value);
     if (action >= SYM_TAKE_P && action <= SYM_SORT)
@@ -995,45 +995,54 @@ REBTYPE(Image)
     // Dispatch action:
     switch (action) {
 
-    case SYM_HEAD_OF:
-        VAL_INDEX(value) = 0;
-        break;
+    case SYM_REFLECT: {
+        INCLUDE_PARAMS_OF_REFLECT;
 
-    case SYM_TAIL_OF:
-        VAL_INDEX(value) = (REBCNT)tail;
-        break;
+        UNUSED(ARG(value)); // accounted for by value above
+        REBSYM property = VAL_WORD_SYM(ARG(property));
+        assert(property != SYM_0);
 
-    case SYM_HEAD_Q:
-        return (index == 0) ? R_TRUE : R_FALSE;
+        switch (property) {
+        case SYM_HEAD:
+            VAL_INDEX(value) = 0;
+            break;
 
-    case SYM_TAIL_Q:
-        return (index >= tail) ? R_TRUE : R_FALSE;
+        case SYM_TAIL:
+            VAL_INDEX(value) = cast(REBCNT, tail);
+            break;
 
-    case SYM_COMPLEMENT:
-        series = Complement_Image(value);
-        Init_Image(value, series); // use series var not func
-        break;
+        case SYM_HEAD_Q:
+            return R_FROM_BOOL(LOGICAL(index == 0));
 
-    case SYM_INDEX_OF: {
-        INCLUDE_PARAMS_OF_INDEX_OF;
+        case SYM_TAIL_Q:
+            return R_FROM_BOOL(LOGICAL(index >= tail));
 
-        UNUSED(PAR(series));
-
-        if (REF(xy)) {
+        case SYM_XY:
             SET_PAIR(
                 D_OUT,
                 index % VAL_IMAGE_WIDE(value),
                 index / VAL_IMAGE_WIDE(value)
             );
             return R_OUT;
-        }
-        else {
+
+        case SYM_INDEX:
             Init_Integer(D_OUT, index + 1);
             return R_OUT;
-        }}
-        // fallthrough
-    case SYM_LENGTH_OF:
-        Init_Integer(D_OUT, tail > index ? tail - index : 0);
+
+        case SYM_LENGTH:
+            Init_Integer(D_OUT, tail > index ? tail - index : 0);
+            return R_OUT;
+
+        default:
+            break;
+        }
+
+        break; }
+
+    case SYM_COMPLEMENT:
+        series = Complement_Image(value);
+        Init_Image(value, series); // use series var not func
+        Move_Value(D_OUT, value);
         return R_OUT;
 
     case SYM_SKIP:
@@ -1058,56 +1067,18 @@ REBTYPE(Image)
             index = tail;
         else if (index < 0)
             index = 0;
-        VAL_INDEX(value) = (REBCNT)index;
-        break;
 
-#ifdef obsolete
-        if (action == A_SKIP || action == A_AT) {
-        }
-
-        if (diff == 0 || index < 0 || index >= tail) {
-            if (action == A_POKE)
-                fail (Error_Out_Of_Range(arg));
-            goto is_blank;
-        }
-
-        if (action == A_POKE) {
-            REBINT *dp = QUAD_SKIP(series, index));
-            REBINT n;
-
-            arg = D_ARG(3);
-            if (IS_TUPLE(arg) && (IS_IMAGE(value))) {
-                Set_Pixel_Tuple(QUAD_SKIP(series, index), arg);
-                //*dp = (long) (VAL_TUPLE_LEN(arg) < 4) ?
-                //  ((*dp & 0xff000000) | (VAL_TUPLE(arg)[0] << 16) | (VAL_TUPLE(arg)[1] << 8) | (VAL_TUPLE(arg)[2])) :
-                //  ((VAL_TUPLE(arg)[3] << 24) | (VAL_TUPLE(arg)[0] << 16) | (VAL_TUPLE(arg)[1] << 8) | (VAL_TUPLE(arg)[2]));
-                Move_Value(D_OUT, arg);
-                return R_OUT;
-            }
-            if (IS_INTEGER(arg) && VAL_INT64(arg) > 0 && VAL_INT64(arg) < 255)
-                n = VAL_INT32(arg);
-            else if (IS_CHAR(arg))
-                n = VAL_CHAR(arg);
-            else
-                fail (arg);
-
-            *dp = (*dp & 0xffffff) | (n << 24);
-            Move_Value(D_OUT, arg);
-            return R_OUT; //was value;
-
-        } else {
-            Set_Tuple_Pixel(QUAD_SKIP(series, index), D_OUT);
-            return R_OUT;
-        }
-        break;
-#endif
+        VAL_INDEX(value) = cast(REBCNT, index);
+        Move_Value(D_OUT, value);
+        return R_OUT;
 
     case SYM_CLEAR:   // clear series
         if (index < tail) {
             SET_SERIES_LEN(VAL_SERIES(value), cast(REBCNT, index));
             Reset_Height(value);
         }
-        break;
+        Move_Value(D_OUT, value);
+        return R_OUT;
 
     case SYM_REMOVE: {
         INCLUDE_PARAMS_OF_REMOVE;
@@ -1139,13 +1110,15 @@ REBTYPE(Image)
             Remove_Series(series, VAL_INDEX(value), len);
         }
         Reset_Height(value);
-        break; }
+        Move_Value(D_OUT, value);
+        return R_OUT; }
 
     case SYM_APPEND:
     case SYM_INSERT:  // insert ser val /part len /only /dup count
     case SYM_CHANGE:  // change ser val /part len /only /dup count
         value = Modify_Image(frame_, action); // sets DS_OUT
-        break;
+        Move_Value(D_OUT, value);
+        return R_OUT;
 
     case SYM_FIND:
         Find_Image(frame_); // sets DS_OUT
@@ -1211,11 +1184,10 @@ makeCopy2:
         return R_OUT; }
 
     default:
-        fail (Error_Illegal_Action(VAL_TYPE(value), action));
+        break;
     }
 
-    Move_Value(D_OUT, value);
-    return R_OUT;
+    fail (Error_Illegal_Action(VAL_TYPE(value), action));
 }
 
 

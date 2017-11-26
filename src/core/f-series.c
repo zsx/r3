@@ -43,58 +43,73 @@
 REB_R Series_Common_Action_Maybe_Unhandled(
     REBFRM *frame_,
     REBSYM action
-) {
+){
     REBVAL *value = D_ARG(1);
     REBVAL *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
 
     REBINT index = cast(REBINT, VAL_INDEX(value));
     REBINT tail = cast(REBINT, VAL_LEN_HEAD(value));
-    REBINT len = 0;
 
     switch (action) {
 
-    //-- Navigation:
+    case SYM_REFLECT: {
+        REBSYM property = VAL_WORD_SYM(arg);
+        assert(property != SYM_0);
 
-    case SYM_HEAD_OF:
-        VAL_INDEX(value) = 0;
-        break;
+        switch (property) {
+        case SYM_INDEX:
+            Init_Integer(D_OUT, cast(REBI64, index) + 1);
+            return R_OUT;
 
-    case SYM_TAIL_OF:
-        VAL_INDEX(value) = cast(REBCNT, tail);
-        break;
+        case SYM_LENGTH:
+            Init_Integer(D_OUT, tail > index ? tail - index : 0);
+            return R_OUT;
 
-    case SYM_HEAD_Q:
-        return R_FROM_BOOL(LOGICAL(index == 0));
+        case SYM_HEAD:
+            Move_Value(D_OUT, value);
+            VAL_INDEX(D_OUT) = 0;
+            return R_OUT;
 
-    case SYM_TAIL_Q:
-        return R_FROM_BOOL(LOGICAL(index >= tail));
+        case SYM_TAIL:
+            Move_Value(D_OUT, value);
+            VAL_INDEX(D_OUT) = cast(REBCNT, tail);
+            return R_OUT;
 
-    case SYM_PAST_Q:
-        return R_FROM_BOOL(LOGICAL(index > tail));
+        case SYM_HEAD_Q:
+            return R_FROM_BOOL(LOGICAL(index == 0));
+
+        case SYM_TAIL_Q:
+            return R_FROM_BOOL(LOGICAL(index >= tail));
+
+        case SYM_PAST_Q:
+            return R_FROM_BOOL(LOGICAL(index > tail));
+
+        default:
+            break;
+        }
+
+        break; }
 
     case SYM_SKIP:
-    case SYM_AT:
-        len = Get_Num_From_Arg(arg);
-        {
-            REBI64 i = (REBI64)index + (REBI64)len;
-            if (action == SYM_SKIP) {
-                if (IS_LOGIC(arg)) i--;
-            } else { // A_AT
-                if (len > 0) i--;
-            }
-            if (i > (REBI64)tail) i = (REBI64)tail;
-            else if (i < 0) i = 0;
-            VAL_INDEX(value) = (REBCNT)i;
+    case SYM_AT: {
+        REBINT len = Get_Num_From_Arg(arg);
+        REBI64 i = cast(REBI64, index) + cast(REBI64, len);
+        if (action == SYM_SKIP) {
+            if (IS_LOGIC(arg))
+                --i;
         }
-        break;
-
-    case SYM_INDEX_OF:
-        Init_Integer(D_OUT, cast(REBI64, index) + 1);
-        return R_OUT; // handled
-
-    case SYM_LENGTH_OF:
-        Init_Integer(D_OUT, tail > index ? tail - index : 0);
-        return R_OUT; // handled
+        else {
+            assert(action == SYM_AT);
+            if (len > 0)
+                --i;
+        }
+        if (i > cast(REBI64, tail))
+            i = cast(REBI64, tail);
+        else if (i < 0)
+            i = 0;
+        VAL_INDEX(value) = cast(REBCNT, i);
+        Move_Value(D_OUT, value);
+        return R_OUT; }
 
     case SYM_REMOVE: {
         INCLUDE_PARAMS_OF_REMOVE;
@@ -107,18 +122,20 @@ REB_R Series_Common_Action_Maybe_Unhandled(
         }
 
         FAIL_IF_READ_ONLY_SERIES(VAL_SERIES(value));
-        len = REF(part) ? Partial(value, 0, ARG(limit)) : 1;
+
+        REBINT len = REF(part) ? Partial(value, 0, ARG(limit)) : 1;
         index = cast(REBINT, VAL_INDEX(value));
         if (index < tail && len != 0)
             Remove_Series(VAL_SERIES(value), VAL_INDEX(value), len);
-        break; }
+
+        Move_Value(D_OUT, value);
+        return R_OUT; }
 
     default:
-        return R_UNHANDLED; // not a common operation, not handled
+        break;
     }
 
-    Move_Value(D_OUT, value);
-    return R_OUT;
+    return R_UNHANDLED; // not a common operation, not handled
 }
 
 

@@ -25,7 +25,7 @@
     all [res | pos = next ser]
 ][
     res: parse ser: [x y] [skip skip pos: end]
-    all [res | pos = tail ser]
+    all [res | pos = tail of ser]
 ][
     #2130
     res: parse ser: [x] [set val pos: word!]
@@ -139,7 +139,7 @@
 
 ; self-modifying rule, not legal in Ren-C if it's during the parse
 
-[error? try [not parse? "abcd" rule: ["ab" (remove back tail rule) "cd"]]]
+[error? try [not parse? "abcd" rule: ["ab" (remove back tail of rule) "cd"]]]
 
 [
     https://github.com/metaeducation/ren-c/issues/377

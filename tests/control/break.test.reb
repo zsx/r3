@@ -12,7 +12,7 @@
 
 ; the "result" of break should not be passable to functions
 [#1509 | a: 1 | loop 1 [a: error? break] | :a = 1]
-[#1509 | a: 1 | loop 1 [a: type-of break] | :a = 1]
+[#1509 | a: 1 | loop 1 [a: type of break] | :a = 1]
 [#1509 | foo: func [x y] [9] | a: 1 | loop 1 [a: foo break 5] | :a = 1]
 [#1509 | foo: func [x y] [9] | a: 1 | loop 1 [a: foo 5 break] | :a = 1]
 [#1509 | foo: func [x y] [9] a: 1 loop 1 [a: foo break break] | :a = 1]
@@ -24,8 +24,8 @@
 [foo: func [x y] [] a: 1 loop 2 [a: a + 1 foo continue break a: a + 10] :a =? 3]
 
 ; bug#1535
-[#1535 | loop 1 [words-of break] true]
-[#1535 | loop 1 [values-of break] true]
+[#1535 | loop 1 [words of break] true]
+[#1535 | loop 1 [values of break] true]
 
 [#1945 | loop 1 [spec-of break] true]
 

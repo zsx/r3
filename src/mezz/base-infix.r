@@ -49,10 +49,10 @@ dv: (pick [/] 1) ;-- "slash" is the character #"/"
 dvdv: (pick [//] 1)
 ltgt: (pick [<>] 1)
 
-right-arrow: bind (pick make block! "->" 1) context-of 'lambda
-left-arrow: bind (pick make block! "<-" 1) context-of 'lambda
-left-flag: bind (pick make block! "<|" 1) context-of 'lambda
-right-flag: bind (pick make block! "|>" 1) context-of 'lambda
+right-arrow: bind (pick make block! "->" 1) context of 'lambda
+left-arrow: bind (pick make block! "<-" 1) context of 'lambda
+left-flag: bind (pick make block! "<|" 1) context of 'lambda
+right-flag: bind (pick make block! "|>" 1) context of 'lambda
 
 
 ; While Ren-C has no particular concept of "infix OP!s" as a unique datatype,

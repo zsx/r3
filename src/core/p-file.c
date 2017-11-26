@@ -309,6 +309,59 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
     switch (action) {
 
+    case SYM_REFLECT: {
+        INCLUDE_PARAMS_OF_REFLECT;
+
+        UNUSED(ARG(value)); // implicitly comes from `port`
+        REBSYM property = VAL_WORD_SYM(ARG(property));
+        assert(property != SYM_0);
+
+        switch (property) {
+        case SYM_INDEX:
+            Init_Integer(D_OUT, file->index + 1);
+            return R_OUT;
+
+        case SYM_LENGTH:
+            //
+            // Comment said "clip at zero"
+            ///
+            Init_Integer(D_OUT, file->size - file->index);
+            return R_OUT;
+
+        case SYM_HEAD:
+            file->index = 0;
+            req->modes |= RFM_RESEEK;
+            Move_Value(D_OUT, CTX_VALUE(port));
+            return R_OUT;
+
+        case SYM_TAIL:
+            file->index = file->size;
+            req->modes |= RFM_RESEEK;
+            Move_Value(D_OUT, CTX_VALUE(port));
+            return R_OUT;
+
+        case SYM_HEAD_Q:
+            return R_FROM_BOOL(LOGICAL(file->index == 0));
+
+        case SYM_TAIL_Q:
+            return R_FROM_BOOL(
+                LOGICAL(file->index >= file->size)
+            );
+
+        case SYM_PAST_Q:
+            return R_FROM_BOOL(
+                LOGICAL(file->index > file->size)
+            );
+
+        case SYM_OPEN_Q:
+            return R_FROM_BOOL(LOGICAL(req->flags & RRF_OPEN));
+
+        default:
+            break;
+        }
+
+        break; }
+
     case SYM_READ: {
         INCLUDE_PARAMS_OF_READ;
 
@@ -464,9 +517,6 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         Read_File_Port(D_OUT, port, file, path, flags, len);
         return R_OUT; }
 
-    case SYM_OPEN_Q:
-        return R_FROM_BOOL(LOGICAL(req->flags & RRF_OPEN));
-
     case SYM_CLOSE: {
         INCLUDE_PARAMS_OF_CLOSE;
         UNUSED(PAR(port));
@@ -559,29 +609,6 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         }
         return R_TRUE; }
 
-    case SYM_INDEX_OF:
-        Init_Integer(D_OUT, file->index + 1);
-        return R_OUT;
-
-    case SYM_LENGTH_OF:
-        //
-        // Comment said "clip at zero"
-        ///
-        Init_Integer(D_OUT, file->size - file->index);
-        return R_OUT;
-
-    case SYM_HEAD_OF: {
-        file->index = 0;
-        req->modes |= RFM_RESEEK;
-        Move_Value(D_OUT, CTX_VALUE(port));
-        return R_OUT; }
-
-    case SYM_TAIL_OF: {
-        file->index = file->size;
-        req->modes |= RFM_RESEEK;
-        Move_Value(D_OUT, CTX_VALUE(port));
-        return R_OUT; }
-
     case SYM_SKIP: {
         INCLUDE_PARAMS_OF_SKIP;
 
@@ -591,19 +618,6 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         req->modes |= RFM_RESEEK;
         Move_Value(D_OUT, CTX_VALUE(port));
         return R_OUT; }
-
-    case SYM_HEAD_Q:
-        return R_FROM_BOOL(LOGICAL(file->index == 0));
-
-    case SYM_TAIL_Q:
-        return R_FROM_BOOL(
-            LOGICAL(file->index >= file->size)
-        );
-
-    case SYM_PAST_Q:
-        return R_FROM_BOOL(
-            LOGICAL(file->index > file->size)
-        );
 
     case SYM_CLEAR:
         // !! check for write enabled?

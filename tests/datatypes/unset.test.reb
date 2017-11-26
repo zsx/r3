@@ -1,6 +1,6 @@
 ; datatypes/unset.r
 [void? ()]
-[blank? type-of ()]
+[blank? type of ()]
 [not void? 1]
 
 [#68 | void? try [a: ()]]

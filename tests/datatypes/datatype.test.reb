@@ -1,6 +1,6 @@
 ; datatypes/datatype.r
 [not datatype? 1]
-[datatype! = type-of function!]
+[datatype! = type of function!]
 [datatype? function!]
 [datatype? binary!]
 [datatype? bitset!]

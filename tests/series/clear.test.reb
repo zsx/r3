@@ -4,7 +4,7 @@
 [
     block: at copy [1 2 3 4] 3
     clear block
-    [1 2] == head clear block
+    [1 2] == head of clear block
 ]
 ; blank
 [blank == clear blank]

@@ -1,7 +1,7 @@
 ; datatypes/function.r
 [function? does ["OK"]]
 [not function? 1]
-[function! = type-of does ["OK"]]
+[function! = type of does ["OK"]]
 ; minimum
 [function? does []]
 ; literal form
@@ -115,8 +115,8 @@
     $1 == f
 ]
 [
-    f: does [:type-of]
-    same? :type-of f
+    f: does [:append]
+    same? :append f
 ]
 [
     f: does [_]
@@ -296,7 +296,7 @@
     error? trap [2 == f/r/r 1 2]
 ]
 ; bug#27
-[error? try [(type-of) 1]]
+[error? try [(type of) 1]]
 ; bug#1659
 ; inline function test
 [

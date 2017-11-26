@@ -1,6 +1,8 @@
 ; functions/control/apply.r
-; bug#44
-[error? try [r3-alpha-apply 'type-of/word []]]
+[
+    #44
+    error? try [r3-alpha-apply 'append/only [copy [a b] 'c]]
+]
 [1 == r3-alpha-apply :subtract [2 1]]
 [1 = (r3-alpha-apply :- [2 1])]
 [error? try [r3-alpha-apply func [a] [a] []]]
@@ -22,12 +24,12 @@
 [use [a] [a: false true = r3-alpha-apply func [/a] [a] ['a]]]
 [use [a] [a: false true = r3-alpha-apply func [/a] [a] [/a]]]
 [use [a] [a: false true = r3-alpha-apply/only func [/a] [a] [a]]]
-[group! == r3-alpha-apply/only :type-of [()]]
-[[1] == head r3-alpha-apply :insert [copy [] [1] blank blank blank]]
-[[1] == head r3-alpha-apply :insert [copy [] [1] blank blank false]]
-[[[1]] == head r3-alpha-apply :insert [copy [] [1] blank blank true]]
-[function! == r3-alpha-apply :type-of [:print]]
-[get-word! == r3-alpha-apply/only :type-of [:print]]
+[group! == r3-alpha-apply/only (specialize 'of [property: 'type]) [()]]
+[[1] == head of r3-alpha-apply :insert [copy [] [1] blank blank blank]]
+[[1] == head of r3-alpha-apply :insert [copy [] [1] blank blank false]]
+[[[1]] == head of r3-alpha-apply :insert [copy [] [1] blank blank true]]
+[function! == r3-alpha-apply (specialize 'of [property: 'type]) [:print]]
+[get-word! == r3-alpha-apply/only (specialize 'of [property: 'type]) [:print]]
 ; bug#1760
 [1 == eval does [r3-alpha-apply does [] [return 1] 2]]
 ; bug#1760
@@ -96,11 +98,11 @@
 ][
     error? r3-alpha-apply/only func [x [<opt> any-value!]] [
         return get/only 'x
-    ] head insert copy [] make error! ""
+    ] head of insert copy [] make error! ""
 ][
     error? r3-alpha-apply/only func ['x [<opt> any-value!]] [
         return get/only 'x
-    ] head insert copy [] make error! ""
+    ] head of insert copy [] make error! ""
 ]
 [use [x] [x: 1 strict-equal? 1 r3-alpha-apply func ['x] [:x] [:x]]]
 [use [x] [x: 1 strict-equal? 1 r3-alpha-apply func ['x] [:x] [:x]]]

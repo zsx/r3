@@ -122,7 +122,7 @@ make-dir: func [
         all [
             not empty? path
             not exists? path
-            remove back tail path ; trailing slash
+            remove back tail of path ; trailing slash
         ]
     ][
         end: any [find/last/tail path slash path]
@@ -161,14 +161,22 @@ delete-dir: func [
 
 script?: func [
     {Checks file, url, or string for a valid script header.}
+
+    return: [binary! blank!]
     source [file! url! binary! string!]
 ][
-    ; !!! to word! necessary as long as OPTIONS_DATATYPE_WORD_STRICT exists
-    switch to word! type-of source [
-        file! url! [source: read source]
-        string! [source: to binary! source] ; Remove this line if FIND-SCRIPT changed to accept string!
+    switch type of source [
+        (file!)
+        (url!) [
+            source: read source
+        ]
+        (string!) [
+            ; Remove this line if FIND-SCRIPT changed to accept string!
+            ;
+            source: to binary! source
+        ]
     ]
-    find-script source ; Returns binary!
+    find-script source
 ]
 
 file-type?: func [
@@ -188,8 +196,12 @@ split-path: func [
     parse target [
         [#"/" | 1 2 #"." opt #"/"] end (dir: dirize target) |
         pos: any [thru #"/" [end | pos:]] (
-            all [empty? dir: copy/part target at head target index-of pos dir: %./]
-            all [find [%. %..] pos: to file! pos insert tail pos #"/"]
+            all [
+                empty? dir: copy/part target at head of target index of pos
+                    |
+                dir: %./
+            ]
+            all [find [%. %..] pos: to file! pos insert tail of pos #"/"]
         )
     ]
     reduce [dir pos]
@@ -199,7 +211,7 @@ intern: function [
     "Imports (internalize) words and their values from the lib into the user context."
     data [block! any-word!] "Word or block of words to be added (deeply)"
 ][
-    index: 1 + length-of usr: system/contexts/user ; optimization
+    index: 1 + length of usr: system/contexts/user ; optimization
     data: bind/new :data usr   ; Extend the user context with new words
     resolve/only usr lib index ; Copy only the new values into the user context
     :data

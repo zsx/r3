@@ -49,11 +49,26 @@ static REB_R DNS_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
     sock->timeout = 4000; // where does this go? !!!
 
-    Move_Value(D_OUT, D_ARG(1));
-
     REBCNT len;
 
     switch (action) {
+
+    case SYM_REFLECT: {
+        INCLUDE_PARAMS_OF_REFLECT;
+
+        UNUSED(ARG(value));
+        REBSYM property = VAL_WORD_SYM(ARG(property));
+        assert(property != SYM_0);
+
+        switch (property) {
+        case SYM_OPEN_Q:
+            return R_FROM_BOOL(LOGICAL(sock->flags & RRF_OPEN));
+
+        default:
+            break;
+        }
+
+        break; }
 
     case SYM_READ: {
         INCLUDE_PARAMS_OF_READ;
@@ -121,7 +136,7 @@ static REB_R DNS_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
             len = 1;
             goto pick;
         }
-        break; }
+        goto return_port; }
 
     case SYM_PICK_P:  // FIRST - return result
         if (NOT(sock->flags & RRF_OPEN))
@@ -154,7 +169,7 @@ static REB_R DNS_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
             Set_Tuple(D_OUT, cast(REBYTE*, &DEVREQ_NET(sock)->remote_ip), 4);
         }
         OS_DO_DEVICE(sock, RDC_CLOSE);
-        break;
+        goto return_port;
 
     case SYM_OPEN: {
         INCLUDE_PARAMS_OF_OPEN;
@@ -175,22 +190,23 @@ static REB_R DNS_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
         if (OS_DO_DEVICE(sock, RDC_OPEN))
             fail (Error_On_Port(RE_CANNOT_OPEN, port, -12));
-        break; }
+        goto return_port; }
 
     case SYM_CLOSE:
         OS_DO_DEVICE(sock, RDC_CLOSE);
-        break;
-
-    case SYM_OPEN_Q:
-        return R_FROM_BOOL(LOGICAL(sock->flags & RRF_OPEN));
+        goto return_port;
 
     case SYM_ON_WAKE_UP:
         return R_BLANK;
 
     default:
-        fail (Error_Illegal_Action(REB_PORT, action));
+        break;
     }
 
+    fail (Error_Illegal_Action(REB_PORT, action));
+
+return_port:
+    Move_Value(D_OUT, D_ARG(1));
     return R_OUT;
 }
 

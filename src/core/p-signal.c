@@ -155,6 +155,22 @@ static REB_R Signal_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
     if (NOT(req->flags & RRF_OPEN)) {
         switch (action) {
+        case SYM_REFLECT: {
+            INCLUDE_PARAMS_OF_REFLECT;
+
+            UNUSED(ARG(value));
+            REBSYM property = VAL_WORD_SYM(ARG(property));
+
+            switch (property) {
+            case SYM_OPEN_Q:
+                return R_FALSE;
+
+            default:
+                break;
+            }
+
+            fail (Error_On_Port(RE_NOT_OPEN, port, -12)); }
+
         case SYM_READ:
         case SYM_OPEN: {
             REBVAL *val = Obj_Value(spec, STD_PORT_SPEC_SIGNAL_MASK);
@@ -190,20 +206,17 @@ static REB_R Signal_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
             if (OS_DO_DEVICE(req, RDC_OPEN))
                 fail (Error_On_Port(RE_CANNOT_OPEN, port, req->error));
 
-            if (action == SYM_OPEN) {
-                Move_Value(D_OUT, D_ARG(1)); // port
-                return R_OUT;
-            }
-            break; }
+            if (action == SYM_OPEN)
+                goto return_port;
+
+            assert((req->flags & RRF_OPEN) && (action == SYM_READ));
+            break; } // fallthrough
 
         case SYM_CLOSE:
             return R_OUT;
 
-        case SYM_OPEN_Q:
-            return R_FALSE;
-
-        case SYM_ON_WAKE_UP:  // allowed after a close
-            break;
+        case SYM_ON_WAKE_UP:
+            break; // fallthrough (allowed after a close)
 
         default:
             fail (Error_On_Port(RE_NOT_OPEN, port, -12));
@@ -211,67 +224,81 @@ static REB_R Signal_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
     }
 
     switch (action) {
-        case SYM_ON_WAKE_UP: {
-            //
-            // Update the port object after a READ or WRITE operation.
-            // This is normally called by the WAKE-UP function.
-            //
-            REBVAL *arg = CTX_VAR(port, STD_PORT_DATA);
-            if (req->command == RDC_READ) {
-                REBINT len = req->actual;
-                if (len > 0) {
-                    update(signal, len, arg);
-                }
-            }
-            return R_BLANK; }
+    case SYM_REFLECT: {
+        INCLUDE_PARAMS_OF_REFLECT;
 
-        case SYM_READ: {
-            // This device is opened on the READ:
-            // Issue the read request:
-            REBVAL *arg = CTX_VAR(port, STD_PORT_DATA);
+        UNUSED(ARG(value));
+        REBSYM property = VAL_WORD_SYM(ARG(property));
 
-            REBINT len = req->length = 8;
-            REBSER *ser = Make_Binary(len * sizeof(siginfo_t));
-            req->common.data = BIN_HEAD(ser);
-
-            REBINT result = OS_DO_DEVICE(req, RDC_READ);
-            if (result < 0) {
-                Free_Series(ser);
-                fail (Error_On_Port(RE_READ_ERROR, port, req->error));
-            }
-
-            arg = CTX_VAR(port, STD_PORT_DATA);
-            if (!IS_BLOCK(arg))
-                Init_Block(arg, Make_Array(len));
-
-            len = req->actual;
-
-            if (len <= 0) {
-                Free_Series(ser);
-                return R_BLANK;
-            }
-
-            update(signal, len, arg);
-            Free_Series(ser);
-            Move_Value(D_OUT, arg);
-            return R_OUT; }
-
-        case SYM_CLOSE:
-            OS_DO_DEVICE(req, RDC_CLOSE);
-            Move_Value(D_OUT, D_ARG(1));
-            return R_OUT;
-
+        switch (property) {
         case SYM_OPEN_Q:
             return R_TRUE;
 
-        case SYM_OPEN: {
-            fail (Error_Already_Open_Raw(D_ARG(1)));
+        default:
+            break;
         }
 
-        default:
-            fail (Error_Illegal_Action(REB_PORT, action));
+        break; }
+
+    case SYM_ON_WAKE_UP: {
+        //
+        // Update the port object after a READ or WRITE operation.
+        // This is normally called by the WAKE-UP function.
+        //
+        REBVAL *arg = CTX_VAR(port, STD_PORT_DATA);
+        if (req->command == RDC_READ) {
+            REBINT len = req->actual;
+            if (len > 0) {
+                update(signal, len, arg);
+            }
+        }
+        return R_BLANK; }
+
+    case SYM_READ: {
+        // This device is opened on the READ:
+        // Issue the read request:
+        REBVAL *arg = CTX_VAR(port, STD_PORT_DATA);
+
+        REBINT len = req->length = 8;
+        REBSER *ser = Make_Binary(len * sizeof(siginfo_t));
+        req->common.data = BIN_HEAD(ser);
+
+        REBINT result = OS_DO_DEVICE(req, RDC_READ);
+        if (result < 0) {
+            Free_Series(ser);
+            fail (Error_On_Port(RE_READ_ERROR, port, req->error));
+        }
+
+        arg = CTX_VAR(port, STD_PORT_DATA);
+        if (!IS_BLOCK(arg))
+            Init_Block(arg, Make_Array(len));
+
+        len = req->actual;
+
+        if (len <= 0) {
+            Free_Series(ser);
+            return R_BLANK;
+        }
+
+        update(signal, len, arg);
+        Free_Series(ser);
+        goto return_port; }
+
+    case SYM_CLOSE:
+        OS_DO_DEVICE(req, RDC_CLOSE);
+        goto return_port;
+
+    case SYM_OPEN:
+        fail (Error_Already_Open_Raw(D_ARG(1)));
+
+    default:
+        break;
     }
 
+    fail (Error_Illegal_Action(REB_PORT, action));
+
+return_port:
+    Move_Value(D_OUT, D_ARG(1));
     return R_OUT;
 }
 

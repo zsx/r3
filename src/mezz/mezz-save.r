@@ -148,7 +148,7 @@ save: function [
         ]
 
         length_SAVE [
-            change find/tail header-data 'length (length-of data)
+            change find/tail header-data 'length (length of data)
         ]
 
         header-data [
@@ -174,6 +174,6 @@ save: function [
         ]
     ] else [
         ; string! or binary!, insert data
-        insert tail where data
+        insert tail of where data
     ]
 ]

@@ -49,26 +49,38 @@
 //
 static REB_R Timer_Actor(REBFRM *frame_, REBCTX *port, REBCNT action)
 {
-    REBVAL *spec;
-    REBVAL *state;
-    REBCNT result;
-    REBVAL *arg;
-
-    DECLARE_LOCAL (save_port);
-
-    arg = D_ARGC > 1 ? D_ARG(2) : NULL;
-    Move_Value(D_OUT, D_ARG(1));
+    REBVAL *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
 
     // Validate and fetch relevant PORT fields:
-    state = CTX_VAR(port, STD_PORT_STATE);
-    spec  = CTX_VAR(port, STD_PORT_SPEC);
-    if (!IS_OBJECT(spec)) fail (Error_Invalid_Spec_Raw(spec));
+    REBVAL *spec = CTX_VAR(port, STD_PORT_SPEC);
+    if (!IS_OBJECT(spec))
+        fail (Error_Invalid_Spec_Raw(spec));
 
     // Get or setup internal state data:
+    //
+    REBVAL *state = CTX_VAR(port, STD_PORT_STATE);
     if (!IS_BLOCK(state))
         Init_Block(state, Make_Array(127));
 
     switch (action) {
+
+    case SYM_REFLECT: {
+        INCLUDE_PARAMS_OF_REFLECT;
+
+        UNUSED(ARG(value));
+        REBSYM property = VAL_WORD_SYM(ARG(property));
+        assert(property != 0);
+
+        switch (property) {
+        case SYM_LENGTH:
+            Init_Integer(D_OUT, VAL_LEN_HEAD(state));
+            return R_OUT;
+
+        default:
+            break;
+        }
+
+        break; }
 
     case SYM_ON_WAKE_UP:
         return R_BLANK;
@@ -84,11 +96,13 @@ static REB_R Timer_Actor(REBFRM *frame_, REBCTX *port, REBCNT action)
     //case SYM_PATH_SET:  // not allowed: above
         if (NOT(IS_EVENT(arg)))
             fail (arg);
-    case SYM_PICK_P:
-act_blk:
+    case SYM_PICK_P: {
+    act_blk:
+        DECLARE_LOCAL (save_port);
         Move_Value(&save_port, D_ARG(1)); // save for return
         Move_Value(D_ARG(1), state);
-        result = T_Block(ds, action);
+
+        REB_R r = T_Block(ds, action);
         SET_SIGNAL(SIG_EVENT_PORT);
         if (
             action == SYM_INSERT
@@ -96,18 +110,14 @@ act_blk:
             || action == SYM_REMOVE
         ){
             Move_Value(D_OUT, save_port);
-            break;
+            return R_OUT;
         }
-        return result; // return condition
+        return r; }
 
     case SYM_CLEAR:
         RESET_ARRAY(state);
         Eval_Signals &= ~SIG_EVENT_PORT;
-        break;
-
-    case SYM_LENGTH_OF:
-        Init_Integer(D_OUT, VAL_LEN_HEAD(state));
-        break;
+        goto return_port;
 
     case SYM_OPEN: {
         INCLUDE_PARAMS_OF_OPEN;
@@ -116,12 +126,16 @@ act_blk:
             req->flags |= RRF_OPEN;
             OS_DO_DEVICE(req, RDC_CONNECT);     // stays queued
         }
-        break; }
+        goto return_port; }
 
     default:
-        fail (Error_Illegal_Action(REB_PORT, action));
+        break;
     }
 
+    fail (Error_Illegal_Action(REB_PORT, action));
+
+return_port:
+    Move_Value(D_OUT, D_ARG(1));
     return R_OUT;
 }
 

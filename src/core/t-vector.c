@@ -638,10 +638,24 @@ REBTYPE(Vector)
 
     switch (action) {
 
-    case SYM_LENGTH_OF:
-        //bits = 1 << (vect->size & 3);
-        Init_Integer(D_OUT, SER_LEN(vect));
-        return R_OUT;
+    case SYM_REFLECT: {
+        INCLUDE_PARAMS_OF_REFLECT;
+
+        UNUSED(ARG(value));
+        REBSYM property = VAL_WORD_SYM(ARG(property));
+        assert(property != SYM_0);
+
+        switch (property) {
+        case SYM_LENGTH:
+            //bits = 1 << (vect->size & 3);
+            Init_Integer(D_OUT, SER_LEN(vect));
+            return R_OUT;
+
+        default:
+            break;
+        }
+
+        break; }
 
     case SYM_COPY: {
         INCLUDE_PARAMS_OF_COPY;
@@ -661,7 +675,7 @@ REBTYPE(Vector)
         ser = Copy_Sequence(vect);
         MISC(ser).size = MISC(vect).size; // attributes
         Init_Vector(value, ser);
-        break; }
+        goto return_vector; }
 
     case SYM_RANDOM: {
         INCLUDE_PARAMS_OF_RANDOM;
@@ -677,9 +691,12 @@ REBTYPE(Vector)
         return R_OUT; }
 
     default:
-        fail (Error_Illegal_Action(VAL_TYPE(value), action));
+        break;
     }
 
+    fail (Error_Illegal_Action(VAL_TYPE(value), action));
+
+return_vector:
     Move_Value(D_OUT, value);
     return R_OUT;
 }

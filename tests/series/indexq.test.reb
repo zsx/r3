@@ -3,8 +3,8 @@
 [2 == index? next [a]]
 ; past-tail index
 [
-    a: tail copy [1]
-    remove head a
+    a: tail of copy [1]
+    remove head of a
     2 == index? a
 ]
 ; bug#1611: Allow INDEX? to take blank as an argument, return blank

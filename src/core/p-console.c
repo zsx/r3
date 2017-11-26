@@ -33,28 +33,31 @@
 
 #define OUT_BUF_SIZE 32*1024
 
-// Does OS use wide chars or byte chars (UTF-8):
-#ifdef OS_WIDE_CHAR
-#define MAKE_OS_BUFFER Make_Unicode
-#else
-#define MAKE_OS_BUFFER Make_Binary
-#endif
-
 //
 //  Console_Actor: C
 //
 static REB_R Console_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 {
-    REBINT result;
-    REBVAL *arg;
-    REBSER *ser;
-
-    arg = D_ARGC > 1 ? D_ARG(2) : NULL;
-    Move_Value(D_OUT, D_ARG(1));
-
     REBREQ *req = Ensure_Port_State(port, RDI_STDIO);
 
     switch (action) {
+
+    case SYM_REFLECT: {
+        INCLUDE_PARAMS_OF_REFLECT;
+
+        UNUSED(ARG(value)); // implied by `port`
+        REBSYM property = VAL_WORD_SYM(ARG(property));
+        assert(property != SYM_0);
+
+        switch (property) {
+        case SYM_OPEN_Q:
+            return R_FROM_BOOL(LOGICAL(req->flags & RRF_OPEN));
+
+        default:
+            break;
+        }
+
+        break; }
 
     case SYM_READ: {
         INCLUDE_PARAMS_OF_READ;
@@ -79,47 +82,44 @@ static REB_R Console_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         }
 
         // If no buffer, create a buffer:
-        arg = CTX_VAR(port, STD_PORT_DATA);
-        if (!IS_STRING(arg) && !IS_BINARY(arg)) {
-            Init_Binary(arg, Make_Binary(OUT_BUF_SIZE));
-        }
-        ser = VAL_SERIES(arg);
+        //
+        REBVAL *data = CTX_VAR(port, STD_PORT_DATA);
+        if (NOT(IS_BINARY(data)))
+            Init_Binary(data, Make_Binary(OUT_BUF_SIZE));
+
+        REBSER *ser = VAL_SERIES(data);
         SET_SERIES_LEN(ser, 0);
         TERM_SERIES(ser);
 
-        // !!! May be a 2-byte wide series on Windows for wide chars, in
-        // which case the length is not bytes??  (Can't use BIN_DATA here
-        // because that asserts width is 1...)
-        //
-        req->common.data = SER_DATA_RAW(ser);
+        req->common.data = BIN_HEAD(ser);
         req->length = SER_AVAIL(ser);
 
-        result = OS_DO_DEVICE(req, RDC_READ);
-        if (result < 0) fail (Error_On_Port(RE_READ_ERROR, port, req->error));
+        REBINT result = OS_DO_DEVICE(req, RDC_READ);
+        if (result < 0)
+            fail (Error_On_Port(RE_READ_ERROR, port, req->error));
 
         // !!! Among many confusions in this file, it said "Another copy???"
         //
         Init_Binary(D_OUT, Copy_Bytes(req->common.data, req->actual));
-        break; }
+        return R_OUT; }
 
     case SYM_OPEN: {
         req->flags |= RRF_OPEN;
-        break; }
+        goto return_port; }
 
     case SYM_CLOSE:
         req->flags &= ~RRF_OPEN;
         //OS_DO_DEVICE(req, RDC_CLOSE);
-        break;
-
-    case SYM_OPEN_Q:
-        if (req->flags & RRF_OPEN)
-            return R_TRUE;
-        return R_FALSE;
+        goto return_port;
 
     default:
-        fail (Error_Illegal_Action(REB_PORT, action));
+        break;
     }
 
+    fail (Error_Illegal_Action(REB_PORT, action));
+
+return_port:
+    Move_Value(D_OUT, D_ARG(1));
     return R_OUT;
 }
 
