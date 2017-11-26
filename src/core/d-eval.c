@@ -303,14 +303,21 @@ void Do_Core_Expression_Checks_Debug(REBFRM *f) {
 
     Do_Core_Shared_Checks_Debug(f);
 
+    // The only thing the evaluator can take for granted between evaluations
+    // about the output cell is that it's not trash.  In the debug build,
+    // give this more teeth by explicitly setting it to an unreadable blank.
+    //
+    assert(NOT(IS_TRASH_DEBUG(f->out)));
+    Init_Unreadable_Blank(f->out);
+
     // Once a throw is started, no new expressions may be evaluated until
     // that throw gets handled.
     //
     assert(IS_UNREADABLE_IF_DEBUG(&TG_Thrown_Arg));
 
-    // Make sure `cell` is reset in debug build if not doing a `reevaluate`.
-    //
-    // !!! Is it actually possible for f->value to equal f->cell currently?
+    // Make sure `cell` is reset in debug build if not doing a `reevaluate`
+    // (once this was used by EVAL the native, but now it's used by rebEval()
+    // at the API level, which currently sets `f->value = &f->cell;`)
     //
 #if !defined(NDEBUG)
     if (f->value != &f->cell)

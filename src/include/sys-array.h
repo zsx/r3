@@ -94,21 +94,18 @@ struct Reb_Array {
 // debug builds).  A fully constructed array should always have an END
 // marker in its tail slot, which is one past the last position that is
 // valid for writing a full REBVAL.
-//
-// Use plain C cast because this is called so often that cast() or SER() will
-// slow down the C++ debug build too much.
 
 inline static RELVAL *ARR_AT(REBARR *a, REBCNT n)
-    { return SER_AT(RELVAL, (REBSER*)a, (n)); }
+    { return SER_AT(RELVAL, cast(REBSER*, a), n); }
 
 inline static RELVAL *ARR_HEAD(REBARR *a)
-    { return SER_HEAD(RELVAL, (REBSER*)a); }
+    { return SER_HEAD(RELVAL, cast(REBSER*, a)); }
 
 inline static RELVAL *ARR_TAIL(REBARR *a)
-    { return SER_TAIL(RELVAL, (REBSER*)a); }
+    { return SER_TAIL(RELVAL, cast(REBSER*, a)); }
 
 inline static RELVAL *ARR_LAST(REBARR *a)
-    { return SER_LAST(RELVAL, (REBSER*)a); }
+    { return SER_LAST(RELVAL, cast(REBSER*, a)); }
 
 // As with an ordinary REBSER, a REBARR has separate management of its length
 // and its terminator.  Many routines seek to choose the precise moment to

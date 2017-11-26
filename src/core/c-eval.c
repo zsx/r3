@@ -97,6 +97,10 @@ REB_R Apply_Core(REBFRM * const f) {
 
 
 static inline REBOOL Start_New_Expression_Throws(REBFRM *f) {
+#if !defined(NDEBUG)
+    assert(IS_UNREADABLE_IF_DEBUG(f->out));
+#endif
+
     assert(Eval_Count >= 0);
     if (--Eval_Count == 0) {
         //
@@ -104,16 +108,15 @@ static inline REBOOL Start_New_Expression_Throws(REBFRM *f) {
         // it may spawn an entire interactive debugging session via
         // breakpoint before it returns.  It may also FAIL and longjmp out.
         //
-        SET_END(&f->cell);
-        if (Do_Signals_Throws(KNOWN(&f->cell))) {
-            Move_Value(f->out, KNOWN(&f->cell));
+        if (Do_Signals_Throws(f->out))
             return TRUE;
-        }
-
-        assert(IS_END(&f->cell));
     }
 
     UPDATE_EXPRESSION_START(f); // !!! See FRM_INDEX() for caveats
+
+#if !defined(NDEBUG)
+    assert(IS_UNREADABLE_IF_DEBUG(f->out));
+#endif
 
     return FALSE;
 }
@@ -129,9 +132,9 @@ static inline REBOOL Start_New_Expression_Throws(REBFRM *f) {
         evaluating = NOT((f)->flags.bits & DO_FLAG_EXPLICIT_EVALUATE);
 #else
     #define START_NEW_EXPRESSION_MAY_THROW(f,g) \
+        Do_Core_Expression_Checks_Debug(f); \
         if (Start_New_Expression_Throws(f)) \
             g; \
-        Do_Core_Expression_Checks_Debug(f); \
         evaluating = NOT((f)->flags.bits & DO_FLAG_EXPLICIT_EVALUATE);
 
     // Macro is used to mutate local `tick` variable in Do_Core (for easier
@@ -274,11 +277,11 @@ static inline void Link_Vararg_Param_To_Frame(REBFRM *f, REBOOL make) {
 //
 // These fields are required upon initialization:
 //
-//     f->out*
-//     REBVAL pointer to which the evaluation's result should be written,
-//     must point to initialized bits, and that needs to be an END marker,
-//     unless it's in lookback mode, in which case it must be the REBVAL to
-//     use as first argument (infix/postfix/"enfixed" functions)
+//     f->out
+//     REBVAL pointer to which the evaluation's result should be written.
+//     This pointer should be to a cell that lives above this call to Do_Core
+//     on the stack--not in an array.  (If it was in an array, that memory
+//     could move by resizes during evaluation, invalidating the pointer!)
 //
 //     f->value
 //     Fetched first value to execute (cannot be an END marker)
@@ -300,6 +303,14 @@ void Do_Core(REBFRM * const f)
 #if !defined(NDEBUG)
     REBUPT tick = f->tick = TG_Tick; // snapshot start tick
 #endif
+
+    // f->out must point to initialized bits at all times (so the GC won't
+    // choke when trying to protect it).  The debug build sets it to unreadable
+    // blank on each full expression loop to try and catch stray usages of
+    // what would be an effectively "random" result.  Before each function
+    // call, it is set to an END marker.
+    //
+    assert(NOT(IS_TRASH_DEBUG(f->out)));
 
     // Capture the data stack pointer on entry.  Refinements are pushed to
     // the stack and need to be checked if any are not processed.  Also things
@@ -328,13 +339,6 @@ void Do_Core(REBFRM * const f)
     SNAP_STATE(&f->state); // to make sure stack balances, etc.
     Do_Core_Entry_Checks_Debug(f); // run once per Do_Core()
 #endif
-
-    // This is an important guarantee...the out slot needs to have some form
-    // of initialization to allow GC.  END is chosen because that is what
-    // natives can count on the f->out slot to be, but lookback arguments
-    // also are passed by way of the out slot.
-    //
-    assert(NOT(IS_TRASH_DEBUG(f->out)));
 
 do_next:;
 
@@ -453,7 +457,8 @@ reevaluate:;
                 );
 
                 f->refine = ORDINARY_ARG;
-                assert(IS_END(f->out));
+                assert(IS_UNREADABLE_IF_DEBUG(f->out));
+                SET_END(f->out);
                 goto process_function;
             }
         }
@@ -1633,12 +1638,15 @@ reevaluate:;
                 VAL_BINDING(current_gotten)
             );
 
+            // If a function gets dispatched here by a word, then it can't
+            // have any enfix arguments.  It will just see an <end>
+            //
+            assert(IS_UNREADABLE_IF_DEBUG(f->out));
+            SET_END(f->out);
             if (GET_VAL_FLAG(current_gotten, VALUE_FLAG_ENFIXED))
                 f->refine = LOOKBACK_ARG;
-            else {
+            else
                 f->refine = ORDINARY_ARG;
-                SET_END(f->out);
-            }
             goto process_function;
         }
 
@@ -2162,13 +2170,13 @@ reevaluate:;
 
     //=//// IT'S INFIX OR WE'RE DOING TO THE END...DISPATCH LIKE WORD /////=//
 
-        START_NEW_EXPRESSION_MAY_THROW(f, goto finished);
-        // ^-- resets local `evaluating` flag, `tick` count, Ctrl-C may abort
-
-        UPDATE_TICK_DEBUG(NULL);
-        // v-- This is the TICK_BREAKPOINT or C-DEBUG-BREAK landing spot --v
-
         if (VAL_TYPE_OR_0(f->gotten) != REB_FUNCTION) { // END is REB_0
+            START_NEW_EXPRESSION_MAY_THROW(f, goto finished);
+            // ^-- resets evaluating + tick, corrupts f->out, Ctrl-C may abort
+
+            UPDATE_TICK_DEBUG(NULL);
+            // v-- The TICK_BREAKPOINT or C-DEBUG-BREAK landing spot --v
+
             current = f->value;
             current_gotten = f->gotten; // if END, the word will error
             f->gotten = END;
@@ -2249,6 +2257,12 @@ reevaluate:;
             }
         }
         else {
+            START_NEW_EXPRESSION_MAY_THROW(f, goto finished);
+            // ^-- resets evaluating + tick, corrupts f->out, Ctrl-C may abort
+
+            UPDATE_TICK_DEBUG(NULL);
+            // v-- The TICK_BREAKPOINT or C-DEBUG-BREAK landing spot --v
+
             Push_Function(
                 f,
                 VAL_WORD_SPELLING(f->value),
@@ -2267,8 +2281,15 @@ reevaluate:;
 
     // Continue evaluating rest of block if not just a DO/NEXT
     //
-    if (f->flags.bits & DO_FLAG_TO_END)
+    if (f->flags.bits & DO_FLAG_TO_END) {
+        START_NEW_EXPRESSION_MAY_THROW(f, goto finished);
+        // ^-- resets evaluating + tick, corrupts f->out, Ctrl-C may abort
+
+        UPDATE_TICK_DEBUG(NULL);
+        // v-- The TICK_BREAKPOINT or C-DEBUG-BREAK landing spot --v
+
         goto do_next;
+    }
 
 finished:;
 

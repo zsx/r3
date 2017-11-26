@@ -78,7 +78,7 @@
 //
 REBOOL Do_Signals_Throws(REBVAL *out)
 {
-    assert(IS_END(out)); // incoming must be END, will be END if no throw
+    assert(NOT(IS_TRASH_DEBUG(out)));
 
     // !!! When it was the case that the only way Do_Signals_Throws would run
     // due to the Eval_Count reaching the end of an Eval_Dose, this way of
