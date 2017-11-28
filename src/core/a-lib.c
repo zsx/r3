@@ -1480,6 +1480,35 @@ REBYTE *RL_rebValBinAlloc(REBCNT *len_out, const REBVAL *binary)
 
 
 //
+//  rebBinary: RL_API
+//
+REBVAL *RL_rebBinary(void *bytes, size_t size)
+{
+    Enter_Api_Clear_Last_Error();
+
+    REBSER *bin = Make_Binary(size);
+    memcpy(BIN_HEAD(bin), bytes, size);
+    TERM_BIN_LEN(bin, size);
+
+    return Init_Binary(Alloc_Value(), bin);
+}
+
+
+//
+//  rebSizedString: RL_API
+//
+REBVAL *RL_rebSizedString(const char *utf8, size_t size)
+{
+    Enter_Api_Clear_Last_Error();
+
+    return Init_String(
+        Alloc_Value(),
+        Append_UTF8_May_Fail(NULL, cast(const REBYTE*, utf8), size)
+    );
+}
+
+
+//
 //  rebString: RL_API
 //
 REBVAL *RL_rebString(const char *utf8)

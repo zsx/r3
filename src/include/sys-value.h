@@ -806,6 +806,103 @@ inline static void SET_END_Core(
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
+//  RELATIVE AND SPECIFIC VALUES
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Some value types use their `->extra` field in order to store a pointer to
+// a REBNOD which constitutes their notion of "binding".
+//
+// At time of writing, this can be either a pointer to EMPTY_ARRAY (which
+// indicates UNBOUND), or to a function's paramlist (which indicates a
+// relative binding), or to a context's varlist (which indicates a specific
+// binding.)
+//
+// The ordering of %types.r is chosen specially so that all bindable types
+// are at lower values than the unbindable types.
+//
+
+// An ANY-WORD! is relative if it refers to a local or argument of a function,
+// and has its bits resident in the deep copy of that function's body.
+//
+// An ANY-ARRAY! in the deep copy of a function body must be relative also to
+// the same function if it contains any instances of such relative words.
+//
+inline static REBOOL IS_RELATIVE(const RELVAL *v) {
+    if (Not_Bindable(v)) // uses VAL_TYPE_RAW(), don't check unreadable blank
+        return FALSE;
+    return LOGICAL(v->extra.binding->header.bits & ARRAY_FLAG_PARAMLIST);
+}
+
+#if defined(__cplusplus) && __cplusplus >= 201103L
+    //
+    // Take special advantage of the fact that C++ can help catch when we are
+    // trying to see if a REBVAL is specific or relative (it will always
+    // be specific, so the call is likely in error).  In the C build, they
+    // are the same type so there will be no error.
+    //
+    REBOOL IS_RELATIVE(const REBVAL *v);
+#endif
+
+#define IS_SPECIFIC(v) \
+    NOT(IS_RELATIVE(v))
+
+inline static REBFUN *VAL_RELATIVE(const RELVAL *v) {
+    assert(IS_RELATIVE(v));
+    return cast(REBFUN*, v->extra.binding);
+}
+
+inline static REBCTX *VAL_SPECIFIC_COMMON(const RELVAL *v) {
+    assert(IS_SPECIFIC(v));
+    return cast(REBCTX*, v->extra.binding);
+}
+
+#ifdef NDEBUG
+    #define VAL_SPECIFIC(v) \
+        VAL_SPECIFIC_COMMON(v)
+#else
+    #define VAL_SPECIFIC(v) \
+        VAL_SPECIFIC_Debug(v)
+#endif
+
+// When you have a RELVAL* (e.g. from a REBARR) that you "know" to be specific,
+// the KNOWN macro can be used for that.  Checks to make sure in debug build.
+//
+// Use for: "invalid conversion from 'Reb_Value*' to 'Reb_Specific_Value*'"
+
+inline static const REBVAL *const_KNOWN(const RELVAL *value) {
+    assert(IS_END(value) || IS_SPECIFIC(value));
+    return cast(const REBVAL*, value); // we asserted it's actually specific
+}
+
+inline static REBVAL *KNOWN(RELVAL *value) {
+    //
+    // Trash is tolerated for KNOWN() because it is often used to indicate
+    // a cell which may be targeted for writing or reading, which when read
+    // can't be relative.  This only applies to mutable slots, so it's *not*
+    // tolerated in the const_KNOWN() case.
+    //
+    // Because this is called so often, though, we speed it up and don't do
+    // a full trash-validity or end-validity check.  Just check the bits.
+    //
+    assert(
+        (value->header.bits & (NODE_FLAG_END | NODE_FLAG_FREE)) != 0
+        || IS_SPECIFIC(value)
+    );
+    return cast(REBVAL*, value); // we asserted it's actually specific
+}
+
+inline static const RELVAL *const_REL(const REBVAL *v) {
+    return cast(const RELVAL*, v); // cast w/input restricted to REBVAL
+}
+
+inline static RELVAL *REL(REBVAL *v) {
+    return cast(RELVAL*, v); // cast w/input restricted to REBVAL
+}
+
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
 //  VOID CELLS
 //
 //=////////////////////////////////////////////////////////////////////////=//
@@ -834,8 +931,28 @@ inline static void SET_END_Core(
 #define IS_VOID(v) \
     LOGICAL(VAL_TYPE(v) == REB_MAX_VOID)
 
-#define Init_Void(v) \
-    VAL_RESET((v), REB_MAX_VOID, VALUE_FLAG_FALSEY) // see note above!
+#ifdef NDEBUG
+    inline static REBVAL *Init_Void(RELVAL *out) {
+        VAL_RESET(out, REB_MAX_VOID, VALUE_FLAG_FALSEY); // see "falsey" note
+        return KNOWN(out);
+    }
+#else
+    inline static REBVAL *Init_Void_Debug(
+        RELVAL *out, const char *file, int line
+    ){
+        VAL_RESET_Debug(
+            out,
+            REB_MAX_VOID,
+            VALUE_FLAG_FALSEY, // see "falsey" note above
+            file,
+            line
+        );
+        return KNOWN(out);
+    }
+
+    #define Init_Void(out) \
+        Init_Void_Debug((out), __FILE__, __LINE__)
+#endif
 
 // !!! A theory was that the "evaluated" flag would help a function that took
 // both <opt> and <end>, which are converted to voids, distinguish what kind
@@ -869,11 +986,37 @@ inline static void SET_END_Core(
 #define BAR_VALUE \
     c_cast(const REBVAL*, &PG_Bar_Value[0])
 
-#define Init_Bar(v) \
-    VAL_RESET((v), REB_BAR, 0)
+#ifdef NDEBUG
+    inline static REBVAL *Init_Bar(RELVAL *out) {
+        VAL_RESET(out, REB_BAR, 0);
+        return KNOWN(out);
+    }
 
-#define Init_Lit_Bar(v) \
-    VAL_RESET((v), REB_LIT_BAR, 0)
+    inline static REBVAL *Init_Lit_Bar(RELVAL *out) {
+        VAL_RESET(out, REB_LIT_BAR, 0);
+        return KNOWN(out);
+    }
+#else
+    inline static REBVAL *Init_Bar_Debug(
+        RELVAL *out, const char *file, int line
+    ){
+        VAL_RESET_Debug(out, REB_BAR, 0, file, line);
+        return KNOWN(out);
+    }
+
+    #define Init_Bar(out) \
+        Init_Bar_Debug((out), __FILE__, __LINE__)
+
+    inline static REBVAL *Init_Lit_Bar_Debug(
+        RELVAL *out, const char *file, int line
+    ){
+        VAL_RESET_Debug(out, REB_LIT_BAR, 0, file, line);
+        return KNOWN(out);
+    }
+
+    #define Init_Lit_Bar(out) \
+        Init_Lit_Bar_Debug((out), __FILE__, __LINE__)
+#endif
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -1024,13 +1167,31 @@ inline static void SET_END_Core(
 #define TRUE_VALUE \
     c_cast(const REBVAL*, &PG_True_Value[0])
 
-#define Init_Logic(v,b) \
-    VAL_RESET((v), REB_LOGIC, (b) ? 0 : VALUE_FLAG_FALSEY)
-
 #ifdef NDEBUG
+    inline static REBVAL *Init_Logic(RELVAL *out, REBOOL b) {
+        VAL_RESET(out, REB_LOGIC, b ? 0 : VALUE_FLAG_FALSEY);
+        return KNOWN(out);
+    }
+
     #define IS_FALSEY(v) \
         GET_VAL_FLAG((v), VALUE_FLAG_FALSEY)
 #else
+    inline static REBVAL *Init_Logic_Debug(
+        RELVAL *out, REBOOL b, const char *file, int line
+    ){
+        VAL_RESET_Debug(
+            out,
+            REB_LOGIC,
+            b ? 0 : VALUE_FLAG_FALSEY,
+            file,
+            line
+        );
+        return KNOWN(out);
+    }
+
+    #define Init_Logic(out,b) \
+        Init_Logic_Debug((out), (b), __FILE__, __LINE__)
+
     inline static REBOOL IS_FALSEY_Debug(
         const RELVAL *v, const char *file, int line
     ){
@@ -1505,8 +1666,8 @@ inline static void SET_EVENT_KEY(RELVAL *v, REBCNT k, REBCNT c) {
 #define VAL_IMAGE_LEN(v) \
     VAL_LEN_AT(v)
 
-#define Init_Image(v,s) \
-    Init_Any_Series((v), REB_IMAGE, (s));
+#define Init_Image(out,s) \
+    Init_Any_Series((out), REB_IMAGE, (s));
 
 //tuple to image! pixel order bytes
 #define TO_PIXEL_TUPLE(t) \
@@ -1570,10 +1731,9 @@ inline static void SET_GOB(RELVAL *v, REBGOB *g) {
 }
 
 
-
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  RELATIVE AND SPECIFIC VALUES
+//  BINDING
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -1588,84 +1748,6 @@ inline static void SET_GOB(RELVAL *v, REBGOB *g) {
 // The ordering of %types.r is chosen specially so that all bindable types
 // are at lower values than the unbindable types.
 //
-
-// An ANY-WORD! is relative if it refers to a local or argument of a function,
-// and has its bits resident in the deep copy of that function's body.
-//
-// An ANY-ARRAY! in the deep copy of a function body must be relative also to
-// the same function if it contains any instances of such relative words.
-//
-inline static REBOOL IS_RELATIVE(const RELVAL *v) {
-    if (Not_Bindable(v)) // uses VAL_TYPE_RAW(), don't check unreadable blank
-        return FALSE;
-    return LOGICAL(v->extra.binding->header.bits & ARRAY_FLAG_PARAMLIST);
-}
-
-#ifdef CPLUSPLUS_11
-    //
-    // Take special advantage of the fact that C++ can help catch when we are
-    // trying to see if a REBVAL is specific or relative (it will always
-    // be specific, so the call is likely in error).  In the C build, they
-    // are the same type so there will be no error.
-    //
-    REBOOL IS_RELATIVE(const REBVAL *v);
-#endif
-
-#define IS_SPECIFIC(v) \
-    NOT(IS_RELATIVE(v))
-
-inline static REBFUN *VAL_RELATIVE(const RELVAL *v) {
-    assert(IS_RELATIVE(v));
-    return cast(REBFUN*, v->extra.binding);
-}
-
-inline static REBCTX *VAL_SPECIFIC_COMMON(const RELVAL *v) {
-    assert(IS_SPECIFIC(v));
-    return cast(REBCTX*, v->extra.binding);
-}
-
-#ifdef NDEBUG
-    #define VAL_SPECIFIC(v) \
-        VAL_SPECIFIC_COMMON(v)
-#else
-    #define VAL_SPECIFIC(v) \
-        VAL_SPECIFIC_Debug(v)
-#endif
-
-// When you have a RELVAL* (e.g. from a REBARR) that you "know" to be specific,
-// the KNOWN macro can be used for that.  Checks to make sure in debug build.
-//
-// Use for: "invalid conversion from 'Reb_Value*' to 'Reb_Specific_Value*'"
-
-inline static const REBVAL *const_KNOWN(const RELVAL *value) {
-    assert(IS_END(value) || IS_SPECIFIC(value));
-    return cast(const REBVAL*, value); // we asserted it's actually specific
-}
-
-inline static REBVAL *KNOWN(RELVAL *value) {
-    //
-    // Trash is tolerated for KNOWN() because it is often used to indicate
-    // a cell which may be targeted for writing or reading, which when read
-    // can't be relative.  This only applies to mutable slots, so it's *not*
-    // tolerated in the const_KNOWN() case.
-    //
-    // Because this is called so often, though, we speed it up and don't do
-    // a full trash-validity or end-validity check.  Just check the bits.
-    //
-    assert(
-        (value->header.bits & (NODE_FLAG_END | NODE_FLAG_FREE)) != 0
-        || IS_SPECIFIC(value)
-    );
-    return cast(REBVAL*, value); // we asserted it's actually specific
-}
-
-inline static const RELVAL *const_REL(const REBVAL *v) {
-    return cast(const RELVAL*, v); // cast w/input restricted to REBVAL
-}
-
-inline static RELVAL *REL(REBVAL *v) {
-    return cast(RELVAL*, v); // cast w/input restricted to REBVAL
-}
 
 // Originally a NULL pointer was used to indicate when a value was specified
 // by its nature.  However, by using something that is a valid REBNOD there
