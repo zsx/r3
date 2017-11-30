@@ -42,8 +42,6 @@ static REB_R DNS_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
     REBINT result;
     REBVAL *arg = D_ARGC > 1 ? D_ARG(2) : NULL;
 
-    REBOOL sync = FALSE; // act synchronously
-
     REBREQ *sock = Ensure_Port_State(port, RDI_DNS);
     REBVAL *spec = CTX_VAR(port, STD_PORT_SPEC);
 
@@ -90,7 +88,6 @@ static REB_R DNS_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         if (NOT(sock->flags & RRF_OPEN)) {
             if (OS_DO_DEVICE(sock, RDC_OPEN))
                 fail (Error_On_Port(RE_CANNOT_OPEN, port, sock->error));
-            sync = TRUE;
         }
 
         arg = Obj_Value(spec, STD_PORT_SPEC_NET_HOST);
@@ -123,19 +120,8 @@ static REB_R DNS_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         if (result < 0)
             fail (Error_On_Port(RE_READ_ERROR, port, sock->error));
 
-        if (sync && result == DR_PEND) {
-            assert(FALSE); // asynchronous R3-Alpha DNS code removed
-            len = 0;
-            for (; LOGICAL(sock->flags & RRF_PENDING) && len < 10; ++len) {
-                OS_WAIT(2000, 0);
-            }
-            len = 1;
-            goto pick;
-        }
-        if (result == DR_DONE) {
-            len = 1;
-            goto pick;
-        }
+        assert(NOT(result == DR_PEND)); // async R3-Alpha DNS gone
+        len = 1;
         goto return_port; }
 
     case SYM_PICK_P:  // FIRST - return result
@@ -143,7 +129,6 @@ static REB_R DNS_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
             fail (Error_On_Port(RE_NOT_OPEN, port, -12));
 
         len = Get_Num_From_Arg(arg); // Position
-    pick:
         if (len != 1)
             fail (Error_Out_Of_Range(arg));
 
