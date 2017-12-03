@@ -52,17 +52,31 @@
 ; Testing the variadic behavior of |> and <| is easier than rewriting tests
 ; here to do the same thing.
 
+; <| and |> were originally enfix, so the following tests would have meant x
+; would be unset
 [
-    (value: 1 + 2 <| 30 + 40 () () ())
-    value = 3
+    value: ()
+    x: ()
+    
+    3 = (value: 1 + 2 <| 30 + 40 x: value  () ())
+    
+    all? [value = 3 | x = 3]
 ][
-    (value: 1 + 2 |> 30 + 40 () () ())
-    value = 70
-][
+    value: ()
+    x: ()
+
+    70 = (value: 1 + 2 |> 30 + 40 x: value () () ())
+    
+    all? [value = 3 | x = 3]
+]
+
+[
     void? (<| 10)
 ][
     void? (10 |>)
-][
+]
+
+[
     2 = (1 |> 2 | 3 + 4 | 5 + 6)
 ][
     1 = (1 <| 2 | 3 + 4 | 5 + 6)

@@ -597,20 +597,28 @@ REBNATIVE(apply)
 
 
 //
-//  also: native [
+//  after: native [
 //
-//  {Returns the first value, but also evaluates the second.}
+//  {Returns the first value, but always evaluate the second branch after it.}
 //
 //      return: [<opt> any-value!]
+//          {Will be the same value as `returned`}
 //      returned [<opt> any-value!]
-//      evaluated [<opt> any-value!]
+//          {Value to return}
+//      code [block! function!]
+//          {Code that will always execute, with the result discarded}
 //  ]
 //
-REBNATIVE(also)
+REBNATIVE(after)
+//
+// The enfix form of this function is called ALSO (see as well: THEN, ELSE)
 {
-    INCLUDE_PARAMS_OF_ALSO;
+    INCLUDE_PARAMS_OF_AFTER;
 
-    UNUSED(PAR(evaluated)); // not used (but was evaluated)
+    const REBOOL only = FALSE;
+    if (Run_Branch_Throws(D_CELL, ARG(returned), ARG(code), only))
+        return R_OUT_IS_THROWN;
+
     Move_Value(D_OUT, ARG(returned));
     return R_OUT;
 }

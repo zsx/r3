@@ -37,9 +37,9 @@
 ; bug#1760
 [1 == eval does [r3-alpha-apply does [] [return 1]]]
 [1 == eval does [r3-alpha-apply func [a] [a] [return 1]]]
-[1 == eval does [r3-alpha-apply :also [return 1 2]]]
+[1 == eval does [r3-alpha-apply :after [return 1 2]]]
 ; bug#1760
-[1 == eval does [r3-alpha-apply :also [2 return 1]]]
+[1 == eval does [r3-alpha-apply :after [2 return 1]]]
 
 ; EVAL/ONLY
 [

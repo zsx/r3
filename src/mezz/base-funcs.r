@@ -886,63 +886,38 @@ lambda: function [
 ]
 
 
-left-bar: func [
-    {Expression barrier that evaluates to left side but executes right.}
-    return: [<opt> any-value!]
-        {Evaluative result of `left`.}
-    left [<opt> <end> any-value!]
-        {A single complete expression on the left.}
-    right [<opt> any-value! <...>]
-        {Any number of expressions on the right.}
-    :look [any-value! <...>]
-][
-    ; !!! Should this fail if left is END?  How would it tell the difference
-    ; between left being void or end, is that exposed with SEMIQUOTED?
+invisible-eval-all: func [
+    {Evaluate any number of expressions, but completely elide the results.}
 
-    loop-until [
-        while [bar? first look] [take look] ;-- want to feed past BAR!s
-        take* right ;-- a void eval or an end both give back void here
-        tail? look
-    ]
-    :left
+    return: []
+        {Returns nothing, not even void ("invisible function", like COMMENT)}
+    expressions [<opt> any-value! <...>]
+        {Any number of expressions on the right.}
+][
+    do expressions
 ]
 
 right-bar: func [
-    {Expression barrier that evaluates to first expression on right.}
-    return: [<opt> any-value!]
-        {Evaluative result of first of the right expressions.}
-    left [<opt> <end> any-value!]
-        {A single complete expression on the left.}
-    right [<opt> any-value! <...>]
-        {Any number of expressions on the right.}
-    :look [any-value! <...>]
-][
-    ; !!! This could fail if `tail? right`, but should it?  Might make
-    ; COMPOSE situations less useful, e.g. `compose [thing |> (may-be-void)]`
+    {Evaluates to first expression on right, discarding ensuing expressions.}
 
-    also (
-        ; We want to make sure `1 |> | 2 3 4` is void, not BAR!
-        ;
-        either* bar? first look [void] [take* right]
-    )(
-        loop-until [
-            while [bar? first look] [take look]
-            take* right ;-- a void eval or an end both give back void here
-            tail? look
-        ]
-    )
+    return: [<opt> any-value!]
+        {Evaluative result of first of the following expressions.}
+    expressions [<opt> any-value! <...>]
+        {Any number of expression.}
+][
+    if* not tail? expressions [take* expressions] also-do [do expressions]
 ]
 
 
 once-bar: func [
     {Expression barrier that's willing to only run one expression after it}
+
     return: [<opt> any-value!]
-    left [<opt> <end> any-value!]
     right [<opt> any-value! <...>]
     :lookahead [any-value! <...>]
     look:
 ][
-    also take right (
+    take right also-do [
         unless any [
             tail? right
                 |
@@ -952,7 +927,7 @@ once-bar: func [
                 "|| expected single expression, found residual of" :look
             ]
         ]
-    )
+    ]
 ]
 
 

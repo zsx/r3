@@ -241,7 +241,7 @@ in-dir: function [
 
     ; You don't want the block to be done if the change-dir fails, for safety.
 
-    also do block change-dir old-dir
+    do block also-do [change-dir old-dir]
 ]
 
 

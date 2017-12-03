@@ -223,6 +223,8 @@ else*: enfix redescribe [
     specialize 'else [only: true]
 )
 
+also-do: enfix :after ;-- temporarily %mezz-legacy.r defines ALSO as error
+
 
 ; Lambdas are experimental quick function generators via a symbol
 ;
@@ -230,12 +232,13 @@ set/enfix right-arrow :lambda
 set/enfix left-arrow (specialize :lambda [only: true])
 
 
-; These usermode expression-barrier like constructs may not necessarily use
-; their left-hand arguments...however by being enfixed and not having <tight>
-; first args, they are able to force complete expressions to their left.
+; These constructs used to be enfix to complete their left hand side.  Yet
+; that form of completion was only one expression's worth, when they wanted
+; to allow longer runs of evaluation.  "Invisible functions" (those which
+; `return: []`) permit a more flexible version of the mechanic.
 
-set/enfix left-flag :left-bar
-set/enfix right-flag :right-bar
+set left-flag :invisible-eval-all
+set right-flag :right-bar
 ||: enfix :once-bar
 
 

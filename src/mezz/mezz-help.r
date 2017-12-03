@@ -174,10 +174,8 @@ dump: func [
         block? first value [
             for-each item take value [dump-one item]
         ]
-        
-        true [
-            dump-one take value
-        ]
+    ] else [
+        dump-one take value
     ]
 ]
 

@@ -1133,7 +1133,7 @@ pe-format: context [
 
         remove/part skip exe-data target-sec/physical-offset target-sec/physical-size
 
-        (head of exe-data) <| reset
+        (head of exe-data) also-do [reset]
     ]
 
     update-embedding: specialize 'update-section [section-name: encap-section-name]
@@ -1143,7 +1143,7 @@ pe-format: context [
     ][
         ;print ["Geting embedded from" mold file]
         exe-data: read file
-        (find-section/data exe-data encap-section-name) <| reset
+        (find-section/data exe-data encap-section-name) also-do [reset]
     ]
 ]
 

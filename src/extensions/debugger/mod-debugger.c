@@ -107,10 +107,10 @@ REBOOL Do_Breakpoint_Throws(
 //
 //  breakpoint: native/export [
 //
-//  "Signal breakpoint to the host (simple variant of PAUSE dialect)"
+//  "Signal breakpoint to the host, but do not participate in evaluation"
 //
-//      return: [<opt> any-value!]
-//          "Returns the value passed to RESUME/WITH (or void by default)"
+//      return: []
+//          {Returns nothing, not even void ("invisible", like COMMENT)}
 //  ]
 //
 static REBNATIVE(breakpoint)
@@ -126,7 +126,15 @@ static REBNATIVE(breakpoint)
         return R_OUT_IS_THROWN;
     }
 
-    return R_OUT;
+    // !!! Should use a more specific protocol (e.g. pass in END).  But also,
+    // this provides a possible motivating case for functions to be able to
+    // return *either* a value or no-value...if breakpoint were variadic, it
+    // could splice in a value in place of what comes after it.
+    //
+    if (NOT(IS_VOID(D_OUT)))
+        fail ("BREAKPOINT is invisible, can't RESUME/WITH code (use PAUSE)");
+
+    return R_INVISIBLE;
 }
 
 

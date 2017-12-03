@@ -283,8 +283,17 @@ found?: func [dummy:] [
 op?: func [dummy:] [
     fail/where [
         {OP? can't work in Ren-C because there are no "infix FUNCTION!s"}
-        {"infixness" is a proerty of a word binding, made via SET/LOOKBACK}
-        {See: LOOKBACK?, INFIX?, PREFIX?, ENDFIX?}
+        {"infixness" is a property of a word binding, made via SET/LOOKBACK}
+        {See: ENFIXED? (which takes a WORD! parameter)}
+    ] 'dummy
+]
+
+also: func [dummy:] [
+    fail/where [
+        {ALSO has been reformulated from a prefix form to an enfix form}
+        {The new form is temporarily available as ALSO-DO, or you may enfix}
+        {the AFTER function to get that behavior.}
+        {See: https://trello.com/c/Y03HJTY4}
     ] 'dummy
 ]
 
@@ -438,7 +447,7 @@ r3-alpha-apply: function [
 
     until [tail? block] [
         arg: either* only [
-            also block/1 (block: next block)
+            block/1 also-do [block: next block]
         ][
             do/next block 'block
         ]
