@@ -482,14 +482,11 @@ inline static REBOOL Do_Next_In_Frame_Throws(
 //
 // !!! Review how much cheaper this actually is than making a new frame.
 //
-inline static REBOOL Do_Next_Mid_Frame_Throws(REBFRM *f) {
+inline static REBOOL Do_Next_Mid_Frame_Throws(REBFRM *f, REBFLGS flags) {
     assert(f->eval_type == REB_SET_WORD || f->eval_type == REB_SET_PATH);
 
     REBFLGS prior_flags = f->flags.bits;
-    Init_Endlike_Header(
-        &f->flags,
-        DO_FLAG_NORMAL | DO_FLAG_FULFILLING_SET // DO/NEXT (no DO_FLAG_TO_END)
-    );
+    Init_Endlike_Header(&f->flags, flags);
 
     REBDSP prior_dsp_orig = f->dsp_orig; // Do_Core() overwrites on entry
 #if !defined(NDEBUG)

@@ -305,7 +305,7 @@ void Do_Core(REBFRM * const f)
 #endif
 
     // f->out must point to initialized bits at all times (so the GC won't
-    // choke when trying to protect it).  The debug build sets it to unreadable
+    // choke when trying to protect it).  Debug build sets it to unreadable
     // blank on each full expression loop to try and catch stray usages of
     // what would be an effectively "random" result.  Before each function
     // call, it is set to an END marker.
@@ -1119,42 +1119,38 @@ reevaluate:;
 
    //=//// REGULAR ARG-OR-REFINEMENT-ARG (consumes a DO/NEXT's worth) ////=//
 
-            case PARAM_CLASS_NORMAL:
+            case PARAM_CLASS_NORMAL: {
+                REBFLGS flags = DO_FLAG_FULFILLING_ARG;
+                if (NOT(evaluating))
+                    flags |= DO_FLAG_EXPLICIT_EVALUATE;
+
                 Prep_Stack_Cell(f->arg);
-                if (Do_Next_In_Subframe_Throws(
-                    f->arg,
-                    f,
-                    evaluating
-                        ? DO_FLAG_FULFILLING_ARG
-                        : DO_FLAG_FULFILLING_ARG | DO_FLAG_EXPLICIT_EVALUATE
-                )){
+                if (Do_Next_In_Subframe_Throws(f->arg, f, flags)) {
                     Move_Value(f->out, f->arg);
                     Abort_Function(f);
                     goto finished;
                 }
-                break;
+                break; }
 
-            case PARAM_CLASS_TIGHT:
+            case PARAM_CLASS_TIGHT: {
                 //
-                // The default for evaluated parameters is to do normal
-                // infix lookahead, e.g. `square 1 + 2` would pass 3
-                // to a single-arity function "square".  But if the
-                // argument to square is declared #tight, it will act as
-                // `(square 1) + 2`, by not applying lookahead to
-                // see the + during the argument evaluation.
+                // PARAM_CLASS_NORMAL does "normal" normal infix lookahead,
+                // e.g. `square 1 + 2` would pass 3 to single-arity `square`.
+                // But if the argument to square is declared #tight, it will
+                // act as `(square 1) + 2`, by not applying lookahead to see
+                // the `+` during the argument evaluation.
                 //
+                REBFLGS flags = DO_FLAG_NO_LOOKAHEAD | DO_FLAG_FULFILLING_ARG;
+                if (NOT(evaluating))
+                    flags |= DO_FLAG_EXPLICIT_EVALUATE;
+
                 Prep_Stack_Cell(f->arg);
-
-                if (Do_Next_In_Subframe_Throws(
-                    f->arg,
-                    f,
-                    DO_FLAG_NO_LOOKAHEAD | DO_FLAG_FULFILLING_ARG
-                )){
+                if (Do_Next_In_Subframe_Throws(f->arg, f, flags)) {
                     Move_Value(f->out, f->arg);
                     Abort_Function(f);
                     goto finished;
                 }
-                break;
+                break; }
 
     //=//// HARD QUOTED ARG-OR-REFINEMENT-ARG /////////////////////////////=//
 
@@ -1166,7 +1162,7 @@ reevaluate:;
     //=//// SOFT QUOTED ARG-OR-REFINEMENT-ARG  ////////////////////////////=//
 
             case PARAM_CLASS_SOFT_QUOTE:
-                if (!IS_QUOTABLY_SOFT(f->value)) {
+                if (NOT(IS_QUOTABLY_SOFT(f->value))) {
                     Prep_Stack_Cell(f->arg);
                     Quote_Next_In_Frame(f->arg, f); // VALUE_FLAG_UNEVALUATED
                     goto check_arg;
@@ -1604,13 +1600,7 @@ reevaluate:;
             assert(FALSE);
         }
 
-    apply_completed:
-        assert(NOT_END(f->out)); // should have overwritten
-        assert(NOT(THROWN(f->out))); // throws must be R_OUT_IS_THROWN
-        if (Is_Bindable(f->out))
-            assert(f->out->extra.binding != NULL);
-
-        assert(f->eval_type == REB_FUNCTION); // shouldn't have changed
+    apply_completed:;
 
     //==////////////////////////////////////////////////////////////////==//
     //
@@ -1626,24 +1616,31 @@ reevaluate:;
     // double checks any function marked with RETURN in the debug build,
     // so native return types are checked instead of just trusting the C.
 
-#if !defined(NDEBUG)
-    if (GET_FUN_FLAG(f->phase, FUNC_FLAG_INVISIBLE)) {
-        //
-        // Invisible functions do not have their return types checked, because
-        // all they're doing is leaving behind whatever was there before
-        // (an END or some other valid value).
-        //
-        // !!! Review that as written, you can't even *use* the definitional
-        // RETURN as it accepts no types...should probably have a LEAVE.
-        //
-    }
-    else if (GET_FUN_FLAG(f->phase, FUNC_FLAG_RETURN)) {
-        REBVAL *typeset = FUNC_PARAM(f->phase, FUNC_NUM_PARAMS(f->phase));
-        assert(VAL_PARAM_SYM(typeset) == SYM_RETURN);
-        if (!TYPE_CHECK(typeset, VAL_TYPE(f->out)))
-            fail (Error_Bad_Return_Type(f, VAL_TYPE(f->out)));
-    }
-#endif
+    #if !defined(NDEBUG)
+        assert(f->eval_type == REB_FUNCTION); // shouldn't have changed
+
+        assert(NOT_END(f->out)); // should have overwritten
+        assert(NOT(THROWN(f->out))); // throws must be R_OUT_IS_THROWN
+        if (Is_Bindable(f->out))
+            assert(f->out->extra.binding != NULL);
+
+        if (GET_FUN_FLAG(f->phase, FUNC_FLAG_INVISIBLE)) {
+            //
+            // Invisible functions do not have their return types checked,
+            // because all they're doing is leaving behind whatever was there
+            // before (if it was an END, they'd have had to reevaluate above).
+            //
+            // !!! As written, you can't even *use* the definitional RETURN as
+            // it accepts no types...should probably have a LEAVE.  Review.
+            //
+        }
+        else if (GET_FUN_FLAG(f->phase, FUNC_FLAG_RETURN)) {
+            REBVAL *typeset = FUNC_PARAM(f->phase, FUNC_NUM_PARAMS(f->phase));
+            assert(VAL_PARAM_SYM(typeset) == SYM_RETURN);
+            if (!TYPE_CHECK(typeset, VAL_TYPE(f->out)))
+                fail (Error_Bad_Return_Type(f, VAL_TYPE(f->out)));
+        }
+    #endif
 
     //==////////////////////////////////////////////////////////////////==//
     //
@@ -1758,7 +1755,17 @@ reevaluate:;
             fail (Error_Need_Value_Raw(specific)); // `do [a:]` is illegal
         }
 
-        if (NOT(evaluating)) { // e.g. `eval/only quote x: 1 + 2`, x => 1
+        // The SET-WORD! was deemed active otherwise we wouldn't have entered
+        // the switch for it.  But the right hand side f->value we're going to
+        // set the path *to* can have its own twist coming from the evaluator
+        // flip bit and evaluator state.
+        //
+        if (NOT(evaluating) == NOT_VAL_FLAG(f->value, VALUE_FLAG_EVAL_FLIP)) {
+            //
+            // Either we're NOT evaluating and there's NO special exemption,
+            // or we ARE evaluating and there IS A special exemption.  Treat
+            // the f->value as inert.
+            //
             Derelativize(f->out, f->value, f->specifier);
             Move_Value(Sink_Var_May_Fail(current, f->specifier), f->out);
         }
@@ -1770,7 +1777,9 @@ reevaluate:;
             //
             DS_PUSH_RELVAL(current, f->specifier);
 
-            if (Do_Next_Mid_Frame_Throws(f)) { // lightweight reuse of `f`
+            REBFLGS flags = DO_FLAG_NORMAL | DO_FLAG_FULFILLING_SET; // /NEXT
+
+            if (Do_Next_Mid_Frame_Throws(f, flags)) { // light reuse of `f`
                 DS_DROP;
                 goto finished;
             }
@@ -1836,6 +1845,9 @@ reevaluate:;
         // part of the deep copy of a function body, it's possible that this
         // GROUP! is a "relative ANY-ARRAY!" that needs the specifier to
         // resolve the relative any-words and other any-arrays inside it...
+        //
+        // Note that we only get here if the GROUP! is evaluative--and that
+        // means the whole group.  So no non-evaluation flag passing.
         //
         REBSPC *derived = Derive_Specifier(f->specifier, current);
         if (Do_At_Throws(
@@ -1934,7 +1946,17 @@ reevaluate:;
             fail (Error_Need_Value_Raw(specific)); // `do [a/b:]` is illegal
         }
 
-        if (NOT(evaluating)) {
+        // The SET-PATH! was deemed active otherwise we wouldn't have entered
+        // the switch for it.  But the right hand side f->value we're going to
+        // set the path *to* can have its own twist coming from the evaluator
+        // flip bit and evaluator state.
+        //
+        if (NOT(evaluating) == NOT_VAL_FLAG(f->value, VALUE_FLAG_EVAL_FLIP)) {
+            //
+            // Either we're NOT evaluating and there's NO special exemption,
+            // or we ARE evaluating and there IS A special exemption.  Treat
+            // the f->value as inert.
+
             Derelativize(f->out, f->value, f->specifier);
 
             // !!! Due to the way this is currently designed, throws need to
@@ -1961,7 +1983,9 @@ reevaluate:;
             //
             DS_PUSH_RELVAL(current, f->specifier);
 
-            if (Do_Next_Mid_Frame_Throws(f)) { // lighweight reuse of `f`
+            REBFLGS flags = DO_FLAG_NORMAL | DO_FLAG_FULFILLING_SET; // /NEXT
+
+            if (Do_Next_Mid_Frame_Throws(f, flags)) { // light reuse of `f`
                 DS_DROP;
                 goto finished;
             }
