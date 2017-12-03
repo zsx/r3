@@ -54,6 +54,5 @@ min: :minimum
 max: :maximum
 abs: :absolute
 empty?: :tail?
----: :comment
 
 rebol.com: http://www.rebol.com

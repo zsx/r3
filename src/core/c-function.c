@@ -947,58 +947,72 @@ REBFUN *Make_Function(
     assert(rootparam->payload.function.paramlist == paramlist);
     assert(VAL_BINDING(rootparam) == UNBOUND); // archetype
 
-    // Precalculate FUNC_FLAG_DEFERS_LOOKBACK
+    // Precalculate cached function flags.
     //
-    // Note that this flag is only relevant for *un-refined-calls*.  There
-    // are no lookback function calls via PATH! and brancher dispatch is done
-    // from a raw function value.  HOWEVER: specialization does come into play
-    // because it may change what the first "real" argument is.  But again,
-    // we're only interested in specialization's removal of *non-refinement*
-    // arguments.  Looking at the surface interface is good enough--that is
-    // what will be relevant after the specializations are accounted for.
+    // Note: FUNC_FLAG_DEFERS_LOOKBACK is only relevant for un-refined-calls.
+    // No lookback function calls trigger from PATH!.  HOWEVER: specialization
+    // does come into play because it may change what the first "real"
+    // argument is.  But again, we're only interested in specialization's
+    // removal of *non-refinement* arguments.
+
+    REBOOL first_arg = TRUE;
 
     REBVAL *param = KNOWN(rootparam) + 1;
     for (; NOT_END(param); ++param) {
         switch (VAL_PARAM_CLASS(param)) {
         case PARAM_CLASS_LOCAL:
-        case PARAM_CLASS_RETURN:
-        case PARAM_CLASS_LEAVE:
-            break; // skip.
+            break; // skip
+
+        case PARAM_CLASS_RETURN: {
+            assert(VAL_PARAM_SYM(param) == SYM_RETURN);
+            break; }
+
+        case PARAM_CLASS_LEAVE: {
+            assert(VAL_PARAM_SYM(param) == SYM_LEAVE);
+            break; } // skip.
 
         case PARAM_CLASS_REFINEMENT:
             //
             // hit before hitting any basic args, so not a brancher, and not
             // a candidate for deferring lookback arguments.
             //
-            goto done_caching;
+            first_arg = FALSE;
+            break;
 
         case PARAM_CLASS_NORMAL:
             //
-            // First argument is not tight, cache flag to report it.
+            // First argument is not tight, and not specialized, so cache flag
+            // to report that fact.
             //
-            SET_VAL_FLAG(rootparam, FUNC_FLAG_DEFERS_LOOKBACK);
-            goto done_caching;
+            if (first_arg && NOT_VAL_FLAG(param, TYPESET_FLAG_HIDDEN)) {
+                SET_VAL_FLAG(rootparam, FUNC_FLAG_DEFERS_LOOKBACK);
+                first_arg = FALSE;
+            }
+            break;
 
         // Otherwise, at least one argument but not one that requires the
         // deferring of lookback.
 
         case PARAM_CLASS_TIGHT:
             //
-            // First argument is tight, no flag needed
+            // If first argument is tight, and not specialized, no flag needed
             //
-            goto done_caching;
+            if (first_arg && NOT_VAL_FLAG(param, TYPESET_FLAG_HIDDEN))
+                first_arg = FALSE;
+            break;
 
         case PARAM_CLASS_HARD_QUOTE:
         case PARAM_CLASS_SOFT_QUOTE:
-            SET_VAL_FLAG(rootparam, FUNC_FLAG_QUOTES_FIRST_ARG);
-            goto done_caching;
+            if (first_arg && NOT_VAL_FLAG(param, TYPESET_FLAG_HIDDEN)) {
+                SET_VAL_FLAG(rootparam, FUNC_FLAG_QUOTES_FIRST_ARG);
+                first_arg = FALSE;
+            }
+            break;
 
         default:
             assert(FALSE);
         }
     }
-
-done_caching:;
 
     // The "body" for a function can be any REBVAL.  It doesn't have to be
     // a block--it's anything that the dispatcher might wish to interpret.
@@ -1281,7 +1295,7 @@ REBFUN *Make_Interpreted_Function_May_Fail(
         else if (GET_VAL_FLAG(value, FUNC_FLAG_LEAVE))
             FUNC_DISPATCHER(fun) = &Voider_Dispatcher; // forces f->out void
         else
-            FUNC_DISPATCHER(fun) = &Unchecked_Dispatcher; // leaves f->out
+            FUNC_DISPATCHER(fun) = &Unchecked_Dispatcher; // unchecked f->out
 
         // We need to copy the body in order to relativize its references to
         // args and locals to refer to the parameter list.  Future work
@@ -1735,7 +1749,7 @@ REB_R Action_Dispatcher(REBFRM *f)
 //
 REB_R Noop_Dispatcher(REBFRM *f)
 {
-    UNUSED(f);
+    assert(VAL_ARRAY(FUNC_BODY(f->phase)) == EMPTY_ARRAY); 
     return R_VOID;
 }
 

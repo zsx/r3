@@ -1569,7 +1569,7 @@ REBTYPE(Struct)
         assert(property != SYM_0);
 
         switch (property) {
-        case SYM_LENGTH_OF:
+        case SYM_LENGTH:
             Init_Integer(D_OUT, VAL_STRUCT_DATA_LEN(val));
             return R_OUT;
 

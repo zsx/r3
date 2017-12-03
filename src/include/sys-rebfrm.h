@@ -150,6 +150,15 @@
     FLAGIT_LEFT(8)
 
 
+//=//// DO_FLAG_FULFILLING_SET ////////////////////////////////////////////=//
+//
+// Similar to DO_FLAG_FULFILLING_ARG, this allows evaluator sensitivity to
+// noticing when a frame is being used to fulfill a SET-WORD! or a SET-PATH!
+//
+#define DO_FLAG_FULFILLING_SET \
+    FLAGIT_LEFT(9)
+
+
 //=//// DO_FLAG_EXPLICIT_EVALUATE /////////////////////////////////////////=//
 //
 // Sometimes a DO operation has already calculated values, and does not want
@@ -164,29 +173,23 @@
 // !!! This feature is in the process of being designed.
 //
 #define DO_FLAG_EXPLICIT_EVALUATE \
-    FLAGIT_LEFT(9)
+    FLAGIT_LEFT(10)
 
 
 //=//// DO_FLAG_NO_LOOKAHEAD //////////////////////////////////////////////=//
 //
-// R3-Alpha had a property such that when it was in mid-dispatch of an infix
-// function, it would suppress further infix lookahead while getting the
-// arguments.  (e.g. with `1 + 2 * 3` it didn't want infix `+` to "look ahead"
-// past the 2 to see the infix `*`)
+// Infix functions may (depending on the #tight or non-tight parameter
+// acquisition modes) want to suppress further infix lookahead while getting
+// a function argument.  This precedent was started in R3-Alpha, where with
+// `1 + 2 * 3` it didn't want infix `+` to "look ahead" past the 2 to see the
+// infix `*` when gathering its argument, that was saved until the `1 + 2`
+// finished its processing.
 //
-// This amounted to what was basically another parameter acquisition mode for
-// the right hand sides of OP!, which became named <tight>.  Because tight
-// parameter fulfillment added variation into the evaluator, it is being
-// replaced by a strategy to use the quoted or non-quoted status of the left
-// hand argument of enfixed functions to guide evaluator behavior.  The worst
-// case scenario will be that `1 + 2 * 3` becomes 7 instead of 9.
-//
-// !!! The flag will be needed as long as legacy support is required, because
-// this fundamentally different mode of parameter acquisition is controlled at
-// the frame level and can't be achieved (reasonably) by other means.
+// See PARAM_CLASS_TIGHT for more explanation on the parameter class which
+// adds this flag to its argument gathering call.
 //
 #define DO_FLAG_NO_LOOKAHEAD \
-    FLAGIT_LEFT(10)
+    FLAGIT_LEFT(11)
 
 
 //=//// DO_FLAG_NATIVE_HOLD ///////////////////////////////////////////////=//
@@ -210,7 +213,7 @@
 // the reification happens.
 //
 #define DO_FLAG_NATIVE_HOLD \
-    FLAGIT_LEFT(11)
+    FLAGIT_LEFT(12)
 
 
 // Currently the rightmost two bytes of the Reb_Frame->flags are not used,
@@ -219,7 +222,7 @@
 // information in a platform aligned position of the frame.
 //
 #if defined(__cplusplus) && (__cplusplus >= 201103L)
-    static_assert(11 < 32, "DO_FLAG_XXX too high");
+    static_assert(12 < 32, "DO_FLAG_XXX too high");
 #endif
 
 

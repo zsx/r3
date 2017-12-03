@@ -280,6 +280,9 @@ REBNATIVE(do)
         if (NOT(Is_Frame_Style_Varargs_May_Fail(&f, source)))
             panic(source); // Frame is the only other type
 
+        if (FRM_AT_END(f))
+            return R_VOID;
+
         // Pretty much by definition, we are in the middle of a function call
         // in the frame the varargs came from.  It's still on the stack, and
         // we don't want to disrupt its state.  Use a subframe.
@@ -292,7 +295,7 @@ REBNATIVE(do)
             return R_OUT_IS_THROWN;
         }
 
-        // The variable passed in /NEXT is just set ot the vararg itself,
+        // The variable passed in /NEXT is just set to the vararg itself,
         // which has its positioning updated automatically by virtue of the
         // evaluation performing a "consumption" of VARARGS! content.
         //

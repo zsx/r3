@@ -71,6 +71,14 @@ inline static REBVAL *FUNC_VALUE(REBFUN *f) {
     return SER_AT(REBVAL, SER(FUNC_PARAMLIST(f)), 0);
 }
 
+// Functions hold their flags in their canon value, some of which are cached
+// flags put there during Make_Function().
+//
+// !!! Review if (and how) a HIJACK might affect these flags (?)
+//
+#define GET_FUN_FLAG(fun, flag) \
+    GET_VAL_FLAG(FUNC_VALUE(fun), (flag))
+
 // Note: On Windows, FUNC_DISPATCH is already defined in the header files
 //
 #define FUNC_DISPATCHER(f) \
