@@ -98,7 +98,7 @@ REB_R Apply_Core(REBFRM * const f) {
 
 static inline REBOOL Start_New_Expression_Throws(REBFRM *f) {
 #if !defined(NDEBUG)
-    assert(IS_UNREADABLE_IF_DEBUG(f->out));
+    assert(IS_UNREADABLE_IF_DEBUG(f->out) || IS_END(f->out));
 #endif
 
     assert(Eval_Count >= 0);
@@ -115,7 +115,7 @@ static inline REBOOL Start_New_Expression_Throws(REBFRM *f) {
     UPDATE_EXPRESSION_START(f); // !!! See FRM_INDEX() for caveats
 
 #if !defined(NDEBUG)
-    assert(IS_UNREADABLE_IF_DEBUG(f->out));
+    assert(IS_UNREADABLE_IF_DEBUG(f->out) || IS_END(f->out));
 #endif
 
     return FALSE;
@@ -457,8 +457,10 @@ reevaluate:;
                 );
 
                 f->refine = ORDINARY_ARG;
-                assert(IS_UNREADABLE_IF_DEBUG(f->out));
-                SET_END(f->out);
+                if (NOT_VAL_FLAG(current_gotten, FUNC_FLAG_INVISIBLE)) {
+                    assert(IS_UNREADABLE_IF_DEBUG(f->out) || IS_END(f->out));
+                    SET_END(f->out);
+                }
                 goto process_function;
             }
         }
@@ -632,10 +634,15 @@ reevaluate:;
         // not all params will consume arguments for all calls.
 
     process_function:
-        assert(
-            (f->refine == ORDINARY_ARG && IS_END(f->out))
-            || (f->refine == LOOKBACK_ARG && NOT(IS_TRASH_DEBUG(f->out)))
-        );
+    #if !defined(NDEBUG)
+        if (f->refine == ORDINARY_ARG) {
+            if (NOT_END(f->out))
+                assert(GET_FUN_FLAG(f->phase, FUNC_FLAG_INVISIBLE));
+        }
+        else {
+            assert(f->refine == LOOKBACK_ARG && NOT(IS_TRASH_DEBUG(f->out)));
+        }
+    #endif
 
         TRASH_POINTER_IF_DEBUG(current); // shouldn't be used below
         TRASH_POINTER_IF_DEBUG(current_gotten);
@@ -976,8 +983,15 @@ reevaluate:;
                     //
                     // The difference can be told by the frame flag.
 
-                    if (f->flags.bits & DO_FLAG_FULFILLING_ARG)
+                    // Make a special exception for "invisible" functions,
+                    // which are planning to pass through the END.
+
+                    if (
+                        (f->flags.bits & DO_FLAG_FULFILLING_ARG)
+                        && NOT(GET_FUN_FLAG(f->phase, FUNC_FLAG_INVISIBLE))
+                    ){
                         fail (Error_Partial_Lookback(f));
+                    }
 
                     if (NOT_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
                         fail (Error_No_Arg(f, f->param));
@@ -1034,7 +1048,8 @@ reevaluate:;
                     assert(FALSE);
                 }
 
-                SET_END(f->out);
+                if (NOT(GET_FUN_FLAG(f->phase, FUNC_FLAG_INVISIBLE)))
+                    SET_END(f->out);
                 goto check_arg;
             }
 
@@ -1331,7 +1346,9 @@ reevaluate:;
         // try to Do_Core into movable memory...*and* a native can tell if it
         // has written the out slot yet or not.
         //
-        assert(IS_END(f->out));
+        assert(
+            IS_END(f->out) || GET_FUN_FLAG(f->phase, FUNC_FLAG_INVISIBLE)
+        );
 
         // !!! In theory an assert can be developed here, but we need to allow
         // API handles which may have non-stack lifetimes here.  This could
@@ -1516,6 +1533,52 @@ reevaluate:;
             evaluating = FALSE;
             goto prep_for_reevaluate;
 
+        case R_INVISIBLE: {
+            assert(GET_FUN_FLAG(f->phase, FUNC_FLAG_INVISIBLE));
+
+            // It is possible that when the elider ran, that there really was
+            // no output in the cell yet (e.g. `do [comment "hi" ...]`) so it
+            // would still be END after the fact.
+            //
+            assert(IS_END(f->out) || NOT(IS_UNREADABLE_IF_DEBUG(f->out)));
+
+            // If we hit the frame end, there are two different behaviors:
+            //
+            //     do [2 comment "should evaluate to 2"]
+            //     do [print comment "acts like an <end>"]
+            //
+            if (FRM_AT_END(f)) {
+                if (IS_END(f->out)) {
+                    Init_Void(f->out);
+
+                    // !!! A theory was that the "evaluated" flag would help a
+                    // function that took an <opt> <end> distinguish which kind
+                    // of void it was.  This may or may not be a good idea, but
+                    // unevaluating it here just to make a note of the concept.
+                    //
+                    SET_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED);
+                }
+            }
+            else {
+                // We need to continue the post-switch processing, e.g. we want
+                // `do [1 comment "a" comment "b" + 2]` to give 3.  But we can
+                // only do that if there is a starter value in the output cell.
+                // otherwise we can't satisfy an argument request.
+                //
+                // Use same mechanic as EVAL, but retrigger whatever is next in
+                // the frame (`f->value` is our current pending value)
+                //
+                if (IS_END(f->out)) {
+                    Derelativize(&f->cell, f->value, f->specifier);
+                    Fetch_Next_In_Frame(f);
+
+                    evaluating = TRUE; // unnecessary?
+                    goto prep_for_reevaluate;
+                }
+            }
+
+            break; } // do normal fallthrough
+
         prep_for_reevaluate: {
             current = &f->cell;
             f->eval_type = VAL_TYPE(current);
@@ -1564,7 +1627,17 @@ reevaluate:;
     // so native return types are checked instead of just trusting the C.
 
 #if !defined(NDEBUG)
-    if (GET_VAL_FLAG(FUNC_VALUE(f->phase), FUNC_FLAG_RETURN)) {
+    if (GET_FUN_FLAG(f->phase, FUNC_FLAG_INVISIBLE)) {
+        //
+        // Invisible functions do not have their return types checked, because
+        // all they're doing is leaving behind whatever was there before
+        // (an END or some other valid value).
+        //
+        // !!! Review that as written, you can't even *use* the definitional
+        // RETURN as it accepts no types...should probably have a LEAVE.
+        //
+    }
+    else if (GET_FUN_FLAG(f->phase, FUNC_FLAG_RETURN)) {
         REBVAL *typeset = FUNC_PARAM(f->phase, FUNC_NUM_PARAMS(f->phase));
         assert(VAL_PARAM_SYM(typeset) == SYM_RETURN);
         if (!TYPE_CHECK(typeset, VAL_TYPE(f->out)))
@@ -1632,15 +1705,21 @@ reevaluate:;
                 VAL_BINDING(current_gotten)
             );
 
-            // If a function gets dispatched here by a word, then it can't
-            // have any enfix arguments.  It will just see an <end>
-            //
-            assert(IS_END(f->out) || IS_UNREADABLE_IF_DEBUG(f->out));
-            SET_END(f->out);
-            if (GET_VAL_FLAG(current_gotten, VALUE_FLAG_ENFIXED))
+            if (GET_VAL_FLAG(current_gotten, VALUE_FLAG_ENFIXED)) {
+                //
+                // Note: The usual dispatch of enfix functions is not via a
+                // REB_WORD in this switch, it's by some code at the end of
+                // the switch.  So you only see this in cases like `(+ 1 2)`,
+                // -OR- after FUNC_FLAG_INVISIBLE e.g. `10 comment "hi" + 20`.
+                //
                 f->refine = LOOKBACK_ARG;
-            else
+                assert(IS_END(f->out) || NOT(IS_UNREADABLE_IF_DEBUG(f->out)));
+            }
+            else {
                 f->refine = ORDINARY_ARG;
+                if (NOT_VAL_FLAG(current_gotten, FUNC_FLAG_INVISIBLE))
+                    SET_END(f->out);
+            }
             goto process_function;
         }
 
@@ -2134,160 +2213,18 @@ reevaluate:;
 
     f->eval_type = VAL_TYPE(f->value);
 
-    if (f->flags.bits & DO_FLAG_NO_LOOKAHEAD) {
-        //
-        // Don't do infix lookahead if asked *not* to look.  See the
-        // PARAM_CLASS_TIGHT parameter convention for the use of this
-        //
-        assert(NOT(f->flags.bits & DO_FLAG_TO_END));
-    }
-    else if (f->eval_type == REB_WORD) {
+//=//// IF NOT A WORD!, IT DEFINITELY STARTS A NEW EXPRESSION /////////////=//
 
-        if (f->gotten == END)
-            f->gotten = Get_Opt_Var_Else_End(f->value, f->specifier);
-        else
-            assert(
-                f->gotten == Get_Opt_Var_Else_End(f->value, f->specifier)
-            );
+    // !!! Our lookahead step currently only works with WORD!, but it should
+    // be retrofitted in the future to support PATH! dispatch also (for both
+    // enfix and invisible/comment-like behaviors).  But in the meantime, if
+    // you use a PATH! and look up to an enfixed word or "invisible" result
+    // function, that's an error (or should be).
 
-    //=//// DO/NEXT WON'T RUN MORE CODE UNLESS IT'S AN INFIX FUNCTION /////=//
+    if (f->eval_type != REB_WORD) {
+        if (NOT(f->flags.bits & DO_FLAG_TO_END))
+            goto finished; // only want DO/NEXT of work, so stop evaluating
 
-        if (
-            NOT(f->flags.bits & DO_FLAG_TO_END)
-            && (
-                f->gotten == END // could fold the END check in with masking
-                || NOT_VAL_FLAG(f->gotten, VALUE_FLAG_ENFIXED)
-            )
-        ){
-            goto finished;
-        }
-
-    //=//// IT'S INFIX OR WE'RE DOING TO THE END...DISPATCH LIKE WORD /////=//
-
-        if (VAL_TYPE_OR_0(f->gotten) != REB_FUNCTION) { // END is REB_0
-            START_NEW_EXPRESSION_MAY_THROW(f, goto finished);
-            // ^-- resets evaluating + tick, corrupts f->out, Ctrl-C may abort
-
-            UPDATE_TICK_DEBUG(NULL);
-            // v-- The TICK_BREAKPOINT or C-DEBUG-BREAK landing spot --v
-
-            current = f->value;
-            current_gotten = f->gotten; // if END, the word will error
-            f->gotten = END;
-            Fetch_Next_In_Frame(f);
-
-            // Were we to jump to the REB_WORD switch case here, LENGTH would
-            // cause an error in the expression below:
-            //
-            //     if true [] length of "hello"
-            //
-            // `reevaluate` accounts for the extra lookahead of when after
-            // evaluating something like IF TRUE [] you have a case where
-            // even though LENGTH isn't enfix itself, enfix accounting must
-            // be done by looking ahead to see if something after it (like
-            // OF) is enfix and wants to quote it!
-            //
-            goto reevaluate;
-        }
-
-        if (GET_VAL_FLAG(f->gotten, VALUE_FLAG_ENFIXED)) {
-            if (GET_VAL_FLAG(f->gotten, FUNC_FLAG_QUOTES_FIRST_ARG)) {
-                //
-                // Left-quoting by enfix needs to be done in the lookahead
-                // before an evaluation, not this one that's after.  This
-                // error happens in cases like:
-                //
-                //     left-quote: enfix func [:value] [:value]
-                //     quote <something> left-quote
-                //
-                // !!! Is this the ideal place to be delivering the error?
-                //
-                fail (Error_Lookback_Quote_Too_Late(f->value, f->specifier));
-            }
-
-            if (
-                GET_VAL_FLAG(f->gotten, FUNC_FLAG_DEFERS_LOOKBACK)
-                && (f->flags.bits & DO_FLAG_FULFILLING_ARG)
-                && NOT(f->flags.bits & DO_FLAG_DAMPEN_DEFER)
-            ){
-                assert(NOT(f->flags.bits & DO_FLAG_TO_END));
-                assert(Is_Function_Frame_Fulfilling(f->prior));
-
-                // We have a lookback function pending, but it wants its first
-                // argument to be one "complete expression".  Consider ELSE in
-                // the case of:
-                //
-                //     print if false ["a"] else ["b"]
-                //
-                // The first time ELSE is seen, PRINT and IF are on the stack
-                // above it, fulfilling their arguments...and we've just
-                // written `["a"]` into f->out in the switch() above.  ELSE
-                // wants us to let IF finish before it runs, but it doesn't
-                // want to repeat the deferment a second time, such that PRINT
-                // completes also before running.
-                //
-                // Defer this lookahead, but tell the frame above (e.g. IF in
-                // the above example) not to continue this pattern when it
-                // finishes and sees itself in the same position.
-                //
-                assert(NOT(f->prior->flags.bits & DO_FLAG_DAMPEN_DEFER));
-                f->prior->flags.bits |= DO_FLAG_DAMPEN_DEFER;
-            }
-            else {
-                // The DAMPEN_DEFER bit should only be set if we're taking
-                // the result now for a deferred lookback function.  Clear it
-                // in any case.
-                //
-                assert(
-                    NOT(f->flags.bits & DO_FLAG_DAMPEN_DEFER)
-                    || GET_VAL_FLAG(f->gotten, FUNC_FLAG_DEFERS_LOOKBACK)
-                );
-                f->flags.bits &= ~DO_FLAG_DAMPEN_DEFER;
-
-                // This is a case for an evaluative lookback argument we
-                // don't want to defer, e.g. a #tight argument or a normal
-                // one which is not being requested in the context of
-                // parameter fulfillment.  We want to reuse the f->out
-
-                Push_Function(
-                    f,
-                    VAL_WORD_SPELLING(f->value),
-                    VAL_FUNC(f->gotten),
-                    VAL_BINDING(f->gotten)
-                );
-                f->refine = LOOKBACK_ARG;
-
-                f->gotten = END;
-                Fetch_Next_In_Frame(f); // advances f->value
-                goto process_function;
-            }
-        }
-        else {
-            START_NEW_EXPRESSION_MAY_THROW(f, goto finished);
-            // ^-- resets evaluating + tick, corrupts f->out, Ctrl-C may abort
-
-            UPDATE_TICK_DEBUG(NULL);
-            // v-- The TICK_BREAKPOINT or C-DEBUG-BREAK landing spot --v
-
-            Push_Function(
-                f,
-                VAL_WORD_SPELLING(f->value),
-                VAL_FUNC(f->gotten),
-                VAL_BINDING(f->gotten)
-            );
-
-            f->refine = ORDINARY_ARG;
-            SET_END(f->out);
-
-            f->gotten = END;
-            Fetch_Next_In_Frame(f); // advances f->value
-            goto process_function;
-        }
-    }
-
-    // Continue evaluating rest of block if not just a DO/NEXT
-    //
-    if (f->flags.bits & DO_FLAG_TO_END) {
         START_NEW_EXPRESSION_MAY_THROW(f, goto finished);
         // ^-- resets evaluating + tick, corrupts f->out, Ctrl-C may abort
 
@@ -2296,6 +2233,211 @@ reevaluate:;
 
         goto do_next;
     }
+
+//=//// FETCH WORD! TO PERFORM SPECIAL HANDLING FOR ENFIX/INVISIBLES //////=//
+
+    // We're sitting at what "looks like the end" of an evaluation step.
+    // But we still have to consider enfix.  e.g.
+    //
+    //    do/next [1 + 2 * 3] 'pos
+    //
+    // The evaluator cannot just dispatch on REB_INTEGER, give you 1, and
+    // consider its job done.  It has to notice that the variable `+` looks
+    // up to has been set with VALUE_FLAG_ENFIX.  (There's a subtlety with
+    // DO_FLAG_NO_LOOKAHEAD which explains why processing of the 2 argument
+    // doesn't greedily continue to advance, but waits for `1 + 2` to finish.)
+    //
+    // Slighly more nuanced is why FUNC_FLAG_INVISIBLE functions have to be
+    // considered in the lookahead also.  Consider this case:
+    //
+    //    do/next [1 + 2 * 3 comment ["hi"] print "next step"] 'pos
+    //
+    // We want this to evaluate to 6, with `pos = [print "next step"]`.  To
+    // do this, we can't consider an evaluation finished until all the
+    // "invisibles" have been processed.
+    //
+    // So this post-switch step is where all of it happens, and it's tricky.
+    // First things first, we fetch the WORD! so we can see if it looks up
+    // to any kind of FUNCTION! at all.
+
+    if (f->gotten == END)
+        f->gotten = Get_Opt_Var_Else_End(f->value, f->specifier);
+    else
+        assert(
+            f->gotten == Get_Opt_Var_Else_End(f->value, f->specifier)
+        );
+
+//=//// NEW EXPRESSION IF UNBOUND, NON-FUNCTION, OR NON-ENFIX /////////////=//
+
+    // These cases represent finding the start of a new expression, which
+    // continues the evaluator loop if DO_FLAG_TO_END, but will stop with
+    // `goto finished` if NOT(DO_FLAG_TO_END).
+    //
+    // We fall back on word-like "dispatch" even if f->gotten == END (unset or
+    // unbound word).  It'll be an error, but that code path raises it for us.
+
+    if (
+        VAL_TYPE_OR_0(f->gotten) != REB_FUNCTION // END is REB_0 (UNBOUND)
+        || NOT_VAL_FLAG(f->gotten, VALUE_FLAG_ENFIXED)
+    ){
+        if (NOT(f->flags.bits & DO_FLAG_TO_END)) {
+            //
+            // Since it's a new expression, a DO/NEXT doesn't want to run it
+            // *unless* it's "invisible"
+            //
+            if (
+                VAL_TYPE_OR_0(f->gotten) != REB_FUNCTION
+                || NOT_VAL_FLAG(f->gotten, FUNC_FLAG_INVISIBLE)
+            ){
+                goto finished;
+            }
+
+            // Though it's an "invisible" function, we don't want to call it
+            // unless it's our *last* chance to do so for a fulfillment (e.g.
+            // DUMP should be called for `do [x: 1 + 2 dump [x]]` only
+            // after the assignment to X is complete.)
+            //
+            // The way we test for this is to see if there's no fulfillment
+            // process above us which will get a later chance (that later
+            // chance will occur for that higher frame at this code point.)
+            //
+            if (
+                f->flags.bits
+                & (DO_FLAG_FULFILLING_ARG | DO_FLAG_FULFILLING_SET)
+            ){
+                goto finished;
+            }
+
+            // Take our last chance to run the invisible function, but shift
+            // into a mode where we *only* run such functions.  (Once this
+            // flag is set, it will have it until termination, then erased
+            // when the frame is discarded/reused.)
+            //
+            f->flags.bits |= DO_FLAG_NO_LOOKAHEAD; // might have set already
+        }
+        else if (
+            VAL_TYPE_OR_0(f->gotten) == REB_FUNCTION
+            && GET_VAL_FLAG(f->gotten, FUNC_FLAG_INVISIBLE)
+        ){
+            // Even if not a DO/NEXT, we do not want START_NEW_EXPRESSION on
+            // "invisible" functions.  e.g. `do [1 + 2 comment "hi"]` should
+            // consider that one whole expression.  Reason being that the
+            // comment cannot be broken out and thought of as having a return
+            // result... `comment "hi"` alone cannot have any basis for
+            // evaluating to 3.
+        }
+        else {
+            START_NEW_EXPRESSION_MAY_THROW(f, goto finished);
+            // ^-- resets evaluating + tick, corrupts f->out, Ctrl-C may abort
+
+            UPDATE_TICK_DEBUG(NULL);
+            // v-- The TICK_BREAKPOINT or C-DEBUG-BREAK landing spot --v
+        }
+
+        current = f->value;
+        current_gotten = f->gotten; // if END, the word will error
+        f->gotten = END;
+        Fetch_Next_In_Frame(f);
+
+        // Were we to jump to the REB_WORD switch case here, LENGTH would
+        // cause an error in the expression below:
+        //
+        //     if true [] length of "hello"
+        //
+        // `reevaluate` accounts for the extra lookahead of after something
+        // like IF TRUE [], where you have a case that even though LENGTH
+        // isn't enfix itself, enfix accounting must be done by looking ahead
+        // to see if something after it (like OF) is enfix and quotes back!
+        //
+        goto reevaluate;
+    }
+
+//=//// IT'S AN ENFIX FUNCTION (WHICH MAY ALSO BE "INVISIBLE") ////////////=//
+
+    if (
+        (f->flags.bits & DO_FLAG_NO_LOOKAHEAD)
+        && NOT_VAL_FLAG(f->gotten, FUNC_FLAG_INVISIBLE)
+    ){
+        // Don't do enfix lookahead if asked *not* to look.  See the
+        // PARAM_CLASS_TIGHT parameter convention for the use of this, as
+        // well as it being set if DO_FLAG_TO_END wants to clear out the
+        // invisibles at this frame level before returning.
+        //
+        goto finished;
+    }
+
+    if (GET_VAL_FLAG(f->gotten, FUNC_FLAG_QUOTES_FIRST_ARG)) {
+        //
+        // Left-quoting by enfix needs to be done in the lookahead before an
+        // evaluation, not this one that's after.  This happens in cases like:
+        //
+        //     left-quote: enfix func [:value] [:value]
+        //     quote <something> left-quote
+        //
+        // !!! Is this the ideal place to be delivering the error?
+        //
+        fail (Error_Lookback_Quote_Too_Late(f->value, f->specifier));
+    }
+
+    if (
+        GET_VAL_FLAG(f->gotten, FUNC_FLAG_DEFERS_LOOKBACK)
+        && (f->flags.bits & DO_FLAG_FULFILLING_ARG)
+        && NOT(f->flags.bits & DO_FLAG_DAMPEN_DEFER)
+    ){
+        assert(Is_Function_Frame_Fulfilling(f->prior));
+
+        // We have a lookback function pending, but it wants its first
+        // argument to be one "complete expression".  Consider ELSE in
+        // the case of:
+        //
+        //     print if false ["a"] else ["b"]
+        //
+        // The first time ELSE is seen, PRINT and IF are on the stack
+        // above it, fulfilling their arguments...and we've just
+        // written `["a"]` into f->out in the switch() above.  ELSE
+        // wants us to let IF finish before it runs, but it doesn't
+        // want to repeat the deferment a second time, such that PRINT
+        // completes also before running.
+        //
+        // Defer this lookahead, but tell the frame above (e.g. IF in
+        // the above example) not to continue this pattern when it
+        // finishes and sees itself in the same position.
+        //
+        assert(NOT(f->prior->flags.bits & DO_FLAG_DAMPEN_DEFER));
+        f->prior->flags.bits |= DO_FLAG_DAMPEN_DEFER;
+
+        // We only encounter this case when doing an arg, so it should not
+        // be a DO to END.
+
+        assert(NOT(f->flags.bits & DO_FLAG_TO_END));
+        goto finished;
+    }
+
+    // The DAMPEN_DEFER bit should only be set if we're taking the result
+    // now for a deferred lookback function.  Clear it in any case.
+    //
+    assert(
+        NOT(f->flags.bits & DO_FLAG_DAMPEN_DEFER)
+        || GET_VAL_FLAG(f->gotten, FUNC_FLAG_DEFERS_LOOKBACK)
+    );
+    f->flags.bits &= ~DO_FLAG_DAMPEN_DEFER;
+
+    // This is a case for an evaluative lookback argument we don't want to
+    // defer, e.g. a #tight argument or a normal one which is not being
+    // requested in the context of parameter fulfillment.  We want to reuse
+    // the f->out value and get it into the new function's frame.
+
+    Push_Function(
+        f,
+        VAL_WORD_SPELLING(f->value),
+        VAL_FUNC(f->gotten),
+        VAL_BINDING(f->gotten)
+    );
+    f->refine = LOOKBACK_ARG;
+
+    f->gotten = END;
+    Fetch_Next_In_Frame(f); // advances f->value
+    goto process_function;
 
 finished:;
 

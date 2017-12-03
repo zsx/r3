@@ -965,6 +965,11 @@ REBFUN *Make_Function(
 
         case PARAM_CLASS_RETURN: {
             assert(VAL_PARAM_SYM(param) == SYM_RETURN);
+
+            // See notes on FUNC_FLAG_INVISIBLE.
+            //
+            if (VAL_TYPESET_BITS(param) == 0)
+                SET_VAL_FLAG(rootparam, FUNC_FLAG_INVISIBLE);
             break; }
 
         case PARAM_CLASS_LEAVE: {
@@ -1270,7 +1275,9 @@ REBFUN *Make_Interpreted_Function_May_Fail(
 
     REBARR *body_array;
     if (VAL_ARRAY_LEN_AT(code) == 0) {
-        if (GET_VAL_FLAG(value, FUNC_FLAG_RETURN)) {
+        if (GET_VAL_FLAG(value, FUNC_FLAG_INVISIBLE))
+            FUNC_DISPATCHER(fun) = &Commenter_Dispatcher;
+        else if (GET_VAL_FLAG(value, FUNC_FLAG_RETURN)) {
             //
             // Since we're bypassing type checking in the dispatcher for
             // speed, we need to make sure that the return type allows void
@@ -1290,7 +1297,9 @@ REBFUN *Make_Interpreted_Function_May_Fail(
         // Body is not empty, so we need to pick the right dispatcher based
         // on how the output value is to be handled.
         //
-        if (GET_VAL_FLAG(value, FUNC_FLAG_RETURN))
+        if (GET_VAL_FLAG(value, FUNC_FLAG_INVISIBLE))
+            FUNC_DISPATCHER(fun) = &Elider_Dispatcher; // no f->out mutation
+        else if (GET_VAL_FLAG(value, FUNC_FLAG_RETURN))
             FUNC_DISPATCHER(fun) = &Returner_Dispatcher; // type checks f->out
         else if (GET_VAL_FLAG(value, FUNC_FLAG_LEAVE))
             FUNC_DISPATCHER(fun) = &Voider_Dispatcher; // forces f->out void
@@ -1749,7 +1758,8 @@ REB_R Action_Dispatcher(REBFRM *f)
 //
 REB_R Noop_Dispatcher(REBFRM *f)
 {
-    assert(VAL_ARRAY(FUNC_BODY(f->phase)) == EMPTY_ARRAY); 
+    assert(VAL_ARRAY(FUNC_BODY(f->phase)) == EMPTY_ARRAY);
+    UNUSED(f);
     return R_VOID;
 }
 
@@ -1868,6 +1878,54 @@ REB_R Returner_Dispatcher(REBFRM *f)
         fail (Error_Bad_Return_Type(f, VAL_TYPE(f->out)));
 
     return R_OUT;
+}
+
+
+//
+//  Elider_Dispatcher: C
+//
+// This is used by "invisible" functions (who in their spec say `return: []`).
+// The goal is to evaluate a function call in such a way that its presence
+// doesn't disrupt the chain of evaluation any more than if the call were not
+// there.  (The call can have side effects, however.)
+//
+REB_R Elider_Dispatcher(REBFRM *f)
+{
+    RELVAL *body = FUNC_BODY(f->phase);
+    assert(IS_BLOCK(body) && IS_RELATIVE(body) && VAL_INDEX(body) == 0);
+
+    // !!! It would be nice to use the frame's spare "cell" for the thrownaway
+    // result, but Fetch_Next code expects to use the cell.  We can GC guard
+    // our own stack temporary, though, simply by pointing ->refine at it.
+    //
+    DECLARE_LOCAL (dummy);
+    SET_END(dummy);
+    f->refine = dummy;
+
+    if (Do_At_Throws(
+        dummy, // would usually write to f->out, instead throw away the result
+        VAL_ARRAY(body),
+        0, // VAL_INDEX(body) asserted 0 above
+        AS_SPECIFIER(f)
+    )){
+        return R_OUT_IS_THROWN;
+    }
+
+    return R_INVISIBLE;
+}
+
+
+//
+//  Commenter_Dispatcher: C
+//
+// This is a specialized version of Elider_Dispatcher() for when the body of
+// a function is empty.  This helps COMMENT and functions like it run faster.
+//
+REB_R Commenter_Dispatcher(REBFRM *f)
+{
+    assert(VAL_ARRAY(FUNC_BODY(f->phase)) == EMPTY_ARRAY);
+    UNUSED(f);
+    return R_INVISIBLE;
 }
 
 

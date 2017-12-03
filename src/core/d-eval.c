@@ -305,10 +305,13 @@ void Do_Core_Expression_Checks_Debug(REBFRM *f) {
 
     // The only thing the evaluator can take for granted between evaluations
     // about the output cell is that it's not trash.  In the debug build,
-    // give this more teeth by explicitly setting it to an unreadable blank.
+    // give this more teeth by explicitly setting it to an unreadable blank,
+    // but only if it wasn't an END marker (that's how we can tell no
+    // evaluations have been done yet, consider `(comment [...] + 2)`)
     //
     assert(NOT(IS_TRASH_DEBUG(f->out)));
-    Init_Unreadable_Blank(f->out);
+    if (NOT(IS_UNREADABLE_IF_DEBUG(f->out)) && NOT_END(f->out))
+        Init_Unreadable_Blank(f->out);
 
     // Once a throw is started, no new expressions may be evaluated until
     // that throw gets handled.

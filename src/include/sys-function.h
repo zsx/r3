@@ -219,6 +219,17 @@ inline static REBRIN *FUNC_ROUTINE(REBFUN *f) {
 //
 #define FUNC_FLAG_UNLOADABLE_NATIVE FUNC_FLAG(5)
 
+// An "invisible" function is one that does not touch its frame output cell,
+// leaving it completely alone.  This is how `10 comment ["hi"] + 20` can
+// work...if COMMENT destroyed the 10 in the output cell it would be lost and
+// the addition could no longer work.
+//
+// !!! One property considered for invisible items was if they might not be
+// quoted in soft-quoted positions.  This would require fetching something
+// that might not otherwise need to be fetched, to test the flag.  Review.
+//
+#define FUNC_FLAG_INVISIBLE FUNC_FLAG(6)
+
 #if !defined(NDEBUG)
     //
     // If a function is a native then it may provide return information as
@@ -227,13 +238,14 @@ inline static REBRIN *FUNC_ROUTINE(REBFUN *f) {
     // to double-check.  So when MKF_FAKE_RETURN is used in a debug build,
     // it leaves this flag on the function.
     //
-    #define FUNC_FLAG_RETURN_DEBUG FUNC_FLAG(6)
+    #define FUNC_FLAG_RETURN_DEBUG FUNC_FLAG(7)
 #endif
 
 // These are the flags which are scanned for and set during Make_Function
 //
 #define FUNC_FLAG_CACHED_MASK \
-    (FUNC_FLAG_DEFERS_LOOKBACK | FUNC_FLAG_QUOTES_FIRST_ARG)
+    (FUNC_FLAG_DEFERS_LOOKBACK | FUNC_FLAG_QUOTES_FIRST_ARG \
+        | FUNC_FLAG_INVISIBLE)
 
 
 inline static REBFUN *VAL_FUNC(const RELVAL *v) {

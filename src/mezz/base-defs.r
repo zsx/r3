@@ -28,6 +28,35 @@ REBOL [
 blank: _
 bar: '|
 
+; Because it has `return: []`, a comment is effectively "invisible".  Internal
+; optimizations make it so COMMENT doesn't need to be a native...the empty
+; body triggers an "eliding noop dispatcher".  To avoid looking deceptive,
+; you can only comment out inert types (e.g. no `comment (print "hi")`)
+;
+comment: func [
+    {Ignores the argument value, but does no evaluation (see also ELIDE).}
+
+    return: []
+        {The evaluator will skip over the result (not seen, not even void)}
+    :value [block! any-string! binary! any-scalar!]
+        "Literal value to be ignored."
+][
+    ; no body
+]
+
+set/enfix quote elide: func [
+    {Argument is evaluative, but discarded (see also COMMENT).}
+
+    return: []
+        {The evaluator will skip over the result (not seen, not even void)}
+    #returned [<opt> <end> any-value!]
+        {By protocol of `return: []`, this is the return value when enfixed}
+    #discarded [<opt> any-value!]
+        {Evaluative argument, tight semantics (so `1 elide "hi" + 2` works)}
+][
+    ; no body
+]
+
 ; Despite being very "noun-like", HEAD and TAIL have classically been "verbs"
 ; in Rebol.  Ren-C builds on the concept of REFLECT, so that REFLECT STR 'HEAD
 ; will get the head of a string.  An enfix left-soft-quoting operation is

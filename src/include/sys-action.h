@@ -116,6 +116,11 @@ enum Reb_Result {
     R_REEVALUATE_CELL,
     R_REEVALUATE_CELL_ONLY,
 
+    // See FUNC_FLAG_INVISIBLE...this is what any function with that flag
+    // needs to return.
+    //
+    R_INVISIBLE,
+
     // This is a signal that isn't accepted as a return value from a native,
     // so it can be used by common routines that return REB_R values and need
     // an "escape" code.

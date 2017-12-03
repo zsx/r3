@@ -614,26 +614,3 @@ REBNATIVE(also)
     Move_Value(D_OUT, ARG(returned));
     return R_OUT;
 }
-
-
-//
-//  comment: native [
-//
-//  {Ignores the argument value.}
-//
-//      return: [<opt>]
-//          {Nothing.}
-//      :value [block! any-string! binary! any-scalar!]
-//          "Literal value to be ignored."
-//  ]
-//
-REBNATIVE(comment)
-{
-    INCLUDE_PARAMS_OF_COMMENT;
-
-    // All the work was already done (at the cost of setting up
-    // state that would just have to be torn down).
-
-    UNUSED(PAR(value)); // avoid unused variable warning
-    return R_VOID;
-}

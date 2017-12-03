@@ -96,8 +96,11 @@ dump-obj: function [
 ]
 
 
-dump: proc [
+dump: func [
     {Show the name of a value (or block of expressions) with the value itself}
+
+    return: []
+        {Doesn't return anything, not even void (so like a COMMENT)}
     :value [any-value! <...>]
     <local>
         dump-one dump-val clip-string item set-word result

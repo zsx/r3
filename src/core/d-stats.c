@@ -368,6 +368,9 @@ REB_R Apply_Core_Measured(REBFRM * const f)
         case R_REEVALUATE_CELL_ONLY:
             break;
 
+        case R_INVISIBLE:
+            break;
+
         case R_UNHANDLED: // internal use only, shouldn't be returned
             assert(FALSE);
 

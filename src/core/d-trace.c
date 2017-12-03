@@ -357,6 +357,11 @@ REB_R Apply_Core_Traced(REBFRM * const f)
             Debug_Fmt("..."); // it's EVAL/ONLY, should we print f->out ?
             break;
 
+        case R_INVISIBLE:
+            // !!! It's really absolutely nothing, so print nothing?
+            Debug_Fmt("\n");
+            break;
+
         case R_UNHANDLED: // internal use only, shouldn't be returned
             assert(FALSE);
 
