@@ -304,6 +304,13 @@ void Do_Core(REBFRM * const f)
     REBUPT tick = f->tick = TG_Tick; // snapshot start tick
 #endif
 
+    // !!! Experimental feature that can kick the evaluator into a "mock" mode
+    // where it attempts to complete expressions without actually having any
+    // side effects.  Flag can't change during this call to Do_Core, so cache
+    // it in a local variable.
+    //
+    REBOOL neutral = LOGICAL(f->flags.bits & DO_FLAG_NEUTRAL);
+
     // f->out must point to initialized bits at all times (so the GC won't
     // choke when trying to protect it).  Debug build sets it to unreadable
     // blank on each full expression loop to try and catch stray usages of
@@ -327,6 +334,8 @@ void Do_Core(REBFRM * const f)
     //
     if (f->flags.bits & DO_FLAG_APPLYING) {
         evaluating = NOT(f->flags.bits & DO_FLAG_EXPLICIT_EVALUATE);
+
+        assert(NOT(neutral)); // !!! This shouldn't happen
 
         f->refine = ORDINARY_ARG; // "APPLY infix" not supported
         assert(IS_END(f->out));
@@ -1061,6 +1070,21 @@ reevaluate:;
             // consume additional arguments during the function run.
             //
             if (GET_VAL_FLAG(f->param, TYPESET_FLAG_VARIADIC)) {
+                //
+                // This is *the* killer case for neutral.  It cannot keep
+                // skipping without running code.  (Note: EVAL has been tagged
+                // variadic, because it's in the same category.)  We throw
+                // to unwind all the way up and tell the neutral request
+                // we got nothing.
+                //
+                if (neutral) {
+                    Move_Value(f->out, BLANK_VALUE);
+                    CONVERT_NAME_TO_THROWN(f->out, BAR_VALUE);
+
+                    Abort_Function(f);
+                    goto finished;
+                }
+
                 const REBOOL make = TRUE;
                 Prep_Stack_Cell(f->arg);
                 Link_Vararg_Param_To_Frame(f, make);
@@ -1123,6 +1147,8 @@ reevaluate:;
                 REBFLGS flags = DO_FLAG_FULFILLING_ARG;
                 if (NOT(evaluating))
                     flags |= DO_FLAG_EXPLICIT_EVALUATE;
+                if (neutral)
+                    flags |= DO_FLAG_NEUTRAL;
 
                 Prep_Stack_Cell(f->arg);
                 if (Do_Next_In_Subframe_Throws(f->arg, f, flags)) {
@@ -1143,6 +1169,8 @@ reevaluate:;
                 REBFLGS flags = DO_FLAG_NO_LOOKAHEAD | DO_FLAG_FULFILLING_ARG;
                 if (NOT(evaluating))
                     flags |= DO_FLAG_EXPLICIT_EVALUATE;
+                if (neutral)
+                    flags |= DO_FLAG_NEUTRAL;
 
                 Prep_Stack_Cell(f->arg);
                 if (Do_Next_In_Subframe_Throws(f->arg, f, flags)) {
@@ -1162,7 +1190,7 @@ reevaluate:;
     //=//// SOFT QUOTED ARG-OR-REFINEMENT-ARG  ////////////////////////////=//
 
             case PARAM_CLASS_SOFT_QUOTE:
-                if (NOT(IS_QUOTABLY_SOFT(f->value))) {
+                if (neutral || NOT(IS_QUOTABLY_SOFT(f->value))) {
                     Prep_Stack_Cell(f->arg);
                     Quote_Next_In_Frame(f->arg, f); // VALUE_FLAG_UNEVALUATED
                     goto check_arg;
@@ -1367,7 +1395,12 @@ reevaluate:;
         // The dispatcher may push functions to the data stack which will be
         // used to process the return result after the switch.
         //
-        switch ((*PG_Apply)(f)) {
+        // !!! It currently doesn't matter what we choose for the neutral case
+        // as long as it's cheap.  We keep writing inert values into the out
+        // slot (it is probably not worth it to slow down the non-neutral
+        // evaluator code by checking to elide those writes.)
+        //
+        switch (neutral ? R_BAR : (*PG_Apply)(f)) {
         case R_FALSE:
             Init_Logic(f->out, FALSE); // no VALUE_FLAG_UNEVALUATED
             break;
@@ -1778,13 +1811,16 @@ reevaluate:;
             DS_PUSH_RELVAL(current, f->specifier);
 
             REBFLGS flags = DO_FLAG_NORMAL | DO_FLAG_FULFILLING_SET; // /NEXT
+            if (neutral)
+                flags |= DO_FLAG_NEUTRAL;
 
             if (Do_Next_Mid_Frame_Throws(f, flags)) { // light reuse of `f`
                 DS_DROP;
                 goto finished;
             }
 
-            Move_Value(Sink_Var_May_Fail(DS_TOP, SPECIFIED), f->out);
+            if (NOT(neutral)) // must avoid writing to variables
+                Move_Value(Sink_Var_May_Fail(DS_TOP, SPECIFIED), f->out);
 
             DS_DROP;
         }
@@ -1841,22 +1877,21 @@ reevaluate:;
 
     case REB_GROUP: {
         //
-        // If the source array we are processing that is yielding values is
-        // part of the deep copy of a function body, it's possible that this
-        // GROUP! is a "relative ANY-ARRAY!" that needs the specifier to
-        // resolve the relative any-words and other any-arrays inside it...
-        //
         // Note that we only get here if the GROUP! is evaluative--and that
         // means the whole group.  So no non-evaluation flag passing.
         //
-        REBSPC *derived = Derive_Specifier(f->specifier, current);
-        if (Do_At_Throws(
-            f->out,
-            VAL_ARRAY(current), // the GROUP!'s array
-            VAL_INDEX(current), // index in group's REBVAL (may not be head)
-            derived
-        )){
-            goto finished;
+        if (neutral)
+            Init_Bar(f->out); // it's one unit of evaluation, easily skipped
+        else {
+            REBSPC *derived = Derive_Specifier(f->specifier, current);
+            if (Do_At_Throws(
+                f->out,
+                VAL_ARRAY(current), // the GROUP!'s array
+                VAL_INDEX(current), // index in REBVAL (may not be head)
+                derived
+            )){
+                goto finished;
+            }
         }
 
         // Leave VALUE_FLAG_UNEVALUATED as it was.  If we added it, then
@@ -1963,17 +1998,30 @@ reevaluate:;
             // be written to a location distinct from the path and also
             // distinct from the value being set.  Review.
             //
-            DECLARE_LOCAL (temp);
+            if (NOT(neutral)) {
+                DECLARE_LOCAL (temp);
 
-            if (Do_Path_Throws_Core(
-                temp, // output location if thrown
-                NULL, // not requesting symbol means refinements not allowed
-                current, // still holding SET-PATH! we got in
-                f->specifier, // specifier for current
-                f->out // value to set (already in f->out)
-            )) {
-                fail (Error_No_Catch_For_Throw(temp));
+                if (Do_Path_Throws_Core(
+                    temp, // output location if thrown
+                    NULL, // no symbol request means no refinements allowed
+                    current, // still holding SET-PATH! we got in
+                    f->specifier, // specifier for current
+                    f->out // value to set (already in f->out)
+                )) {
+                    fail (Error_No_Catch_For_Throw(temp));
+                }
             }
+        }
+        else if (neutral) {
+            //
+            // For an evaluative SET-PATH! just try to neutrally run the
+            // right hand side.
+            //
+            REBFLGS flags = DO_FLAG_NORMAL | DO_FLAG_FULFILLING_SET;
+            flags |= DO_FLAG_NEUTRAL;
+
+            if (Do_Next_Mid_Frame_Throws(f, flags)) // light reuse of `f`
+                goto finished;
         }
         else {
             // f->value is guarded implicitly by the frame, but `current` is a
@@ -2031,17 +2079,21 @@ reevaluate:;
         // But perhaps source-level GET-PATH!s can be more liberal, as one can
         // visibly see the GROUP!s.
         //
-        if (Do_Path_Throws_Core(
-            f->out,
-            NULL, // not requesting symbol means refinements not allowed
-            current,
-            f->specifier,
-            NULL // `setval`: null means don't treat as SET-PATH!
-        )){
-            goto finished;
-        }
+        if (neutral)
+            Init_Bar(f->out);
+        else {
+            if (Do_Path_Throws_Core(
+                f->out,
+                NULL, // not requesting symbol means refinements not allowed
+                current,
+                f->specifier,
+                NULL // `setval`: null means don't treat as SET-PATH!
+            )){
+                goto finished;
+            }
 
-        CLEAR_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED);
+            CLEAR_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED);
+        }
         break;
 
 //==//////////////////////////////////////////////////////////////////////==//

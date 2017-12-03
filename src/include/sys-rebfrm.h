@@ -216,13 +216,24 @@
     FLAGIT_LEFT(12)
 
 
+//=//// DO_FLAG_NEUTRAL ///////////////////////////////////////////////////=//
+//
+// !!! Experimental feature puts the evaluator into neutral and throws up
+// the stack in the case that it cannot skip without actually having side
+// effects.  It will be a trick to do efficiently, but for starters doing it
+// at all would be interesting.
+//
+#define DO_FLAG_NEUTRAL \
+    FLAGIT_LEFT(13)
+
+
 // Currently the rightmost two bytes of the Reb_Frame->flags are not used,
 // so the flags could theoretically go up to 31.  It could hold something
 // like the ->eval_type, but performance is probably better to put such
 // information in a platform aligned position of the frame.
 //
 #if defined(__cplusplus) && (__cplusplus >= 201103L)
-    static_assert(12 < 32, "DO_FLAG_XXX too high");
+    static_assert(13 < 32, "DO_FLAG_XXX too high");
 #endif
 
 

@@ -77,7 +77,8 @@ to-c-name: function [
             ; shorthand; e.g. `foo?` => `foo_q`
 
             for-each [reb c] [
-                -   "_"
+              #"'"  ""      ; isn't => isnt, don't => dont 
+                -   "_"     ; foo-bar => foo_bar
                 *   "_p"    ; !!! because it symbolizes a (p)ointer in C??
                 .   "_"     ; !!! same as hyphen?
                 ?   "_q"    ; (q)uestion

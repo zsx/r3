@@ -56,7 +56,7 @@
 
 inline static REBOOL Is_Block_Style_Varargs(
     REBVAL **shared_out,
-    RELVAL *vararg
+    const RELVAL *vararg
 ){
     assert(IS_VARARGS(vararg));
 
@@ -85,7 +85,7 @@ inline static REBOOL Is_Block_Style_Varargs(
 
 inline static REBOOL Is_Frame_Style_Varargs_May_Fail(
     REBFRM **f,
-    RELVAL *vararg
+    const RELVAL *vararg
 ){
     assert(IS_VARARGS(vararg));
 
