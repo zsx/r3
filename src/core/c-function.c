@@ -2284,8 +2284,9 @@ REB_R Apply_Def_Or_Exemplar(
         // Do the block into scratch space--we ignore the result (unless it is
         // thrown, in which case it must be returned.)
         //
-        if (Do_Any_Array_At_Throws(f->out, def)) {
+        if (Do_Any_Array_At_Throws(SINK(&f->cell), def)) {
             Drop_Frame_Core(f);
+            Move_Value(f->out, KNOWN(&f->cell));
             return R_OUT_IS_THROWN;
         }
 
@@ -2294,8 +2295,6 @@ REB_R Apply_Def_Or_Exemplar(
         //
         f->special = f->args_head;
     }
-
-    SET_END(f->out);
 
     (*PG_Do)(f);
 

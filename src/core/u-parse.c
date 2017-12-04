@@ -227,6 +227,8 @@ static REBOOL Subparse_Throws(
 
     SET_END(&f->cell); // GC requires some initialization of cell
 
+    SET_END(f->out);
+
     REB_R r = N_subparse(f);
 
     assert(NOT_END(out));

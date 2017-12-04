@@ -203,7 +203,6 @@ REBNATIVE(make)
             assert(r == R_OUT);
 
             DS_PUSH(D_OUT);
-            SET_END(D_OUT); // expected by Do_Vararg_Op
         } while (TRUE);
 
         Init_Any_Array(D_OUT, kind, Pop_Stack_Values(dsp_orig));
@@ -1063,8 +1062,8 @@ const REBYTE *Scan_Email(
 // !!! The current concept is that URL!s typically represent the *decoded*
 // forms, and thus express unicode codepoints normally...preserving either of:
 //
-//     https://duckduckgo.com/?q=hergé+&+tintin
-//     https://duckduckgo.com/?q=hergé+%26+tintin
+//     https://duckduckgo.com/?q=hergÃ©+&+tintin
+//     https://duckduckgo.com/?q=hergÃ©+%26+tintin
 //
 // Then, the encoded forms with UTF-8 bytes expressed in %XX form would be
 // converted as STRING!, where their datatype suggests the encodedness:

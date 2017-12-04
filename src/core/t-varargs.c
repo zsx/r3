@@ -154,8 +154,11 @@ REB_R Do_Vararg_Op_May_Throw(
     REBVAL *out,
     RELVAL *vararg,
     enum Reb_Vararg_Op op
-) {
-    assert(IS_END(out));
+){
+#if !defined(NDEBUG)
+    if (op != VARARG_OP_TAIL_Q)
+        TRASH_CELL_IF_DEBUG(out);
+#endif
 
     const RELVAL *param; // for type checking
     enum Reb_Param_Class pclass;
@@ -462,9 +465,8 @@ REBTYPE(Varargs)
 
         switch (property) {
         case SYM_TAIL_Q: {
-            REB_R r = Do_Vararg_Op_May_Throw(
-                m_cast(REBVAL*, END), value, VARARG_OP_TAIL_Q // won't write `out`
-            );
+            REBVAL *out = NULL; // won't write to `out`
+            REB_R r = Do_Vararg_Op_May_Throw(out, value, VARARG_OP_TAIL_Q);
             assert(r == R_TRUE || r == R_FALSE); // cannot throw
             return r; }
 

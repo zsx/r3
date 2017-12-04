@@ -457,7 +457,6 @@ inline static REBOOL Do_Next_In_Frame_Throws(
     assert(f->eval_type == REB_0); // see notes in Push_Frame_At()
     assert(NOT(f->flags.bits & DO_FLAG_TO_END));
 
-    SET_END(out);
     f->out = out;
     (*PG_Do)(f); // should already be pushed
 
@@ -493,7 +492,6 @@ inline static REBOOL Do_Next_Mid_Frame_Throws(REBFRM *f, REBFLGS flags) {
     assert(f->state.dsp == f->dsp_orig);
 #endif
 
-    SET_END(f->out);
     (*PG_Do)(f); // should already be pushed
 
     // The & on the following line is purposeful.  See Init_Endlike_Header.
@@ -549,7 +547,6 @@ inline static REBOOL Do_Next_In_Subframe_Throws(
 
     child->gotten = parent->gotten;
 
-    SET_END(out);
     child->out = out;
 
     // !!! Should they share a source instead of updating?
@@ -649,7 +646,6 @@ inline static REBIXO DO_NEXT_MAY_THROW(
 
     f->specifier = specifier;
 
-    SET_END(out);
     f->out = out;
 
     Push_Frame_Core(f);
@@ -702,7 +698,6 @@ inline static REBIXO Do_Array_At_Core(
         return END_FLAG;
     }
 
-    SET_END(out);
     f->out = out;
 
     f->specifier = specifier;
@@ -901,7 +896,6 @@ inline static REBIXO Do_Va_Core(
         return END_FLAG;
     }
 
-    SET_END(out);
     f->out = out;
 
     f->specifier = SPECIFIED; // relative values not allowed in va_lists

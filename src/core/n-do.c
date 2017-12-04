@@ -384,7 +384,7 @@ REBNATIVE(dont)
 //
 //  {Restart the function of a FRAME! from the top with its current state}
 //
-//      return: []
+//      return: [<opt>]
 //          {Does not return at all (either errors or restarts).}
 //      restartee [frame! any-word!]
 //          {FRAME! to restart, or WORD! bound to FRAME! (e.g. REDO 'RETURN)}

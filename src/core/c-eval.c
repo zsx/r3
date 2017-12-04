@@ -278,10 +278,9 @@ static inline void Link_Vararg_Param_To_Frame(REBFRM *f, REBOOL make) {
 // These fields are required upon initialization:
 //
 //     f->out
-//     REBVAL pointer to which the evaluation's result should be written.
-//     This pointer should be to a cell that lives above this call to Do_Core
-//     on the stack--not in an array.  (If it was in an array, that memory
-//     could move by resizes during evaluation, invalidating the pointer!)
+//     REBVAL pointer to which the evaluation's result should be written,
+//     should be to writable memory in a cell that lives above this call to
+//     Do_Core on the stack (e.g. not in an array).
 //
 //     f->value
 //     Fetched first value to execute (cannot be an END marker)
@@ -311,14 +310,6 @@ void Do_Core(REBFRM * const f)
     //
     REBOOL neutral = LOGICAL(f->flags.bits & DO_FLAG_NEUTRAL);
 
-    // f->out must point to initialized bits at all times (so the GC won't
-    // choke when trying to protect it).  Debug build sets it to unreadable
-    // blank on each full expression loop to try and catch stray usages of
-    // what would be an effectively "random" result.  Before each function
-    // call, it is set to an END marker.
-    //
-    assert(NOT(IS_TRASH_DEBUG(f->out)));
-
     // Capture the data stack pointer on entry.  Refinements are pushed to
     // the stack and need to be checked if any are not processed.  Also things
     // like the CHAIN dispatcher uses it to queue pending functions.  This
@@ -330,6 +321,12 @@ void Do_Core(REBFRM * const f)
 
     REBOOL evaluating; // set on every iteration (varargs do, EVAL/ONLY...)
 
+    // END signals that no evaluations have produced a result yet, even if some
+    // functions have run (e.g. COMMENT with FUNC_FLAG_INVISIBLE).  It also
+    // serves as initialized bits to be safe for the GC to inspect and protect.
+    //
+    SET_END(f->out);
+
     // APPLY and a DO of a FRAME! both use process_function.
     //
     if (f->flags.bits & DO_FLAG_APPLYING) {
@@ -338,7 +335,6 @@ void Do_Core(REBFRM * const f)
         assert(NOT(neutral)); // !!! This shouldn't happen
 
         f->refine = ORDINARY_ARG; // "APPLY infix" not supported
-        assert(IS_END(f->out));
         goto process_function;
     }
 
@@ -599,7 +595,8 @@ reevaluate:;
         //
         assert(NOT_VAL_FLAG(current, VALUE_FLAG_ENFIXED));
 
-        SET_END(f->out); // clear out previous result (needs GC-safe data)
+        if (NOT_VAL_FLAG(current, FUNC_FLAG_INVISIBLE))
+            SET_END(f->out); // clear out previous result
         f->refine = ORDINARY_ARG;
 
     //==////////////////////////////////////////////////////////////////==//
@@ -1542,6 +1539,7 @@ reevaluate:;
         redo_checked:
             f->special = f->args_head;
             f->refine = ORDINARY_ARG; // no gathering, but need for assert
+            assert(NOT(GET_FUN_FLAG(f->phase, FUNC_FLAG_INVISIBLE)));
             SET_END(f->out);
             goto process_function;
 
@@ -1551,6 +1549,7 @@ reevaluate:;
             // run the f->phase again.  The dispatcher may have changed the
             // value of what f->phase is, for instance.
             //
+            assert(NOT(GET_FUN_FLAG(f->phase, FUNC_FLAG_INVISIBLE)));
             SET_END(f->out);
             goto redo_unchecked;
 
@@ -1932,6 +1931,23 @@ reevaluate:;
             fail (Error_No_Value_Core(current, f->specifier));
 
         if (IS_FUNCTION(f->out)) {
+            //
+            // !!! While it is (or would be) possible to fetch an enfix or
+            // invisible function from a PATH!, at this point it would be too
+            // late in the current scheme...since the lookahead step only
+            // honors WORD!.  PATH! support is expected for the future, but
+            // requires overhaul of the R3-Alpha path implementation.
+            //
+            // Note this error must come *before* Push_Function(), as fail()
+            // expects f->param to be valid for f->eval_type = REB_FUNCTION,
+            // and Push_Function() trashes that.
+            //
+            if (ANY_VAL_FLAGS(
+                f->out, FUNC_FLAG_INVISIBLE | VALUE_FLAG_ENFIXED
+            )){
+                fail ("ENFIX/INVISIBLE dispatch w/PATH! not yet supported");
+            }
+
             Push_Function(
                 f,
                 opt_label, // NULL label means anonymous
@@ -1940,7 +1956,7 @@ reevaluate:;
             );
 
             f->refine = ORDINARY_ARG; // paths are never enfixed (for now)
-            SET_END(f->out);
+            SET_END(f->out); // loses enfix left hand side, invisible passthru
             goto process_function;
         }
 

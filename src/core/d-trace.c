@@ -208,13 +208,6 @@ void Do_Core_Traced(REBFRM * const f)
 
         if (NOT(was_do_to_end) || THROWN(f->out) || FRM_AT_END(f))
             break;
-
-        // It is assumed we could not have finished the last operation with
-        // an enfixed operation pending.  And if an operation is not enfix,
-        // it expects the Do_Core() call to start with f->out set to END.
-        // Throw away the result of evaluation and enforce that invariant.
-        //
-        SET_END(f->out);
     }
 
     if (was_do_to_end)

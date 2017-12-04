@@ -671,7 +671,6 @@ REBNATIVE(switch)
 // somewhat inelegant.  Consider removing it, when a suitable way to let
 // users create expanded versions of functions with their own refinements
 // exists, so that creating compatibility can be easy/performant.
-//
 {
     INCLUDE_PARAMS_OF_SWITCH;
 
