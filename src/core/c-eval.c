@@ -340,11 +340,6 @@ void Do_Core(REBFRM * const f)
 
     f->eval_type = VAL_TYPE(f->value);
 
-#if !defined(NDEBUG)
-    SNAP_STATE(&f->state); // to make sure stack balances, etc.
-    Do_Core_Entry_Checks_Debug(f); // run once per Do_Core()
-#endif
-
 do_next:;
 
     START_NEW_EXPRESSION_MAY_THROW(f, goto finished);

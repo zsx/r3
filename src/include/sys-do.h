@@ -148,6 +148,88 @@ inline static void Push_Frame_Core(REBFRM *f)
     if (C_STACK_OVERFLOWING(&f))
         Trap_Stack_Overflow();
 
+    assert(f->flags.bits & NODE_FLAG_END);
+    assert(NOT(f->flags.bits & NODE_FLAG_CELL));
+
+    // Though we can protect the value written into the target pointer 'out'
+    // from GC during the course of evaluation, we can't protect the
+    // underlying value from relocation.  Technically this would be a problem
+    // for any series which might be modified while this call is running, but
+    // most notably it applies to the data stack--where output used to always
+    // be returned.
+    //
+    // !!! A non-contiguous data stack which is not a series is a possibility.
+    //
+#ifdef STRESS_CHECK_DO_OUT_POINTER
+    REBNOD *containing = Try_Find_Containing_Node_Debug(f->out);
+
+    if (containing && NOT(containing->header.bits & NODE_FLAG_CELL)) {
+        if (GET_SER_FLAG(containing, SERIES_FLAG_FIXED_SIZE)) {
+            //
+            // Currently it's considered OK to be writing into a fixed size
+            // series, for instance the durable portion of a function's
+            // arg storage.  It's assumed that the memory will not move
+            // during the course of the argument evaluation.
+            //
+        }
+        else {
+            printf("Request for ->out location in movable series memory\n");
+            panic (containing);
+        }
+    }
+#else
+    assert(!IN_DATA_STACK_DEBUG(f->out));
+#endif
+
+    // The arguments to functions in their frame are exposed via FRAME!s
+    // and through WORD!s.  This means that if you try to do an evaluation
+    // directly into one of those argument slots, and run arbitrary code
+    // which also *reads* those argument slots...there could be trouble with
+    // reading and writing overlapping locations.  So unless a function is
+    // in the argument fulfillment stage (before the variables or frame are
+    // accessible by user code), it's not legal to write directly into an
+    // argument slot.  :-/  Note the availability of D_CELL for any functions
+    // that have more than one argument, during their run.
+    //
+    REBFRM *ftemp = FS_TOP;
+    for (; ftemp != NULL; ftemp = ftemp->prior) {
+        if (NOT(Is_Function_Frame(ftemp)))
+            continue;
+        if (Is_Function_Frame_Fulfilling(ftemp))
+            continue;
+        assert(
+            f->out < ftemp->args_head ||
+            f->out >= ftemp->args_head + FRM_NUM_ARGS(ftemp)
+        );
+    }
+
+    // Some initialized bit pattern is needed to check to see if a
+    // function call is actually in progress, or if eval_type is just
+    // REB_FUNCTION but doesn't have valid args/state.  The phase is a
+    // good choice because it is only affected by the function call case,
+    // see Is_Function_Frame_Fulfilling().
+    //
+    f->phase = NULL;
+
+    TRASH_POINTER_IF_DEBUG(f->opt_label);
+#if !defined(NDEBUG)
+    TRASH_POINTER_IF_DEBUG(f->label_utf8);
+#endif
+
+#if !defined(NDEBUG) // !!! should be updated on each f->source.array change
+    if (
+        NOT(FRM_IS_VALIST(f))
+        && GET_SER_FLAG(f->source.array, SERIES_FLAG_FILE_LINE)
+    ){
+        f->file = cast(const char*, STR_HEAD(LINK(f->source.array).filename));
+        f->line = MISC(f->source.array).line;
+    }
+    else {
+        f->file = "(no file info)";
+        f->line = 0;
+    }
+#endif
+
     f->prior = TG_Frame_Stack;
     TG_Frame_Stack = f;
 
@@ -170,17 +252,8 @@ inline static void Push_Frame_Core(REBFRM *f)
         }
     }
 
-    // Some initialized bit pattern is needed to check to see if a
-    // function call is actually in progress, or if eval_type is just
-    // REB_FUNCTION but doesn't have valid args/state.  The phase is a
-    // good choice because it is only affected by the function call case,
-    // see Is_Function_Frame_Fulfilling().
-    //
-    f->phase = NULL;
-
-    TRASH_POINTER_IF_DEBUG(f->opt_label);
 #if !defined(NDEBUG)
-    TRASH_POINTER_IF_DEBUG(f->label_utf8);
+    SNAP_STATE(&f->state); // to make sure stack balances, etc.
 #endif
 }
 
@@ -188,7 +261,7 @@ inline static void UPDATE_EXPRESSION_START(REBFRM *f) {
     f->expr_index = f->source.index; // this is garbage if DO_FLAG_VA_LIST
 }
 
-inline static void Drop_Frame_Core(REBFRM *f) {
+inline static void Abort_Frame_Core(REBFRM *f) {
     if (f->flags.bits & DO_FLAG_TOOK_FRAME_HOLD) {
         //
         // The frame was either never variadic, or it was but got spooled into
@@ -217,6 +290,19 @@ inline static void Drop_Frame_Core(REBFRM *f) {
     assert(TG_Frame_Stack == f);
     TG_Frame_Stack = f->prior;
 }
+
+inline static void Drop_Frame_Core(REBFRM *f) {
+#if !defined(NDEBUG)
+    //
+    // To keep from slowing down the debug build too much, Do_Core() doesn't
+    // check this every cycle, just on drop.  But if it's hard to find which
+    // exact cycle caused the problem, see BALANCE_CHECK_EVERY_EVALUATION_STEP
+    //
+    ASSERT_STATE_BALANCED(&f->state);
+#endif
+    Abort_Frame_Core(f);
+}
+
 
 inline static void Push_Frame_At(
     REBFRM *f,
@@ -488,9 +574,6 @@ inline static REBOOL Do_Next_Mid_Frame_Throws(REBFRM *f, REBFLGS flags) {
     Init_Endlike_Header(&f->flags, flags);
 
     REBDSP prior_dsp_orig = f->dsp_orig; // Do_Core() overwrites on entry
-#if !defined(NDEBUG)
-    assert(f->state.dsp == f->dsp_orig);
-#endif
 
     (*PG_Do)(f); // should already be pushed
 
@@ -499,9 +582,6 @@ inline static REBOOL Do_Next_Mid_Frame_Throws(REBFRM *f, REBFLGS flags) {
     (&f->flags)->bits = prior_flags; // e.g. restore DO_FLAG_TO_END
     
     f->dsp_orig = prior_dsp_orig;
-#if !defined(NDEBUG)
-    f->state.dsp = prior_dsp_orig;
-#endif
 
     // Note: f->eval_type will have changed, but it should not matter to
     // REB_SET_WORD or REB_SET_PATH, which will either continue executing

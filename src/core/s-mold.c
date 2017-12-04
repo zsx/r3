@@ -657,9 +657,9 @@ REBOOL Form_Reduce_Throws(
         }
     }
 
-    Drop_Frame(f);
-
     Init_String(out, Pop_Molded_String(mo));
+
+    Drop_Frame(f);
 
     return FALSE;
 }

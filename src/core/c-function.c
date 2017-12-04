@@ -2193,15 +2193,6 @@ REB_R Apply_Def_Or_Exemplar(
 
     Push_Frame_Core(f);
 
-#if !defined(NDEBUG)
-    //
-    // We may push a data chunk, which is one of the things the snapshot state
-    // checks.  It also checks the top of stack, so that has to be set as well.
-    // So this has to come before Push_Args
-    //
-    SNAP_STATE(&f->state);
-#endif
-
     Push_Function(f, opt_label, fun, binding);
     f->refine = NULL;
 

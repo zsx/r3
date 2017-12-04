@@ -28,13 +28,8 @@
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Due to the length of Do_Core() and how many debug checks it already has,
-// three debug-only routines are separated out:
-//
-// * Do_Core_Entry_Checks_Debug() runs once at the beginning of a Do_Core()
-//   call.  It verifies that the fields of the frame the caller has to
-//   provide have been pre-filled correctly, and snapshots bits of the
-//   interpreter state that are supposed to "balance back to zero" by the
-//   end of a run (assuming it completes, and doesn't longjmp from fail()ing)
+// some debug-only routines are separated out here.  (Note that these are in
+// addition to the checks already done by Push_Frame() and Drop_Frame() time)
 //
 // * Do_Core_Expression_Checks_Debug() runs before each full "expression"
 //   is evaluated, e.g. before each DO/NEXT step.  It makes sure the state
@@ -55,7 +50,6 @@
 #include "sys-core.h"
 
 #if !defined(NDEBUG)
-
 
 //
 //  Dump_Frame_Location: C
@@ -102,102 +96,6 @@ void Dump_Frame_Location(const RELVAL *current, REBFRM *f)
         );
         PROBE(dump);
     }
-}
-
-
-//
-//  Do_Core_Entry_Checks_Debug: C
-//
-void Do_Core_Entry_Checks_Debug(REBFRM *f)
-{
-    // Though we can protect the value written into the target pointer 'out'
-    // from GC during the course of evaluation, we can't protect the
-    // underlying value from relocation.  Technically this would be a problem
-    // for any series which might be modified while this call is running, but
-    // most notably it applies to the data stack--where output used to always
-    // be returned.
-    //
-    // !!! A non-contiguous data stack which is not a series is a possibility.
-    //
-#ifdef STRESS_CHECK_DO_OUT_POINTER
-    REBNOD *containing = Try_Find_Containing_Node_Debug(f->out);
-
-    if (containing && NOT(containing->header.bits & NODE_FLAG_CELL)) {
-        if (GET_SER_FLAG(containing, SERIES_FLAG_FIXED_SIZE)) {
-            //
-            // Currently it's considered OK to be writing into a fixed size
-            // series, for instance the durable portion of a function's
-            // arg storage.  It's assumed that the memory will not move
-            // during the course of the argument evaluation.
-            //
-        }
-        else {
-            printf("Request for ->out location in movable series memory\n");
-            panic (containing);
-        }
-    }
-#else
-    assert(!IN_DATA_STACK_DEBUG(f->out));
-#endif
-
-    Assert_Cell_Writable(f->out, cb_cast(__FILE__), __LINE__);
-    assert(NOT(IS_TRASH_DEBUG(&f->cell)));
-
-    // Caller should have pushed the frame, such that it is the topmost.
-    // This way, repeated calls to Do_Core(), e.g. by routines like ANY []
-    // don't keep pushing and popping on each call.
-    //
-    assert(f == FS_TOP);
-
-    // The arguments to functions in their frame are exposed via FRAME!s
-    // and through WORD!s.  This means that if you try to do an evaluation
-    // directly into one of those argument slots, and run arbitrary code
-    // which also *reads* those argument slots...there could be trouble with
-    // reading and writing overlapping locations.  So unless a function is
-    // in the argument fulfillment stage (before the variables or frame are
-    // accessible by user code), it's not legal to write directly into an
-    // argument slot.  :-/  Note the availability of D_CELL for any functions
-    // that have more than one argument, during their run.
-    //
-    REBFRM *ftemp = FS_TOP->prior;
-    for (; ftemp != NULL; ftemp = ftemp->prior) {
-        if (NOT(Is_Function_Frame(ftemp)))
-            continue;
-        if (Is_Function_Frame_Fulfilling(ftemp))
-            continue;
-        assert(
-            f->out < ftemp->args_head ||
-            f->out >= ftemp->args_head + FRM_NUM_ARGS(ftemp)
-        );
-    }
-
-    // The caller must preload ->value with the first value to process.  It
-    // may be resident in the array passed that will be used to fetch further
-    // values, or it may not.
-    //
-    assert(f->value);
-
-    assert(f->flags.bits & NODE_FLAG_END);
-    assert(NOT(f->flags.bits & NODE_FLAG_CELL));
-
-#if !defined(NDEBUG)
-    if (
-        NOT(FRM_IS_VALIST(f))
-        && GET_SER_FLAG(f->source.array, SERIES_FLAG_FILE_LINE)
-    ){
-        f->file = cast(const char*, STR_HEAD(LINK(f->source.array).filename));
-        f->line = MISC(f->source.array).line;
-    }
-    else {
-        f->file = "(no file info)";
-        f->line = 0;
-    }
-#endif
-
-    // All callers should ensure that the type isn't an END marker before
-    // bothering to invoke Do_Core().
-    //
-    assert(FRM_HAS_MORE(f));
 }
 
 
@@ -357,13 +255,6 @@ void Do_Core_Expression_Checks_Debug(REBFRM *f) {
 //  Do_Core_Exit_Checks_Debug: C
 //
 void Do_Core_Exit_Checks_Debug(REBFRM *f) {
-    //
-    // To keep from slowing down the debug build too much, this is not put in
-    // the shared checks.  But if it fires and it's hard to figure out which
-    // exact cycle caused the problem, see BALANCE_CHECK_EVERY_EVALUATION_STEP
-    //
-    ASSERT_STATE_BALANCED(&f->state);
-
     Do_Core_Shared_Checks_Debug(f);
 
     if (NOT(FRM_AT_END(f)) && NOT(FRM_IS_VALIST(f))) {
