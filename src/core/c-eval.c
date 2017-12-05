@@ -321,9 +321,24 @@ void Do_Core(REBFRM * const f)
 
     REBOOL evaluating; // set on every iteration (varargs do, EVAL/ONLY...)
 
-    // END signals that no evaluations have produced a result yet, even if some
+    // Handling of deferred lookbacks may need to re-enter the frame and get
+    // back to the processing it had put off.
+    //
+    if (f->flags.bits & DO_FLAG_POST_SWITCH) {
+        evaluating = NOT(f->flags.bits & DO_FLAG_EXPLICIT_EVALUATE);
+
+        assert(f->prior->deferred != NULL);
+        f->deferred = NULL;
+        assert(NOT_END(f->out));
+        f->flags.bits &= ~DO_FLAG_POST_SWITCH; // !!! unnecessary?
+        goto post_switch;
+    }
+
+    // END signals no evaluations have produced a result yet, even if some
     // functions have run (e.g. COMMENT with FUNC_FLAG_INVISIBLE).  It also
-    // serves as initialized bits to be safe for the GC to inspect and protect.
+    // is initialized bits to be safe for the GC to inspect and protect, and
+    // triggers noisy alarms to help detect when someone attempts to evaluate
+    // into a cell in an array (which may have its memory moved).
     //
     SET_END(f->out);
 
@@ -334,6 +349,7 @@ void Do_Core(REBFRM * const f)
 
         assert(NOT(neutral)); // !!! This shouldn't happen
 
+        f->deferred = NULL;
         f->refine = ORDINARY_ARG; // "APPLY infix" not supported
         goto process_function;
     }
@@ -376,6 +392,8 @@ reevaluate:;
 
     UPDATE_TICK_DEBUG(current);
     // v-- This is the TICK_BREAKPOINT or C-DEBUG-BREAK landing spot --v
+
+    f->deferred = NULL;
 
     if (NOT(evaluating) == NOT_VAL_FLAG(current, VALUE_FLAG_EVAL_FLIP)) {
         //
@@ -647,6 +665,8 @@ reevaluate:;
 
         TRASH_POINTER_IF_DEBUG(current); // shouldn't be used below
         TRASH_POINTER_IF_DEBUG(current_gotten);
+
+        assert(f->deferred == NULL);
 
         // There may be refinements pushed to the data stack to process, if
         // the call originated from a path dispatch.
@@ -978,21 +998,9 @@ reevaluate:;
                     // Seeing an END in the output slot could mean that there
                     // was really "nothing" to the left, or it could be a
                     // consequence of a frame being in an argument gathering
-                    // mode, e.g.
+                    // mode, e.g. the `+` here will perceive "nothing":
                     //
-                    //     if 1 then [2] ;-- error, THEN can't complete `if 1`
-                    //
-                    // The difference can be told by the frame flag.
-
-                    // Make a special exception for "invisible" functions,
-                    // which are planning to pass through the END.
-
-                    if (
-                        (f->flags.bits & DO_FLAG_FULFILLING_ARG)
-                        && NOT(GET_FUN_FLAG(f->phase, FUNC_FLAG_INVISIBLE))
-                    ){
-                        fail (Error_Partial_Lookback(f));
-                    }
+                    //     if + 2 [...]
 
                     if (NOT_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
                         fail (Error_No_Arg(f, f->param));
@@ -1089,6 +1097,50 @@ reevaluate:;
                 f->refine == ORDINARY_ARG
                 || (IS_LOGIC(f->refine) && IS_TRUTHY(f->refine))
             );
+
+    //=//// START BY HANDLING ANY DEFERRED ENFIX PROCESSING //////////////=//
+
+            // With an expression like `if 10 and 20` we may have filled IF's
+            // first arg slot with 10 then returned, hoping `if 10` could
+            // form a complete expression, and take care of the enfix after
+            // the function call is finished (at the end of the switch).
+            //
+            // But if we looped back to here, it would mean we're now trying
+            // to consume another argument at the callsite.  That means we
+            // won't be getting to the end of the switch before handling
+            // this deferred enfix.  In the case of `if 10 and 20`, we'd be
+            // trying to fill the `body` slot with `and 20`...which will fail,
+            // saying AND has no left hand argument.
+            //
+            // Rather than raise an error, we kept a `f->deferred` field that
+            // points at the previously filled f->arg slot.  We go back and
+            // re-enter a sub-frame for the argument via DO_FLAG_POST_SWITCH.
+            // Continuing the example, this gives the IF's `condition` slot a
+            // second chance to be fulfilled--this time using the 10 as the
+            // AND's left-hand argument.
+            //
+            if (f->deferred != NULL) {
+                REBFLGS flags = DO_FLAG_FULFILLING_ARG | DO_FLAG_POST_SWITCH;
+                if (NOT(evaluating))
+                    flags |= DO_FLAG_EXPLICIT_EVALUATE;
+                if (neutral)
+                    flags |= DO_FLAG_NEUTRAL;
+
+                if (Do_Next_In_Subframe_Throws(
+                    f->deferred, // old f->arg preload for DO_FLAG_POST_SWITCH
+                    f,
+                    flags
+                )){
+                    Move_Value(f->out, f->deferred);
+                    Abort_Function(f);
+                    goto finished;
+                }
+
+                // Don't clear until after the call (not being NULL is how the
+                // subframe knows not to defer again.)
+                //
+                f->deferred = NULL;
+            }
 
     //=//// ERROR ON END MARKER, BAR! IF APPLICABLE //////////////////////=//
 
@@ -1204,13 +1256,12 @@ reevaluate:;
 
     //=//// TYPE CHECKING FOR (MOST) ARGS AT END OF ARG LOOP //////////////=//
 
-        check_arg:;
-
             // Some arguments can be fulfilled and skip type checking or
             // take care of it themselves.  But normal args pass through
             // this code which checks the typeset and also handles it when
             // a void arg signals the revocation of a refinement usage.
 
+        check_arg:;
             ASSERT_VALUE_MANAGED(f->arg);
             assert(pclass != PARAM_CLASS_REFINEMENT);
             assert(pclass != PARAM_CLASS_LOCAL);
@@ -2293,6 +2344,7 @@ reevaluate:;
     //
     //==////////////////////////////////////////////////////////////////==//
 
+post_switch:;
     assert(!THROWN(f->out)); // should have jumped to exit sooner
 
     if (FRM_AT_END(f))
@@ -2371,7 +2423,6 @@ reevaluate:;
             //
             // Since it's a new expression, a DO/NEXT doesn't want to run it
             // *unless* it's "invisible"
-            //
             if (
                 VAL_TYPE_OR_0(f->gotten) != REB_FUNCTION
                 || NOT_VAL_FLAG(f->gotten, FUNC_FLAG_INVISIBLE)
@@ -2466,48 +2517,33 @@ reevaluate:;
         fail (Error_Lookback_Quote_Too_Late(f->value, f->specifier));
     }
 
+    // Note that we're only willing to defer any given lookback *once*.
+    // If we get there and there's a deferral, it doesn't matter if it was
+    // this frame or the parent frame who deferred it...it's the same enfix
+    // function in the same spot, and it's only willing to give up *one*
+    // of its chances to run.
+    //
     if (
         GET_VAL_FLAG(f->gotten, FUNC_FLAG_DEFERS_LOOKBACK)
         && (f->flags.bits & DO_FLAG_FULFILLING_ARG)
-        && NOT(f->flags.bits & DO_FLAG_DAMPEN_DEFER)
+        && f->prior->deferred == NULL
+        && f->deferred == NULL
     ){
+        assert(NOT(f->flags.bits & DO_FLAG_TO_END));
         assert(Is_Function_Frame_Fulfilling(f->prior));
 
-        // We have a lookback function pending, but it wants its first
-        // argument to be one "complete expression".  Consider ELSE in
-        // the case of:
-        //
-        //     print if false ["a"] else ["b"]
-        //
-        // The first time ELSE is seen, PRINT and IF are on the stack
-        // above it, fulfilling their arguments...and we've just
-        // written `["a"]` into f->out in the switch() above.  ELSE
-        // wants us to let IF finish before it runs, but it doesn't
-        // want to repeat the deferment a second time, such that PRINT
-        // completes also before running.
-        //
-        // Defer this lookahead, but tell the frame above (e.g. IF in
-        // the above example) not to continue this pattern when it
-        // finishes and sees itself in the same position.
-        //
-        assert(NOT(f->prior->flags.bits & DO_FLAG_DAMPEN_DEFER));
-        f->prior->flags.bits |= DO_FLAG_DAMPEN_DEFER;
+        f->prior->deferred = f->out; // see remarks on deferred in REBFRM
 
-        // We only encounter this case when doing an arg, so it should not
-        // be a DO to END.
-
-        assert(NOT(f->flags.bits & DO_FLAG_TO_END));
+        // Leave the enfix operator pending in the frame, and it's up to the
+        // parent frame to decide whether to use DO_FLAG_POST_SWITCH to jump
+        // back in and finish fulfilling this arg or not.  If it does resume
+        // and we get to this check again, f->prior->deferred can't be NULL,
+        // otherwise it would be an infinite loop.
+        //
         goto finished;
     }
 
-    // The DAMPEN_DEFER bit should only be set if we're taking the result
-    // now for a deferred lookback function.  Clear it in any case.
-    //
-    assert(
-        NOT(f->flags.bits & DO_FLAG_DAMPEN_DEFER)
-        || GET_VAL_FLAG(f->gotten, FUNC_FLAG_DEFERS_LOOKBACK)
-    );
-    f->flags.bits &= ~DO_FLAG_DAMPEN_DEFER;
+    f->deferred = NULL;
 
     // This is a case for an evaluative lookback argument we don't want to
     // defer, e.g. a #tight argument or a normal one which is not being

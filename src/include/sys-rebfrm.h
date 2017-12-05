@@ -96,20 +96,15 @@
     FLAGIT_LEFT(2)
 
 
-//=//// DO_FLAG_DAMPEN_DEFER //////////////////////////////////////////////=//
+//=//// DO_FLAG_POST_SWITCH ///////////////////////////////////////////////=//
 //
-// If an enfixed function wishes to complete an expression on its left, it
-// only wants to complete one of them.  `print if false ["a"] else ["b"]`
-// is a case where the ELSE wants to allow `if false ["a"]` to complete,
-// which it does by deferring its execution.  But when that step is finished,
-// the landscape looks like `print *D_OUT* else ["b"]`, and if there is not
-// some indication it might defer again, that would just lead print to
-// continue the process of deferment, consuming the output for itself.
+// !!! This is an attempt to allow a deferred lookback to compensate for the
+// lack of the evaluator's ability to (easily) be psychic about when it is
+// gathering the last argument, to let it re-enter argument gathering at
+// the point after the switch() statement, with a preloaded f->out.  This
+// may not work at all.
 //
-// This is a flag tagged on the parent frame the first time, so it knows to
-// defer only once.
-//
-#define DO_FLAG_DAMPEN_DEFER \
+#define DO_FLAG_POST_SWITCH \
     FLAGIT_LEFT(3)
 
 
@@ -591,6 +586,36 @@ struct Reb_Frame {
     //
     REBVAL *refine;
     REBOOL doing_pickups; // want to encode
+
+    // `deferred`
+    //
+    // The deferred pointer is used to mark an argument cell which *might*
+    // need to do more enfix processing in the frame--but only if it turns out
+    // to be the last argument being processed.  For instance, in both of
+    // these cases the AND finds itself gathering an argument to a function
+    // where there is an evaluated 10 on the left hand side:
+    //
+    //    x: 10
+    //
+    //    if block? x and ... [...]
+    //
+    //    if x and ... [...]
+    //
+    // In the former case, the evaluated 10 is fulfilling the one and only
+    // argument to BLOCK?.  The latter case has it fulfilling the *first* of
+    // two arguments to IF.  Since AND has PARAM_CLASS_NORMAL for its left
+    // argument (as opposed to PARAM_CLASS_TIGHT), it wishes to interpret the
+    // first case as `if (block? 10) and ... [...], but still let the second
+    // case work too.  Yet discerning these in advance is costly/complex.
+    //
+    // The trick used is to not run the AND, go ahead and let the cell fill
+    // the frame either way, and set `deferred` in the frame above to point
+    // at the cell.  If the function finishes gathering arguments and deferred
+    // wasn't cleared by some other operation (like in the `if x` case), then
+    // that cell is re-dispatched with DO_FLAG_POST_SWITCH to give the
+    // impression that the AND had "tightly" taken the argument all along.
+    //
+    REBVAL *deferred;
 
 #if !defined(NDEBUG)
     //

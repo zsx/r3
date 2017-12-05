@@ -106,7 +106,6 @@ Script: [
     expression-barrier: {Expression barrier hit while processing arguments}
     bar-hit-mid-case:   {Expression barrier hit in middle of CASE pairing}
     enfix-quote-late:   [:arg1 {can't left quote a forward quoted value}]
-    partial-lookback:   [:arg1 {can't complete} :arg2 {expression on left}]
     evaluate-void:      {voids cannot be evaluated}
 
     enfix-path-group:   [:arg1 {GROUP! can't be in a lookback quoted PATH!}]

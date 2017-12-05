@@ -1308,21 +1308,6 @@ REBCTX *Error_No_Value_Core(const RELVAL *target, REBSPC *specifier) {
 
 
 //
-//  Error_Partial_Lookback: C
-//
-REBCTX *Error_Partial_Lookback(REBFRM *f)
-{
-    DECLARE_LOCAL (label);
-    Get_Frame_Label_Or_Blank(label, f);
-
-    DECLARE_LOCAL (param_name);
-    Init_Word(param_name, VAL_PARAM_SPELLING(f->param));
-
-    return Error_Partial_Lookback_Raw(label, param_name);
-}
-
-
-//
 //  Error_No_Value: C
 //
 REBCTX *Error_No_Value(const REBVAL *target) {
