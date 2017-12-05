@@ -23,8 +23,9 @@
 [typeset? make typeset! reduce [integer! blank!]]
 [typeset? to-typeset [integer! blank!]]
 [typeset! = type of any-series!]
-; bug#92
+
 [
+    #92
     x: to typeset! []
-    not x = now
+    not (x = now)
 ]

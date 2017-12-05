@@ -584,13 +584,13 @@
 ; Code in R3 mezzanines depends on this.
 [() <> blank]
 ; basic comparison with unset second argument fails with = op
-[not blank = ()]
+[not (blank = ())]
 ; basic comparison with unset second argument fails with != op
 [blank != ()]
 [() = ()]
-[not () != ()]
+[not (() != ())]
 ; unset! symmetry with =
-[equal? blank = () () = blank]
+[equal? (blank = ()) (() = blank)]
 ; error! reflexivity
 ; Evaluates (try [1 / 0]) to get error! value.
 [

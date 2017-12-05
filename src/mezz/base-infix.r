@@ -103,18 +103,15 @@ for-each [comparison-op function-name] [
     ; !!! See discussion about the future of comparison operators:
     ; https://forum.rebol.info/t/349
     ;
-    set/enfix comparison-op (tighten get function-name)
+    ; While they were "tight" in R3-Alpha, Ren-C makes them use normal
+    ; parameters.  So you can write `if length of block = 10 + 20 [...]` and
+    ; other expressive things.  It comes at the cost of making it so that
+    ; `if not x = y [...]` is interpreted as `if (not x) = y [...]`, which
+    ; all things considered is still pretty natural (and popular in many
+    ; languages)...and a small price to pay.  Hence no TIGHTEN call here.
+    ;
+    set/enfix comparison-op (get function-name)
 ]
-
-and: enfix tighten :and?
-or: enfix tighten :or?
-xor: enfix tighten :xor?
-nor: enfix tighten :nor?
-
-nand: enfix tighten :nand?
-and*: enfix tighten :and~
-or+: enfix tighten :or~
-xor+: enfix tighten :xor~
 
 
 ; !!! Originally in Rebol2 and R3-Alpha, ? was a synonym for HELP.  This seems
@@ -217,6 +214,109 @@ else*: enfix redescribe [
 )
 
 also-do: enfix :after ;-- temporarily %mezz-legacy.r defines ALSO as error
+
+
+; SHORT-CIRCUIT BOOLEAN OPERATORS
+;
+; Traditionally Rebol didn't have the ability to "short circuit" expressions,
+; because you could never find the end of an expression without running it.
+; By means of the DON'T operation, Ren-C can (sometimes) find the end of an
+; expression while disabling side-effects from it.  This is used to implement
+; boolean short-circuit ops, as an alternative to ALL [...], ANY [...], etc.
+;
+; The way they work is that they are enfixed functions with one left argument,
+; and a variadic right hand argument.  So they only have access to their
+; left argument at first.  They examine that left argument and if there's no
+; chance for the right hand side to change their answer, they DON'T it.
+; Otherwise, they DO the right hand argument and examine it to get the final
+; answer.
+
+and: enfix func [
+    {Short-circuit boolean AND}
+
+    return: [logic!]
+    left [any-value!]
+        {Expression which will always be evaluated}
+    right [any-value! <...>]
+        {Expression will be evaluated if LEFT is TRUTHY?, skipped if FALSEY?}
+][
+    case [
+        left [to-logic do/next right blank]
+        don't/next right blank [false]
+    ] else [
+        fail [
+            "Right hand of short-circuit AND must not be variadic."
+            "Use ALL [...] instead, or put right-hand side in a GROUP! ()"
+        ]
+    ]
+]
+
+or: enfix func [
+    {Short-circuit boolean AND}
+
+    return: [logic!]
+    left [any-value!]
+        {Expression which will always be evaluated}
+    right [any-value! <...>]
+        {Expression will be evaluated if LEFT is FALSEY?, skipped if TRUTHY?}
+][
+    case [
+        not left [to-logic do/next right blank]
+        don't/next right blank [true]
+    ] else [
+        fail [
+            "Right hand of short-circuit OR must not be variadic."
+            "Use ANY [...] instead, or put right-hand side in a GROUP! ()"
+        ]
+    ]
+]
+
+nor: enfix func [
+    {Short-circuit boolean NOR}
+
+    return: [logic!]
+    left [any-value!]
+        {Expression which will always be evaluated}
+    right [any-value! <...>]
+        {Expression will be evaluated if LEFT is FALSEY?, skipped if TRUTHY?}
+][
+    case [
+        not left [not do/next right blank]
+        don't/next right blank [false]
+    ] else [
+        fail [
+            "Right hand of short-circuit NOR must not be variadic."
+            "Use NONE [...] instead, or put right-hand side in a GROUP! ()"
+        ]
+    ]
+]
+
+nand: enfix func [
+    {Short-circuit boolean NAND}
+
+    return: [logic!]
+    left [any-value!]
+        {Expression which will always be evaluated}
+    right [any-value! <...>]
+        {Expression will be evaluated if LEFT is FALSEY?, skipped if TRUTHY?}
+][
+    case [
+        left [not do/next right blank]
+        don't/next right blank [false]
+    ] else [
+        fail [
+            "Right hand of short-circuit NAND must not be variadic."
+            "Put right-hand side in a GROUP! ()"
+
+            ;-- is there a good ANY/ALL/NONE-like parallel for NAND?
+        ]
+    ]
+]
+
+
+; There's no way to do a shortcut XOR...both sides have to be tested.
+;
+xor: enfix :xor?
 
 
 ; Lambdas are experimental quick function generators via a symbol
