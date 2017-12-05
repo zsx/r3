@@ -11,107 +11,100 @@ REBOL [
         See: http://www.apache.org/licenses/LICENSE-2.0
     }
     Purpose: {
-        When a variable is set to a function value with SET, there is an option
-        to designate that particular binding as /LOOKBACK.  This means that
-        when the function is invoked through that variable, its first argument
-        will come from the left hand side--before the invoking WORD!.
-
-        If the function has two parameters, this gives the effect of what
-        Rebol2 called an "OP!" (infix operator).  However, Ren-C's choice to
-        make this a separate flag to SET means it does not require a new
-        datatype.  Any FUNCTION! of any arity can be used, and it will just
-        get its first argument from the left, with the rest from the right.
+        In R3-Alpha, an "OP!" function would gather its left argument greedily
+        without waiting for further evaluation, and its right argument would
+        stop processing if it hit another "OP!".  This meant that a sequence
+        of all infix ops would appear to process left-to-right, e.g.
+        `1 + 2 * 3` would be 9.
         
-        This file sets up the common "enfixed" operators.
+        Ren-C does not have an "OP!" function type, it just has FUNCTION!, but
+        a WORD! can be SET with the /ENFIX refinement.  This indicates that
+        when the function is dispatched through that word, it should get its
+        first parameter from the left.  However it will obey the parameter
+        conventions of the original function (including quoting).  Hence since
+        ADD has normal parameter conventions, `+: enfix :add` would wind up
+        with `1 + 2 * 3` as 7.
+
+        So a new parameter convention indicated by ISSUE! is provided to get
+        the "#tight" behavior of OP! arguments in R3-Alpha.
     }
 ]
 
-; Due to Rebol's complex division of lexical space, operations like `<` have
-; needed special rules in the scanner code.  These rules may have permitted
-; use of the WORD! form, but made the SET-WORD! forms illegal (e.g. `<:`).
+; R3-Alpha has several forms illegal for SET-WORD! (e.g. `<:`)  Ren-C allows
+; more of these things, but if they were top-level SET-WORD! in this file then
+; R3-Alpha wouldn't be able to read it when used as bootstrap r3-make.  It
+; also can't LOAD several WORD! forms that Ren-C can (e.g. `->`)
 ;
-; Ren-C allows more of these things, but if they were used in this file it
-; could not be read by R3-Alpha; which is used to process this file for
-; bootstrap.  So it brings the operators into existence in %b-init.c in
-; the function Add_Lib_Keys_R3Alpha_Cant_Make().
-; 
-; These hacks are used to get the properly bound WORD!s.  Note that FIRST,
-; LOAD, INTERN etc. are not in the definition order at this point...so
-; PICK MAKE BLOCK! is used.
+; So %b-init.c manually adds the keys via Add_Lib_Keys_R3Alpha_Cant_Make().
+; R3-ALPHA-QUOTE annotates to warn not to try and assign SET-WORD! forms, and
+; to bind interned strings.
 ;
-; Note also the unsets for these at the bottom of the file for "cleanliness."
-
-lt: (pick [<] 1)
-lteq: (pick [<=] 1)
-gt: (pick [>] 1)
-gteq: (pick [>=] 1)
-dv: (pick [/] 1) ;-- "slash" is the character #"/"
-dvdv: (pick [//] 1)
-ltgt: (pick [<>] 1)
-
-right-arrow: bind (pick make block! "->" 1) context of 'lambda
-left-arrow: bind (pick make block! "<-" 1) context of 'lambda
-left-flag: bind (pick make block! "<|" 1) context of 'lambda
-right-flag: bind (pick make block! "|>" 1) context of 'lambda
+r3-alpha-quote: func [:spelling [word! string!]] [
+    either word? spelling [
+        spelling
+    ][
+        bind (to word! spelling) (context of 'r3-alpha-quote)
+    ]
+]
 
 
-; While Ren-C has no particular concept of "infix OP!s" as a unique datatype,
-; a function which is arity-2 and "enfix bound" to a variable acts similarly.
+; Make top-level words for things not added by %b-init.c (e.g. /, //)
 ;
-;     some-infix: enfix func [a b] [...]
-;
-; However, the default parameter convention for the left argument is to
-; consume "one unit of expression" to the left.  So if you have:
-;
-;     add 1 2 some-infix add 1 2 + 10
-;
-; This would be interpreted as:
-;
-;     (add 1 2) some-infix (add 1 2 + 10)
-;
-; This is different from how OP!s acted in Rebol2 and R3-Alpha. They would
-; "greedily" consume the immediate evaluative unit to the left:
-;
-;     add 1 (2 some-infix add 1 2) + 10
-;
-; These are two fundamentally different parameter conventions.  Ren-C lets
-; you specify you want the latter by using an ISSUE! to indicate the parameter
-; class is what is known as "tight":
-;
-;     some-infix: enfix func [#a #b] [...]
-;
-; Eventually it will be possible to "re-skin" a function with arbitrary new
-; parameter conventions...e.g. to convert a function that doesn't quote one
-; of its arguments so that it quotes it, without incurring any additional
-; runtime overhead of a "wrapper".  Today a more limited version of this
-; optimization is provided via TIGHTEN, which will convert all a function's
-; parameters to be tight.  Hence a function with "normal" parameters (like
-; ADD) can be translated into an equivalent function with "tight" parameters,
-; to be bound to `+` and act compatibly with historical Rebol expectations.
-;
++: -: *: **: and*: or+: xor+: _
 
-+: enfix tighten :add
--: enfix tighten :subtract
-*: enfix tighten :multiply
-**: enfix tighten :power
+for-each [math-op function-name] [
+    +       add
+    -       subtract
+    *       multiply
+    **      power
 
-set/enfix dv tighten :divide
-set/enfix dvdv tighten :remainder
+    /       divide ;-- !!! may become pathing operator (which also divides)
 
-=: enfix tighten :equal?
-=?: enfix tighten :same?
+    //      remainder ;-- !!! bad WORD!... https://forum.rebol.info/t/275
 
-==: enfix tighten :strict-equal?
-!=: enfix tighten :not-equal?
-!==: enfix tighten :strict-not-equal?
+    and*    and~
+    or+     or~
+    xor+    xor~
+][
+    ; Ren-C's infix math obeys the "tight" parameter convention of R3-Alpha.
+    ; But since the prefix functions themselves have normal parameters, this
+    ; would require a wrapping function...adding a level of inefficiency:
+    ;
+    ;     +: enfix func [#a #b] [add :a :b]
+    ;
+    ; TIGHTEN optimizes this by making a "re-skinned" version of the function
+    ; with tight parameters, without adding extra overhead when called.  This
+    ; mechanism will eventually generalized to do any rewriting of convention
+    ; one wants (e.g. to switch one parameter from normal to quoted).
+    ;
+    set/enfix math-op (tighten get function-name)
+]
 
-set/enfix ltgt tighten :not-equal?
 
-set/enfix lt tighten :lesser?
-set/enfix lteq tighten :lesser-or-equal?
+; Make top-level words for things not added by %b-init.c
+;
+=: !=: ==: !==: =?: _
 
-set/enfix gt tighten :greater?
-set/enfix gteq tighten :greater-or-equal?
+for-each [comparison-op function-name] [
+    =       equal?
+    <>      not-equal?
+    <       lesser?
+    <=      lesser-or-equal? ;-- !!! or left arrow?  Consider `=<`
+    >       greater?
+    >=      greater-or-equal?
+
+    !=      not-equal? ;-- !!! http://www.rebol.net/r3blogs/0017.html 
+
+    ==      strict-equal?
+    !==     strict-not-equal?
+
+    =?      same?
+][
+    ; !!! See discussion about the future of comparison operators:
+    ; https://forum.rebol.info/t/349
+    ;
+    set/enfix comparison-op (tighten get function-name)
+]
 
 and: enfix tighten :and?
 or: enfix tighten :or?
@@ -228,8 +221,8 @@ also-do: enfix :after ;-- temporarily %mezz-legacy.r defines ALSO as error
 
 ; Lambdas are experimental quick function generators via a symbol
 ;
-set/enfix right-arrow :lambda
-set/enfix left-arrow (specialize :lambda [only: true])
+set/enfix (r3-alpha-quote "->") :lambda
+set/enfix (r3-alpha-quote "<-") (specialize :lambda [only: true])
 
 
 ; These constructs used to be enfix to complete their left hand side.  Yet
@@ -237,23 +230,6 @@ set/enfix left-arrow (specialize :lambda [only: true])
 ; to allow longer runs of evaluation.  "Invisible functions" (those which
 ; `return: []`) permit a more flexible version of the mechanic.
 
-set left-flag :invisible-eval-all
-set right-flag :right-bar
+set (r3-alpha-quote "<|") :invisible-eval-all
+set (r3-alpha-quote "|>") :right-bar
 ||: enfix :once-bar
-
-
-; Clean up the words used to hold things that can't be made SET-WORD!s (or
-; perhaps even words) in R3-Alpha
-
-lt:
-lteq:
-gt:
-gteq:
-dv:
-dvdv:
-should-be-empty-tag:
-right-arrow:
-left-arrow:
-left-flag:
-right-flag:
-    ()
