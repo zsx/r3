@@ -114,7 +114,7 @@ encode-lines: func [
 ]
 
 
-line-of: function [
+line-from-pos: function [
     {Returns line number of position within text.}
     text [string!]
     position [string! integer!]

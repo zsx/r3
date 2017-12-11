@@ -51,14 +51,14 @@ finish-init-core: procedure [
         'system :system
         
         'adjoin (get 'join)
-        'join (func [dummy1 dummy2] [
+        'join (func [dummy] [
             fail/where [
                 {JOIN is reserved in Ren-C for future use}
                 {(It will act like R3's REPEND, which has a slight difference}
                 {from APPEND of a REDUCE'd value: it only reduces blocks).}
                 {Use ADJOIN for the future JOIN, JOIN-OF for non-mutating.}
                 {If in <r3-legacy> mode, old JOIN meaning is available.}
-            ] 'dummy1
+            ] 'dummy
         ])
 
         'while-not (get 'until)

@@ -98,11 +98,10 @@
 
 //=//// DO_FLAG_POST_SWITCH ///////////////////////////////////////////////=//
 //
-// !!! This is an attempt to allow a deferred lookback to compensate for the
-// lack of the evaluator's ability to (easily) be psychic about when it is
-// gathering the last argument, to let it re-enter argument gathering at
-// the point after the switch() statement, with a preloaded f->out.  This
-// may not work at all.
+// This flag allows a deferred lookback to compensate for the lack of the
+// evaluator's ability to (easily) be psychic about when it is gathering the
+// last argument of a function.  It allows re-entery to argument gathering at
+// the point after the switch() statement, with a preloaded f->out.
 //
 #define DO_FLAG_POST_SWITCH \
     FLAGIT_LEFT(3)

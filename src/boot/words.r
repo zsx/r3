@@ -10,8 +10,9 @@ REBOL [
         See: http://www.apache.org/licenses/LICENSE-2.0
     }
     Purpose: {
-        These words are used internally by REBOL and must have specific canon
-        word values in order to be correctly identified.
+        These words are used internally by Rebol, and are canonized with small
+        integer SYM_XXX constants.  These constants can then be quickly used
+        in switch() statements.
     }
 ]
 

@@ -593,7 +593,7 @@ host-start: function [
         take argv
     ]
 
-    ; Taking a command-line `--breakpoint=NNN` parameter is helpful if a
+    ; Taking a command-line `--breakpoint NNN` parameter is helpful if a
     ; problem is reproducible, and you have a tick count in hand from a
     ; panic(), REBSER.tick, REBFRM.tick, REBVAL.extra.tick, etc.  But there's
     ; an entanglement issue, as any otherwise-deterministic tick from a prior

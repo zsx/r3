@@ -60,6 +60,9 @@
     // the level of interest and recompile with it here to get a breakpoint
     // at that tick.
     //
+    // On the command-line, you can also request to break at a particular tick
+    // using the `--breakpoint NNN` option.
+    //
     // Notice also that in debug builds, `REBSER.tick` carries this value.
     // *Plus* you can get the initialization tick for void cells, BLANK!s,
     // LOGIC!s, and most end markers by looking at the `track` payload of
@@ -69,11 +72,6 @@
     //      *** DON'T COMMIT THIS v-- KEEP IT AT ZERO! ***
     #define TICK_BREAKPOINT        0
     //      *** DON'T COMMIT THIS --^ KEEP IT AT ZERO! ***
-    //
-    // Note: Taking this number on the command line sounds convenient, though
-    // with command line processing in usermode it would throw the number off
-    // between runs.  It could be an environment variable, but sometimes it's
-    // just easier to set the number here.
     //
     // Note also there is `Dump_Frame_Location()` if there's a trouble spot
     // and you want to see what the state is.  It will reify C va_list
@@ -810,29 +808,34 @@ reevaluate:;
                 --f->refine; // not lucky: if in use, this is out of order
 
                 for (; f->refine > DS_AT(f->dsp_orig); --f->refine) {
-                    if (!IS_WORD(f->refine)) continue; // non-refinement
                     if (
-                        VAL_WORD_SPELLING(f->refine) // canon when pushed
-                        == VAL_PARAM_CANON(f->param) // #2258
+                        NOT(IS_WORD(f->refine)) // non-refinement
+                        || (
+                            VAL_WORD_SPELLING(f->refine) // canon when pushed
+                            != VAL_PARAM_CANON(f->param) // #2258
+                        )
                     ){
-                        Prep_Stack_Cell(f->arg);
-                        Init_Logic(f->arg, TRUE); // marks refinement used
-
-                        // The call uses this refinement but we'll have to
-                        // come back to it when the expression index to
-                        // consume lines up.  Make a note of the param
-                        // and arg and poke them into the stack value.
-                        //
-                        f->refine->header.bits &= CELL_MASK_RESET;
-                        f->refine->header.bits |= HEADERIZE_KIND(REB_0_PICKUP);
-                        f->refine->payload.pickup.param
-                            = const_KNOWN(f->param);
-                        f->refine->payload.pickup.arg = f->arg;
-
-                        // "consume args later" (promise not to change)
-                        f->refine = SKIPPING_REFINEMENT_ARGS;
-                        goto continue_arg_loop;
+                        continue;
                     }
+
+                    Prep_Stack_Cell(f->arg);
+                    Init_Logic(f->arg, TRUE); // marks refinement used
+
+                    // The call uses this refinement but we'll have to
+                    // come back to it when the expression index to
+                    // consume lines up.  Make a note of the param
+                    // and arg and poke them into the stack value.
+                    //
+                    f->refine->header.bits &= CELL_MASK_RESET;
+                    f->refine->header.bits |= HEADERIZE_KIND(REB_0_PICKUP);
+                    f->refine->payload.pickup.param
+                        = const_KNOWN(f->param);
+                    f->refine->payload.pickup.arg = f->arg;
+
+                    // "consume args later" (promise not to change)
+                    //
+                    f->refine = SKIPPING_REFINEMENT_ARGS;
+                    goto continue_arg_loop;
                 }
 
                 // Wasn't in the path and not specialized, so not present
@@ -1795,6 +1798,7 @@ reevaluate:;
                 if (NOT_VAL_FLAG(current_gotten, FUNC_FLAG_INVISIBLE))
                     SET_END(f->out);
             }
+
             goto process_function;
         }
 
@@ -2069,7 +2073,7 @@ reevaluate:;
                     current, // still holding SET-PATH! we got in
                     f->specifier, // specifier for current
                     f->out // value to set (already in f->out)
-                )) {
+                )){
                     fail (Error_No_Catch_For_Throw(temp));
                 }
             }
@@ -2120,7 +2124,7 @@ reevaluate:;
                 &f->cell, // still holding SET-PATH! we got in
                 SPECIFIED, // current derelativized when pushed to DS_TOP
                 f->out // value to set (already in f->out)
-            )) {
+            )){
                 fail (Error_No_Catch_For_Throw(temp));
             }
         }
@@ -2338,18 +2342,49 @@ reevaluate:;
         panic (current);
     }
 
+    if (FRM_AT_END(f))
+        goto finished;
+
     //==////////////////////////////////////////////////////////////////==//
     //
     // END MAIN SWITCH STATEMENT
     //
     //==////////////////////////////////////////////////////////////////==//
 
+    // We're sitting at what "looks like the end" of an evaluation step.
+    // But we still have to consider enfix.  e.g.
+    //
+    //    do/next [1 + 2 * 3] 'pos
+    //
+    // We want that to come back as 9, with `pos = []`.  So the evaluator
+    // cannot just dispatch on REB_INTEGER in the switch() above, give you 1,
+    // and consider its job done.  It has to notice that the variable `+`
+    // looks up to has been set with VALUE_FLAG_ENFIX, and keep going.
+    //
+    // Next, there's a subtlety with DO_FLAG_NO_LOOKAHEAD which explains why
+    // processing of the 2 argument doesn't greedily continue to advance, but
+    // waits for `1 + 2` to finish.  This is because the right hand argument
+    // of math operations tend to be declared #tight.
+    //
+    // Slightly more nuanced is why FUNC_FLAG_INVISIBLE functions have to be
+    // considered in the lookahead also.  Consider this case:
+    //
+    //    do/next [1 + 2 * 3 comment ["hi"] 4 / 5] 'pos
+    //
+    // We want this to evaluate to 9, with `pos = [4 / 5]`.  To do this, we
+    // can't consider an evaluation finished until all the "invisibles" have
+    // been processed.  That's because letting the comment wait until the next
+    // evaluation would preclude `do/next [1 + 2 * 3 comment ["hi"]]` being
+    // 9, since `comment ["hi"]` alone can't come up with 9 out of thin air.
+    //
+    // If that's not enough to consider :-) it can even be the case that
+    // subsequent enfix gets "deferred".  Then, possibly later the evaluated
+    // value gets re-fed back in, and we jump right to this post-switch point
+    // to give it a "second chance" to take the enfix.  (See 'deferred'.)
+    //
+    // So this post-switch step is where all of it happens, and it's tricky.
+
 post_switch:;
-    assert(!THROWN(f->out)); // should have jumped to exit sooner
-
-    if (FRM_AT_END(f))
-        goto finished;
-
     f->eval_type = VAL_TYPE(f->value);
 
 //=//// IF NOT A WORD!, IT DEFINITELY STARTS A NEW EXPRESSION /////////////=//
@@ -2375,29 +2410,8 @@ post_switch:;
 
 //=//// FETCH WORD! TO PERFORM SPECIAL HANDLING FOR ENFIX/INVISIBLES //////=//
 
-    // We're sitting at what "looks like the end" of an evaluation step.
-    // But we still have to consider enfix.  e.g.
-    //
-    //    do/next [1 + 2 * 3] 'pos
-    //
-    // The evaluator cannot just dispatch on REB_INTEGER, give you 1, and
-    // consider its job done.  It has to notice that the variable `+` looks
-    // up to has been set with VALUE_FLAG_ENFIX.  (There's a subtlety with
-    // DO_FLAG_NO_LOOKAHEAD which explains why processing of the 2 argument
-    // doesn't greedily continue to advance, but waits for `1 + 2` to finish.)
-    //
-    // Slighly more nuanced is why FUNC_FLAG_INVISIBLE functions have to be
-    // considered in the lookahead also.  Consider this case:
-    //
-    //    do/next [1 + 2 * 3 comment ["hi"] print "next step"] 'pos
-    //
-    // We want this to evaluate to 6, with `pos = [print "next step"]`.  To
-    // do this, we can't consider an evaluation finished until all the
-    // "invisibles" have been processed.
-    //
-    // So this post-switch step is where all of it happens, and it's tricky.
-    // First things first, we fetch the WORD! so we can see if it looks up
-    // to any kind of FUNCTION! at all.
+    // First things first, we fetch the WORD! (if not previously fetched) so
+    // we can see if it looks up to any kind of FUNCTION! at all.
 
     if (f->gotten == END)
         f->gotten = Get_Opt_Var_Else_End(f->value, f->specifier);
@@ -2490,7 +2504,7 @@ post_switch:;
         goto reevaluate;
     }
 
-//=//// IT'S AN ENFIX FUNCTION (WHICH MAY ALSO BE "INVISIBLE") ////////////=//
+//=//// IT'S A WORD ENFIXEDLY TIED TO A FUNCTION (MAY BE "INVISIBLE") /////=//
 
     if (
         (f->flags.bits & DO_FLAG_NO_LOOKAHEAD)

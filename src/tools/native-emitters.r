@@ -28,7 +28,7 @@ emit-native-proto: proc [
             ]
         ]
     ] [
-        line: line-of source.text proto-parser/parse.position
+        line: line-from-pos source.text proto-parser/parse.position
 
         if not block? proto-parser/data/3 [
             fail [

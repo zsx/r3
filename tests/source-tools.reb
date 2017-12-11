@@ -133,7 +133,7 @@ rebsource: context [
 
                 malloc-check: [
                     and identifier "malloc" (
-                        append malloc-found line-of head of position position
+                        append malloc-found line-from-pos head of position position
                     )
                 ]
 
@@ -168,11 +168,11 @@ rebsource: context [
                                     ]
                                     same? position proto-parser/parse.position
                                 ] [
-                                    line: line-of data proto-parser/parse.position
+                                    line: line-from-pos data proto-parser/parse.position
                                     append any [
                                         non-std-func-space
                                         set 'non-std-func-space copy []
-                                    ] line-of data proto-parser/parse.position
+                                    ] line-from-pos data proto-parser/parse.position
                                 ]
                             ]
                         ] c-parser-extension
@@ -203,7 +203,7 @@ rebsource: context [
                                 proto-parser/proto.id
                                 form to word! proto-parser/data/1
                             ) [
-                                line: line-of data proto-parser/parse.position
+                                line: line-from-pos data proto-parser/parse.position
                                 emit analysis [
                                     id-mismatch
                                     (mold proto-parser/data/1) (file) (line)
@@ -341,7 +341,9 @@ rebsource: context [
                 not equal? 10 last data ; Check for newline.
             ][
                 emit analysis [
-                    eof-eol-missing (file) (reduce [line-of data tail of data])
+                    eof-eol-missing (file) (
+                        reduce [line-from-pos data tail of data]
+                    )
                 ]
             ]
 

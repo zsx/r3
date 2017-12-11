@@ -107,7 +107,7 @@ lines-exceeding: function [
     line-list
 ]
 
-line-of: function [
+line-from-pos: function [
     {Returns line number of position within text.}
     text [string! binary!]
     position [string! binary! integer!]
