@@ -1291,7 +1291,11 @@ REBFUN *Make_Interpreted_Function_May_Fail(
                 FUNC_DISPATCHER(fun) = &Returner_Dispatcher;
         }
 
-        body_array = EMPTY_ARRAY; // just reuse empty array if empty, no copy
+        // We could reuse the EMPTY_ARRAY, however that would be a fairly
+        // esoteric optimization...and also, it would not give us anywhere to
+        // put the SERIES_FLAG_FILE_LINE bits.
+        //
+        body_array = Make_Array_Core(1, NODE_FLAG_MANAGED);
     }
     else {
         // Body is not empty, so we need to pick the right dispatcher based
@@ -1319,13 +1323,36 @@ REBFUN *Make_Interpreted_Function_May_Fail(
     }
 
     // We need to do a raw initialization of this block RELVAL because it is
-    // relative to a function.  (Init_Block assumes all specific values)
+    // relative to a function.  (Init_Block assumes all specific values.)
     //
     RELVAL *body = FUNC_BODY(fun);
     VAL_RESET_HEADER(body, REB_BLOCK);
     INIT_VAL_ARRAY(body, body_array);
     VAL_INDEX(body) = 0;
     INIT_BINDING(body, fun); // relative binding
+
+    // The body array series ->misc and ->link fields are used for function
+    // specific features.  But if the array *content* of a body array is a
+    // series then the ->misc and ->link can be used to get FILE OF or LINE OF
+    // a FUNCTION!, as it is usermode.
+    //
+    // Favor the spec first, then the body.
+    //
+    if (GET_SER_FLAG(VAL_ARRAY(spec), SERIES_FLAG_FILE_LINE)) {
+        LINK(body_array).file = LINK(VAL_ARRAY(spec)).file;
+        MISC(body_array).line = MISC(VAL_ARRAY(spec)).line;
+        SET_SER_FLAG(body_array, SERIES_FLAG_FILE_LINE);
+    }
+    else if (GET_SER_FLAG(VAL_ARRAY(code), SERIES_FLAG_FILE_LINE)) {
+        LINK(body_array).file = LINK(VAL_ARRAY(code)).file;
+        MISC(body_array).line = MISC(VAL_ARRAY(code)).line;
+        SET_SER_FLAG(body_array, SERIES_FLAG_FILE_LINE);
+    }
+    else {
+        // Ideally all source series should have a file and line numbering
+        // At the moment, if a function is created in the body of another
+        // function it doesn't work...trying to fix that.
+    }
 
     // All the series inside of a function body are "relatively bound".  This
     // means that there's only one copy of the body, but the series handle
@@ -1739,6 +1766,9 @@ REB_R Action_Dispatcher(REBFRM *f)
     // but in general actions should not allow void first arguments...there's
     // no entry in the dispatcher table for them.
     //
+    if (kind == REB_MAX_VOID)
+        fail ("VOID isn't valid for REFLECT, except for TYPE OF ()");
+
     assert(kind < REB_MAX);
 
     REBACT subdispatch = Value_Dispatch[kind];
@@ -1758,7 +1788,7 @@ REB_R Action_Dispatcher(REBFRM *f)
 //
 REB_R Noop_Dispatcher(REBFRM *f)
 {
-    assert(VAL_ARRAY(FUNC_BODY(f->phase)) == EMPTY_ARRAY);
+    assert(VAL_LEN_AT(FUNC_BODY(f->phase)) == 0);
     UNUSED(f);
     return R_VOID;
 }
@@ -1923,7 +1953,7 @@ REB_R Elider_Dispatcher(REBFRM *f)
 //
 REB_R Commenter_Dispatcher(REBFRM *f)
 {
-    assert(VAL_ARRAY(FUNC_BODY(f->phase)) == EMPTY_ARRAY);
+    assert(VAL_LEN_AT(FUNC_BODY(f->phase)) == 0);
     UNUSED(f);
     return R_INVISIBLE;
 }
@@ -2048,10 +2078,9 @@ REB_R Encloser_Dispatcher(REBFRM *f)
     // Copy_Context_Core().  Tune this all up as it becomes more mainstream,
     // since you don't need to make 1 copy of the values...much less 2.
 
-    const REBOOL deep = FALSE;
     const REBU64 types = 0;
     REBCTX *copy = Copy_Context_Core(
-        Context_For_Frame_May_Reify_Managed(f), deep, types
+        Context_For_Frame_May_Reify_Managed(f), types
     );
 
     DECLARE_LOCAL (arg);

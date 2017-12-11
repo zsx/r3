@@ -92,6 +92,10 @@
 // also prefer the header vs. info?  Such separation might help with caching.
 //
 
+#define SERIES_MASK_NONE \
+    0 // helps locate places that want to say "no flags"
+
+
 //=//// ARRAY_FLAG_VOIDS_LEGAL ////////////////////////////////////////////=//
 //
 // Identifies arrays in which it is legal to have void elements.  This is true
@@ -556,7 +560,7 @@ union Reb_Series_Link {
     // source that was running at the time is propagated into the new
     // second-generation series.
     //
-    REBSTR *filename;
+    REBSTR *file;
 
     // REBCTX types use this field of their varlist (which is the identity of
     // an ANY-CONTEXT!) to find their "keylist".  It is stored in the REBSER

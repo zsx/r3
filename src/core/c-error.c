@@ -79,7 +79,7 @@ void Snap_State_Core(struct Reb_State *s)
 //
 void Assert_State_Balanced_Debug(
     struct Reb_State *s,
-    const REBYTE *file,
+    const char *file,
     int line
 ){
     if (s->dsp != DSP) {
@@ -565,7 +565,7 @@ void Set_Location_Of_Error(
             break;
         }
         if (f != NULL) {
-            Init_Word(&vars->file, LINK(f->source.array).filename);
+            Init_Word(&vars->file, LINK(f->source.array).file);
             Init_Integer(&vars->line, MISC(f->source.array).line);
         }
     }

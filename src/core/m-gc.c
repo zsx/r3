@@ -133,7 +133,7 @@ static inline void Mark_Rebser_Only(REBSER *s)
     assert(NOT_SER_FLAG(s, SERIES_FLAG_ARRAY));
 
     if (s->header.bits & SERIES_FLAG_FILE_LINE)
-        LINK(s).filename->header.bits |= NODE_FLAG_MARKED;
+        LINK(s).file->header.bits |= NODE_FLAG_MARKED;
     s->header.bits |= NODE_FLAG_MARKED;
 }
 
@@ -209,7 +209,7 @@ inline static void Queue_Mark_Array_Deep(REBARR *a) {
     assert(NOT_SER_FLAG(a, ARRAY_FLAG_PAIRLIST));
 
     if (GET_SER_FLAG(a, SERIES_FLAG_FILE_LINE))
-        LINK(a).filename->header.bits |= NODE_FLAG_MARKED;
+        LINK(a).file->header.bits |= NODE_FLAG_MARKED;
 
     Queue_Mark_Array_Subclass_Deep(a);
 }

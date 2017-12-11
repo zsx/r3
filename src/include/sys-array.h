@@ -236,6 +236,33 @@ inline static REBARR *Make_Array_Core(REBCNT capacity, REBUPT flags)
 #define Make_Array(capacity) \
     Make_Array_Core((capacity), SERIES_FLAG_FILE_LINE)
 
+// !!! Currently, many bits of code that make copies don't specify if they are
+// copying an array to turn it into a paramlist or varlist, or to use as the
+// kind of array the use might see.  If we used plain Make_Array() then it
+// would add a flag saying there were line numbers available, which may
+// compete with the usage of the ->misc and ->link fields of the series node
+// for internal arrays.
+//
+inline static REBARR *Make_Array_For_Copy(
+    REBCNT capacity,
+    REBFLGS flags,
+    REBARR *original
+){
+    if (
+        (flags & SERIES_FLAG_FILE_LINE)
+        && original != NULL
+        && GET_SER_FLAG(original, SERIES_FLAG_FILE_LINE)
+    ){
+        REBARR *a = Make_Array_Core(capacity, 0);
+        LINK(a).file = LINK(original).file;
+        MISC(a).line = MISC(original).line;
+        SET_SER_FLAG(a, SERIES_FLAG_FILE_LINE);
+        return a;
+    }
+
+    return Make_Array_Core(capacity, flags);
+}
+
 
 // A singular array is specifically optimized to hold *one* value in a REBSER
 // directly, and stay fixed at that size.  Note that the internal logic of
@@ -302,10 +329,10 @@ inline static REBARR *Alloc_Singular_Array_Core(REBUPT flags) {
         VAL_ARRAY(v), VAL_INDEX(v), VAL_SPECIFIER(v), 0)
 
 #define Copy_Array_At_Shallow(a,i,s) \
-    Copy_Array_At_Extra_Shallow((a), (i), (s), 0)
+    Copy_Array_At_Extra_Shallow((a), (i), (s), 0, SERIES_MASK_NONE)
 
 #define Copy_Array_Extra_Shallow(a,s,e) \
-    Copy_Array_At_Extra_Shallow((a), 0, (s), (e))
+    Copy_Array_At_Extra_Shallow((a), 0, (s), (e), SERIES_MASK_NONE)
 
 // See TS_NOT_COPIED for the default types excluded from being deep copied
 //
@@ -321,7 +348,7 @@ inline static REBARR* Copy_Array_At_Extra_Deep_Managed(
         specifier,
         ARR_LEN(original), // tail
         extra, // extra
-        TRUE, // deep
+        SERIES_MASK_NONE, // no SERIES_FLAG_FILE_LINE by default
         TS_SERIES & ~TS_NOT_COPIED // types
     );
 }

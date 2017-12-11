@@ -822,7 +822,7 @@ REBCTX *Make_Selfish_Context_Detect(
             CTX_VARS_HEAD(context),
             SPECIFIED,
             CTX_LEN(context),
-            TRUE,
+            SERIES_MASK_NONE,
             TS_CLONE
         );
     }
@@ -1078,7 +1078,7 @@ REBCTX *Merge_Contexts_Selfish(REBCTX *parent1, REBCTX *parent2)
         CTX_VARS_HEAD(merged),
         SPECIFIED,
         CTX_LEN(merged),
-        TRUE,
+        SERIES_MASK_NONE,
         TS_CLONE
     );
 

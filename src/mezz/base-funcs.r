@@ -129,7 +129,17 @@ make-action: func [
         new-body exclusions locals defaulters statics
 ][
     exclusions: copy []
-    new-spec: make block! length of spec
+
+    ; Rather than MAKE BLOCK! LENGTH OF SPEC here, we copy the spec and clear
+    ; it.  This costs slightly more, but it means we inherit the file and line
+    ; number of the original spec...so when we pass NEW-SPEC to FUNC or PROC
+    ; it uses that to give the FILE OF and LINE OF the function itself.
+    ;
+    ; !!! General API control to set the file and line on blocks is another
+    ; possibility, but since it's so new, we'd rather get experience first.
+    ;
+    new-spec: clear copy spec
+
     new-body: _
     statics: _
     defaulters: _

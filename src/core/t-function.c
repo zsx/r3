@@ -344,6 +344,36 @@ REBTYPE(Function)
             return R_OUT;
         }
 
+        // We use a heuristic that if the first element of a function's body
+        // is a series with the file and line bits set, then that's what it
+        // returns for FILE OF and LINE OF.
+        //
+        case SYM_FILE: {
+            if (NOT(ANY_SERIES(VAL_FUNC_BODY(value))))
+                return R_BLANK;
+
+            REBSER *s = VAL_SERIES(VAL_FUNC_BODY(value));
+
+            if (NOT_SER_FLAG(s, SERIES_FLAG_FILE_LINE))
+                return R_BLANK;
+
+            // !!! How to tell whether it's a URL! or a FILE! ?
+            //
+            Scan_File(D_OUT, STR_HEAD(LINK(s).file), SER_LEN(LINK(s).file));
+            return R_OUT; }
+
+        case SYM_LINE: {
+            if (NOT(ANY_SERIES(VAL_FUNC_BODY(value))))
+                return R_BLANK;
+
+            REBSER *s = VAL_SERIES(VAL_FUNC_BODY(value));
+
+            if (NOT_SER_FLAG(s, SERIES_FLAG_FILE_LINE))
+                return R_BLANK;
+
+            Init_Integer(D_OUT, MISC(s).line);
+            return R_OUT; }
+
         default:
             fail (Error_Cannot_Reflect(VAL_TYPE(value), arg));
         }

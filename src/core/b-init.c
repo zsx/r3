@@ -781,7 +781,7 @@ static void Init_Root_Vars(void)
     //
     Init_Endlike_Header(&PG_End_Node.header, 0); // mutate to read-only end
 #if !defined(NDEBUG)
-    Set_Track_Payload_Debug(&PG_End_Node, cb_cast(__FILE__), __LINE__);
+    Set_Track_Payload_Debug(&PG_End_Node, __FILE__, __LINE__);
 #endif
     assert(IS_END(END)); // sanity check that it took
     assert(VAL_TYPE_RAW(END) == REB_0); // this implicit END marker has this

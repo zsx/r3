@@ -212,22 +212,14 @@ inline static void Push_Frame_Core(REBFRM *f)
     f->phase = NULL;
 
     TRASH_POINTER_IF_DEBUG(f->opt_label);
+
 #if !defined(NDEBUG)
     TRASH_POINTER_IF_DEBUG(f->label_utf8);
-#endif
 
-#if !defined(NDEBUG) // !!! should be updated on each f->source.array change
-    if (
-        NOT(FRM_IS_VALIST(f))
-        && GET_SER_FLAG(f->source.array, SERIES_FLAG_FILE_LINE)
-    ){
-        f->file = cast(const char*, STR_HEAD(LINK(f->source.array).filename));
-        f->line = MISC(f->source.array).line;
-    }
-    else {
-        f->file = "(no file info)";
-        f->line = 0;
-    }
+    // !!! TBD: the relevant file/line update when f->source.array changes
+    //
+    f->file = FRM_FILE_UTF8(f);
+    f->line = FRM_LINE(f);
 #endif
 
     f->prior = TG_Frame_Stack;

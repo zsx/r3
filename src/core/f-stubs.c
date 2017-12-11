@@ -416,6 +416,9 @@ void Init_Any_Context_Core(
 
     assert(GET_SER_FLAG(varlist, ARRAY_FLAG_VARLIST));
 
+    if (GET_SER_FLAG(varlist, SERIES_FLAG_FILE_LINE))
+        panic (varlist);
+
     assert(NOT_SER_FLAG(varlist, SERIES_FLAG_FILE_LINE));
     assert(NOT_SER_FLAG(keylist, SERIES_FLAG_FILE_LINE));
 

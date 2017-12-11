@@ -246,7 +246,7 @@ static REB_R Dir_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
                     VAL_SPECIFIER(state),
                     VAL_ARRAY_LEN_AT(state), // tail
                     0, // extra
-                    FALSE, // !deep
+                    SERIES_FLAG_FILE_LINE, // flags
                     TS_STRING // types
                 )
             );

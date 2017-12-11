@@ -63,7 +63,7 @@ ATTRIBUTE_NO_RETURN void Panic_Value_Debug(const RELVAL *v) {
         printf(
             "REBVAL init on tick #%d at %s:%d\n",
             cast(unsigned int, v->extra.tick),
-            v->payload.track.filename,
+            v->payload.track.file,
             v->payload.track.line
         );
         fflush(stdout);
@@ -157,17 +157,18 @@ Reb_Specific_Value::~Reb_Specific_Value ()
 // checks the whole array...which is more conservative (asserts on more
 // cases).  But should there be a flag to ask to honor the index?
 //
-void Assert_No_Relative(REBARR *array, REBOOL deep)
+void Assert_No_Relative(REBARR *array, REBU64 types)
 {
-    RELVAL *item = ARR_HEAD(array);
-    while (NOT_END(item)) {
-        if (IS_RELATIVE(item)) {
+    RELVAL *v;
+    for (v = ARR_HEAD(array); NOT_END(v); ++v) {
+        if (IS_RELATIVE(v)) {
             printf("Array contained relative item and wasn't supposed to\n");
-            panic (item);
+            panic (v);
         }
-        if (!IS_UNREADABLE_IF_DEBUG(item) && ANY_ARRAY(item) && deep)
-             Assert_No_Relative(VAL_ARRAY(item), deep);
-        ++item;
+        if (IS_UNREADABLE_IF_DEBUG(v))
+            continue;
+        if (types & FLAGIT_KIND(VAL_TYPE(v)) & TS_ARRAYS_OBJ)
+             Assert_No_Relative(VAL_ARRAY(v), types);
     }
 }
 
@@ -177,7 +178,7 @@ void Assert_No_Relative(REBARR *array, REBOOL deep)
 //
 void Probe_Core_Debug(
     const void *p,
-    const REBYTE *file,
+    const char *file,
     int line
 ) {
     const struct Reb_Header *h = cast(const struct Reb_Header*, p);

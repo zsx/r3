@@ -230,7 +230,7 @@ typedef struct rebol_scan_state {
     REBCNT start_line;
     const REBYTE *start_line_head;
 
-    REBSTR *filename;
+    REBSTR *file;
 
     // VALUE_FLAG_LINE appearing on a value means that there is a line break
     // *before* that value.  Hence when a newline is seen, it means the *next*

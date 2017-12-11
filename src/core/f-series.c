@@ -84,6 +84,26 @@ REB_R Series_Common_Action_Maybe_Unhandled(
         case SYM_PAST_Q:
             return R_FROM_BOOL(LOGICAL(index > tail));
 
+        case SYM_FILE: {
+            REBSER *s = VAL_SERIES(value);
+
+            if (NOT_SER_FLAG(s, SERIES_FLAG_FILE_LINE))
+                return R_BLANK;
+
+            // !!! How to tell whether it's a URL! or a FILE! ?
+            //
+            Scan_File(D_OUT, STR_HEAD(LINK(s).file), SER_LEN(LINK(s).file));
+            return R_OUT; }
+
+        case SYM_LINE: {
+            REBSER *s = VAL_SERIES(value);
+
+            if (NOT_SER_FLAG(s, SERIES_FLAG_FILE_LINE))
+                return R_BLANK;
+
+            Init_Integer(D_OUT, MISC(s).line);
+            return R_OUT; }
+
         default:
             break;
         }

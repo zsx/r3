@@ -273,7 +273,15 @@ REBARR *Copy_And_Bind_Relative_Deep_Managed(
     // Both phases are folded into this routine to make it easier to make
     // a one-pass version when time permits.
     //
-    REBARR *copy = COPY_ANY_ARRAY_AT_DEEP_MANAGED(body);
+    REBARR *copy = Copy_Array_Core_Managed(
+        VAL_ARRAY(body),
+        VAL_INDEX(body), // at
+        VAL_SPECIFIER(body),
+        VAL_LEN_AT(body), // tail
+        0, // extra
+        SERIES_FLAG_FILE_LINE, // ask to preserve file and line info
+        TS_SERIES & ~TS_NOT_COPIED // types to copy deeply
+    );
 
     struct Reb_Binder binder;
     INIT_BINDER(&binder);
@@ -443,8 +451,8 @@ void Virtual_Bind_Deep_To_New_Context(
                 VAL_SPECIFIER(body_in_out),
                 ARR_LEN(VAL_ARRAY(body_in_out)), // tail
                 0, // extra
-                TRUE, // deep
-                TS_ARRAY // types
+                SERIES_FLAG_FILE_LINE, // flags
+                TS_ARRAY // types to copy deeply
             )
         );
     }

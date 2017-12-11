@@ -339,7 +339,7 @@
 
 #if !defined(NDEBUG)
     struct Reb_Track {
-        const char *filename; // is REBYTE (UTF-8), but char* for debug watch
+        const char *file; // is REBYTE (UTF-8), but char* for debug watch
         int line;
     };
 #endif

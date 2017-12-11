@@ -110,6 +110,8 @@ type-of: specialize 'reflect [property: 'type]
 context-of: specialize 'reflect [property: 'context]
 head-of: specialize 'reflect [property: 'head]
 tail-of: specialize 'reflect [property: 'tail]
+file-of: specialize 'reflect [property: 'file]
+line-of: specialize 'reflect [property: 'line]
 
 
 ; General renamings away from non-LOGIC!-ending-in-?-functions

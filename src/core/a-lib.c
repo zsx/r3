@@ -1323,7 +1323,7 @@ void RL_rebPanic(const void *p)
     // Like Panic_Core, the underlying API for rebPanic might want to take an
     // optional file and line.
     //
-    REBYTE *file_utf8 = NULL;
+    char *file = NULL;
     int line = 0;
 
     // !!! Should there be a special bit or dispatcher used on the PANIC and
@@ -1368,7 +1368,7 @@ void RL_rebPanic(const void *p)
         break;
     };
 
-    Panic_Core(p2, tick, file_utf8, line);
+    Panic_Core(p2, tick, file, line);
 }
 
 

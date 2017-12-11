@@ -31,16 +31,6 @@
 #include "sys-core.h"
 
 
-// !!! Currently, callers don't specify if they are copying an array to turn
-// it into a paramlist or varlist, or to use as the kind of array the user
-// might see.  If we used plain Make_Array() then it would add a flag saying
-// there were line numbers available, which may compete with the usage of the
-// ->misc and ->link fields of the series node for internal arrays.  Pass 0.
-//
-#define Make_Array_For_Copy(a) \
-    Make_Array_Core((a), 0)
-
-
 //
 //  Copy_Array_At_Extra_Shallow: C
 //
@@ -52,16 +42,17 @@ REBARR *Copy_Array_At_Extra_Shallow(
     REBARR *original,
     REBCNT index,
     REBSPC *specifier,
-    REBCNT extra
-) {
+    REBCNT extra,
+    REBUPT flags
+){
     REBCNT len = ARR_LEN(original);
 
     if (index > len)
-        return Make_Array_For_Copy(extra);
+        return Make_Array_For_Copy(extra, flags, original);
 
     len -= index;
 
-    REBARR *copy = Make_Array_For_Copy(len + extra);
+    REBARR *copy = Make_Array_For_Copy(len + extra, flags, original);
 
     RELVAL *src = ARR_AT(original, index);
     REBVAL *dest = KNOWN(ARR_HEAD(copy));
@@ -86,14 +77,16 @@ REBARR *Copy_Array_At_Max_Shallow(
     REBCNT index,
     REBSPC *specifier,
     REBCNT max
-) {
+){
+    const REBFLGS flags = 0;
+
     if (index > ARR_LEN(original))
-        return Make_Array_For_Copy(0);
+        return Make_Array_For_Copy(0, flags, original);
 
     if (index + max > ARR_LEN(original))
         max = ARR_LEN(original) - index;
 
-    REBARR *copy = Make_Array_For_Copy(max + 1);
+    REBARR *copy = Make_Array_For_Copy(max + 1, flags, original);
 
     REBCNT count = 0;
     const RELVAL *src = ARR_AT(original, index);
@@ -159,7 +152,7 @@ void Clonify_Values_Len_Managed(
     RELVAL head[],
     REBSPC *specifier,
     REBCNT len,
-    REBOOL deep,
+    REBFLGS flags,
     REBU64 types
 ) {
     if (C_STACK_OVERFLOWING(&len))
@@ -191,7 +184,13 @@ void Clonify_Values_Len_Managed(
                 if (GET_SER_FLAG(VAL_SERIES(v), SERIES_FLAG_ARRAY)) {
                     REBSPC *derived = Derive_Specifier(specifier, v);
                     series = SER(
-                        Copy_Array_Shallow(VAL_ARRAY(v), derived)
+                        Copy_Array_At_Extra_Shallow(
+                            VAL_ARRAY(v),
+                            0, // !!! what if VAL_INDEX() is nonzero?
+                            derived,
+                            0,
+                            flags
+                        )
                     );
 
                     INIT_VAL_ARRAY(v, ARR(series)); // copies args
@@ -209,9 +208,6 @@ void Clonify_Values_Len_Managed(
 
             MANAGE_SERIES(series);
 
-            if (NOT(deep))
-                continue;
-
             // If we're going to copy deeply, we go back over the shallow
             // copied series and "clonify" the values in it.
             //
@@ -226,7 +222,7 @@ void Clonify_Values_Len_Managed(
                      ARR_HEAD(ARR(series)),
                      derived,
                      VAL_LEN_HEAD(v),
-                     deep,
+                     flags,
                      types
                 );
             }
@@ -258,7 +254,7 @@ static REBARR *Copy_Array_Core_Managed_Inner_Loop(
     REBSPC *specifier,
     REBCNT tail,
     REBCNT extra, // currently no one uses--would it also apply deep (?)
-    REBOOL deep,
+    REBFLGS flags,
     REBU64 types
 ){
     assert(index <= tail && tail <= ARR_LEN(original));
@@ -267,7 +263,7 @@ static REBARR *Copy_Array_Core_Managed_Inner_Loop(
 
     // Currently we start by making a shallow copy and then adjust it
 
-    REBARR *copy = Make_Array_For_Copy(len + extra);
+    REBARR *copy = Make_Array_For_Copy(len + extra, flags, original);
 
     RELVAL *src = ARR_AT(original, index);
     REBVAL *dest = KNOWN(ARR_HEAD(copy));
@@ -281,10 +277,10 @@ static REBARR *Copy_Array_Core_Managed_Inner_Loop(
 
     if (types != 0)
         Clonify_Values_Len_Managed(
-            ARR_HEAD(copy), SPECIFIED, ARR_LEN(copy), deep, types
+            ARR_HEAD(copy), SPECIFIED, ARR_LEN(copy), flags, types
         );
 
-    ASSERT_NO_RELATIVE(copy, deep);
+    ASSERT_NO_RELATIVE(copy, types);
     return copy;
 }
 
@@ -304,14 +300,14 @@ REBARR *Copy_Array_Core_Managed(
     REBSPC *specifier,
     REBCNT tail,
     REBCNT extra,
-    REBOOL deep,
+    REBFLGS flags,
     REBU64 types
 ){
     if (index > tail) // !!! should this be asserted?
         index = tail;
 
     if (index > ARR_LEN(original)) { // should this be asserted?
-        REBARR *copy = Make_Array_For_Copy(extra);
+        REBARR *copy = Make_Array_Core(extra, flags);
         MANAGE_ARRAY(copy);
         return copy;
     }
@@ -322,7 +318,7 @@ REBARR *Copy_Array_Core_Managed(
         specifier,
         tail,
         extra,
-        deep,
+        flags,
         types
     );
 
@@ -351,8 +347,10 @@ REBARR *Copy_Rerelativized_Array_Deep_Managed(
     REBARR *original,
     REBFUN *before, // references to `before` will be changed to `after`
     REBFUN *after
-) {
-    REBARR *copy = Make_Array_For_Copy(ARR_LEN(original));
+){
+    const REBFLGS flags = 0;
+
+    REBARR *copy = Make_Array_For_Copy(ARR_LEN(original), flags, original);
     RELVAL *src = ARR_HEAD(original);
     RELVAL *dest = ARR_HEAD(copy);
 

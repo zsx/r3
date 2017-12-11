@@ -95,7 +95,13 @@ REBOOL Reduce_Any_Array_Throws(
     if (flags & REDUCE_FLAG_INTO)
         Pop_Stack_Values_Into(out, dsp_orig);
     else
-        Init_Any_Array(out, VAL_TYPE(any_array), Pop_Stack_Values(dsp_orig));
+        Init_Any_Array(
+            out,
+            VAL_TYPE(any_array),
+            Pop_Stack_Values_Core(
+                dsp_orig, NODE_FLAG_MANAGED | SERIES_FLAG_FILE_LINE
+            )
+        );
 
     Drop_Frame(f);
     return FALSE;
@@ -301,7 +307,13 @@ REBOOL Compose_Any_Array_Throws(
     if (into)
         Pop_Stack_Values_Into(out, dsp_orig);
     else
-        Init_Any_Array(out, VAL_TYPE(any_array), Pop_Stack_Values(dsp_orig));
+        Init_Any_Array(
+            out,
+            VAL_TYPE(any_array),
+            Pop_Stack_Values_Core(
+                dsp_orig, NODE_FLAG_MANAGED | SERIES_FLAG_FILE_LINE
+            )
+        );
 
     Drop_Frame(f);
     return FALSE;

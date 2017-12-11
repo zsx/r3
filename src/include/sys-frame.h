@@ -118,7 +118,7 @@ inline static REBCNT FRM_EXPR_INDEX(REBFRM *f) {
         : f->expr_index - 1;
 }
 
-inline static const REBYTE* FRM_FILE(REBFRM *f) {
+inline static REBSTR* FRM_FILE(REBFRM *f) {
     //
     // !!! the rebDo function could be a variadic macro in C99 or higher, as
     // `rebDoFileLine(__FILE__, __LINE__, ...`.  This could let the file and
@@ -128,12 +128,16 @@ inline static const REBYTE* FRM_FILE(REBFRM *f) {
     // as a series.  But for now, just signal that it came from C code.
     //
     if (f->source.array == NULL)
-        return cb_cast("(api-client-file).c");
+        return Canon(SYM___ANONYMOUS__);
 
     if (NOT_SER_FLAG(f->source.array, SERIES_FLAG_FILE_LINE))
-        return STR_HEAD(Canon(SYM___ANONYMOUS__));
+        return Canon(SYM___ANONYMOUS__);;
 
-    return STR_HEAD(LINK(SER(f->source.array)).filename);
+    return LINK(f->source.array).file;
+}
+
+inline static const char* FRM_FILE_UTF8(REBFRM *f) {
+    return cs_cast(STR_HEAD(FRM_FILE(f)));
 }
 
 inline static int FRM_LINE(REBFRM *f) {

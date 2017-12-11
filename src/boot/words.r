@@ -75,7 +75,12 @@ rebol
 
 system
 
-;reflectors:
+; REFLECTORS
+;
+; These words are used for things like REFLECT SOME-FUNCTION 'BODY, which then
+; has a convenience wrapper which is infix and doesn't need a quote, as OF.
+; (e.g. BODY OF SOME-FUNCTION)
+;
 index
 xy ;-- !!! There was an INDEX?/XY, which is an XY reflector for the time being 
 length
@@ -92,6 +97,9 @@ values
 types
 title
 context
+file
+line
+function
 
 value ; used by TYPECHECKER to name the argument of the generated function
 
@@ -123,7 +131,7 @@ memory
 debug
 browse
 extension
-file
+;file -- already provided for FILE OF
 dir
 
 ; Time:

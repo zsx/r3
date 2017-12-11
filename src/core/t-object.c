@@ -584,12 +584,15 @@ REBNATIVE(set_meta)
 // have to be touched up to ensure consistency of the rootval and the
 // relevant ->link and ->misc fields in the series node.
 //
-REBCTX *Copy_Context_Core(REBCTX *original, REBOOL deep, REBU64 types)
+REBCTX *Copy_Context_Core(REBCTX *original, REBU64 types)
 {
     if (CTX_VARS_UNAVAILABLE(original))
         fail ("Cannot copy a context with unavailable vars"); // !!! improve
 
-    REBARR *varlist = Make_Array(CTX_LEN(original) + 1);
+    REBARR *original_array = NULL; // may not be an array
+    REBARR *varlist = Make_Array_For_Copy(
+        CTX_LEN(original) + 1, SERIES_MASK_NONE, original_array
+    );
     REBVAL *dest = KNOWN(ARR_HEAD(varlist)); // all context vars are SPECIFIED
 
     // The type information and fields in the rootvar (at head of the varlist)
@@ -637,7 +640,7 @@ REBCTX *Copy_Context_Core(REBCTX *original, REBOOL deep, REBU64 types)
             CTX_VARS_HEAD(copy),
             SPECIFIED,
             CTX_LEN(copy),
-            deep,
+            SERIES_MASK_NONE,
             types
         );
     }
@@ -908,11 +911,7 @@ REBTYPE(Context)
         else
             types = 0;
 
-        Init_Any_Context(
-            D_OUT,
-            VAL_TYPE(value),
-            Copy_Context_Core(c, REF(deep), types)
-        );
+        Init_Any_Context(D_OUT, VAL_TYPE(value), Copy_Context_Core(c, types));
         return R_OUT; }
 
     case SYM_SELECT_P:

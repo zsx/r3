@@ -1625,7 +1625,7 @@ scanword:
 //
 void Init_Va_Scan_State_Core(
     SCAN_STATE *ss,
-    REBSTR *filename,
+    REBSTR *file,
     REBUPT line,
     const REBYTE *opt_begin, // preload the scanner outside the va_list
     va_list *vaptr
@@ -1645,7 +1645,7 @@ void Init_Va_Scan_State_Core(
     ss->start_line_head = ss->line_head = NULL;
 
     ss->start_line = ss->line = line;
-    ss->filename = filename;
+    ss->file = file;
 
     ss->newline_pending = FALSE;
 
@@ -1665,7 +1665,7 @@ void Init_Va_Scan_State_Core(
 //
 static void Init_Scan_State(
     SCAN_STATE *ss,
-    REBSTR *filename,
+    REBSTR *file,
     REBUPT line,
     const REBYTE *utf8,
     REBCNT limit
@@ -1686,7 +1686,7 @@ static void Init_Scan_State(
 
     ss->newline_pending = FALSE;
 
-    ss->filename = filename;
+    ss->file = file;
     ss->opts = 0;
 
 #if !defined(NDEBUG)
@@ -2237,7 +2237,7 @@ REBARR *Scan_Array(
             //
             REBSER *s = VAL_SERIES(DS_TOP);
             MISC(s).line = ss->line;
-            LINK(s).filename = ss->filename;
+            LINK(s).file = ss->file;
             SET_SER_FLAG(s, SERIES_FLAG_FILE_LINE);
         }
 

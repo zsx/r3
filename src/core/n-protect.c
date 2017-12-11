@@ -468,13 +468,10 @@ REBNATIVE(lock)
             );
         }
         else if (ANY_CONTEXT(v)) {
-            const REBOOL deep = TRUE;
-            const REBU64 types = TS_STD_SERIES;
-
             Init_Any_Context(
                 D_OUT,
                 VAL_TYPE(v),
-                Copy_Context_Core(VAL_CONTEXT(v), deep, types)
+                Copy_Context_Core(VAL_CONTEXT(v), TS_STD_SERIES)
             );
         }
         else if (ANY_SERIES(v)) {

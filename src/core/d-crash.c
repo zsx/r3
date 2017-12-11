@@ -62,7 +62,7 @@
 ATTRIBUTE_NO_RETURN void Panic_Core(
     const void *p, // REBSER* (array, context, etc), REBVAL*, or UTF-8 char*
     REBUPT tick,
-    const REBYTE *file_utf8,
+    const char *file, // UTF8
     int line
 ){
     if (p == NULL)
@@ -75,14 +75,14 @@ ATTRIBUTE_NO_RETURN void Panic_Core(
 
 #if defined(NDEBUG)
     UNUSED(tick);
-    UNUSED(file_utf8);
+    UNUSED(file);
     UNUSED(line);
 #else
     //
     // First thing's first in the debug build, make sure the file and the
     // line are printed out, as well as the current evaluator tick.
     //
-    printf("C Source File %s, Line %d\n", cs_cast(file_utf8), line);
+    printf("C Source File %s, Line %d\n", file, line);
     printf("At evaluator tick: %lu\n", cast(unsigned long, tick));
 
     // Generally Rebol does not #include <stdio.h>, but the debug build does.
@@ -262,9 +262,9 @@ REBNATIVE(panic)
     //
 #ifdef NDEBUG
     const REBUPT tick = 0;
-    Panic_Core(utf8, tick, FRM_FILE(frame_), FRM_LINE(frame_));
+    Panic_Core(utf8, tick, FRM_FILE_UTF8(frame_), FRM_LINE(frame_));
 #else
-    Panic_Core(utf8, frame_->tick, FRM_FILE(frame_), FRM_LINE(frame_));
+    Panic_Core(utf8, frame_->tick, FRM_FILE_UTF8(frame_), FRM_LINE(frame_));
 #endif
 }
 
@@ -287,8 +287,10 @@ REBNATIVE(panic_value)
     //
 #ifdef NDEBUG
     const REBUPT tick = 0;
-    Panic_Core(ARG(value), tick, FRM_FILE(frame_), FRM_LINE(frame_));
+    Panic_Core(ARG(value), tick, FRM_FILE_UTF8(frame_), FRM_LINE(frame_));
 #else
-    Panic_Core(ARG(value), frame_->tick, FRM_FILE(frame_), FRM_LINE(frame_));
+    Panic_Core(
+        ARG(value), frame_->tick, FRM_FILE_UTF8(frame_), FRM_LINE(frame_)
+    );
 #endif
 }

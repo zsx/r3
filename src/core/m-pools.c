@@ -726,7 +726,7 @@ static REBOOL Series_Data_Alloc(REBSER *s, REBCNT length) {
         RELVAL *ultimate = ARR_AT(ARR(s), s->content.dynamic.rest - 1);
         Init_Endlike_Header(&ultimate->header, 0);
     #if !defined(NDEBUG)
-        Set_Track_Payload_Debug(ultimate, cb_cast(__FILE__), __LINE__);
+        Set_Track_Payload_Debug(ultimate, __FILE__, __LINE__);
     #endif
     }
 
@@ -970,14 +970,12 @@ REBSER *Make_Series_Core(REBCNT capacity, REBYTE wide, REBUPT flags)
     // know about from the source it's running onto this series.
     //
     if (flags & SERIES_FLAG_FILE_LINE) {
-        //
-        // !!! Feature TBD.  Until then take off the flag since leaving it on
-        // and not setting the fields would crash the GC.
-        //
-        // s->link.filename = ???
-        // s->misc.line = ???;
-        //
-        CLEAR_SER_FLAG(s, SERIES_FLAG_FILE_LINE);
+        if (FS_TOP != NULL) {
+            LINK(s).file = FRM_FILE(FS_TOP);
+            MISC(s).line = FRM_LINE(FS_TOP);
+        }
+        else
+            CLEAR_SER_FLAG(s, SERIES_FLAG_FILE_LINE);
     }
 
     assert(s->info.bits & NODE_FLAG_END);
