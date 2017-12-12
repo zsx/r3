@@ -1123,6 +1123,19 @@ reevaluate:;
             // AND's left-hand argument.
             //
             if (f->deferred != NULL) {
+                //
+                // The GC's understanding of how far to protect parameters is
+                // based on how far f->param has gotten.  Yet we've advanced
+                // f->param and f->arg, with END in arg, but are rewinding
+                // time so that a previous parameter is being filled.  Back
+                // off f->param one unit... it may not actually go to the
+                // parameter before the current, but if f->doing_pickups this
+                // will be okay (all cells at least prep'd w/initialized bits)
+                // and if we're not, then it will be aligned with f->deferred
+                //
+                --f->param;
+                --f->arg;
+
                 REBFLGS flags = DO_FLAG_FULFILLING_ARG | DO_FLAG_POST_SWITCH;
                 if (NOT(evaluating))
                     flags |= DO_FLAG_EXPLICIT_EVALUATE;
@@ -1143,6 +1156,11 @@ reevaluate:;
                 // subframe knows not to defer again.)
                 //
                 f->deferred = NULL;
+
+                // Compensate for the param and arg change earlier.
+                //
+                ++f->param;
+                ++f->arg;
             }
 
     //=//// ERROR ON END MARKER, BAR! IF APPLICABLE //////////////////////=//
