@@ -140,6 +140,11 @@ static void Append_To_Context(REBCTX *context, REBVAL *arg)
 
     RELVAL *item = VAL_ARRAY_AT(arg);
 
+    // Can't actually fail() during a collect, so make sure any errors are
+    // set and then jump to a Collect_End()
+    //
+    REBCTX *error = NULL;
+
     struct Reb_Collector collector;
     Collect_Start(&collector, COLLECT_ANY_WORD | COLLECT_AS_TYPESET);
 
@@ -158,8 +163,10 @@ static void Append_To_Context(REBCTX *context, REBVAL *arg)
 
     RELVAL *word;
     for (word = item; NOT_END(word); word += 2) {
-        if (!IS_WORD(word) && !IS_SET_WORD(word))
-            fail (Error_Invalid_Arg_Core(word, VAL_SPECIFIER(arg)));
+        if (!IS_WORD(word) && !IS_SET_WORD(word)) {
+            error = Error_Invalid_Arg_Core(word, VAL_SPECIFIER(arg));
+            goto collect_end;
+        }
 
         REBSTR *canon = VAL_WORD_CANON(word);
 
@@ -182,7 +189,8 @@ static void Append_To_Context(REBCTX *context, REBVAL *arg)
 
     // Append new words to obj
     //
-    REBCNT len = CTX_LEN(context) + 1;
+    REBCNT len; // goto crosses initialization
+    len = CTX_LEN(context) + 1;
     Expand_Context(context, ARR_LEN(BUF_COLLECT) - len);
 
     RELVAL *collect_key;
@@ -205,11 +213,15 @@ static void Append_To_Context(REBCTX *context, REBVAL *arg)
         REBVAL *key = CTX_KEY(context, i);
         REBVAL *var = CTX_VAR(context, i);
 
-        if (GET_VAL_FLAG(var, CELL_FLAG_PROTECTED))
-            fail (Error_Protected_Key(key));
+        if (GET_VAL_FLAG(var, CELL_FLAG_PROTECTED)) {
+            error = Error_Protected_Key(key);
+            goto collect_end;
+        }
 
-        if (GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN))
-            fail (Error_Hidden_Raw());
+        if (GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN)) {
+            error = Error_Hidden_Raw();
+            goto collect_end;
+        }
 
         if (IS_END(word + 1)) {
             Init_Blank(var);
@@ -222,11 +234,14 @@ static void Append_To_Context(REBCTX *context, REBVAL *arg)
             //
             if (GET_VAL_FLAG(&word[1], VALUE_FLAG_ENFIXED))
                 SET_VAL_FLAG(var, VALUE_FLAG_ENFIXED);
-
         }
     }
 
+collect_end:
     Collect_End(&collector);
+
+    if (error != NULL)
+        fail (error);
 }
 
 
