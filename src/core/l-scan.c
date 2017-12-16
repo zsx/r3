@@ -2228,19 +2228,6 @@ REBARR *Scan_Array(
             panic ("Invalid TOKEN in Scanner.");
         }
 
-        if (ANY_ARRAY(DS_TOP)) {
-            //
-            // Current thinking is that only arrays will preserve file and
-            // line numbers, because if ANY-STRING! merges with WORD! then
-            // they might wind up using the ->misc and ->link fields for
-            // canonizing and interning like REBSTR* does.
-            //
-            REBSER *s = VAL_SERIES(DS_TOP);
-            MISC(s).line = ss->line;
-            LINK(s).file = ss->file;
-            SET_SER_FLAG(s, SERIES_FLAG_FILE_LINE);
-        }
-
         if (ss->newline_pending) {
             ss->newline_pending = FALSE;
             SET_VAL_FLAG(DS_TOP, VALUE_FLAG_LINE);
@@ -2297,15 +2284,26 @@ array_done_relax:
     // !!! Because a variadic rebDo() can have rebEval() entries, when it
     // delegates to the scanner that may mean it sees those entries.  This
     // should not be legal in constructors like rebBlock() since rebEval()
-    // is not exposed there, so review how to prohibit it.
+    // is not exposed there, so review how to prohibit it.  (See also
+    // Pop_Stack_Values_Keep_Eval_Flip(), which we don't want to use here
+    // since we're setting the file and line information from scan state.)
     //
-    REBARR *result = Pop_Stack_Values_Keep_Eval_Flip(dsp_orig);
-
     // All scanned code is expected to be managed by the GC (because walking
     // the tree after constructing it to add the "manage GC" bit would be
     // expensive, and we don't load source and free it manually anyway)
     //
-    MANAGE_ARRAY(result);
+    REBARR *result = Pop_Stack_Values_Core(
+        dsp_orig,
+        ARRAY_FLAG_VOIDS_LEGAL | NODE_FLAG_MANAGED
+    );
+
+    // Current thinking is that only arrays will preserve file and line info,
+    // as the UTF-8 Everywhere change will likely need to use the ->misc and
+    // ->link fields for caching purposes in strings.
+    //
+    MISC(result).line = ss->line;
+    LINK(result).file = ss->file;
+    SET_SER_FLAG(result, SERIES_FLAG_FILE_LINE);
 
     return result;
 }

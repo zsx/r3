@@ -1112,7 +1112,7 @@ static REBNATIVE(backtrace)
             //
             // If we were fetching a single stack level, then our result will
             // be a FRAME! (which can be queried for further properties via
-            // `where-of`, `label-of`, `function-of`, etc.)
+            // `near-of`, `label-of`, `function-of`, etc.)
             //
             Init_Any_Context(
                 D_OUT,
@@ -1136,7 +1136,7 @@ static REBNATIVE(backtrace)
         }
 
         DS_PUSH_TRASH;
-        Init_Block(DS_TOP, Make_Where_For_Frame(f));
+        Init_Near_For_Frame(DS_TOP, f);
 
         // If building a backtrace, we just keep accumulating results as long
         // as there are stack levels left and the limit hasn't been hit.
@@ -1226,7 +1226,7 @@ static REBNATIVE(debug)
         if (!(frame = Frame_For_Stack_Level(&HG_Stack_Level, value, TRUE)))
             fail (value);
 
-        Init_Block(D_OUT, Make_Where_For_Frame(frame));
+        Init_Near_For_Frame(D_OUT, frame);
         return R_OUT;
     }
 

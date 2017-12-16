@@ -276,19 +276,6 @@ ATTRIBUTE_NO_RETURN void Fail_Core(const void *p)
     ASSERT_CONTEXT(error);
     assert(CTX_TYPE(error) == REB_ERROR);
 
-#if !defined(NDEBUG)
-    //
-    // All calls to Fail_Core should originate from the `fail` macro,
-    // which in the debug build sets TG_Erroring_C_File and TG_Erroring_C_Line.
-    // Any error creations as arguments to that fail should have picked
-    // it up, and we now need to NULL it out so other Make_Error calls
-    // that are not inside of a fail invocation don't get confused and
-    // have the wrong information
-    //
-    assert(TG_Erroring_C_File != NULL);
-    TG_Erroring_C_File = NULL;
-#endif
-
     // If we raise the error we'll lose the stack, and if it's an early
     // error we always want to see it (do not use ATTEMPT or TRY on
     // purpose in Startup_Core()...)
@@ -492,82 +479,22 @@ void Set_Location_Of_Error(
     // Nearby location of the error.  Reify any valist that is running,
     // so that the error has an array to present.
     //
-    if (FRM_IS_VALIST(where)) {
-        const REBOOL truncated = TRUE;
-        Reify_Va_To_Array_In_Frame(where, truncated);
+    Init_Near_For_Frame(&vars->nearest, where);
+
+    // Try to fill in the file and line information of the error from the
+    // stack, looking for arrays with SERIES_FLAG_FILE_LINE.
+    //
+    f = where;
+    for (; f != NULL; f = f->prior) {
+        if (FRM_IS_VALIST(f))
+            continue;
+        if (NOT_SER_FLAG(f->source.array, SERIES_FLAG_FILE_LINE))
+            continue;
+        break;
     }
-
-    // Get at most 6 values out of the array.  Ideally 3 before and after
-    // the error point.  If truncating either the head or tail of the
-    // values, put ellipses.
-
-    REBINT start = FRM_INDEX(where) - 3;
-    if (start < 0) {
-        DS_PUSH_TRASH;
-        Init_Word(DS_TOP, Canon(SYM_ELLIPSIS));
-
-        start = 0;
-    }
-
-    REBCNT count = 0;
-    RELVAL *item = ARR_AT(FRM_ARRAY(where), start);
-    while (NOT_END(item) && count++ < 6) {
-        DS_PUSH_RELVAL(item, where->specifier);
-        if (count == FRM_INDEX(where) - start) {
-            //
-            // Leave a marker at the point of the error (currently `??`)
-            //
-            // Note: something like `=>ERROR=>` would be better, but have to
-            // insert a today-legal WORD!
-            //
-            DS_PUSH_TRASH;
-            Init_Word(DS_TOP, Canon(SYM__Q_Q));
-        }
-        ++item;
-    }
-
-    if (NOT_END(item)) {
-        DS_PUSH_TRASH;
-        Init_Word(DS_TOP, Canon(SYM_ELLIPSIS));
-    }
-
-    Init_Block(&vars->nearest, Pop_Stack_Values(dsp_orig));
-
-#if !defined(NDEBUG)
-    if (TG_Erroring_C_File) {
-        //
-        // !!! Note that a WORD! is used because FILE! strings cannot be
-        // interned at this time, and the general mechanism for storing
-        // filenames in usermode blocks wants to avoid generating a lot
-        // of copies of the same string, given that the total number of
-        // files one is working with is probably a limited set.
-        //
-        Init_Word(
-            &vars->file,
-            Intern_UTF8_Managed(
-                cb_cast(TG_Erroring_C_File), strlen(TG_Erroring_C_File)
-            )
-        );
-        Init_Integer(&vars->line, TG_Erroring_C_Line);
-    }
-    else
-#endif
-    { // ^-- mind the ELSE
-        // Try to fill in the file and line information of the error from the
-        // stack, looking for arrays with SERIES_FLAG_FILE_LINE.
-        //
-        f = where;
-        for (; f != NULL; f = f->prior) {
-            if (FRM_IS_VALIST(f))
-                continue;
-            if (NOT_SER_FLAG(f->source.array, SERIES_FLAG_FILE_LINE))
-                continue;
-            break;
-        }
-        if (f != NULL) {
-            Init_Word(&vars->file, LINK(f->source.array).file);
-            Init_Integer(&vars->line, MISC(f->source.array).line);
-        }
+    if (f != NULL) {
+        Init_Word(&vars->file, LINK(f->source.array).file);
+        Init_Integer(&vars->line, MISC(f->source.array).line);
     }
 }
 
@@ -983,10 +910,8 @@ REBCTX *Make_Error_Managed_Core(REBCNT code, va_list *vaptr)
                     arg = BLANK_VALUE;
                 #else
                     printf(
-                        "too few args passed for error code %d at %s line %d",
-                        cast(int, code),
-                        TG_Erroring_C_File ? TG_Erroring_C_File : "<unknown>",
-                        TG_Erroring_C_File ? TG_Erroring_C_Line : -1
+                        "too few args passed for error code %d\n",
+                        cast(int, code)
                     );
                     assert(FALSE);
 

@@ -185,11 +185,6 @@ TVAR struct Reb_Chunker *TG_Root_Chunker;
 TVAR struct Reb_State *Saved_State; // Saved state for Catch (CPU state, etc.)
 
 #if !defined(NDEBUG)
-    // In debug builds, the `panic` and `fail` macros capture the file and
-    // line number of instantiation so any Make_Error can pick it up.
-    TVAR const char *TG_Erroring_C_File;
-    TVAR int TG_Erroring_C_Line;
-
     TVAR REBOOL TG_Pushing_Mold; // Push_Mold should not directly recurse
 #endif
 

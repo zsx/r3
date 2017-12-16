@@ -76,7 +76,7 @@ void Collapsify_Array(REBARR *array, REBSPC *specifier, REBCNT limit)
 
 
 //
-//  Make_Where_For_Frame: C
+//  Init_Near_For_Frame: C
 //
 // Each call frame maintains the array it is executing in, the current index
 // in that array, and the index of where the current expression started.
@@ -89,12 +89,6 @@ void Collapsify_Array(REBARR *array, REBSPC *specifier, REBCNT limit)
 // go all the way to the tail of the block (where future potential evaluation
 // should be.
 //
-// !!! Unfortunately, Rebol doesn't formalize this very well.  There is no
-// lock on segments of blocks during their evaluation (should there be?).
-// It's possible for self-modifying code to scramble the blocks being executed.
-// The DO evaluator is robust in terms of not *crashing*, but the semantics
-// may well suprise users.
-//
 // !!! DO also offers a feature whereby values can be supplied at the start
 // of an evaluation which are not resident in the array.  It also can run
 // on an irreversible C va_list of REBVAL*, where these disappear as the
@@ -102,8 +96,10 @@ void Collapsify_Array(REBARR *array, REBSPC *specifier, REBCNT limit)
 // onto these values for the purposes of better error messages (at the cost
 // of performance).
 //
-REBARR *Make_Where_For_Frame(REBFRM *f)
+REBVAL *Init_Near_For_Frame(RELVAL *out, REBFRM *f)
 {
+    REBCNT dsp_start = DSP;
+
     if (FRM_IS_VALIST(f)) {
         //
         // Traversing a C va_arg, so reify into a (truncated) array.
@@ -112,32 +108,34 @@ REBARR *Make_Where_For_Frame(REBFRM *f)
         Reify_Va_To_Array_In_Frame(f, truncated);
     }
 
-
-    // WARNING: MIN is a C macro and repeats its arguments.
-    //
-    REBCNT start = MIN(ARR_LEN(FRM_ARRAY(f)), FRM_EXPR_INDEX(f));
-    REBCNT end = MIN(ARR_LEN(FRM_ARRAY(f)), FRM_INDEX(f));
-
-    assert(end >= start);
-
-    assert(Is_Function_Frame(f));
-    REBOOL pending = Is_Function_Frame_Fulfilling(f);
-
-    REBCNT dsp_start = DSP;
+    // Get at most 6 values out of the array.  Ideally 3 before and after
+    // the error point.  If truncating either the head or tail of the
+    // values, put ellipses.
 
     // !!! We may be running a function where the value for the function was a
     // "head" value not in the array.  These cases could substitute the symbol
     // for the currently executing function.  Reconsider when such cases
     // appear and can be studied.
     /*
+    if (...) {
         DS_PUSH_TRASH;
         Init_Word(DS_TOP, ...?)
+    }
     */
 
-    REBCNT n;
-    for (n = start; n < end; ++n) {
+    REBINT start = FRM_INDEX(f) - 3;
+    if (start > 0) {
         DS_PUSH_TRASH;
-        if (IS_VOID(ARR_AT(FRM_ARRAY(f), n))) {
+        Init_Word(DS_TOP, Canon(SYM_ELLIPSIS));
+    }
+    else if (start < 0)
+        start = 0;
+
+    REBCNT count = 0;
+    RELVAL *item = ARR_AT(FRM_ARRAY(f), start);
+    for (; NOT_END(item) && count < 6; ++item, ++count) {
+        DS_PUSH_TRASH;
+        if (IS_VOID(item)) {
             //
             // If a va_list is used to do a non-evaluative call (something
             // like R3-Alpha's APPLY/ONLY) then void cells are currently
@@ -151,64 +149,75 @@ REBARR *Make_Where_For_Frame(REBFRM *f)
             Init_Word(DS_TOP, Canon(SYM___VOID__));
         }
         else
-            Derelativize(DS_TOP, ARR_AT(FRM_ARRAY(f), n), f->specifier);
+            Derelativize(DS_TOP, item, f->specifier);
 
-        if (n == start) {
+        if (count == 0) {
             //
             // Get rid of any newline marker on the first element,
-            // that would visually disrupt the backtrace for no reason.
+            // that would visually disrupt a backtrace for no reason.
             //
             CLEAR_VAL_FLAG(DS_TOP, VALUE_FLAG_LINE);
         }
+
+        if (count == FRM_INDEX(f) - start - 1) {
+            //
+            // Leave a marker at the point of the error, currently `~~`.
+            // (Formerly it was ?? but that is now being actually used).
+            //
+            // This is the marker for an execution point, so it can either
+            // mean "error source is to the left" or just "frame is at a
+            // breakpoint at that position".
+            //
+            DS_PUSH_TRASH;
+            Init_Word(DS_TOP, Canon(SYM__T_T));
+        }
     }
 
-    // We add an ellipsis to a pending frame to make it a little bit
-    // clearer what is going on.  If someone sees a where that looks
-    // like just `* [print]` the asterisk alone doesn't quite send
-    // home the message that print is not running and it is
-    // argument fulfillment that is why it's not "on the stack"
-    // yet, so `* [print ...]` is an attempt to say that better.
-    //
-    // !!! This is in-band, which can be mixed up with literal usage
-    // of ellipsis.  Could there be a better "out-of-band" conveyance?
-    // Might the system use colorization in a value option bit?
-    //
-    if (pending) {
+    if (NOT_END(item)) {
         DS_PUSH_TRASH;
         Init_Word(DS_TOP, Canon(SYM_ELLIPSIS));
     }
 
-    REBARR *where = Pop_Stack_Values(dsp_start);
+    // !!! This code can be called on an executing frame, such as when an
+    // error happens in that frame.  Or it can be called on a pending frame
+    // when examining a backtrace...where the function hasn't been called
+    // yet.  This needs some way of differentiation, consider it.
+    //
+    /*
+    if (Is_Function_Frame(f) && Is_Function_Frame_Fulfilling(f)) {
+        ???
+    }
+    */
+
+    REBARR *near = Pop_Stack_Values(dsp_start);
 
     // Simplify overly-deep blocks embedded in the where so they show (...)
     // instead of printing out fully.
     //
-    Collapsify_Array(where, SPECIFIED, 3);
+    Collapsify_Array(near, SPECIFIED, 3);
 
-    return where;
+    Init_Block(out, near);
+    return KNOWN(out);
 }
 
 
 //
-//  where-of: native [
+//  near-of: native [
 //
 //  "Get execution point summary for a function call (if still on stack)"
 //
 //      frame [frame!]
 //  ]
 //
-REBNATIVE(where_of)
-//
-// !!! This routine should probably be used to get the information for the
-// where of an error, which should likely be out-of-band.
+REBNATIVE(near_of)
 {
-    INCLUDE_PARAMS_OF_WHERE_OF;
+    INCLUDE_PARAMS_OF_NEAR_OF;
 
     REBFRM *f = CTX_FRAME_IF_ON_STACK(VAL_CONTEXT(ARG(frame)));
     if (f == NULL)
         fail (Error_Frame_Not_On_Stack_Raw());
 
-    Init_Block(D_OUT, Make_Where_For_Frame(f));
+    Init_Near_For_Frame(D_OUT, f);
     return R_OUT;
 }
 

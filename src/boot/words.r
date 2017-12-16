@@ -356,6 +356,9 @@ exit-code
 ;
 --optimized-out--
 
+; used to indicate the execution point where an error or debug frame is
+~~
+
 ; used to signal a void in a reified va_list call, since voids can't actually
 ; appear in user-visible arrays
 ;

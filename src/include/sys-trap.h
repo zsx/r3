@@ -310,15 +310,11 @@ inline static void DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(struct Reb_State *s) {
 
         #define fail(error) \
             do { \
-                TG_Erroring_C_File = __FILE__; \
-                TG_Erroring_C_Line = __LINE__; \
                 Fail_Core_Cpp(error); \
             } while (0)
     #else
         #define fail(error) \
             do { \
-                TG_Erroring_C_File = __FILE__; \
-                TG_Erroring_C_Line = __LINE__; \
                 Fail_Core(error); \
             } while (0)
     #endif
