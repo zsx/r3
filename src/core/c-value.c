@@ -97,7 +97,8 @@ ATTRIBUTE_NO_RETURN void Panic_Value_Debug(const RELVAL *v) {
 REBCTX *VAL_SPECIFIC_Debug(const REBVAL *v)
 {
     assert(
-        ANY_WORD(v)
+        VAL_TYPE(v) == REB_0_REFERENCE
+        || ANY_WORD(v)
         || ANY_ARRAY(v)
         || IS_VARARGS(v)
         || IS_FUNCTION(v)

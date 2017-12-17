@@ -394,7 +394,7 @@ inline static REBSPC* AS_SPECIFIER(void *p) {
 }
 
 inline static REBSPC *VAL_SPECIFIER(const REBVAL *v) {
-    assert(ANY_ARRAY(v));
+    assert(VAL_TYPE(v) == REB_0_REFERENCE || ANY_ARRAY(v));
     return AS_SPECIFIER(VAL_SPECIFIC(v));
 }
 

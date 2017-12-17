@@ -540,7 +540,7 @@ void Shuffle_Block(REBVAL *value, REBOOL secure)
 //     PD_Set_Path
 //     PD_Lit_Path
 //
-REBINT PD_Array(REBPVS *pvs)
+REB_R PD_Array(REBPVS *pvs, const REBVAL *picker, const REBVAL *opt_setval)
 {
     REBCNT n = NOT_FOUND; // -1
 
@@ -550,16 +550,16 @@ REBINT PD_Array(REBPVS *pvs)
         a/not-followed: 10 error or append?
     */
 
-    if (IS_INTEGER(pvs->picker)) {
-        n = Int32(pvs->picker) + VAL_INDEX(pvs->value) - 1;
+    if (IS_INTEGER(picker)) {
+        n = Int32(picker) + VAL_INDEX(pvs->out) - 1;
     }
-    else if (IS_WORD(pvs->picker)) {
+    else if (IS_WORD(picker)) {
         //
         // Linear search to find ANY-WORD! matching the canon.
 
-        REBSTR *canon = VAL_WORD_CANON(pvs->picker);
-        RELVAL *item = VAL_ARRAY_AT(pvs->value);
-        REBCNT index = VAL_INDEX(pvs->value);
+        REBSTR *canon = VAL_WORD_CANON(picker);
+        RELVAL *item = VAL_ARRAY_AT(pvs->out);
+        REBCNT index = VAL_INDEX(pvs->out);
         for (; NOT_END(item); ++item, ++index) {
             if (ANY_WORD(item) && canon == VAL_WORD_CANON(item)) {
                 n = index + 1;
@@ -567,52 +567,45 @@ REBINT PD_Array(REBPVS *pvs)
             }
         }
     }
-    else if (IS_LOGIC(pvs->picker)) {
+    else if (IS_LOGIC(picker)) {
         //
         // !!! PICK in R3-Alpha historically would use a logic TRUE to get
         // the first element in an array, and a logic FALSE to get the second.
         // It did this regardless of how many elements were in the array.
-        // (For safety, it has been suggested non-binary arrays should fail).
-        // But path picking would act like you had written SELECT and looked
-        // for the item to come after a TRUE.  With the merging of path
-        // picking and PICK, this changes the behavior.
+        // (For safety, it has been suggested arrays > length 2 should fail).
         //
-        if (VAL_LOGIC(pvs->picker))
-            n = VAL_INDEX(pvs->value);
+        if (VAL_LOGIC(picker))
+            n = VAL_INDEX(pvs->out);
         else
-            n = VAL_INDEX(pvs->value) + 1;
+            n = VAL_INDEX(pvs->out) + 1;
     }
     else {
         // other values:
         n = 1 + Find_In_Array_Simple(
-            VAL_ARRAY(pvs->value),
-            VAL_INDEX(pvs->value),
-            pvs->picker
+            VAL_ARRAY(pvs->out),
+            VAL_INDEX(pvs->out),
+            picker
         );
     }
 
-    if (n == NOT_FOUND || n >= VAL_LEN_HEAD(pvs->value)) {
-        if (pvs->opt_setval)
-            fail (Error_Bad_Path_Select(pvs));
+    if (n == NOT_FOUND || n >= VAL_LEN_HEAD(pvs->out)) {
+        if (opt_setval != NULL)
+            return R_UNHANDLED;
 
-        Init_Void(pvs->store);
-        return PE_USE_STORE;
+        Init_Void(pvs->out);
+        return R_OUT;
     }
 
-    if (pvs->opt_setval)
-        FAIL_IF_READ_ONLY_SERIES(VAL_SERIES(pvs->value));
+    if (opt_setval != NULL)
+        FAIL_IF_READ_ONLY_SERIES(VAL_SERIES(pvs->out));
 
-    pvs->value_specifier = Derive_Specifier(pvs->value_specifier, pvs->value);
-    pvs->value = VAL_ARRAY_AT_HEAD(pvs->value, n);
+    Init_Reference(
+        pvs->out,
+        VAL_ARRAY_AT_HEAD(pvs->out, n),
+        VAL_SPECIFIER(pvs->out)
+    );
 
-#if !defined(NDEBUG)
-    if (pvs->value_specifier == SPECIFIED && IS_RELATIVE(pvs->value)) {
-        printf("Relative value found in PD_Array with no specifier\n");
-        panic (pvs->value);
-    }
-#endif
-
-    return PE_SET_IF_END;
+    return R_REFERENCE;
 }
 
 

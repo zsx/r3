@@ -470,19 +470,21 @@ void Poke_Time_Immediate(
 //
 //  PD_Time: C
 //
-REBINT PD_Time(REBPVS *pvs)
+REB_R PD_Time(REBPVS *pvs, const REBVAL *picker, const REBVAL *opt_setval)
 {
-    if (pvs->opt_setval) {
+    if (opt_setval != NULL) {
         //
-        // !!! Since TIME! is an immediate value, allowing a SET-PATH! will
-        // modify the result of the expression but not the source.
+        // Returning R_IMMEDIATE means that we aren't actually changing a
+        // variable directly, and it will be up to the caller to decide if
+        // they can meaningfully determine what variable to copy the update
+        // we're making to.
         //
-        Poke_Time_Immediate(KNOWN(pvs->value), pvs->picker, pvs->opt_setval);
-        return PE_OK;
+        Poke_Time_Immediate(pvs->out, picker, opt_setval);
+        return R_IMMEDIATE;
     }
 
-    Pick_Time(pvs->store, KNOWN(pvs->value), pvs->picker);
-    return PE_USE_STORE;
+    Pick_Time(pvs->out, pvs->out, picker);
+    return R_OUT;
 }
 
 

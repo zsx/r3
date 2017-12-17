@@ -101,40 +101,9 @@ inline static REBOOL IS_QUOTABLY_SOFT(const RELVAL *v) {
 //
 // One invariant of access is that the input may only advance.  Before any
 // operations are called, any low-level client must have already seeded
-// f->value with a valid "fetched" REBVAL*.  END is not valid input, so
-// callers beginning a Do_To_End must pre-check that condition themselves
-// before calling Do_Core.  And if an operation sets the c->index to END_FLAG
-// then that must be checked--it's not legal to call more operations on a
-// call frame after a fetch reports the end.
+// f->value with a valid "fetched" REBVAL*.
 //
-// Operations are:
-//
-// Fetch_Next_In_Frame()
-//
-//      Retrieve next pointer for examination to f->value.  The previous
-//      f->value pointer is overwritten.  (No REBVAL bits are moved by
-//      this operation, only the 'currently processing' pointer reassigned.)
-//      f->value may become an END marker...test with IS_END()
-//
-// Do_Next_In_Frame_Throws()
-//
-//      Executes the already-fetched pointer, consuming as much of the input
-//      as necessary to complete a /NEXT (or failing with an error).  This
-//      writes the computed REBVAL into a destination location.  After the
-//      operation, the next f->value pointer will already be fetched and
-//      waiting for examination or use.  The returned value may be THROWN(),
-//      and FRM_AT_END(f) may be true after the operation.
-//
-// Quote_Next_In_Frame()
-//
-//      This operation is fairly trivial in the sense that it just assigns
-//      the REBVAL bits pointed to by the current value to the destination
-//      cell.  Then it does a simple fetch.  The main reason for making an
-//      operation vs just having callers do the two steps is to monitor
-//      when some of the input has been "consumed" vs. merely fetched.
-//
-// This is not intending to be a "published" API of Rebol/Ren-C.  But the
-// privileged level of access can be used by natives that feel they can
+// This privileged level of access can be used by natives that feel they can
 // optimize performance by working with the evaluator directly.
 //
 
@@ -191,6 +160,7 @@ inline static void Push_Frame_Core(REBFRM *f)
     // argument slot.  :-/  Note the availability of D_CELL for any functions
     // that have more than one argument, during their run.
     //
+#if !defined(NDEBUG)
     REBFRM *ftemp = FS_TOP;
     for (; ftemp != NULL; ftemp = ftemp->prior) {
         if (NOT(Is_Function_Frame(ftemp)))
@@ -202,6 +172,7 @@ inline static void Push_Frame_Core(REBFRM *f)
             f->out >= ftemp->args_head + FRM_NUM_ARGS(ftemp)
         );
     }
+#endif
 
     // Some initialized bit pattern is needed to check to see if a
     // function call is actually in progress, or if eval_type is just
@@ -584,21 +555,14 @@ inline static REBOOL Do_Next_Mid_Frame_Throws(REBFRM *f, REBFLGS flags) {
 }
 
 //
-// !!! This operation used to provide some optimization beyond setting up
-// a frame for a nested Do_Core().  It would take simpler cases which could
-// be done without a nested frame and hand them back more immediately, and
-// if it found it couldn't do an optimization then the work done in any
-// word fetches could be reused by keeping the fetch result in `f->gotten`
-//
-// Checking for whether an optimization would be legal or not was complex,
-// as even something inert like `1` cannot be evaluated into a slot as `1`
-// unless one is sure that there isn't an ensuing `+` or other enfixed
-// operation.  Hence, complex evaluator logic had to be reproduced here
-// and second-guessed, often falling through to no optimization.
-//
+// !!! This operation used to try and optimize some cases without using a
+// subframe.  But checking for whether an optimization would be legal or not
+// was complex, as even something inert like `1` cannot be evaluated into a
+// slot as `1` unless you are sure there's no `+` or other enfixed operation.
 // Over time as the evaluator got more complicated, the redundant work and
 // conditional code paths showed a slight *slowdown* over just having an
 // inline straight-line function that built a frame and recursed Do_Core().
+//
 // Future investigation could attack the problem again and see if there is
 // any common case that actually offered an advantage to optimize for here.
 //

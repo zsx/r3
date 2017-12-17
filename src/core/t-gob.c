@@ -918,16 +918,16 @@ void TO_Gob(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 //
 //  PD_Gob: C
 //
-REBINT PD_Gob(REBPVS *pvs)
+REB_R PD_Gob(REBPVS *pvs, const REBVAL *picker, const REBVAL *opt_setval)
 {
-    REBGOB *gob = VAL_GOB(pvs->value);
+    REBGOB *gob = VAL_GOB(pvs->out);
     REBCNT index;
     REBCNT tail;
 
-    if (IS_WORD(pvs->picker)) {
-        if (!pvs->opt_setval || NOT_END(pvs->item + 1)) {
-            if (!Get_GOB_Var(gob, pvs->picker, pvs->store))
-                fail (Error_Bad_Path_Select(pvs));
+    if (IS_WORD(picker)) {
+        if (opt_setval == NULL) {
+            if (!Get_GOB_Var(gob, picker, pvs->out))
+                return R_UNHANDLED;
 
             // !!! Comment here said: "Check for SIZE/X: types of cases".
             // See %c-path.c for an explanation of why this code steps
@@ -937,7 +937,7 @@ REBINT PD_Gob(REBPVS *pvs)
             // were used to generate the PAIR!.  There should be some
             // overall solution to facilitating this kind of need.
             //
-            if (pvs->opt_setval && IS_PAIR(pvs->store)) {
+            if (pvs->eval_type == REB_SET_PATH && IS_PAIR(pvs->out)) {
                 //
                 // !!! Adding to the reasons that this is dodgy, the picker
                 // can be pointing to a temporary memory cell, and when
@@ -945,46 +945,43 @@ REBINT PD_Gob(REBPVS *pvs)
                 // Have to copy -and- protect.
                 //
                 DECLARE_LOCAL (orig_picker);
-                Move_Value(orig_picker, pvs->picker);
+                Move_Value(orig_picker, picker);
                 PUSH_GUARD_VALUE(orig_picker);
 
-                pvs->value = pvs->store;
-                pvs->value_specifier = SPECIFIED;
-
                 if (Next_Path_Throws(pvs)) // sets value in pvs->store
-                    fail (Error_No_Catch_For_Throw(pvs->store)); // Review
+                    fail (Error_No_Catch_For_Throw(pvs->out)); // Review
 
                 // write it back to gob
                 //
-                Set_GOB_Var(gob, orig_picker, pvs->store);
+                Set_GOB_Var(gob, orig_picker, pvs->out);
                 DROP_GUARD_VALUE(orig_picker);
             }
-            return PE_USE_STORE;
+            return R_OUT;
         }
         else {
-            if (!Set_GOB_Var(gob, pvs->picker, pvs->opt_setval))
-                fail (Error_Bad_Path_Set(pvs));
-            return PE_OK;
+            if (!Set_GOB_Var(gob, picker, opt_setval))
+                return R_UNHANDLED;
+            return R_INVISIBLE;
         }
     }
 
-    if (IS_INTEGER(pvs->picker)) {
-        if (!GOB_PANE(gob)) return PE_NONE;
+    if (IS_INTEGER(picker)) {
+        if (!GOB_PANE(gob)) return R_BLANK;
 
         tail = GOB_PANE(gob) ? GOB_LEN(gob) : 0;
-        index = VAL_GOB_INDEX(pvs->value);
-        index += Int32(pvs->picker) - 1;
+        index = VAL_GOB_INDEX(pvs->out);
+        index += Int32(picker) - 1;
 
-        if (index >= tail) return PE_NONE;
+        if (index >= tail) return R_BLANK;
 
         gob = *GOB_AT(gob, index);
-        VAL_RESET_HEADER(pvs->store, REB_GOB);
-        VAL_GOB(pvs->store) = gob;
-        VAL_GOB_INDEX(pvs->store) = 0;
-        return PE_USE_STORE;
+        VAL_RESET_HEADER(pvs->out, REB_GOB);
+        VAL_GOB(pvs->out) = gob;
+        VAL_GOB_INDEX(pvs->out) = 0;
+        return R_OUT;
     }
 
-    fail (Error_Bad_Path_Select(pvs));
+    return R_UNHANDLED;
 }
 
 

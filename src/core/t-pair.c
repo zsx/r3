@@ -183,49 +183,55 @@ void Min_Max_Pair(REBVAL *out, const REBVAL *a, const REBVAL *b, REBOOL maxed)
 //
 //  PD_Pair: C
 //
-REBINT PD_Pair(REBPVS *pvs)
+REB_R PD_Pair(REBPVS *pvs, const REBVAL *picker, const REBVAL *opt_setval)
 {
-    const REBVAL *sel = pvs->picker;
     REBINT n = 0;
     REBDEC dec;
 
-    if (IS_WORD(sel)) {
-        if (VAL_WORD_SYM(sel) == SYM_X)
+    if (IS_WORD(picker)) {
+        if (VAL_WORD_SYM(picker) == SYM_X)
             n = 1;
-        else if (VAL_WORD_SYM(sel) == SYM_Y)
+        else if (VAL_WORD_SYM(picker) == SYM_Y)
             n = 2;
         else
-            fail (Error_Bad_Path_Select(pvs));
+            return R_UNHANDLED;
     }
-    else if (IS_INTEGER(sel)) {
-        n = Int32(sel);
+    else if (IS_INTEGER(picker)) {
+        n = Int32(picker);
         if (n != 1 && n != 2)
-            fail (Error_Bad_Path_Select(pvs));
+            return R_UNHANDLED;
     }
-    else fail (Error_Bad_Path_Select(pvs));
+    else
+        return R_UNHANDLED;
 
-    if (pvs->opt_setval) {
-        const REBVAL *setval = pvs->opt_setval;
-
-        if (IS_INTEGER(setval))
-            dec = cast(REBDEC, VAL_INT64(setval));
-        else if (IS_DECIMAL(setval))
-            dec = VAL_DECIMAL(setval);
-        else
-            fail (Error_Bad_Path_Set(pvs));
-
-        if (n == 1)
-            VAL_PAIR_X(pvs->value) = dec;
-        else
-            VAL_PAIR_Y(pvs->value) = dec;
-    }
-    else {
-        dec = (n == 1 ? VAL_PAIR_X(pvs->value) : VAL_PAIR_Y(pvs->value));
-        Init_Decimal(pvs->store, dec);
-        return PE_USE_STORE;
+    if (opt_setval == NULL) {
+        dec = (n == 1 ? VAL_PAIR_X(pvs->out) : VAL_PAIR_Y(pvs->out));
+        Init_Decimal(pvs->out, dec);
+        return R_OUT;
     }
 
-    return PE_OK;
+    if (IS_INTEGER(opt_setval))
+        dec = cast(REBDEC, VAL_INT64(opt_setval));
+    else if (IS_DECIMAL(opt_setval))
+        dec = VAL_DECIMAL(opt_setval);
+    else
+        return R_UNHANDLED;
+
+    if (n == 1)
+        VAL_PAIR_X(pvs->out) = dec;
+    else
+        VAL_PAIR_Y(pvs->out) = dec;
+
+    // Using R_IMMEDIATE means that although we've updated pvs->out, we'll
+    // leave it to the path dispatch to figure out if that can be written back
+    // to some variable from which this pair actually originated.
+    //
+    // !!! Technically since pairs are pairings of values in Ren-C, there is
+    // a series node which can be used to update their values, but could not
+    // be used to update other things (like header bits) from an originating
+    // variable.
+    //
+    return R_IMMEDIATE;
 }
 
 

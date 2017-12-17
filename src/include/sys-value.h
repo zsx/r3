@@ -1152,6 +1152,37 @@ inline static void Init_Money(RELVAL *v, deci amount) {
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
+//  REFERENCE!
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// References are an internal type, used transiently to communicate a cell
+// location via a cell.  They are not robust enough for userspace, so they
+// use the internal REB_0_REFERENCE type and currently only appear in the
+// path dispatch code.
+//
+
+#define REB_0_REFERENCE \
+    REB_0
+
+inline static void Init_Reference(
+    RELVAL *out,
+    RELVAL *cell,
+    REBSPC *specifier
+){
+    VAL_RESET_HEADER(out, REB_0_REFERENCE);
+    out->payload.reference.cell = cell;
+    out->extra.binding = cast(REBNOD*, specifier);
+}
+
+inline static RELVAL *VAL_REFERENCE(const RELVAL *v) {
+    assert(VAL_TYPE(v) == REB_0_REFERENCE);
+    return v->payload.reference.cell; // Use VAL_SPECIFIC() to get specifier
+}
+
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
 //  TUPLE!
 //
 //=////////////////////////////////////////////////////////////////////////=//

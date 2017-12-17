@@ -420,26 +420,28 @@ void TO_Varargs(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 //
 // Implements the PICK* operation.
 //
-REBINT PD_Varargs(REBPVS *pvs)
+REB_R PD_Varargs(REBPVS *pvs, const REBVAL *picker, const REBVAL *opt_setval)
 {
-    if (NOT(IS_INTEGER(pvs->picker)))
-        fail (pvs->picker);
+    UNUSED(opt_setval);
 
-    if (VAL_INT32(pvs->picker) != 1)
+    if (NOT(IS_INTEGER(picker)))
+        fail (picker);
+
+    if (VAL_INT32(picker) != 1)
         fail (Error_Varargs_No_Look_Raw());
 
-    DECLARE_LOCAL (specific);
-    Derelativize(specific, pvs->value, pvs->value_specifier);
+    DECLARE_LOCAL (location);
+    Move_Value(location, pvs->out);
 
-    REB_R r = Do_Vararg_Op_May_Throw(pvs->store, specific, VARARG_OP_FIRST);
+    REB_R r = Do_Vararg_Op_May_Throw(pvs->out, location, VARARG_OP_FIRST);
     if (r == R_OUT_IS_THROWN)
         assert(FALSE); // VARARG_OP_FIRST can't throw
     else if (r == R_VOID)
-        Init_Void(pvs->store);
+        Init_Void(pvs->out);
     else
         assert(r == R_OUT);
 
-    return PE_USE_STORE;
+    return R_OUT;
 }
 
 

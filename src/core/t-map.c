@@ -349,41 +349,42 @@ REBCNT Find_Map_Entry(
 //
 //  PD_Map: C
 //
-REBINT PD_Map(REBPVS *pvs)
+REB_R PD_Map(REBPVS *pvs, const REBVAL *picker, const REBVAL *opt_setval)
 {
-    REBOOL setting = LOGICAL(pvs->opt_setval && IS_END(pvs->item + 1));
+    assert(IS_MAP(pvs->out));
 
-    assert(IS_MAP(pvs->value));
+    if (opt_setval != NULL)
+        FAIL_IF_READ_ONLY_SERIES(VAL_SERIES(pvs->out));
 
-    if (setting)
-        FAIL_IF_READ_ONLY_SERIES(VAL_SERIES(pvs->value));
+    // Use case sensitivity when setting only
+    //
+    REBOOL cased = LOGICAL(opt_setval != NULL);
 
     REBINT n = Find_Map_Entry(
-        VAL_MAP(pvs->value),
-        pvs->picker,
+        VAL_MAP(pvs->out),
+        picker,
         SPECIFIED,
-        setting ? pvs->opt_setval : NULL,
+        opt_setval,
         SPECIFIED,
-        setting // `cased` flag for case-sensitivity--use when setting only
+        cased
     );
 
-    if (n == 0) {
-        Init_Void(pvs->store);
-        return PE_USE_STORE;
+    if (opt_setval != NULL) {
+        assert(n != 0);
+        return R_INVISIBLE;
     }
+
+    if (n == 0)
+        return R_VOID;
 
     REBVAL *val = KNOWN(
-        ARR_AT(MAP_PAIRLIST(VAL_MAP(pvs->value)), ((n - 1) * 2) + 1)
+        ARR_AT(MAP_PAIRLIST(VAL_MAP(pvs->out)), ((n - 1) * 2) + 1)
     );
-    if (IS_VOID(val)) {
-        Init_Void(pvs->store);
-        return PE_USE_STORE;
-    }
+    if (IS_VOID(val)) // zombie entry, means unused
+        return R_VOID;
 
-    pvs->value = val;
-    pvs->value_specifier = SPECIFIED;
-
-    return PE_OK;
+    Move_Value(pvs->out, val);
+    return R_OUT;
 }
 
 

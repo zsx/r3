@@ -404,30 +404,27 @@ void TO_Event(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 //
 //  PD_Event: C
 //
-REBINT PD_Event(REBPVS *pvs)
+REB_R PD_Event(REBPVS *pvs, const REBVAL *picker, const REBVAL *opt_setval)
 {
-    if (IS_WORD(pvs->picker)) {
-        if (!pvs->opt_setval || NOT_END(pvs->item + 1)) {
+    if (IS_WORD(picker)) {
+        if (opt_setval == NULL) {
             if (!Get_Event_Var(
-                pvs->store, pvs->value, VAL_WORD_CANON(pvs->picker)
-            )) {
-                fail (Error_Bad_Path_Set(pvs));
+                pvs->out, pvs->out, VAL_WORD_CANON(picker)
+            )){
+                return R_UNHANDLED;
             }
 
-            return PE_USE_STORE;
+            return R_OUT;
         }
         else {
-            if (!Set_Event_Var(
-                KNOWN(pvs->value), pvs->picker, pvs->opt_setval
-            )) {
-                fail (Error_Bad_Path_Set(pvs));
-            }
+            if (!Set_Event_Var(pvs->out, picker, opt_setval))
+                return R_UNHANDLED;
 
-            return PE_OK;
+            return R_INVISIBLE;
         }
     }
 
-    fail (Error_Bad_Path_Select(pvs));
+    return R_UNHANDLED;
 }
 
 

@@ -601,7 +601,7 @@ host-console: function [
             append instruction compose/deep [
                 system/console/print-warning [
                     (uppercase to-string code/1)
-                        "interpreted by console as:" form :shortcut
+                        "interpreted by console as:" form (:shortcut)
                 ]
                     |
                 system/console/print-warning [

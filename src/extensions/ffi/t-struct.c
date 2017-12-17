@@ -1378,17 +1378,17 @@ void TO_Struct(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 //
 //  PD_Struct: C
 //
-REBINT PD_Struct(REBPVS *pvs)
+REB_R PD_Struct(REBPVS *pvs, const REBVAL *picker, const REBVAL *opt_setval)
 {
-    REBSTU *stu = VAL_STRUCT(pvs->value);
-    if (!IS_WORD(pvs->picker))
-        fail (Error_Bad_Path_Select(pvs));
+    REBSTU *stu = VAL_STRUCT(pvs->out);
+    if (!IS_WORD(picker))
+        return R_UNHANDLED;
 
-    fail_if_non_accessible(KNOWN(pvs->value));
+    fail_if_non_accessible(pvs->out);
 
-    if (!pvs->opt_setval || NOT_END(pvs->item + 1)) {
-        if (NOT(Get_Struct_Var(pvs->store, stu, pvs->picker)))
-            fail (Error_Bad_Path_Select(pvs));
+    if (opt_setval == NULL) {
+        if (NOT(Get_Struct_Var(pvs->out, stu, picker)))
+            return R_UNHANDLED;
 
         // !!! Comment here said "Setting element to an array in the struct"
         // and gave the example `struct/field/1: 0`.  What is thus happening
@@ -1409,46 +1409,46 @@ REBINT PD_Struct(REBPVS *pvs)
         // a similar technique used by PD_Gob)
         //
         if (
-            pvs->opt_setval
-            && IS_BLOCK(pvs->store)
-            && IS_END(pvs->item + 2)
+            pvs->eval_type == REB_SET_PATH
+            && IS_BLOCK(pvs->out)
+            && IS_END(pvs->value + 1)
         ) {
             // !!! This is dodgy; it has to copy (as picker is a pointer to
             // a memory cell it may not own), has to guard (as the next path
             // evaluation may not protect the result...)
             //
             DECLARE_LOCAL (sel_orig);
-            Move_Value(sel_orig, pvs->picker);
+            Move_Value(sel_orig, picker);
             PUSH_GUARD_VALUE(sel_orig);
 
-            pvs->value = pvs->store;
-            pvs->value_specifier = SPECIFIED;
-
-            if (Next_Path_Throws(pvs)) { // updates pvs->store, pvs->picker
+            if (Next_Path_Throws(pvs)) { // updates pvs->out, pvs->refine
                 DROP_GUARD_VALUE(sel_orig);
-                fail (Error_No_Catch_For_Throw(pvs->store)); // !!! Review
+                fail (Error_No_Catch_For_Throw(pvs->out)); // !!! Review
             }
 
             DECLARE_LOCAL (specific);
-            Derelativize(specific, pvs->value, pvs->value_specifier);
-
-            if (!Set_Struct_Var(stu, sel_orig, pvs->picker, specific))
+            if (IS_REFERENCE(pvs->out))
+                Derelativize(
+                    specific, VAL_REFERENCE(pvs->out), VAL_SPECIFIER(pvs->out)
+                );
+            else
+                Move_Value(specific, pvs->out);
+            
+            if (!Set_Struct_Var(stu, sel_orig, pvs->refine, specific))
                 fail (Error_Bad_Path_Set(pvs));
 
             DROP_GUARD_VALUE(sel_orig);
 
-            return PE_OK;
+            return R_INVISIBLE;
         }
 
-        return PE_USE_STORE;
+        return R_OUT;
     }
     else {
-        // setting (because opt_setval is non-NULL, and at end of path)
-
-        if (!Set_Struct_Var(stu, pvs->picker, NULL, pvs->opt_setval))
+        if (!Set_Struct_Var(stu, picker, NULL, opt_setval))
             fail (Error_Bad_Path_Set(pvs));
 
-        return PE_OK;
+        return R_INVISIBLE;
     }
 }
 

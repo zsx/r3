@@ -169,11 +169,14 @@ typedef u16 REBUNI;
     struct Reb_Binder; // used as argument in %tmp-funcs.h, needs forward decl
     struct Reb_Collector; // same
 
-    struct Reb_Path_Value_State;
-    typedef struct Reb_Path_Value_State REBPVS;
+    // Paths formerly used their own specialized structure to track the path,
+    // (path-value-state), but now they're just another kind of frame.  It is
+    // helpful for the moment to give them a different name.
+    //
+    typedef struct Reb_Frame REBPVS;
 
-    typedef REBINT (*REBPEF)(REBPVS *pvs); // Path evaluator function
-
+    // Compare Types Function
+    //
     typedef REBINT (*REBCTF)(const RELVAL *a, const RELVAL *b, REBINT s);
 
     // A standard integer is currently used to represent the data stack

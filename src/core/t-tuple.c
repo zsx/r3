@@ -245,21 +245,19 @@ void Poke_Tuple_Immediate(
 //
 //  PD_Tuple: C
 //
-REBINT PD_Tuple(REBPVS *pvs)
+REB_R PD_Tuple(REBPVS *pvs, const REBVAL *picker, const REBVAL *opt_setval)
 {
-    if (pvs->opt_setval) {
+    if (opt_setval != NULL) {
         //
-        // !!! Is this a good idea?  It means `x: 10.10.10 | y: (x/2: 20)` does
-        // result in y being 10.20.10, but x is unchanged.
+        // Returning R_IMMEDIATE means it is up to the caller to decide if
+        // they can meaningfully find a variable to store any updates to.
         //
-        Poke_Tuple_Immediate(
-            KNOWN(pvs->value), pvs->picker, pvs->opt_setval
-        );
-        return PE_OK;
+        Poke_Tuple_Immediate(pvs->out, picker, opt_setval);
+        return R_IMMEDIATE;
     }
 
-    Pick_Tuple(pvs->store, KNOWN(pvs->value), pvs->picker);
-    return PE_USE_STORE;
+    Pick_Tuple(pvs->out, pvs->out, picker);
+    return R_OUT;
 }
 
 

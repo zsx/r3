@@ -579,6 +579,19 @@ struct Reb_Pickup {
 };
 
 
+// Rebol doesn't have a REFERENCE! datatype, but this is used to let path
+// dispatch return information pointing at a cell that can be used to either
+// read it or write to it, depending on the need.  Because it contains an
+// actual cell pointer in it, it's not a durable value...as that cell lives
+// in some array and could be relocated.  So it must be written to immediately
+// or converted into an extraction of the cell's value.
+//
+struct Reb_Reference {
+    RELVAL *cell;
+    // specifier is kept in the extra->binding portion of the value
+};
+
+
 // Handles hold a pointer and a size...which allows them to stand-in for
 // a binary REBSER.
 //
@@ -789,6 +802,10 @@ union Reb_Value_Payload {
     // REB_0 (REB_0_PICKUP) as the type.
     //
     struct Reb_Pickup pickup;
+
+    // Also an internal type, references are used by path dispatch
+    //
+    struct Reb_Reference reference;
 };
 
 struct Reb_Cell

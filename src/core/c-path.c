@@ -39,15 +39,13 @@
 // In order to avoid having to pay for a check for NULL in the path dispatch
 // table for types with no path dispatch, a failing handler is in the slot.
 //
-REBINT PD_Fail(REBPVS *pvs)
+REB_R PD_Fail(REBPVS *pvs, const REBVAL *picker, const REBVAL *opt_setval)
 {
-    DECLARE_LOCAL (any_path);
-    Derelativize(any_path, pvs->any_path, pvs->item_specifier);
+    UNUSED(pvs);
+    UNUSED(picker);
+    UNUSED(opt_setval);
 
-    DECLARE_LOCAL (item);
-    Derelativize(item, pvs->item, pvs->item_specifier);
-
-    fail (Error_Invalid_Path_Raw(item, any_path));
+    return R_UNHANDLED;
 }
 
 
@@ -57,9 +55,13 @@ REBINT PD_Fail(REBPVS *pvs)
 // As a temporary workaround for not having real user-defined types, an
 // extension can overtake an "unhooked" type slot to provide behavior.
 //
-REBINT PD_Unhooked(REBPVS *pvs)
+REB_R PD_Unhooked(REBPVS *pvs, const REBVAL *picker, const REBVAL *opt_setval)
 {
-    REBVAL *type = Get_Type(VAL_TYPE(pvs->value)); // put in error message?
+    UNUSED(pvs);
+    UNUSED(picker);
+    UNUSED(opt_setval);
+
+    REBVAL *type = Get_Type(VAL_TYPE(pvs->out)); // put in error message?
     UNUSED(type);
 
     fail ("Datatype is provided by an extension which is not loaded.");
@@ -73,90 +75,180 @@ REBINT PD_Unhooked(REBPVS *pvs)
 //
 // !!! This is done as a recursive function instead of iterating in a loop due
 // to the unusual nature of some path dispatches that call Next_Path_Throws()
-// inside their implementation.
+// inside their implementation.  Those two cases (FFI array writeback and
+// writing GOB x and y coordinates) are intended to be revisited after this
+// code gets more reorganized.
 //
 REBOOL Next_Path_Throws(REBPVS *pvs)
 {
-    if (IS_VOID(pvs->value))
-        fail (Error_No_Value_Core(pvs->any_path, pvs->item_specifier));
+    if (IS_VOID(pvs->out))
+        fail (Error_No_Value_Core(pvs->value, pvs->specifier));
 
-    REBPEF dispatcher = Path_Dispatch[VAL_TYPE(pvs->value)];
+    REBPEF dispatcher = Path_Dispatch[VAL_TYPE(pvs->out)];
     assert(dispatcher != NULL); // &PD_Fail is used instead of NULL
-
-    pvs->item++;
 
     // Calculate the "picker" into the GC guarded cell.
     //
-    assert(pvs->picker == &pvs->picker_cell);
+    assert(pvs->refine == &pvs->cell);
 
-    if (IS_GET_WORD(pvs->item)) { // e.g. object/:field
+    if (IS_GET_WORD(pvs->value)) { // e.g. object/:field
         Copy_Opt_Var_May_Fail(
-            KNOWN(&pvs->picker_cell), pvs->item, pvs->item_specifier
+            SINK(&pvs->cell), pvs->value, pvs->specifier
         );
-
-        if (IS_VOID(pvs->picker))
-            fail (Error_No_Value_Core(pvs->item, pvs->item_specifier));
     }
-    else if (IS_GROUP(pvs->item)) { // object/(expr) case:
-        REBSPC *derived = Derive_Specifier(pvs->item_specifier, pvs->item);
+    else if (IS_GROUP(pvs->value)) { // object/(expr) case:
+        if (pvs->flags.bits & DO_FLAG_NEUTRAL) {
+            Move_Value(pvs->out, BLANK_VALUE);
+            CONVERT_NAME_TO_THROWN(pvs->out, BAR_VALUE);
+            return TRUE;
+        }
+
+        REBSPC *derived = Derive_Specifier(pvs->specifier, pvs->value);
         if (Do_At_Throws(
-            KNOWN(&pvs->picker_cell),
-            VAL_ARRAY(pvs->item),
-            VAL_INDEX(pvs->item),
+            SINK(&pvs->cell),
+            VAL_ARRAY(pvs->value),
+            VAL_INDEX(pvs->value),
             derived
         )) {
-            Move_Value(pvs->store, KNOWN(&pvs->picker_cell));
+            Move_Value(pvs->out, KNOWN(&pvs->cell));
             return TRUE;
         }
     }
     else { // object/word and object/value case:
-        Derelativize(&pvs->picker_cell, pvs->item, pvs->item_specifier);
+        Derelativize(&pvs->cell, pvs->value, pvs->specifier);
     }
 
     // Disallow voids from being used in path dispatch.  This rule seems like
     // common sense for safety, and also corresponds to voids being illegal
     // to use in SELECT.
     //
-    if (IS_VOID(pvs->picker))
-        fail (Error_No_Value_Core(pvs->item, pvs->item_specifier));
+    if (IS_VOID(pvs->refine))
+        fail (Error_No_Value_Core(pvs->value, pvs->specifier));
 
-    switch (dispatcher(pvs)) {
-    case PE_OK:
-        break;
+    Fetch_Next_In_Frame(pvs); // may be at end
 
-    case PE_SET_IF_END:
-        if (pvs->opt_setval && IS_END(pvs->item + 1)) {
-            Move_Value(pvs->value, pvs->opt_setval);
-            pvs->opt_setval = NULL;
+    REB_R r;
+
+    if (
+        FRM_AT_END(pvs)
+        && pvs->eval_type == REB_SET_PATH
+    ){
+        const REBVAL *opt_setval = pvs->special;
+        assert(opt_setval != NULL);
+
+        switch (dispatcher(pvs, pvs->refine, opt_setval)) {
+        case R_INVISIBLE: // dispatcher assigned target with opt_setval
+            if (pvs->flags.bits & DO_FLAG_SET_PATH_ENFIXED)
+                fail ("Path setting was not via an enfixable reference");
+            break; // nothing left to do, have to take the dispatcher's word
+
+        case R_REFERENCE: { // dispatcher wants us to set *if* at end of path
+            assert(VAL_TYPE(pvs->out) == REB_0_REFERENCE);
+            Move_Value(VAL_REFERENCE(pvs->out), pvs->special);
+
+            if (pvs->flags.bits & DO_FLAG_SET_PATH_ENFIXED) {
+                assert(IS_FUNCTION(pvs->special));
+                SET_VAL_FLAG(VAL_REFERENCE(pvs->out), VALUE_FLAG_ENFIXED);
+            }
+            break; }
+
+        case R_IMMEDIATE: {
+            //
+            // Imagine something like:
+            //
+            //      month/year: 1
+            //
+            // First month is written into the out slot as a reference to the
+            // location of the month DATE! variable.  But because we don't
+            // pass references from the previous steps *in* to the path
+            // picking material, it only has the copied value in pvs->out.
+            //
+            // If we had a reference before we called in, we saved it in
+            // pvs->deferred.  So in the example case of `month/year:`, that
+            // would be the CTX_VAR() where month was found initially, and so
+            // we write the updated bits from pvs->out there.
+
+            if (pvs->flags.bits & DO_FLAG_SET_PATH_ENFIXED)
+                fail ("Can't enfix a write into an immediate value");
+
+            if (pvs->deferred == NULL)
+                fail ("Can't update temporary immediate value via SET-PATH!");
+
+            Move_Value(pvs->deferred, pvs->out);
+            break; }
+
+        case R_UNHANDLED:
+            fail (Error_Bad_Path_Poke_Raw(pvs->refine));
+
+        default:
+            //
+            // Something like an R_VOID or generic R_OUT.  We could in theory
+            // take those to just be variations of R_IMMEDIATE, but it's safer
+            // to break that out as a separate class.
+            //
+            fail ("Path evaluation produced temporary value, can't POKE it");
         }
-        break;
+        TRASH_POINTER_IF_DEBUG(pvs->special);
+    }
+    else {
+        const REBVAL *opt_setval = NULL;
+        r = dispatcher(pvs, pvs->refine, opt_setval);
 
-    case PE_NONE:
-        Init_Blank(pvs->store);
-        // falls through
-    case PE_USE_STORE:
-        pvs->value = pvs->store;
-        pvs->value_specifier = SPECIFIED;
-        break;
+        pvs->deferred = NULL; // clear status of the deferred
 
-    default:
-        assert(FALSE);
+        switch (r) {
+        case R_INVISIBLE:
+            assert(pvs->eval_type == REB_SET_PATH);
+            panic("SET-PATH! evaluation ran assignment before path end");
+
+        case R_REFERENCE:
+            assert(VAL_TYPE(pvs->out) == REB_0_REFERENCE);
+
+            // Save the reference location in case the next update turns out
+            // to be R_IMMEDIATE, and we need it.  Not actually KNOWN() but
+            // we are only going to use it as a sink for data...if we use it.
+            //
+            pvs->deferred = cast(REBVAL*, VAL_REFERENCE(pvs->out));
+
+            Derelativize(
+                pvs->out, VAL_REFERENCE(pvs->out), VAL_SPECIFIER(pvs->out)
+            );
+            break;
+
+        case R_VOID:
+            Init_Void(pvs->out);
+            break;
+
+        case R_BLANK:
+            Init_Blank(pvs->out);
+            break;
+
+        case R_OUT:
+            break;
+
+        case R_UNHANDLED:
+            fail (Error_Bad_Path_Pick_Raw(pvs->refine));
+
+        default:
+            assert(FALSE);
+        }
     }
 
-    // A function being refined does not actually update pvs->value with
+    // A function being refined does not actually update pvs->out with
     // a "more refined" function value, it holds the original function and
     // accumulates refinement state on the stack.  The label should only
     // be captured the first time the function is seen, otherwise it would
     // capture the last refinement's name, so check label for non-NULL.
     //
-    if (IS_FUNCTION(pvs->value) && IS_WORD(pvs->item))
-        if (pvs->label_out != NULL && *pvs->label_out == NULL)
-            *pvs->label_out = VAL_WORD_SPELLING(pvs->item);
+    if (IS_FUNCTION(pvs->out) && IS_WORD(pvs->refine)) {
+        if (pvs->opt_label == NULL)
+            pvs->opt_label = VAL_WORD_SPELLING(pvs->refine);
+    }
 
-    if (NOT_END(pvs->item + 1))
-        return Next_Path_Throws(pvs);
+    if (FRM_AT_END(pvs))
+        return FALSE; // did not throw
 
-    return FALSE;
+    return Next_Path_Throws(pvs);
 }
 
 
@@ -185,117 +277,118 @@ REBOOL Next_Path_Throws(REBPVS *pvs)
 REBOOL Do_Path_Throws_Core(
     REBVAL *out,
     REBSTR **label_out,
-    const RELVAL *any_path,
+    enum Reb_Kind kind,
+    REBARR *array,
+    REBCNT index,
     REBSPC *specifier,
-    const REBVAL *opt_setval
+    const REBVAL *opt_setval,
+    REBFLGS flags
 ){
-    // !!! `out` may be implicitly guarded in cases where the evaluator is
-    // passing it in, but other callers may not guard it.  Review if Do_Core
-    // and frames can be unified so that path evaluation is just another
-    // form of frame, which would get free protection via the frame stack.
+    assert(kind == REB_PATH || kind == REB_SET_PATH || kind == REB_GET_PATH);
+
+    DECLARE_FRAME (pvs);
+
+    pvs->refine = KNOWN(&pvs->cell);
+
+    Push_Frame_At(
+        pvs,
+        array,
+        index,
+        specifier,
+        flags
+    );
+
+    if (FRM_AT_END(pvs))
+        fail ("Cannot dispatch empty path");
+
+    pvs->eval_type = kind;
+
+    // Push_Frame_At sets the output to the global unwritable END cell, so we
+    // have to wait for this point to set to the output cell we want.
     //
+    pvs->out = out;
     SET_END(out);
-    PUSH_GUARD_VALUE(out);
-
-    assert(ANY_PATH(any_path));
-
-    // The pvs contains a cell for the picker into which evaluations are
-    // done, e.g. `foo/(1 + 2)`.  Because Next_Path() doesn't commit to not
-    // performing any evaluations this cell must be guarded.  In the case of
-    // a fail() this guard will be released automatically, but to return
-    // normally use `return_thrown` and `return_not_thrown` which drops guard.
-    //
-    // !!! There was also a strange requirement in some more quirky path
-    // evaluation (GOB!, STRUCT!) that the cell survive between Next_Path()
-    // calls, which may still be relevant to why this can't be a C local.
-    //
-    REBPVS pvs;
-    Prep_Stack_Cell(&pvs.picker_cell);
-    SET_END(&pvs.picker_cell);
-    PUSH_GUARD_VALUE(&pvs.picker_cell);
-    pvs.picker = KNOWN(&pvs.picker_cell);
 
     REBDSP dsp_orig = DSP;
 
     // None of the values passed in can live on the data stack, because
     // they might be relocated during the path evaluation process.
     //
-    assert(!IN_DATA_STACK_DEBUG(out));
-    assert(!IN_DATA_STACK_DEBUG(any_path));
-    assert(!opt_setval || !IN_DATA_STACK_DEBUG(opt_setval));
+    assert(opt_setval == NULL || !IN_DATA_STACK_DEBUG(opt_setval));
 
-    // Not currently robust for reusing passed in path or value as the output
-    assert(out != any_path && out != opt_setval);
-
-    assert(!opt_setval || !THROWN(opt_setval));
+    // Not robust for reusing passed in value as the output
+    assert(out != opt_setval);
 
     // Initialize REBPVS -- see notes in %sys-do.h
     //
-    pvs.opt_setval = opt_setval;
-    pvs.store = out;
-    pvs.any_path = any_path;
-    pvs.item = VAL_ARRAY_AT(pvs.any_path); // may not start at head of PATH!
-    pvs.label_out = label_out;
-    if (label_out != NULL)
-        *label_out = NULL; // initial value if no function label found
-
-    // The path value that's coming in may be relative (in which case it
-    // needs to use the specifier passed in).  Or it may be specific already,
-    // in which case we should use the specifier in the value to process
-    // its array contents.
-    //
-    pvs.item_specifier = Derive_Specifier(specifier, any_path);
+    pvs->special = opt_setval;
+    pvs->opt_label = NULL;
+    pvs->deferred = NULL;
 
     // Seed the path evaluation process by looking up the first item (to
     // get a datatype to dispatch on for the later path items)
     //
-    if (IS_WORD(pvs.item)) {
-        pvs.value = Get_Mutable_Var_May_Fail(pvs.item, pvs.item_specifier);
-        pvs.value_specifier = SPECIFIED;
+    if (IS_WORD(pvs->value)) {
+        //
+        // Remember the actual location of this variable, not just its value,
+        // in case we need to do R_IMMEDIATE writeback (e.g. month/day: 1)
+        //
+        pvs->deferred = Get_Mutable_Var_May_Fail(pvs->value, pvs->specifier);
 
-        if (IS_VOID(pvs.value))
-            fail (Error_No_Value_Core(pvs.item, pvs.item_specifier));
+        Move_Value(pvs->out, pvs->deferred);
 
-        if (IS_FUNCTION(pvs.value) && pvs.label_out != NULL)
-            *pvs.label_out = VAL_WORD_SPELLING(pvs.item);
+        if (IS_FUNCTION(pvs->out))
+            pvs->opt_label = VAL_WORD_SPELLING(pvs->value);
+    }
+    else if (IS_GROUP(pvs->value)) {
+        if (pvs->flags.bits & DO_FLAG_NEUTRAL) {
+            Move_Value(pvs->out, BLANK_VALUE);
+            CONVERT_NAME_TO_THROWN(pvs->out, BAR_VALUE);
+            goto return_thrown;
+        }
+
+        REBSPC *derived = Derive_Specifier(pvs->specifier, pvs->value);
+        if (Do_At_Throws(
+            pvs->out,
+            VAL_ARRAY(pvs->value),
+            VAL_INDEX(pvs->value),
+            derived
+        )){
+            goto return_thrown;
+        }
+
+        pvs->deferred = NULL; // nowhere to R_IMMEDIATE write back to
     }
     else {
-        // !!! Ideally there would be some way to deal with writes to
-        // temporary locations, like this pvs.value...if a set-path sets
-        // it, then it will be discarded.
+        Derelativize(pvs->out, pvs->value, pvs->specifier);
 
-        Derelativize(
-            pvs.store, VAL_ARRAY_AT(pvs.any_path), pvs.item_specifier
-        );
-        pvs.value = pvs.store;
-        pvs.value_specifier = SPECIFIED;
+        pvs->deferred = NULL; // nowhere to R_IMMEDIATE write back to
     }
 
-    // Start evaluation of path:
-    if (IS_END(pvs.item + 1)) {
+    if (IS_VOID(pvs->out))
+        fail (Error_No_Value_Core(pvs->value, pvs->specifier));
+
+    Fetch_Next_In_Frame(pvs);
+
+    if (FRM_AT_END(pvs)) {
         // If it was a single element path, return the value rather than
         // try to dispatch it (would cause a crash at time of writing)
         //
         // !!! Is this the desired behavior, or should it be an error?
     }
     else {
-        if (Next_Path_Throws(&pvs))
+        if (Next_Path_Throws(pvs))
             goto return_thrown;
     }
 
+    assert(FRM_AT_END(pvs));
+
     if (opt_setval) {
         // If SET then we don't return anything
-        assert(IS_END(pvs.item) + 1);
         goto return_not_thrown;
     }
 
-    // If storage was not used, then copy final value back to it:
-    if (pvs.value != pvs.store)
-        Derelativize(pvs.store, pvs.value, pvs.value_specifier);
-
     assert(!THROWN(out));
-
-    assert(IS_END(pvs.item) + 1);
 
     // To make things easier for processing, reverse any refinements
     // pushed to the data stack (we needed to evaluate them
@@ -304,7 +397,7 @@ REBOOL Do_Path_Throws_Core(
     // back to `dsp_orig` by the end.
     //
     if (dsp_orig != DSP) {
-        assert(IS_FUNCTION(pvs.store));
+        assert(IS_FUNCTION(pvs->out));
 
         // !!! It should be technically possible to do something like
         // :append/dup and return a "refined" variant of a function.  That
@@ -329,11 +422,13 @@ REBOOL Do_Path_Throws_Core(
     }
 
 return_not_thrown:
-    DROP_GUARD_VALUE(&pvs.picker_cell);
-    DROP_GUARD_VALUE(out);
+    if (label_out != NULL)
+        *label_out = pvs->opt_label;
+
+    Abort_Frame_Core(pvs);
 
 #if !defined(NDEBUG)
-    if (IS_SET_PATH(any_path))
+    if (kind == REB_SET_PATH)
         TRASH_CELL_IF_DEBUG(out);
     else
         assert(NOT(THROWN(out)));
@@ -341,84 +436,30 @@ return_not_thrown:
     return FALSE;
 
 return_thrown:
+    Abort_Frame_Core(pvs);
+
     assert(THROWN(out));
-    DROP_GUARD_VALUE(&pvs.picker_cell);
-    DROP_GUARD_VALUE(out);
     return TRUE;
-}
-
-
-//
-//  Error_Bad_Path_Select: C
-//
-REBCTX *Error_Bad_Path_Select(REBPVS *pvs)
-{
-    DECLARE_LOCAL (any_path);
-    Derelativize(any_path, pvs->any_path, pvs->item_specifier);
-
-    DECLARE_LOCAL (item);
-    Derelativize(item, pvs->item, pvs->item_specifier);
-
-    return Error_Invalid_Path_Raw(item, any_path);
-}
-
-
-//
-//  Error_Bad_Path_Set: C
-//
-REBCTX *Error_Bad_Path_Set(REBPVS *pvs)
-{
-    DECLARE_LOCAL (any_path);
-    Derelativize(any_path, pvs->any_path, pvs->item_specifier);
-
-    DECLARE_LOCAL (item);
-    Derelativize(item, pvs->item, pvs->item_specifier);
-
-    return Error_Bad_Path_Set_Raw(item, any_path);
-}
-
-
-//
-//  Error_Bad_Path_Range: C
-//
-REBCTX *Error_Bad_Path_Range(REBPVS *pvs)
-{
-    DECLARE_LOCAL (item);
-    Derelativize(item, pvs->item, pvs->item_specifier);
-
-    return Error_Out_Of_Range(item);
-}
-
-
-//
-//  Error_Bad_Path_Field_Set: C
-//
-REBCTX *Error_Bad_Path_Field_Set(REBPVS *pvs)
-{
-    DECLARE_LOCAL (item);
-    Derelativize(item, pvs->item, pvs->item_specifier);
-
-    return Error_Bad_Field_Set_Raw(item, Type_Of(pvs->opt_setval));
 }
 
 
 //
 //  Get_Simple_Value_Into: C
 //
-// Does easy lookup, else just returns the value as is.
+// "Does easy lookup, else just returns the value as is."
+//
+// !!! This is a questionable service, reminiscent of old behaviors of GET,
+// were `get x` would look up a variable but `get 3` would give you 3.
+// At time of writing it seems to appear in only two places.
 //
 void Get_Simple_Value_Into(REBVAL *out, const RELVAL *val, REBSPC *specifier)
 {
-    if (IS_WORD(val) || IS_GET_WORD(val)) {
+    if (IS_WORD(val) || IS_GET_WORD(val))
         Copy_Opt_Var_May_Fail(out, val, specifier);
-    }
-    else if (IS_PATH(val) || IS_GET_PATH(val)) {
-        if (Do_Path_Throws_Core(out, NULL, val, specifier, NULL))
-            fail (Error_No_Catch_For_Throw(out));
-    }
-    else {
+    else if (IS_PATH(val) || IS_GET_PATH(val))
+        Get_Path_Core(out, val, specifier);
+    else
         Derelativize(out, val, specifier);
-    }
 }
 
 
@@ -491,7 +532,6 @@ REBNATIVE(pick_p)
     INCLUDE_PARAMS_OF_PICK_P;
 
     REBVAL *location = ARG(location);
-    REBVAL *picker = ARG(picker);
 
     // PORT!s are kind of a "user defined type" which historically could
     // react to PICK and POKE, but which could not override path dispatch.
@@ -501,55 +541,46 @@ REBNATIVE(pick_p)
     if (IS_PORT(location))
         return Do_Port_Action(frame_, VAL_CONTEXT(location), SYM_PICK_P);
 
-    REBPVS pvs_decl;
-    REBPVS *pvs = &pvs_decl;
+    DECLARE_FRAME (pvs);
 
-    Prep_Stack_Cell(&pvs->picker_cell);
-    TRASH_CELL_IF_DEBUG(&pvs->picker_cell); // not used
-    pvs->picker = picker;
-    pvs->store = D_OUT;
+    Move_Value(D_OUT, location);
+    pvs->out = D_OUT;
 
     // !!! Sometimes path dispatchers check the item to see if it's at the
     // end of the path.  The entire thing needs review.  In the meantime,
     // take advantage of the implicit termination of the frame cell.
     //
-    Move_Value(D_CELL, picker);
+    Move_Value(D_CELL, ARG(picker));
     assert(IS_END(D_CELL + 1));
+    pvs->refine = D_CELL;
 
-    pvs->item = D_CELL;
-    pvs->item_specifier = SPECIFIED;
-    pvs->value = location;
-    pvs->value_specifier = SPECIFIED;
+    pvs->value = D_CELL;
+    pvs->specifier = SPECIFIED;
 
-    pvs->label_out = NULL; // applies to e.g. :append/only returning APPEND
-    pvs->any_path = location; // expected to be PATH! for errors, but tolerant
-    pvs->opt_setval = NULL;
+    pvs->opt_label = NULL; // applies to e.g. :append/only returning APPEND
+    pvs->special = NULL;
 
     REBPEF dispatcher = Path_Dispatch[VAL_TYPE(location)];
     assert(dispatcher != NULL); // &PD_Fail is used instead of NULL
-    switch (dispatcher(pvs)) {
-    case PE_OK:
+
+    REB_R r = dispatcher(pvs, ARG(picker), NULL);
+    switch (r) {
+    case R_INVISIBLE:
+        assert(FALSE); // only SETs should do this
         break;
 
-    case PE_SET_IF_END:
-        break;
+    case R_REFERENCE:
+        Derelativize(D_OUT, VAL_REFERENCE(D_OUT), VAL_SPECIFIER(D_OUT));
+        return R_OUT;
 
-    case PE_NONE:
-        Init_Blank(pvs->store);
-        // falls through
-    case PE_USE_STORE:
-        pvs->value = pvs->store;
-        pvs->value_specifier = SPECIFIED;
-        break;
+    case R_UNHANDLED:
+        fail (Error_Bad_Path_Pick_Raw(ARG(picker)));
 
     default:
-        assert(FALSE);
+        break;
     }
 
-    if (pvs->value != pvs->store)
-        Derelativize(D_OUT, pvs->value, pvs->value_specifier);
-
-    return R_OUT;
+    return r;
 }
 
 
@@ -576,8 +607,6 @@ REBNATIVE(poke)
     INCLUDE_PARAMS_OF_POKE;
 
     REBVAL *location = ARG(location);
-    REBVAL *picker = ARG(picker);
-    REBVAL *value = ARG(value);
 
     // PORT!s are kind of a "user defined type" which historically could
     // react to PICK and POKE, but which could not override path dispatch.
@@ -587,51 +616,47 @@ REBNATIVE(poke)
     if (IS_PORT(location))
         return Do_Port_Action(frame_, VAL_CONTEXT(location), SYM_POKE);
 
-    REBPVS pvs_decl;
-    REBPVS *pvs = &pvs_decl;
+    DECLARE_FRAME(pvs);
 
-    Prep_Stack_Cell(&pvs->picker_cell);
-    TRASH_CELL_IF_DEBUG(&pvs->picker_cell); // not used
-    pvs->picker = picker;
-    pvs->store = D_OUT;
+    Move_Value(D_OUT, location);
+    pvs->out = D_OUT;
 
     // !!! Sometimes the path mechanics do the writes for a poke inside their
-    // dispatcher, vs. delegating via PE_SET_IF_END.  They check to see if
-    // the current pvs->item is at the end.  All of path dispatch was ad hoc
+    // dispatcher, vs. delegating via R_REFERENCE.  They check to see if
+    // the current pvs->value is at the end.  All of path dispatch was ad hoc
     // and needs a review.  In the meantime, take advantage of the implicit
     // termination of the frame cell.
     //
-    Move_Value(D_CELL, picker);
+    Move_Value(D_CELL, ARG(picker));
     assert(IS_END(D_CELL + 1));
+    pvs->refine = D_CELL;
 
-    pvs->item = D_CELL;
-    pvs->item_specifier = SPECIFIED;
-    pvs->value = location;
-    pvs->value_specifier = SPECIFIED;
+    pvs->value = D_CELL;
+    pvs->specifier = SPECIFIED;
 
-    pvs->label_out = NULL; // applies to e.g. :append/only returning APPEND
-    pvs->any_path = location; // expected a PATH! for errors, but tolerant
-    pvs->opt_setval = value;
+    pvs->opt_label = NULL; // applies to e.g. :append/only returning APPEND
+    pvs->special = ARG(value);
 
     REBPEF dispatcher = Path_Dispatch[VAL_TYPE(location)];
     assert(dispatcher != NULL); // &PD_Fail is used instead of NULL
-    switch (dispatcher(pvs)) {
-    case PE_SET_IF_END:
-        Move_Value(pvs->value, pvs->opt_setval);
+
+    REB_R r = dispatcher(pvs, ARG(picker), ARG(value));
+    switch (r) {
+    case R_REFERENCE: // wants us to write it
+        Move_Value(VAL_REFERENCE(D_OUT), ARG(value));
         break;
 
-    case PE_OK:
-        // !!! Trust that it wrote?  See above notes about D_CELL.
+    case R_INVISIBLE: // is saying it did the write already
         break;
 
-    case PE_NONE:
-    case PE_USE_STORE:
-        fail (picker); // Invalid argument
+    case R_UNHANDLED:
+        fail (Error_Bad_Path_Poke_Raw(ARG(picker)));
 
     default:
         assert(FALSE);
+        fail (ARG(picker)); // Invalid argument
     }
 
-    Move_Value(D_OUT, value);
+    Move_Value(D_OUT, ARG(value)); // return the value we got in
     return R_OUT;
 }

@@ -838,7 +838,8 @@ void Pick_Or_Poke_Date(
         // matter for date normalization, it just passes it through
         //
         VAL_DATE(v) = Normalize_Date(day, month, year, tz);
-        VAL_NANO(v) = secs;
+        if (secs != 0)
+            VAL_NANO(v) = secs;
 
         const REBOOL to_utc = TRUE;
         Adjust_Date_Zone(v, to_utc);
@@ -849,23 +850,24 @@ void Pick_Or_Poke_Date(
 //
 //  PD_Date: C
 //
-REBINT PD_Date(REBPVS *pvs)
+REB_R PD_Date(REBPVS *pvs, const REBVAL *picker, const REBVAL *opt_setval)
 {
-    if (pvs->opt_setval) {
+    if (opt_setval != NULL) {
         //
-        // !!! SET-PATH! in R3-Alpha could be used on DATE! even though it
-        // was an immediate value.  It would thus modify the evaluated value,
-        // while not affecting the original (unless it was a literal value
-        // in source)
+        // Updates pvs->out; R_IMMEDIATE means path dispatch will write it
+        // back to whatever the originating variable location was, or error
+        // if it didn't come from a variable.
         //
-        Pick_Or_Poke_Date(
-            NULL, KNOWN(pvs->value), pvs->picker, pvs->opt_setval
-        );
-        return PE_OK;
+        Pick_Or_Poke_Date(NULL, pvs->out, picker, opt_setval);
+        return R_IMMEDIATE;
     }
 
-    Pick_Or_Poke_Date(pvs->store, KNOWN(pvs->value), pvs->picker, NULL);
-    return PE_USE_STORE;
+    // !!! The date picking as written can't both read and write the out cell.
+    //
+    DECLARE_LOCAL (temp);
+    Move_Value(temp, pvs->out);
+    Pick_Or_Poke_Date(pvs->out, temp, picker, NULL);
+    return R_OUT;
 }
 
 

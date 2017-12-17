@@ -793,12 +793,10 @@ set 'r3-legacy* func [<local> if-flags] [
 
         ; These words do NOT inherit the infixed-ness, and you simply cannot
         ; set things infix through a plain set-word.  We have to do this
-        ; after the words are appended to the object.
-
+        ; after the words are appended to the object, below.
+        ;
         and: _
-
         or: _
-
         xor: _
 
         apply: (:r3-alpha-apply)
@@ -1283,11 +1281,11 @@ set 'r3-legacy* func [<local> if-flags] [
         ])
     ]
 
-    ; set-infix on PATH! instead of WORD! is still TBD
+    ; In the object appending model above, can't use ENFIX or SET/ENFIX...
     ;
-    set-infix (bind 'and system/contexts/user) :and*
-    set-infix (bind 'or system/contexts/user) :or+
-    set-infix (bind 'xor system/contexts/user) :xor+
+    system/contexts/user/and: enfix tighten :and*
+    system/contexts/user/or: enfix tighten :or+
+    system/contexts/user/xor: enfix tighten :xor+
 
     if-flags: func [flags [block!] body [block!]] [
         for-each flag flags [

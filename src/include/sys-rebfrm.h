@@ -217,8 +217,26 @@
 // effects.  It will be a trick to do efficiently, but for starters doing it
 // at all would be interesting.
 //
+// !!! This feature has proven to be questionable, and may not exist long
+// term.  However, the flag is currently used with paths to indicate that
+// GROUP!s should not be executed, and may wind up just serving that purpose.
+//
 #define DO_FLAG_NEUTRAL \
     FLAGIT_LEFT(13)
+
+
+//=//// DO_FLAG_SET_PATH_ENFIXED //////////////////////////////////////////=//
+//
+// The way setting of paths is historically designed, it can't absolutely
+// give back a location of a variable to be set...since sometimes the result
+// is generated, or accessed as a modification of an immediate value.  This
+// complicates the interface to where the path dispatcher must be handed
+// the value to set and copy itself if necessary.  But CELL_MASK_COPIED does
+// not carry forward VALUE_FLAG_ENFIXED in the assignment.  This flag tells
+// a frame used with SET-PATH! semantics to make its final assignment enfix.
+//
+#define DO_FLAG_SET_PATH_ENFIXED \
+    FLAGIT_LEFT(14)
 
 
 // Currently the rightmost two bytes of the Reb_Frame->flags are not used,
@@ -227,7 +245,7 @@
 // information in a platform aligned position of the frame.
 //
 #if defined(__cplusplus) && (__cplusplus >= 201103L)
-    static_assert(13 < 32, "DO_FLAG_XXX too high");
+    static_assert(14 < 32, "DO_FLAG_XXX too high");
 #endif
 
 
@@ -540,10 +558,20 @@ struct Reb_Frame {
     // `special`
     //
     // The specialized argument parallels arg if non-NULL, and contains the
-    // value to substitute in the case of a specialized call.  It is END
-    // if no specialization in effect, and parallels arg (so it may be
+    // value to substitute in the case of a specialized call.  It is NULL
+    // if no specialization in effect, else it parallels arg (so it may be
     // incremented on a common code path) if arguments are just being checked
     // vs. fulfilled.
+    //
+    // However, in PATH! frames, `special` is non-NULL if this is a SET-PATH!,
+    // and it is the value to ultimately set the path to.  The set should only
+    // occur at the end of the path, so most setters should check
+    // `IS_END(pvs->value + 1)` before setting.
+    //
+    // !!! See notes at top of %c-path.c about why the path dispatch is more
+    // complicated than simply being able to only pass the setval to the last
+    // item being dispatched (which would be cleaner, but some cases must
+    // look ahead with alternate handling).
     //
     const REBVAL *special;
 
@@ -583,8 +611,13 @@ struct Reb_Frame {
     // an argument should be type checked normally...while IS_FALSEY() means
     // that the arg's bits must be set to void.
     //
+    // In path processing, ->refine points to the soft-quoted product of the
+    // current path item (the "picker").  So on the second step of processing
+    // foo/(1 + 2) it would be 3.
+    //
     REBVAL *refine;
     REBOOL doing_pickups; // want to encode
+
 
     // `deferred`
     //

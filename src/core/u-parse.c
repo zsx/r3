@@ -387,8 +387,11 @@ static const RELVAL *Get_Parse_Value(
     if (IS_PATH(rule)) {
         //
         // !!! REVIEW: how should GET-PATH! be handled?
+        //
+        // Should PATH!s be evaluating GROUP!s?  This does, but would need
+        // to route potential thrown values up to do it properly.
 
-        if (Do_Path_Throws_Core(cell, NULL, rule, specifier, NULL))
+        if (Get_Path_Throws_Core(cell, rule, specifier))
             fail (Error_No_Catch_For_Throw(cell));
 
         if (IS_VOID(cell))
@@ -1685,17 +1688,21 @@ REBNATIVE(subparse)
         }
         else if (ANY_PATH(P_RULE)) {
             if (IS_PATH(P_RULE)) {
-                if (Do_Path_Throws_Core(
-                    save, NULL, P_RULE, P_RULE_SPECIFIER, NULL
-                )) {
+                //
+                // !!! This evaluates GROUP!s.  Should it?
+                //
+                if (Get_Path_Throws_Core(save, P_RULE, P_RULE_SPECIFIER))
                     fail (Error_No_Catch_For_Throw(save));
-                }
+
                 rule = save;
             }
             else if (IS_SET_PATH(P_RULE)) {
-                if (Do_Path_Throws_Core(
-                    save, NULL, P_RULE, P_RULE_SPECIFIER, P_INPUT_VALUE
-                )) {
+                //
+                // !!! This evaluates GROUP!s.  Should it?
+                //
+                if (Set_Path_Throws_Core(
+                    save, P_RULE, P_RULE_SPECIFIER, P_INPUT_VALUE
+                )){
                     fail (Error_No_Catch_For_Throw(save));
                 }
 
@@ -1706,12 +1713,11 @@ REBNATIVE(subparse)
                 continue;
             }
             else if (IS_GET_PATH(P_RULE)) {
-
-                if (Do_Path_Throws_Core(
-                    save, NULL, P_RULE, P_RULE_SPECIFIER, NULL
-                )) {
+                //
+                // !!! This evaluates GROUP!s.  Should it?
+                //
+                if (Get_Path_Throws_Core(save, P_RULE, P_RULE_SPECIFIER))
                     fail (Error_No_Catch_For_Throw(save));
-                }
 
                 // !!! This allows the series to be changed, as per #1263,
                 // but note the positions being returned and checked aren't

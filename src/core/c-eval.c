@@ -1988,9 +1988,12 @@ reevaluate:;
         if (Do_Path_Throws_Core(
             f->out,
             &opt_label, // requesting says we run functions (not GET-PATH!)
-            current,
-            f->specifier,
-            NULL // `setval`: null means don't treat as SET-PATH!
+            REB_PATH,
+            VAL_ARRAY(current),
+            VAL_INDEX(current),
+            Derive_Specifier(f->specifier, current),
+            NULL, // `setval`: null means don't treat as SET-PATH!
+            neutral ? DO_FLAG_NEUTRAL : 0
         )){
             goto finished;
         }
@@ -2085,9 +2088,8 @@ reevaluate:;
             if (NOT(neutral)) {
                 DECLARE_LOCAL (temp);
 
-                if (Do_Path_Throws_Core(
+                if (Set_Path_Throws_Core(
                     temp, // output location if thrown
-                    NULL, // no symbol request means no refinements allowed
                     current, // still holding SET-PATH! we got in
                     f->specifier, // specifier for current
                     f->out // value to set (already in f->out)
@@ -2136,9 +2138,8 @@ reevaluate:;
             //
             DECLARE_LOCAL (temp);
 
-            if (Do_Path_Throws_Core(
+            if (Set_Path_Throws_Core(
                 temp, // output location if thrown
-                NULL, // not requesting symbol means refinements not allowed
                 &f->cell, // still holding SET-PATH! we got in
                 SPECIFIED, // current derelativized when pushed to DS_TOP
                 f->out // value to set (already in f->out)
@@ -2164,17 +2165,10 @@ reevaluate:;
         // visibly see the GROUP!s.
         //
         if (neutral)
-            Init_Bar(f->out);
+            Get_Path_Core(f->out, current, f->specifier);
         else {
-            if (Do_Path_Throws_Core(
-                f->out,
-                NULL, // not requesting symbol means refinements not allowed
-                current,
-                f->specifier,
-                NULL // `setval`: null means don't treat as SET-PATH!
-            )){
+            if (Get_Path_Throws_Core(f->out, current, f->specifier))
                 goto finished;
-            }
 
             CLEAR_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED);
         }

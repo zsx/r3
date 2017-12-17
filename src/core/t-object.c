@@ -478,16 +478,15 @@ void TO_Context(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 //
 //  PD_Context: C
 //
-REBINT PD_Context(REBPVS *pvs)
+REB_R PD_Context(REBPVS *pvs, const REBVAL *picker, const REBVAL *opt_setval)
 {
-    REBCTX *c = VAL_CONTEXT(pvs->value);
+    REBCTX *c = VAL_CONTEXT(pvs->out);
 
-    if (NOT(IS_WORD(pvs->picker)))
-        fail (Error_Bad_Path_Select(pvs));
+    if (NOT(IS_WORD(picker)))
+        return R_UNHANDLED;
 
-    REBCNT n = Find_Canon_In_Context(
-        c, VAL_WORD_CANON(pvs->picker), FALSE
-    );
+    const REBOOL always = FALSE;
+    REBCNT n = Find_Canon_In_Context(c, VAL_WORD_CANON(picker), always);
 
     if (n == 0) {
         //
@@ -495,27 +494,26 @@ REBINT PD_Context(REBPVS *pvs)
         // lookup that fails here is hacked in, but desirable for parity
         // with the behavior of GET-WORD!
         //
-        if (IS_GET_PATH(pvs->any_path) && IS_END(pvs->item + 1)) {
-            Init_Void(pvs->store);
-            return PE_USE_STORE;
+        if (pvs->eval_type == REB_GET_PATH && FRM_AT_END(pvs)) {
+            Init_Void(pvs->out);
+            return R_OUT;
         }
-        fail (Error_Bad_Path_Select(pvs));
+        return R_UNHANDLED;
     }
 
     if (CTX_VARS_UNAVAILABLE(c))
-        fail (Error_No_Relative_Raw(pvs->picker));
+        fail (Error_No_Relative_Raw(picker));
 
-    if (pvs->opt_setval && IS_END(pvs->item + 1)) {
+    if (opt_setval != NULL) {
         FAIL_IF_READ_ONLY_CONTEXT(c);
 
         if (GET_VAL_FLAG(CTX_VAR(c, n), CELL_FLAG_PROTECTED))
-            fail (Error_Protected_Word_Raw(pvs->picker));
+            fail (Error_Protected_Word_Raw(picker));
     }
 
-    pvs->value = CTX_VAR(c, n);
-    pvs->value_specifier = SPECIFIED;
+    Init_Reference(pvs->out, CTX_VAR(c, n), SPECIFIED);
 
-    return PE_SET_IF_END;
+    return R_REFERENCE;
 }
 
 

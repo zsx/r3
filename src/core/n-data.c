@@ -583,38 +583,10 @@ REBNATIVE(get)
         }
         else if (ANY_PATH(source)) {
             //
-            // Make sure the path does not contain any GROUP!s, because that
-            // would trigger evaluations.  GET does not sound like something
-            // that should have such a side-effect, the user should go with
-            // a REDUCE operation if that's what they want.
+            // `get 'foo/bar` acts like `:foo/bar`
+            // Get_Path_Core() will raise an error if there are any GROUP!s.
             //
-            RELVAL *temp = VAL_ARRAY_AT(source);
-            for (; NOT_END(temp); ++temp)
-                if (IS_GROUP(temp))
-                    fail ("GROUP! can't be in paths with GET, use REDUCE");
-
-            // Piggy-back on the GET-PATH! mechanic by copying to a temp
-            // value and changing its type bits.
-            //
-            // !!! Review making a more efficient method of doing this.
-            //
-            Derelativize(get_path_hack, source, specifier);
-            VAL_SET_TYPE_BITS(get_path_hack, REB_GET_PATH);
-
-            // Here we DO it, which means that `get 'foo/bar` will act the
-            // same as `:foo/bar` for all types.
-            //
-            if (Do_Path_Throws_Core(
-                dest,
-                NULL,
-                get_path_hack,
-                SPECIFIED,
-                NULL
-            )){
-                // Should not be possible if there's no GROUP!
-                //
-                fail (Error_No_Catch_For_Throw(dest));
-            }
+            Get_Path_Core(dest, source, specifier);
         }
 
         if (IS_VOID(dest)) {
@@ -885,7 +857,7 @@ REBNATIVE(set)
         single = TRUE;
     }
 
-    DECLARE_LOCAL (get_path_hack); // runs prep code, don't put inside loop
+    DECLARE_LOCAL (set_path_hack); // runs prep code, don't put inside loop
 
     for (
         ;
@@ -899,6 +871,9 @@ REBNATIVE(set)
                 continue;
         }
 
+        if (REF(enfix) && NOT(IS_FUNCTION(ARG(value))))
+            fail ("Attempt to SET/ENFIX on a non-function");
+
         if (IS_BAR(target)) {
             //
             // Just skip it, e.g. `set [a | b] [1 2 3]` sets a to 1, and b
@@ -908,9 +883,6 @@ REBNATIVE(set)
             // is not there, so it leads to too many silent errors.
         }
         else if (ANY_WORD(target)) {
-            if (REF(enfix) && NOT(IS_FUNCTION(ARG(value))))
-                fail ("Attempt to SET/ENFIX on a non-function");
-
             REBVAL *var = Sink_Var_May_Fail(target, target_specifier);
             Derelativize(
                 var,
@@ -921,50 +893,20 @@ REBNATIVE(set)
                 SET_VAL_FLAG(var, VALUE_FLAG_ENFIXED);
         }
         else if (ANY_PATH(target)) {
-            //
-            // Make sure the path does not contain any GROUP!s, because that
-            // would trigger evaluations.  SET does sound like it has a
-            // side effect (unlike GET), but you don't expect the side effect
-            // to do things like PRINT, which arbitrary code can do.
-            //
-            RELVAL *temp = VAL_ARRAY_AT(target);
-            for (; NOT_END(temp); ++temp)
-                if (IS_GROUP(temp))
-                    fail ("GROUP! can't be in paths with SET");
-
-            // !!! For starters, just the word form is supported for enfixing.
-            // Though you can't dispatch enfix from a path (at least not at
-            // present), you should be able to enfix a word in a context.
-            //
-            if (REF(enfix))
-                fail ("Cannot currently SET/ENFIX on a PATH!");
-
             DECLARE_LOCAL (specific);
             if (IS_END(value))
                 Init_Blank(specific);
             else
                 Derelativize(specific, value, value_specifier);
 
-            // Currently we have to tweak the bits of the path so that it's a
-            // GET-PATH!, since Do_Path is sensitive to the path type, and we
-            // want all to act the same.
+            // `set 'foo/bar 1` acts as `foo/bar: 1`
+            // Set_Path_Core() will raise an error if there are any GROUP!s
             //
-            Derelativize(get_path_hack, target, target_specifier);
-            VAL_SET_TYPE_BITS(get_path_hack, REB_GET_PATH);
-
-            if (
-                Do_Path_Throws_Core(
-                    D_OUT,
-                    NULL,
-                    get_path_hack,
-                    SPECIFIED,
-                    specific
-                )
-            ){
-                fail (Error_No_Catch_For_Throw(D_OUT));
-            }
-
-            // If not a throw, then there is no result out of a setting a path
+            // Though you can't dispatch enfix from a path (at least not at
+            // present), the flag tells it to enfix a word in a context, or
+            // it will error if that's not what it looks up to.
+            //
+            Set_Path_Core(target, target_specifier, specific, REF(enfix));
         }
         else
             fail (Error_Invalid_Arg_Core(target, target_specifier));
@@ -1176,56 +1118,27 @@ REBNATIVE(aliases_q)
 {
     INCLUDE_PARAMS_OF_ALIASES_Q;
 
-    if (VAL_SERIES(ARG(value1)) == VAL_SERIES(ARG(value2)))
-        return R_TRUE;
-
-    return R_FALSE;
+    return R_FROM_BOOL(
+        LOGICAL(VAL_SERIES(ARG(value1)) == VAL_SERIES(ARG(value2)))
+    );
 }
 
 
-// Common routine for both SET? and UNSET?  Note that location is modified
-// into a GET-PATH! value if it is originally a path (okay for the natives,
-// since they can modify values in their frames.)
+// Common routine for both SET? and UNSET?
 //
-inline static REBOOL Is_Set_Modifies(REBVAL *location)
+//     SET? 'UNBOUND-WORD -> will error
+//     SET? 'OBJECT/NON-MEMBER -> will return false
+//     SET? 'OBJECT/NON-MEMBER/XXX -> will error
+//     SET? 'DATE/MONTH -> is true, even though not a variable resolution
+//
+inline static REBOOL Is_Set(const REBVAL *location)
 {
-    if (ANY_WORD(location)) {
-        //
-        // Note this will fail if unbound
-        //
-        const RELVAL *var = Get_Opt_Var_May_Fail(location, SPECIFIED);
-        if (IS_VOID(var))
-            return FALSE;
-    }
-    else {
-        assert(ANY_PATH(location));
+    if (ANY_WORD(location))
+        return IS_ANY_VALUE(Get_Opt_Var_May_Fail(location, SPECIFIED));
 
-    #if !defined(NDEBUG)
-        REBDSP dsp_orig = DSP;
-    #endif
-
-        // !!! We shouldn't be evaluating but currently the path machinery
-        // doesn't "turn off" GROUP! evaluations for GET-PATH!.
-        //
-        VAL_SET_TYPE_BITS(location, REB_GET_PATH);
-
-        DECLARE_LOCAL (temp);
-        if (Do_Path_Throws_Core(
-            temp, NULL, location, VAL_SPECIFIER(location), NULL
-        )) {
-            // !!! Shouldn't be evaluating, much less throwing--so fail
-            //
-            fail (Error_No_Catch_For_Throw(temp));
-        }
-
-        // We did not pass in a symbol ID
-        //
-        assert(DSP == dsp_orig);
-        if (IS_VOID(temp))
-            return FALSE;
-    }
-
-    return TRUE;
+    DECLARE_LOCAL (temp); // result may be generated
+    Get_Path_Core(temp, location, SPECIFIED);
+    return IS_ANY_VALUE(temp);
 }
 
 
@@ -1243,7 +1156,7 @@ REBNATIVE(set_q)
 {
     INCLUDE_PARAMS_OF_SET_Q;
 
-    return R_FROM_BOOL(Is_Set_Modifies(ARG(location)));
+    return R_FROM_BOOL(Is_Set(ARG(location)));
 }
 
 
@@ -1261,7 +1174,7 @@ REBNATIVE(unset_q)
 {
     INCLUDE_PARAMS_OF_UNSET_Q;
 
-    return R_FROM_BOOL(NOT(Is_Set_Modifies(ARG(location))));
+    return R_FROM_BOOL(NOT(Is_Set(ARG(location))));
 }
 
 

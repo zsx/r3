@@ -1656,23 +1656,13 @@ REBINT Find_Next_Error_Base_Code(void)
 }
 
 
-// Simple molder for error locations. Series must be valid.
-// Max length in chars must be provided.
+// Limited molder (used, e.g., for errors)
 //
-static void Mold_Simple_Block(REB_MOLD *mo, RELVAL *block, REBCNT len)
+static void Mold_Value_Limit(REB_MOLD *mo, RELVAL *v, REBCNT len)
 {
     REBCNT start = SER_LEN(mo->series);
+    Mold_Value(mo, v);
 
-    while (NOT_END(block)) {
-        if (SER_LEN(mo->series) - start > len)
-            break;
-        Mold_Value(mo, block);
-        block++;
-        if (NOT_END(block))
-            Append_Codepoint(mo->series, ' ');
-    }
-
-    // If it's too large, truncate it:
     if (SER_LEN(mo->series) - start > len) {
         SET_SERIES_LEN(mo->series, start + len);
         Append_Unencoded(mo->series, "...");
@@ -1737,8 +1727,8 @@ void MF_Error(REB_MOLD *mo, const RELVAL *v, REBOOL form)
                 mo->series, VAL_SERIES(nearest), 0, VAL_LEN_HEAD(nearest)
             );
         }
-        else if (IS_BLOCK(nearest))
-            Mold_Simple_Block(mo, VAL_ARRAY_AT(nearest), 60);
+        else if (ANY_ARRAY(nearest))
+            Mold_Value_Limit(mo, nearest, 60);
         else
             Append_Unencoded(mo->series, RM_BAD_ERROR_FORMAT);
     }

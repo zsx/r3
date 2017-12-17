@@ -1389,15 +1389,13 @@ void Poke_Image_Fail_If_Read_Only(
 //
 //  PD_Image: C
 //
-REBINT PD_Image(REBPVS *pvs)
+REB_R PD_Image(REBPVS *pvs, const REBVAL *picker, const REBVAL *opt_setval)
 {
-    if (pvs->opt_setval) {
-        Poke_Image_Fail_If_Read_Only(
-            KNOWN(pvs->value), pvs->picker, pvs->opt_setval
-        );
-        return PE_OK;
+    if (opt_setval != NULL) {
+        Poke_Image_Fail_If_Read_Only(pvs->out, picker, opt_setval);
+        return R_INVISIBLE;
     }
 
-    Pick_Image(pvs->store, KNOWN(pvs->value), pvs->picker);
-    return PE_USE_STORE;
+    Pick_Image(pvs->out, pvs->out, picker);
+    return R_OUT;
 }

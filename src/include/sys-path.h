@@ -74,95 +74,104 @@
 //
 
 
-//=////////////////////////////////////////////////////////////////////////=//
-//
-//  PATH VALUE STATE "PVS"
-//
-//=////////////////////////////////////////////////////////////////////////=//
-//
-// The path value state structure is used by `Do_Path_Throws()` and passed
-// to the dispatch routines.  See additional comments in %c-path.c.
-//
-
-struct Reb_Path_Value_State {
-    //
-    // picker = &picker_cell (GC guarded value).  Note REBVAL cannot appear
-    // in a struct in the C++ build, so RELVAL is used.
-    //
-    RELVAL picker_cell;
-
-    // `picker` is the result of evaluating the current path item if
-    // necessary.  So if the path is `a/(1 + 2)` and processing the second
-    // `item`, then the picker would be the computed value `3`.
-    //
-    // (This is what the individual path dispatchers should use.)
-    //
-    const REBVAL *picker;
-
-    // `any_path` original path input, saved for error messages
-    //
-    const RELVAL *any_path;
-
-    // `item` is the current element within the path that is being processed.
-    // It is advanced as the path is consumed.
-    //
-    const RELVAL *item;
-
-    // A specifier is needed because the PATH! is processed by incrementing
-    // through values, which may be resident in an array that was part of
-    // the cloning of a function body.  The specifier allows the path
-    // evaluation to disambiguate which variable a word's relative binding
-    // would match.
-    //
-    REBSPC *item_specifier;
-
-    // `value` holds the path value that should be chained from.  (It is the
-    // type of `value` that dictates which dispatcher is given the `selector`
-    // to get the next step.)  This has to be a relative value in order to
-    // use the SET_IF_END option which writes into arrays.
-    //
-    RELVAL *value;
-
-    // `value_specifier` has to be updated whenever value is updated
-    //
-    REBSPC *value_specifier;
-
-    // `store` is the storage for constructed values, and also where any
-    // thrown value will be written.
-    //
-    REBVAL *store;
-
-    // `setval` is non-NULL if this is a SET-PATH!, and it is the value to
-    // ultimately set the path to.  The set should only occur at the end
-    // of the path, so most setters should check `IS_END(pvs->item + 1)`
-    // before setting.
-    //
-    // !!! See notes at top of file about why the path dispatch is more
-    // complicated than simply being able to only pass the setval to the last
-    // item being dispatched (which would be cleaner, but some cases must
-    // look ahead with alternate handling).
-    //
-    const REBVAL *opt_setval;
-
-    // `label` is a concept that `obj/fun/refinement` would come back with
-    // the symbol FUN to identify a function, for the stack trace.  This
-    // idea throws away information and is a little sketchy, not to mention
-    // that anonymous functions throw a wrench into it.  But it is roughly
-    // what R3-Alpha did.
-    //
-    // !!! A better idea is probably to just temporarily lock the executing
-    // path until the function is done running, and use the path itself as
-    // the label.  This provides more information and doesn't require the
-    // sketchy extraction logic.
-    //
-    REBSTR **label_out;
-};
+inline static REBOOL Get_Path_Throws_Core(
+    REBVAL *out,
+    const RELVAL *any_path,
+    REBSPC *specifier
+){
+    return Do_Path_Throws_Core(
+        out,
+        NULL, // not requesting symbol means refinements not allowed
+        REB_GET_PATH,
+        VAL_ARRAY(any_path),
+        VAL_INDEX(any_path),
+        Derive_Specifier(specifier, any_path),
+        NULL, // not requesting value to set means it's a get
+        0 // Name contains Get_Path_Throws() so it shouldn't be neutral
+    );
+}
 
 
-enum Path_Eval_Result {
-    PE_OK, // pvs->value points to the element to take the next selector
-    PE_SET_IF_END, // only sets if end of path
-    PE_USE_STORE, // set pvs->value to be pvs->store
-    PE_NONE // set pvs->store to NONE and then pvs->value to pvs->store
-};
+inline static void Get_Path_Core(
+    REBVAL *out,
+    const RELVAL *any_path,
+    REBSPC *specifier
+){
+    assert(ANY_PATH(any_path)); // *could* work on ANY_ARRAY(), actually
 
+    if (Do_Path_Throws_Core(
+        out,
+        NULL, // not requesting symbol means refinements not allowed
+        REB_GET_PATH,
+        VAL_ARRAY(any_path),
+        VAL_INDEX(any_path),
+        Derive_Specifier(specifier, any_path),
+        NULL, // not requesting value to set means it's a get
+        DO_FLAG_NEUTRAL
+    )){
+        DECLARE_LOCAL (arg); // use frame cell instead
+        CATCH_THROWN(arg, out);
+        assert(IS_BLANK(out)); // "throw name" (current invariant)
+        assert(IS_BAR(arg)); // "thrown value" (current invariant)
+
+        fail ("PATH!s used with GET can't contain GROUP!s (use REDUCE)");
+    }
+}
+
+
+inline static REBOOL Set_Path_Throws_Core(
+    REBVAL *out,
+    const RELVAL *any_path,
+    REBSPC *specifier,
+    const REBVAL *setval
+){
+    assert(ANY_PATH(any_path)); // *could* work on ANY_ARRAY(), actually
+
+    return Do_Path_Throws_Core(
+        out,
+        NULL, // not requesting symbol means refinements not allowed
+        REB_SET_PATH,
+        VAL_ARRAY(any_path),
+        VAL_INDEX(any_path),
+        Derive_Specifier(specifier, any_path),
+        setval,
+        0 // Name contains Set_Path_Throws() so it shouldn't be neutral
+    );
+}
+
+
+inline static void Set_Path_Core(
+    const RELVAL *any_path,
+    REBSPC *specifier,
+    const REBVAL *setval,
+    REBOOL enfix
+){
+    assert(ANY_PATH(any_path)); // *could* work on ANY_ARRAY(), actually
+
+    // If there's no throw, there's no result of setting a path (hence it's
+    // not in the interface)
+    //
+    DECLARE_LOCAL (out);
+
+    REBFLGS flags = DO_FLAG_NEUTRAL;
+    if (enfix)
+        flags |= DO_FLAG_SET_PATH_ENFIXED;
+
+    if (Do_Path_Throws_Core(
+        out,
+        NULL, // not requesting symbol means refinements not allowed
+        REB_SET_PATH,
+        VAL_ARRAY(any_path),
+        VAL_INDEX(any_path),
+        Derive_Specifier(specifier, any_path),
+        setval,
+        flags
+    )){
+        DECLARE_LOCAL (arg); // use frame cell instead
+        CATCH_THROWN(arg, out);
+        assert(IS_BLANK(out)); // "throw name" (current invariant)
+        assert(IS_BAR(arg)); // "thrown value" (current invariant)
+
+        fail ("PATH!s used with SET can't contain GROUP!s (use EVAL)");
+    }
+}

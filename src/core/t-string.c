@@ -608,9 +608,9 @@ static void Sort_String(
 //
 //  PD_String: C
 //
-REBINT PD_String(REBPVS *pvs)
+REB_R PD_String(REBPVS *pvs, const REBVAL *picker, const REBVAL *opt_setval)
 {
-    REBSER *ser = VAL_SERIES(pvs->value);
+    REBSER *ser = VAL_SERIES(pvs->out);
 
     // Note: There was some more careful management of overflow here in the
     // PICK and POKE actions, before unification.  But otherwise the code
@@ -628,27 +628,27 @@ REBINT PD_String(REBPVS *pvs)
         }
     */
 
-    if (pvs->opt_setval == NULL) { // PICK-ing
-        if (IS_INTEGER(pvs->picker)) {
-            REBINT n = Int32(pvs->picker) + VAL_INDEX(pvs->value) - 1;
+    if (opt_setval == NULL) { // PICK-ing
+        if (IS_INTEGER(picker)) {
+            REBINT n = Int32(picker) + VAL_INDEX(pvs->out) - 1;
             if (n < 0 || cast(REBCNT, n) >= SER_LEN(ser)) {
-                Init_Void(pvs->store);
-                return PE_USE_STORE;
+                Init_Void(pvs->out);
+                return R_OUT;
             }
 
-            if (IS_BINARY(pvs->value))
-                Init_Integer(pvs->store, *BIN_AT(ser, n));
+            if (IS_BINARY(pvs->out))
+                Init_Integer(pvs->out, *BIN_AT(ser, n));
             else
-                Init_Char(pvs->store, GET_ANY_CHAR(ser, n));
+                Init_Char(pvs->out, GET_ANY_CHAR(ser, n));
 
-            return PE_USE_STORE;
+            return R_OUT;
         }
 
         if (
-            IS_BINARY(pvs->value)
-            || NOT(IS_WORD(pvs->picker) || ANY_STRING(pvs->picker))
+            IS_BINARY(pvs->out)
+            || NOT(IS_WORD(picker) || ANY_STRING(picker))
         ){
-            fail (Error_Bad_Path_Select(pvs));
+            return R_UNHANDLED;
         }
 
         // !!! This is a historical and questionable feature, where path
@@ -671,7 +671,7 @@ REBINT PD_String(REBPVS *pvs)
         // Because Ren-C unified picking and pathing, this somewhat odd
         // feature is now part of PICKing a string from another string.
 
-        REBSER *copy = Copy_Sequence_At_Position(KNOWN(pvs->value));
+        REBSER *copy = Copy_Sequence_At_Position(pvs->out);
 
         // This makes sure there's always a "/" at the end of the file before
         // appending new material via a picker:
@@ -692,7 +692,7 @@ REBINT PD_String(REBPVS *pvs)
         DECLARE_MOLD (mo);
         Push_Mold(mo);
 
-        Form_Value(mo, pvs->picker);
+        Form_Value(mo, picker);
 
         // The `skip` logic here regarding slashes and backslashes apparently
         // is for an exception to the rule of appending the molded content.
@@ -719,52 +719,50 @@ REBINT PD_String(REBPVS *pvs)
 
         Drop_Mold(mo);
 
-        // Note: pvs->value may point to pvs->store
+        // Note: pvs->out may point to pvs->store
         //
-        Init_Any_Series(pvs->store, VAL_TYPE(pvs->value), copy);
-        return PE_USE_STORE;
+        Init_Any_Series(pvs->out, VAL_TYPE(pvs->out), copy);
+        return R_OUT;
     }
 
     // Otherwise, POKE-ing
 
     FAIL_IF_READ_ONLY_SERIES(ser);
 
-    if (NOT(IS_INTEGER(pvs->picker)))
-        fail (Error_Bad_Path_Select(pvs));
+    if (NOT(IS_INTEGER(picker)))
+        return R_UNHANDLED;
 
-    REBINT n = Int32(pvs->picker) + VAL_INDEX(pvs->value) - 1;
+    REBINT n = Int32(picker) + VAL_INDEX(pvs->out) - 1;
     if (n < 0 || cast(REBCNT, n) >= SER_LEN(ser))
-        fail (Error_Bad_Path_Range(pvs));
-
-    const REBVAL *setval = pvs->opt_setval;
+        fail (Error_Out_Of_Range(picker));
 
     REBINT c;
-    if (IS_CHAR(setval)) {
-        c = VAL_CHAR(setval);
+    if (IS_CHAR(opt_setval)) {
+        c = VAL_CHAR(opt_setval);
         if (c > MAX_CHAR)
-            fail (Error_Bad_Path_Set(pvs));
+            return R_UNHANDLED;
     }
-    else if (IS_INTEGER(setval)) {
-        c = Int32(setval);
+    else if (IS_INTEGER(opt_setval)) {
+        c = Int32(opt_setval);
         if (c > MAX_CHAR || c < 0)
-            fail (Error_Bad_Path_Set(pvs));
+            return R_UNHANDLED;
     }
-    else if (ANY_BINSTR(setval)) {
-        REBCNT i = VAL_INDEX(setval);
-        if (i >= VAL_LEN_HEAD(setval))
-            fail (Error_Bad_Path_Set(pvs));
+    else if (ANY_BINSTR(opt_setval)) {
+        REBCNT i = VAL_INDEX(opt_setval);
+        if (i >= VAL_LEN_HEAD(opt_setval))
+            fail (opt_setval);
 
-        c = GET_ANY_CHAR(VAL_SERIES(setval), i);
+        c = GET_ANY_CHAR(VAL_SERIES(opt_setval), i);
     }
     else
-        fail (Error_Bad_Path_Select(pvs));
+        return R_UNHANDLED;
 
-    if (IS_BINARY(pvs->value)) {
+    if (IS_BINARY(pvs->out)) {
         if (c > 0xff)
-            fail (Error_Out_Of_Range(setval));
+            fail (Error_Out_Of_Range(opt_setval));
 
         BIN_HEAD(ser)[n] = cast(REBYTE, c);
-        return PE_OK;
+        return R_INVISIBLE;
     }
 
     if (BYTE_SIZE(ser) && c > 0xff)
@@ -772,7 +770,7 @@ REBINT PD_String(REBPVS *pvs)
 
     SET_ANY_CHAR(ser, n, c);
 
-    return PE_OK;
+    return R_INVISIBLE;
 }
 
 

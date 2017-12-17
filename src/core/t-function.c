@@ -433,22 +433,25 @@ REBNATIVE(func_class_of)
 //
 //  PD_Function: C
 //
-REBINT PD_Function(REBPVS *pvs)
+REB_R PD_Function(REBPVS *pvs, const REBVAL *picker, const REBVAL *opt_setval)
 {
-    if (IS_BLANK(pvs->picker)) {
+    UNUSED(pvs);
+    UNUSED(opt_setval);
+
+    if (IS_BLANK(picker)) {
         //
         // Leave the function value as-is, and continue processing.  This
         // enables things like `append/(all [foo 'dup])/only`...
         //
-        return PE_OK;
+        return R_OUT;
     }
 
     // The first evaluation of a GROUP! and GET-WORD! are processed by the
     // general path mechanic before reaching this dispatch.  So if it's not
     // a word or one of those that evaluated to a word raise an error.
     //
-    if (!IS_WORD(pvs->picker))
-        fail (Error_Bad_Refine_Raw(pvs->picker));
+    if (!IS_WORD(picker))
+        fail (Error_Bad_Refine_Raw(picker));
 
     // We could generate a "refined" function variant at each step:
     //
@@ -459,7 +462,7 @@ REBINT PD_Function(REBPVS *pvs)
     // understood to push the canonized word to the data stack in the
     // function case.
     //
-    DS_PUSH(pvs->picker);
+    DS_PUSH(picker);
 
     // Go ahead and canonize the word symbol so we don't have to do it each
     // time in order to get a case-insensitive compare.  (Note that canons can
@@ -467,7 +470,7 @@ REBINT PD_Function(REBPVS *pvs)
     //
     Canonize_Any_Word(DS_TOP);
 
-    // Leave the function value as is in pvs->value
+    // Leave the function value as is in pvs->out
     //
-    return PE_OK;
+    return R_OUT;
 }

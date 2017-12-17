@@ -605,17 +605,15 @@ void Poke_Vector_Fail_If_Read_Only(
 //
 // Path dispatch acts like PICK for GET-PATH! and POKE for SET-PATH!
 //
-REBINT PD_Vector(REBPVS *pvs)
+REB_R PD_Vector(REBPVS *pvs, const REBVAL *picker, const REBVAL *opt_setval)
 {
-    if (pvs->opt_setval) {
-        Poke_Vector_Fail_If_Read_Only(
-            KNOWN(pvs->value), pvs->picker, pvs->opt_setval
-        );
-        return PE_OK;
+    if (opt_setval != NULL) {
+        Poke_Vector_Fail_If_Read_Only(pvs->out, picker, opt_setval);
+        return R_INVISIBLE;
     }
 
-    Pick_Vector(pvs->store, KNOWN(pvs->value), pvs->picker);
-    return PE_USE_STORE;
+    Pick_Vector(pvs->out, pvs->out, picker);
+    return R_OUT;
 }
 
 

@@ -517,29 +517,29 @@ found:
 //
 //  PD_Bitset: C
 //
-REBINT PD_Bitset(REBPVS *pvs)
+REB_R PD_Bitset(REBPVS *pvs, const REBVAL *picker, const REBVAL *opt_setval)
 {
-    REBSER *ser = VAL_SERIES(pvs->value);
+    REBSER *ser = VAL_SERIES(pvs->out);
 
-    if (!pvs->opt_setval) {
-        if (Check_Bits(ser, pvs->picker, FALSE)) {
-            Init_Logic(pvs->store, TRUE);
-            return PE_USE_STORE;
+    if (opt_setval == NULL) {
+        if (Check_Bits(ser, picker, FALSE)) {
+            Init_Logic(pvs->out, TRUE);
+            return R_OUT;
         }
-        return PE_NONE;
+        return R_BLANK;
     }
 
     if (Set_Bits(
         ser,
-        pvs->picker,
+        picker,
         BITS_NOT(ser)
-            ? IS_FALSEY(pvs->opt_setval)
-            : IS_TRUTHY(pvs->opt_setval)
-    )) {
-        return PE_OK;
+            ? IS_FALSEY(opt_setval)
+            : IS_TRUTHY(opt_setval)
+    )){
+        return R_INVISIBLE;
     }
 
-    fail (Error_Bad_Path_Set(pvs));
+    return R_UNHANDLED;
 }
 
 

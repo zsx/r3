@@ -247,11 +247,7 @@ static REB_R Protect_Unprotect_Core(REBFRM *frame_, REBFLGS flags)
                     );
                 }
                 else if (IS_PATH(value)) {
-                    if (Do_Path_Throws_Core(
-                        safe, NULL, value, SPECIFIED, NULL
-                    ))
-                        fail (Error_No_Catch_For_Throw(safe));
-
+                    Get_Path_Core(safe, value, SPECIFIED);
                     var = safe;
                 }
                 else {
