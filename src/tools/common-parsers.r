@@ -135,11 +135,10 @@ line-from-pos: function [
     line
 ]
 
-
 load-next: function [
     {Load the next value. Return block with value and new position.}
     string [string!]
-] [
+][
     out: transcode/next to binary! string
     out/2: skip string subtract length-of string length-of to string! out/2
     out

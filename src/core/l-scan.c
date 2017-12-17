@@ -1782,7 +1782,11 @@ REBARR *Scan_Array(
     SCAN_STATE *ss,
     REBYTE mode_char
 ){
-    const REBDSP dsp_orig = DSP;
+    // The way that path scanning works is that after one item has been
+    // scanned it is *retroactively* decided to begin picking up more items
+    // in the path.  Hence, we take over one pushed item from the caller.
+    //
+    const REBDSP dsp_orig = (mode_char == '/') ? DSP - 1 : DSP;
 
     // just_once for load/next see Load_Script for more info.
     const REBOOL just_once = LOGICAL(ss->opts & SCAN_NEXT);
@@ -1826,59 +1830,7 @@ REBARR *Scan_Array(
         const REBYTE *ep = ss->end;
         REBCNT len = cast(REBCNT, ep - bp);
 
-        // If in a path, handle start of path /word or word//word cases:
-        if (mode_char == '/' && *bp == '/') {
-            DS_PUSH_TRASH;
-            Init_Blank(DS_TOP);
-            ss->begin = bp + 1;
-            continue;
-        }
-
-        // Check for new path: /word or word/word:
-        if (
-            (
-                ss->token == TOKEN_PATH
-                || (
-                    (
-                        ss->token == TOKEN_WORD
-                        || ss->token == TOKEN_LIT
-                        || ss->token == TOKEN_GET
-                    )
-                    && *ep == '/'
-                )
-            )
-            && mode_char != '/'
-        ) {
-            REBARR *array = Scan_Child_Array(ss, '/');
-
-            DS_PUSH_TRASH;
-
-            if (ss->token == TOKEN_LIT) {
-                VAL_RESET_HEADER(DS_TOP, REB_LIT_PATH);
-                VAL_RESET_HEADER(ARR_HEAD(array), REB_WORD);
-                assert(IS_WORD_UNBOUND(ARR_HEAD(array)));
-            }
-            else if (IS_GET_WORD(ARR_HEAD(array))) {
-                if (*ss->end == ':')
-                    fail (Error_Syntax(ss));
-                VAL_RESET_HEADER(DS_TOP, REB_GET_PATH);
-                VAL_RESET_HEADER(ARR_HEAD(array), REB_WORD);
-                assert(IS_WORD_UNBOUND(ARR_HEAD(array)));
-            }
-            else {
-                if (*ss->end == ':') {
-                    VAL_RESET_HEADER(DS_TOP, REB_SET_PATH);
-                    ss->begin = ++ss->end;
-                }
-                else
-                    VAL_RESET_HEADER(DS_TOP, REB_PATH);
-            }
-            INIT_VAL_ARRAY(DS_TOP, array); // copies args
-            VAL_INDEX(DS_TOP) = 0;
-            ss->token = TOKEN_PATH;
-        }
-        else
-            ss->begin = ss->end; // accept token
+        ss->begin = ss->end; // accept token
 
         // Process each lexical token appropriately:
         switch (ss->token) {
@@ -2239,11 +2191,68 @@ REBARR *Scan_Array(
                 goto array_done;
 
             ep++;
-            if (*ep != '(' && IS_LEX_DELIMIT(*ep)) {
+            if (*ep != '(' && *ep != '[' && IS_LEX_DELIMIT(*ep)) {
                 ss->token = TOKEN_PATH;
                 fail (Error_Syntax(ss));
             }
             ss->begin = ep;  // skip next /
+        }
+        else if (*ep == '/') {
+            //
+            // We're noticing a path was actually starting with the token
+            // that just got pushed, so it should be a part of that path.
+            // So when `mode_char` is '/', it needs to steal this last one
+            // pushed item from us...as it's the head of the path it couldn't
+            // see coming in the future.
+
+        #if !defined(NDEBUG)
+            REBDSP dsp_check = DSP;
+        #endif
+
+            ++ss->begin;
+            REBARR *array = Scan_Child_Array(ss, '/');
+
+        #if !defined(NDEBUG)
+            assert(DSP == dsp_check - 1); // should only take one!
+        #endif
+
+            if (ss->begin == NULL) {
+                //
+                // Something like trying to scan "*/", where there was no more
+                // input to be had (begin is set to NULL, with the debug build
+                // setting end to trash, to help catch this case)
+                //
+                ss->begin = bp;
+                ss->end = ep + 1; // include the slash in error
+                ss->token = TOKEN_PATH;
+                fail (Error_Syntax(ss));
+            }
+
+            DS_PUSH_TRASH; // now push a path to take the stolen token's place
+
+            if (ss->token == TOKEN_LIT) {
+                VAL_RESET_HEADER(DS_TOP, REB_LIT_PATH);
+                VAL_RESET_HEADER(ARR_HEAD(array), REB_WORD);
+                assert(IS_WORD_UNBOUND(ARR_HEAD(array)));
+            }
+            else if (IS_GET_WORD(ARR_HEAD(array))) {
+                if (*ss->end == ':')
+                    fail (Error_Syntax(ss));
+                VAL_RESET_HEADER(DS_TOP, REB_GET_PATH);
+                VAL_RESET_HEADER(ARR_HEAD(array), REB_WORD);
+                assert(IS_WORD_UNBOUND(ARR_HEAD(array)));
+            }
+            else {
+                if (*ss->end == ':') {
+                    VAL_RESET_HEADER(DS_TOP, REB_SET_PATH);
+                    ss->begin = ++ss->end;
+                }
+                else
+                    VAL_RESET_HEADER(DS_TOP, REB_PATH);
+            }
+            INIT_VAL_ARRAY(DS_TOP, array);
+            VAL_INDEX(DS_TOP) = 0;
+            ss->token = TOKEN_PATH;
         }
 
         // Added for load/next

@@ -52,6 +52,14 @@ env:
  
     - AWS_S3_BUCKET_NAME: "metaeducation"
 
+  matrix:
+    # Address Sanitizer output needs to be "symbolized" to get symbols and
+    # line numbers.  This option must be set along with ASAN_SYMBOLIZER_PATH.
+    # However, some modern gcc and clang will figure it out even if there is
+    # no path set, so go ahead and put this option in all matrixes.
+    #
+    - ASAN_OPTIONS=symbolize=1
+
 
 # All Travis instances in the following "matrix" will run the same `script:`
 # code (found later on in the file).  However, each instance has environment
@@ -174,6 +182,8 @@ matrix:
         - TCC=tcc
         - FFI="dynamic"
         - ODBC_REQUIRES_LTDL="no"
+        - ASAN_SYMBOLIZER_PATH=/usr/bin/llvm-symbolizer-3.4
+        - ASAN_OPTIONS=symbolize=1
       addons:
         apt:
           packages:
@@ -378,6 +388,9 @@ install:
 
 
 script:
+    # Temporary--looking for llvm symbolizer
+    - ls /usr/lib
+
     # Nice to know what version of gcc this is
     - ${TOOLS}gcc --version
     - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then export MAKE_JOBS=`nproc`; fi
