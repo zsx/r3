@@ -249,7 +249,7 @@
 // are flattened in kind of a wasteful way...some are mutually exclusive and
 // could use the same bit, if needed.
 //
-#if defined(__cplusplus) && (__cplusplus >= 201103L)
+#ifdef CPLUSPLUS_11
     static_assert(GENERAL_SERIES_BIT + 7 < 16, "SERIES_FLAG_XXX too high");
 #endif
 
@@ -437,7 +437,7 @@
 // for non-dynamic series and an 8 bit width of the series.  So the info
 // flags need to stop at FLAGIT_LEFT(15).
 //
-#if defined(__cplusplus) && (__cplusplus >= 201103L)
+#ifdef CPLUSPLUS_11
     static_assert(13 < 16, "SERIES_INFO_XXX too high");
 #endif
 
@@ -827,7 +827,7 @@ struct Reb_Series {
 // do it, then it would be forced to go through a pointer access to do any
 // writing...which would likely be less efficient.
 //
-#ifdef __cplusplus
+#ifdef CPLUSPLUS_11
     inline static union Reb_Series_Misc& Get_Series_Misc(REBSER *s) {
         return s->misc_private;
     }
