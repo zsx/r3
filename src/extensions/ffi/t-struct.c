@@ -1427,7 +1427,7 @@ REB_R PD_Struct(REBPVS *pvs, const REBVAL *picker, const REBVAL *opt_setval)
             }
 
             DECLARE_LOCAL (specific);
-            if (IS_REFERENCE(pvs->out))
+            if (VAL_TYPE(pvs->out) == REB_0_REFERENCE)
                 Derelativize(
                     specific, VAL_REFERENCE(pvs->out), VAL_SPECIFIER(pvs->out)
                 );
@@ -1435,7 +1435,7 @@ REB_R PD_Struct(REBPVS *pvs, const REBVAL *picker, const REBVAL *opt_setval)
                 Move_Value(specific, pvs->out);
             
             if (!Set_Struct_Var(stu, sel_orig, pvs->refine, specific))
-                fail (Error_Bad_Path_Set(pvs));
+                return R_UNHANDLED;
 
             DROP_GUARD_VALUE(sel_orig);
 
@@ -1446,7 +1446,7 @@ REB_R PD_Struct(REBPVS *pvs, const REBVAL *picker, const REBVAL *opt_setval)
     }
     else {
         if (!Set_Struct_Var(stu, picker, NULL, opt_setval))
-            fail (Error_Bad_Path_Set(pvs));
+            return R_UNHANDLED;
 
         return R_INVISIBLE;
     }

@@ -1003,7 +1003,7 @@ REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec, ffi_abi abi) {
 
     const REBCNT capacity_guess = 8; // !!! Magic number...why 8? (can grow)
 
-    REBARR *paramlist = Make_Array(capacity_guess);
+    REBARR *paramlist = Make_Array_Core(capacity_guess, ARRAY_FLAG_PARAMLIST);
 
     // first slot is reserved for the "canon value", see `struct Reb_Function`
     //
@@ -1186,7 +1186,6 @@ REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec, ffi_abi abi) {
     rootparam->payload.function.paramlist = paramlist;
     INIT_BINDING(rootparam, UNBOUND);
 
-    SET_SER_FLAG(paramlist, ARRAY_FLAG_PARAMLIST);
     LINK(paramlist).facade = paramlist;
     MISC(paramlist).meta = NULL;
 
