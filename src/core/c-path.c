@@ -199,7 +199,21 @@ REBOOL Next_Path_Throws(REBPVS *pvs)
         switch (r) {
         case R_INVISIBLE:
             assert(pvs->eval_type == REB_SET_PATH);
-            panic("SET-PATH! evaluation ran assignment before path end");
+            if (
+                dispatcher != Path_Dispatch[REB_STRUCT]
+                && dispatcher != Path_Dispatch[REB_GOB]
+            ){
+                panic("SET-PATH! evaluation ran assignment before path end");
+            }
+
+            // !!! Temporary exception for STRUCT! and GOB!, the hack the
+            // dispatcher uses to do "sub-value addressing" is to call
+            // Next_Path_Throws inside of them, to be able to do a write
+            // while they still have memory of what the struct and variable
+            // are (which would be lost in this protocol otherwise).
+            //
+            assert(FRM_AT_END(pvs));
+            break;
 
         case R_REFERENCE:
             assert(VAL_TYPE(pvs->out) == REB_0_REFERENCE);
