@@ -212,7 +212,7 @@ spec-of: function [
         select meta 'return-note
         select original-meta 'return-note
     ]
-    if return-type or return-note [
+    if return-type or (return-note) [
         append spec quote return:
         if return-type [append/only spec return-type]
         if return-note [append spec return-note]
