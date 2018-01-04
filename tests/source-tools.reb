@@ -302,7 +302,7 @@ rebsource: context [
                     position:
                     [
                         eol count-line
-                        | #"^-" (append 'tabbed line)
+                        | #"^-" (append tabbed line)
                         | wsp and [line-ending | alt-ending] (append eol-wsp line)
                         | skip
                     ]

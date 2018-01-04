@@ -803,17 +803,16 @@ REBCTX *Make_Selfish_Context_Detect(
     for (; len > 1; --len, ++var) // 1 is rootvar (context), already done
         Init_Blank(var);
 
-    if (opt_parent) {
+    if (opt_parent != NULL) {
         //
-        // Bitwise copy parent values (will have bits fixed by Clonify).
+        // Copy parent values (will have bits fixed by Clonify).
         // None of these should be relative, because they came from object
         // vars (that were not part of the deep copy of a function body)
         //
-        memcpy(
-            CTX_VARS_HEAD(context),
-            CTX_VARS_HEAD(opt_parent),
-            (CTX_LEN(opt_parent)) * sizeof(REBVAL)
-        );
+        REBVAL *dest = CTX_VARS_HEAD(context);
+        REBVAL *src = CTX_VARS_HEAD(opt_parent);
+        for (; NOT_END(src); ++dest, ++src)
+            Move_Var(dest, src);
 
         // For values we copied that were blocks and strings, replace
         // their series components with deep copies of themselves:
@@ -1053,7 +1052,7 @@ REBCTX *Merge_Contexts_Selfish(REBCTX *parent1, REBCTX *parent2)
     REBVAL *copy_dest = CTX_VARS_HEAD(merged);
     const REBVAL *copy_src = CTX_VARS_HEAD(parent1);
     for (; NOT_END(copy_src); ++copy_src, ++copy_dest)
-        Move_Value(copy_dest, copy_src);
+        Move_Var(copy_dest, copy_src);
 
     // Update the child tail before making calls to CTX_VAR(), because the
     // debug build does a length check.
@@ -1069,7 +1068,7 @@ REBCTX *Merge_Contexts_Selfish(REBCTX *parent1, REBCTX *parent2)
             &collector.binder, VAL_KEY_CANON(key)
         );
         assert(n != 0);
-        Move_Value(CTX_VAR(merged, n), value);
+        Move_Var(CTX_VAR(merged, n), value);
     }
 
     // Deep copy the child.  Context vars are REBVALs, already fully specified
@@ -1202,16 +1201,10 @@ void Resolve_Context(
                 NOT_VAL_FLAG(var, CELL_FLAG_PROTECTED)
                 && (all || IS_VOID(var))
             ) {
-                if (m < 0) Init_Void(var); // no value in source context
-                else {
-                    Move_Value(var, CTX_VAR(source, m));
-
-                    // Need to also copy if the binding is lookahead (e.g.
-                    // would be an infix call).
-                    //
-                    if (GET_VAL_FLAG(CTX_VAR(source, m), VALUE_FLAG_ENFIXED))
-                        SET_VAL_FLAG(var, VALUE_FLAG_ENFIXED);
-                }
+                if (m < 0)
+                    Init_Void(var); // no value in source context
+                else
+                    Move_Var(var, CTX_VAR(source, m)); // preserves enfix
             }
         }
     }
@@ -1226,13 +1219,7 @@ void Resolve_Context(
                 // Note: no protect check is needed here
                 //
                 var = Append_Context(target, 0, canon);
-                Move_Value(var, CTX_VAR(source, n));
-
-                // Need to also copy if the binding is lookahead (e.g.
-                // would be an infix call).
-                //
-                if (GET_VAL_FLAG(CTX_VAR(source, n), VALUE_FLAG_ENFIXED))
-                    SET_VAL_FLAG(var, VALUE_FLAG_ENFIXED);
+                Move_Var(var, CTX_VAR(source, n)); // preserves enfix
             }
         }
     }

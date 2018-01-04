@@ -1672,6 +1672,47 @@ inline static REBVAL *Move_Value(RELVAL *out, const REBVAL *v)
 }
 
 
+// When doing something like a COPY of an OBJECT!, the var cells have to be
+// handled specially, e.g. by preserving VALUE_FLAG_ENFIXED.
+//
+inline static REBVAL *Move_Var(RELVAL *out, const REBVAL *v)
+{
+    // This special kind of copy can only be done into another object's
+    // variable slot. (Since the source may be a FRAME!, v *might* be stack
+    // but it should never be relative.  If it's stack, we have to go through
+    // the whole potential reification process...double-set header for now.)
+    //
+    if (v->header.bits & VALUE_FLAG_STACK) {
+        Move_Value(out, v);
+        if (GET_VAL_FLAG(v, VALUE_FLAG_ENFIXED))
+            SET_VAL_FLAG(out, VALUE_FLAG_ENFIXED); // !!! refactor better!
+        return KNOWN(out);
+    }
+
+   assert(out != v); // usually a sign of a mistake; not worth supporting
+   assert(
+        (v->header.bits & (NODE_FLAG_CELL | NODE_FLAG_NODE))
+        && NOT(v->header.bits & (NODE_FLAG_END | NODE_FLAG_FREE))
+    );
+
+    ASSERT_CELL_WRITABLE(out, __FILE__, __LINE__);
+
+    assert(NOT(out->header.bits & VALUE_FLAG_STACK));
+
+    // !!! We preserve VALUE_FLAG_ENFIXED, but should we preserve protection
+    // status as well?
+    //
+    out->header.bits &= CELL_MASK_RESET;
+    out->header.bits |= v->header.bits & (
+        CELL_MASK_COPY | VALUE_FLAG_ENFIXED
+    );
+
+    out->payload = v->payload;
+    out->extra = v->extra;
+    return KNOWN(out);
+}
+
+
 // Generally speaking, you cannot take a RELVAL from one cell and copy it
 // blindly into another...it needs to be Derelativize()'d.  This routine is
 // for the rare cases where it's legal, e.g. shuffling a cell from one place

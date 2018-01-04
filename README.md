@@ -78,6 +78,14 @@ of Rebol's GitHub.
 
 ## Building
 
+As a design goal, compiling Ren-C depends on [very little beyond ANSI C89][14].  Attempts
+to reign in compiler dependencies have been a large amount of work, and it still supports
+a [number of older platforms][15].  However, if it is compiled with a C++ compiler then
+there is significantly more static analysis at build time, to catch errors.
+
+[14]: https://github.com/metaeducation/ren-c/wiki/On-Building-Ren-C-With-Cpp-Compilers 
+[15]: https://github.com/metaeducation/ren-c/blob/master/src/tools/systems.r
+
 The open-sourced R3-Alpha was based on a build process that depended on GNU make, and
 needed an existing R3-Alpha executable in order to generate that makefile (as well as other
 generated supporting C files).  This process was recently replaced with a Rebol-only
@@ -87,16 +95,21 @@ if desired.
 
 While this process *works*, it introduced considerable complexity...and currently it needs
 to use a somewhat modern Ren-C build to bootstrap--as opposed to a historical R3-Alpha.
-For the moment, some usable binaries are committed into the %make/ directory for 32/64-bit
-platforms on Linux/Mac/Windows.  Building is a matter of picking a config out of the
-%make/configs/ directory, and doing something along the lines of:
+For the moment, some usable binaries are committed into the `%make/` directory for 32/64-bit
+platforms on Linux/Mac/Windows.
+
+Building is a matter of picking a config out of the `%make/configs/` directory, or just
+taking the defaults.  Options may be overridden on the command line of %make-make.r (which
+is a client of Rebmake):
 
     r3-make ../src/tools/make-make.r CONFIG=configs/vs2017-x64.r DEBUG=asserts
 
-That would use the Windows r3-make tool to build a project for Visual Studio 2017.  Because
-other priorities have taken the focus away from improvements to this build process, it
-would be strongly desirable if community member(s) could get involved to help streamline
-and document it!  Since it's now *all* written in Rebol, that should be more possible.
+That would use the Windows r3-make tool to build a project for Visual Studio 2017.
+
+*(Because other priorities have taken the focus away from improvements to this build
+process, it would be strongly desirable if community member(s) could get involved to
+help streamline and document it!  Since it's now *all* written in Rebol, that should be
+more possible.)*
 
 
 [100]: https://raw.githubusercontent.com/metaeducation/ren-c/master/ren-c-logo.png

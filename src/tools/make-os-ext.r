@@ -493,11 +493,13 @@ newline newline (rebol-lib-macros)
         // was const.
     #ifdef OS_WIDE_CHAR
         return cast(REBCHR*,
-            m_cast(wchar_t*, wcschr(cast(const wchar_t*, str), ch))
+            m_cast(wchar_t*,
+                wcschr(cast(const wchar_t*, str), cast(wchar_t, ch))
+            )
         );
     #else
         return cast(REBCHR*,
-            m_cast(char*, strchr(cast(const char*, str), ch))
+            m_cast(char*, strchr(cast(const char*, str), cast(int, ch)))
         );
     #endif
     }

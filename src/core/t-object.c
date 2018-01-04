@@ -228,12 +228,8 @@ static void Append_To_Context(REBCTX *context, REBVAL *arg)
             break; // fix bug#708
         }
         else {
+            assert(NOT_VAL_FLAG(&word[1], VALUE_FLAG_ENFIXED));
             Derelativize(var, &word[1], VAL_SPECIFIER(arg));
-
-            // Should the VALUE_FLAG_ENFIXED be preserved here?
-            //
-            if (GET_VAL_FLAG(&word[1], VALUE_FLAG_ENFIXED))
-                SET_VAL_FLAG(var, VALUE_FLAG_ENFIXED);
         }
     }
 
@@ -284,7 +280,7 @@ static REBCTX *Trim_Context(REBCTX *context)
         if (GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN))
             continue;
 
-        Move_Value(var_new, var);
+        Move_Var(var_new, var);
         ++var_new;
         Move_Value(key_new, key);
         ++key_new;
@@ -622,7 +618,7 @@ REBCTX *Copy_Context_Core(REBCTX *original, REBU64 types)
     //
     REBVAL *src = CTX_VARS_HEAD(original);
     for (; NOT_END(src); ++src, ++dest)
-        Move_Value(dest, src);
+        Move_Var(dest, src); // must preserve VALUE_FLAG_ENFIXED
 
     TERM_ARRAY_LEN(varlist, CTX_LEN(original) + 1);
     SET_SER_FLAG(varlist, ARRAY_FLAG_VARLIST);

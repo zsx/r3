@@ -1747,9 +1747,17 @@ REB_R Action_Dispatcher(REBFRM *f)
 
         UNUSED(ARG(value));
         REBSYM property = VAL_WORD_SYM(ARG(property));
-        assert(property != SYM_0);
 
         switch (property) {
+        case SYM_0:
+            //
+            // If a word wasn't in %words.r, it has no integer SYM.  There is
+            // no way for a built-in reflector to handle it...since they just
+            // operate on SYMs in a switch().  Longer term, a more extensible
+            // idea may be necessary.
+            //
+            fail (Error_Cannot_Reflect(kind, ARG(property)));
+
         case SYM_TYPE:
             if (kind == REB_MAX_VOID)
                 return R_BLANK;
