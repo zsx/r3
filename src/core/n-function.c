@@ -220,40 +220,60 @@ REBNATIVE(return)
     // binding field of the frame contains a copy of whatever the binding was
     // in the specific FUNCTION! value that was invoked.
     //
-    REBFUN *target;
+    REBFRM *target_frame;
     if (f->binding->header.bits & NODE_FLAG_CELL) {
-        REBFRM *binding_f = cast(REBFRM*, f->binding);
-        target = binding_f->phase;
+        target_frame = cast(REBFRM*, f->binding);
     }
     else if (f->binding->header.bits & ARRAY_FLAG_VARLIST) {
-        REBCTX *frame_ctx = CTX(f->binding);
-        target = VAL_FUNC(CTX_FRAME_FUNC_VALUE(frame_ctx));
+        target_frame = CTX_FRAME_IF_ON_STACK(CTX(f->binding));
+        if (target_frame == NULL)
+            fail (Error_Frame_Not_On_Stack_Raw());
     }
     else {
         assert(f->binding == UNBOUND);
         fail (Error_Return_Archetype_Raw());
     }
 
+    // !!! We only have a REBFRM via the binding.  We don't have distinct
+    // knowledge about exactly which "phase" the original RETURN was
+    // connected to.  As a practical matter, it can only return from the
+    // current phase (what other option would it have, any other phase is
+    // either not running yet or has already finished!).  But this means the
+    // `target_frame->phase` may be somewhat incidental to which phase the
+    // RETURN originated from...and if phases were allowed different return
+    // typesets, then that means the typechecking could be somewhat random.
+    //
+    // Without creating a unique tracking entity for which phase was
+    // intended for the return, it's not known which phase the return is
+    // for.  So the return type checking is done on the basis of the
+    // underlying function.  So compositions that share frames cannot expand
+    // the return type set.  The unfortunate upshot of this is--for instance--
+    // that an ENCLOSE'd function can't return any types the original function
+    // could not.  :-(
+    //
+    REBFUN *target_fun = FRM_UNDERLYING(target_frame);
+
     // If it's a definitional return, the associated function's frame must
     // have a SYM_RETURN in it, which is also a local.  The trick used is
     // that the type bits in that local are used to store the legal types
     // for the return value.
     //
-    REBVAL *typeset = FUNC_PARAM(target, FUNC_NUM_PARAMS(target));
+    REBVAL *typeset = FUNC_PARAM(target_fun, FUNC_NUM_PARAMS(target_fun));
     assert(VAL_PARAM_SYM(typeset) == SYM_RETURN);
 
     // Check the type *NOW* instead of waiting and letting Do_Core() check it.
     // The reasoning is that this way, the error will indicate the callsite,
     // e.g. the point where `return badly-typed-value` happened.
     //
-    // !!! In the spirit of the abstraction, it's actually RETURN whose
-    // argument type isn't being fulfilled, not the return type of the
-    // function.  It's just that the RETURN was created with that same
-    // signature.  Review this.
+    // !!! In the userspace formulation of this abstraction, it indicates that
+    // it's not RETURN's type signature that is constrained, as if it were
+    // then RETURN would be implicated in the error.  Instead, RETURN must
+    // take [<opt> any-value!] as its argument, and then do the error report
+    // itself...implicating the frame (in a way parallel to this native).
     //
     REBVAL *value = ARG(value);
     if (!TYPE_CHECK(typeset, VAL_TYPE(value)))
-        fail (Error_Bad_Return_Type(f, VAL_TYPE(value)));
+        fail (Error_Bad_Return_Type(target_frame, VAL_TYPE(value)));
 
     Move_Value(D_OUT, NAT_VALUE(exit)); // see also Make_Thrown_Exit_Value
     INIT_BINDING(D_OUT, f->binding);
