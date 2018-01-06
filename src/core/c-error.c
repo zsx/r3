@@ -486,15 +486,28 @@ void Set_Location_Of_Error(
     //
     f = where;
     for (; f != NULL; f = f->prior) {
-        if (FRM_IS_VALIST(f))
+        if (FRM_IS_VALIST(f)) {
+            //
+            // !!! We currently skip any calls from C (e.g. rebDo()) and look
+            // for calls from Rebol files for the file and line.  However,
+            // rebDo() might someday supply its C code __FILE__ and __LINE__,
+            // which might be interesting to put in the error instead.
+            //
             continue;
+        }
         if (NOT_SER_FLAG(f->source.array, SERIES_FLAG_FILE_LINE))
             continue;
         break;
     }
     if (f != NULL) {
-        Init_Word(&vars->file, LINK(f->source.array).file);
-        Init_Integer(&vars->line, MISC(f->source.array).line);
+        REBSTR *file = LINK(f->source.array).file;
+        REBUPT line = MISC(f->source.array).line;
+
+        REBSYM file_sym = STR_SYMBOL(file);
+        if (file_sym != SYM___ANONYMOUS__)
+            Init_Word(&vars->file, file);
+        if (line != 0)
+            Init_Integer(&vars->line, line);
     }
 }
 
