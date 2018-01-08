@@ -220,16 +220,6 @@ ATTRIBUTE_NO_RETURN void Panic_Core(
     // best choice for an anomalous exit.
     //
     exit (255);
-
-    // If for some reason that didn't exit, try and force a crash with a
-    // NULL-dereference, and do it in a loop so we never return.
-    //
-    while (TRUE) {
-        int *crasher = NULL;
-        *crasher = 1020;
-    }
-
-    DEAD_END;
 }
 
 

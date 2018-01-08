@@ -973,27 +973,55 @@ append app-config/cflags opt switch/default user-config/standard [
     ]
     c++98 c++0x c++11 c++14 c++17 c++latest [
 
-        ; Note: The C and C++ user-config/standards do not dictate if `char` is signed
-        ; or unsigned.  Lest anyone think all environments have settled on
-        ; them being signed, they're not... Android NDK uses unsigned:
-        ;
-        ; http://stackoverflow.com/questions/7414355/
-        ;
-        ; In order to give the option some exercise, make the C++11 builds
-        ; and above use unsigned chars.
-        ;
         cfg-cplusplus: true
         reduce [
-            <gnu:-x c++>
-            to tag! unspaced ["gnu:--std=" user-config/standard]
-            <gnu:-funsigned-char>
+            ; Compile C files as C++.
+            ;
+            ; !!! The original code appeared to make it so that if a Visual
+            ; Studio project was created, the /TP option gets removed and it
+            ; was translated into XML under the <CompileAs> option.  But
+            ; that meant extensions weren't getting the option, so it has
+            ; been disabled pending review.
+            ;
+            ; !!! For some reason, clang has deprecated this ability, though
+            ; it still works.  It is not possible to disable the deprecation,
+            ; so RIGOROUS can not be used with clang when building as C++...
+            ; the files would (sadly) need to be renamed to .cpp or .cxx
+            ;
             <msc:/TP>
-            to tag! unspaced ["msc:/std:" lowercase to string! user-config/standard];only supports "c++14/17/latest"
+            <gnu:-x c++>
+
+            ; C++ standard (MSVC only supports "c++14/17/latest")
+            ;
+            to tag! unspaced ["gnu:--std=" user-config/standard]
+            to tag! unspaced [
+                "msc:/std:" lowercase to string! user-config/standard
+            ]
+
+            ; Note: The C and C++ user-config/standards do not dictate if
+            ; `char` is signed or unsigned.  Lest anyone think environments
+            ; all settled on them being signed, they're not... Android NDK
+            ; uses unsigned:
+            ;
+            ; http://stackoverflow.com/questions/7414355/
+            ;
+            ; In order to give the option some exercise, make GCC C++ builds
+            ; use unsigned chars.
+            ;
+            <gnu:-funsigned-char>
+ 
+            ; MSVC never bumped their __cplusplus version past 1997, even if
+            ; you compile with C++17.  Hence CPLUSPLUS_11 is used by Rebol
+            ; code as the switch for most C++ behaviors, and we have to
+            ; define that explicitly.
+            ;
+            <msc:/DCPLUSPLUS_11>
         ]
     ]
 ][
     fail [
-        "STANDARD should be one of [c gnu89 gnu99 c99 c11 c++ c++11 c++14 c++17 c++latest]"
+        "STANDARD should be one of"
+        "[c gnu89 gnu99 c99 c11 c++ c++11 c++14 c++17 c++latest]"
         "not" (user-config/standard)
     ]
 ]
@@ -1194,6 +1222,21 @@ append app-config/cflags opt switch/default user-config/rigorous [
             ;    of performance
             ;
             <msc:/wd4738>
+
+            ; For some reason, even if you don't actually invoke moves or
+            ; copy constructors, MSVC warns you that you wouldn't be able to
+            ; if you ever did.  :-/
+            ;
+            <msc:/wd5026>
+            <msc:/wd4626>
+            <msc:/wd5027>
+            <msc:/wd4625>
+
+            ; If a function hasn't been explicitly declared as nothrow, then
+            ; passing it to extern "C" routines gets a warning.  This is a C
+            ; codebase being built as C++, so there shouldn't be throws.
+            ;
+            <msc:/wd5039>
         ]
     ]
     _ #[false] no off false [

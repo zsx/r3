@@ -1762,11 +1762,11 @@ visual-studio: make generator-class [
             if i: filter-flag/leading-char cflags/1 "msc" #"/" [
                 case [
                     parse i ["/TP" to end] [
-                        remove cflags
+                        comment [remove cflags] ; extensions wouldn't get it
                         return "CompileAsCpp"
                     ]
                     parse i ["/TC" to end] [
-                        remove cflags
+                        comment [remove cflags] ; extensions wouldn't get it
                         return "CompileAsC"
                     ]
                 ]

@@ -213,9 +213,9 @@ REB_R Do_Vararg_Op_May_Throw(
         switch (pclass) {
         case PARAM_CLASS_NORMAL:
         case PARAM_CLASS_TIGHT: {
-            DECLARE_FRAME (f);
+            DECLARE_FRAME (f_temp);
             Push_Frame_At(
-                f,
+                f_temp,
                 VAL_ARRAY(shared),
                 VAL_INDEX(shared),
                 VAL_SPECIFIER(shared),
@@ -227,23 +227,23 @@ REB_R Do_Vararg_Op_May_Throw(
             // Note: Do_Next_In_Subframe_Throws() is not needed here because
             // this is a single use frame, whose state can be overwritten.
             //
-            if (Do_Next_In_Frame_Throws(out, f)) {
-                Drop_Frame(f);
+            if (Do_Next_In_Frame_Throws(out, f_temp)) {
+                Drop_Frame(f_temp);
                 return R_OUT_IS_THROWN;
             }
 
-            if (FRM_AT_END(f))
+            if (FRM_AT_END(f_temp))
                 SET_END(shared); // signal end to all varargs sharing value
             else {
                 // The indexor is "prefetched", so though the temp_frame would
                 // be ready to use again we're throwing it away, and need to
                 // effectively "undo the prefetch" by taking it down by 1.
                 //
-                assert(f->source.index > 0);
-                VAL_INDEX(shared) = f->source.index - 1; // all sharings see
+                assert(f_temp->source.index > 0);
+                VAL_INDEX(shared) = f_temp->source.index - 1; // all sharings
             }
 
-            Drop_Frame(f);
+            Drop_Frame(f_temp);
             break; }
 
         case PARAM_CLASS_HARD_QUOTE:

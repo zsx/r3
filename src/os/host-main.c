@@ -167,7 +167,6 @@ BOOL WINAPI Handle_Break(DWORD dwCtrlType)
         // !!! Review arbitrary "100" exit code here.
         //
         exit(100);
-        return TRUE; // TRUE = "we handled it"
 
     default:
         return FALSE; // FALSE = "we didn't handle it"

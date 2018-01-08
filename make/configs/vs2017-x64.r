@@ -10,6 +10,7 @@ toolset: [
 
 extensions: [
     ;* UUID _
+    - FFI _
 ]
 
 with-ffi: no

@@ -94,10 +94,8 @@ void MF_Library(REB_MOLD *mo, const RELVAL *v, REBOOL form)
     Pre_Mold(mo, v);
 
     REBCTX *meta = VAL_LIBRARY_META(v);
-    if (meta) {
-        const REBOOL form = FALSE;
+    if (meta)
         MF_Context(mo, CTX_VALUE(meta), form);
-    }
 
     End_Mold(mo);
 }

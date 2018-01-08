@@ -2322,8 +2322,6 @@ static REBNATIVE(list_env)
 
     return R_OUT;
 #endif
-
-    DEAD_END;
 }
 
 
