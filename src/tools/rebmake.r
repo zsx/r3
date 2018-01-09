@@ -590,7 +590,7 @@ cl: make compiler-class [
             either E ["/P"]["/c"]
 
             if all [I not empty? includes] [
-                unspaced ["/I" delimit file-to-local includes " /I"]
+                unspaced ["/I" delimit map-files-to-local includes " /I"]
             ]
             if all [D not empty? definitions][
                 unspaced [
