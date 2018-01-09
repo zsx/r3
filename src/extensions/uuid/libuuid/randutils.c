@@ -99,36 +99,53 @@ int random_get_fd(void)
  */
 void random_get_bytes(void *buf, size_t nbytes)
 {
-	size_t i;
 	unsigned char *cp = (unsigned char *)buf;
-
-#ifdef HAVE_GETRANDOM
-	while (getrandom(buf, nbytes, 0) < 0) {
-		if (errno == EINTR)
-			continue;
-		break;
-	}
-#else
-	size_t n = nbytes;
-	int fd = random_get_fd();
+	size_t i, n = nbytes;
 	int lose_counter = 0;
 
-	if (fd >= 0) {
-		while (n > 0) {
-			ssize_t x = read(fd, cp, n);
-			if (x <= 0) {
-				if (lose_counter++ > 16)
-					break;
-				continue;
-			}
-			n -= x;
-			cp += x;
-			lose_counter = 0;
-		}
+#ifdef HAVE_GETRANDOM
+	while (n > 0) {
+		int x;
 
-		close(fd);
+		errno = 0;
+		x = getrandom(cp, n, 0);
+		if (x > 0) {			/* success */
+		       n -= x;
+		       cp += x;
+		       lose_counter = 0;
+		} else if (errno == ENOSYS)	/* kernel without getrandom() */
+			break;
+		else if (lose_counter++ > 16)	/* entropy problem? */
+			break;
 	}
+
+	if (errno == ENOSYS)
 #endif
+	/*
+	 * We've been built against headers that support getrandom, but the
+	 * running kernel does not.  Fallback to reading from /dev/{u,}random
+	 * as before
+	 */
+	{
+		int fd = random_get_fd();
+
+		lose_counter = 0;
+		if (fd >= 0) {
+			while (n > 0) {
+				ssize_t x = read(fd, cp, n);
+				if (x <= 0) {
+					if (lose_counter++ > 16)
+						break;
+					continue;
+				}
+				n -= x;
+				cp += x;
+				lose_counter = 0;
+			}
+
+			close(fd);
+		}
+	}
 	/*
 	 * We do this all the time, but this is the only source of
 	 * randomness if /dev/random/urandom is out to lunch.
@@ -149,7 +166,6 @@ void random_get_bytes(void *buf, size_t nbytes)
 		       sizeof(ul_jrand_seed)-sizeof(unsigned short));
 	}
 #endif
-
 	return;
 }
 
@@ -177,15 +193,34 @@ const char *random_tell_source(void)
 }
 
 #ifdef TEST_PROGRAM_RANDUTILS
-int main(int argc __attribute__ ((__unused__)),
-         char *argv[] __attribute__ ((__unused__)))
-{
-	unsigned int v, i;
+#include <inttypes.h>
 
-	/* generate and print 10 random numbers */
-	for (i = 0; i < 10; i++) {
+int main(int argc, char *argv[])
+{
+	size_t i, n;
+	int64_t *vp, v;
+	char *buf;
+	size_t bufsz;
+
+	n = argc == 1 ? 16 : atoi(argv[1]);
+
+	printf("Multiple random calls:\n");
+	for (i = 0; i < n; i++) {
 		random_get_bytes(&v, sizeof(v));
-		printf("%d\n", v);
+		printf("#%02zu: %25"PRIu64"\n", i, v);
+	}
+
+
+	printf("One random call:\n");
+	bufsz = n * sizeof(*vp);
+	buf = malloc(bufsz);
+	if (!buf)
+		err(EXIT_FAILURE, "failed to allocate buffer");
+
+	random_get_bytes(buf, bufsz);
+	for (i = 0; i < n; i++) {
+		vp = (int64_t *) (buf + (i * sizeof(*vp)));
+		printf("#%02zu: %25"PRIu64"\n", i, *vp);
 	}
 
 	return EXIT_SUCCESS;
