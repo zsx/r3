@@ -95,6 +95,15 @@ fix-gen_uuid.c: function [
                   (target: unspaced [{#if 0^/} to string! definition {^/#endif^/}])
                 ]
                 target
+
+            ; comment out unused variable variant_bits
+            | change [
+                copy unused: [
+                    {static unsigned char variant_bits[]}
+                  ]
+                  (target: unspaced [{// } to string! unused])
+                ] target
+
             | skip
         ]
     ]

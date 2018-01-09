@@ -99,7 +99,7 @@
 #endif
 
 /* index with UUID_VARIANT_xxx and shift 5 bits */
-static unsigned char variant_bits[] = { 0x00, 0x04, 0x06, 0x07 };
+// static unsigned char variant_bits[] = { 0x00, 0x04, 0x06, 0x07 };
 
 #ifdef _WIN32
 static void gettimeofday (struct timeval *tv, void *dummy)
