@@ -44,6 +44,9 @@ fix-randutils.c: func [
             ;randutils.c:137:12: error: invalid conversion from ‘void*’ to ‘unsigned char*’ 
             | change {cp = buf} {cp = (unsigned char*)buf}
 
+            ; Fix "error: invalid suffix on literal; C++11 requires a space between literal and identifier"
+            | change {"PRIu64"} {" PRIu64 "}
+
             | skip
         ]
     ]
