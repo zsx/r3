@@ -294,19 +294,25 @@ find-record-unique: function [
 
 
 parse-args: function [
-    args ;args in form of "NAME=VALUE"
+    args
+    /all "Keeps also args without '=', puts them after a '| ."
 ][
     ret: make block! 4
+    standalone: make block! 4
     args: any [args copy []]
     unless block? args [args: split args [some " "]]
     for-each a args [
-        if idx: find a #"=" [
+        either idx: find a #"=" [; name=value
             name: to word! copy/part a (index-of idx) - 1
             value: copy next idx
             append ret reduce [name value]
+        ][; standalone-arg
+            if all [append standalone a]
         ]
     ]
-    ret
+    if any [not all empty? standalone] [return ret]
+    append ret '|
+    append ret standalone
 ]
 
 fix-win32-path: func [
