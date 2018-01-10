@@ -1,11 +1,15 @@
 REBOL []
 extensions: [
-    - uuid _
-    - process _
     - crypt _
-    - locale _
-    - bmp _
+    - process _
+    - view _
+    - png _
     - gif _
     - jpg _
-    - png _
+    - bmp _
+    - locale _
+    - uuid _
+    - odbc _
+    - ffi _
+    - debugger _
 ]

@@ -8,4 +8,7 @@ extensions: [
     * gif _
     * jpg _
     ;* png _
+    * odbc _
+    * ffi _
+    * debugger _
 ]
