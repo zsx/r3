@@ -214,25 +214,6 @@ e-lib/emit-lines [
     {}
 ]
 
-e-lib/emit {
-// Extension entry point functions.  If code is an extension it needs to be
-// implementing instances of these prototypes.  Rebol code itself needs to
-// invoke these prototypes after opening the DLLs.  Client code using a
-// version of Rebol that has been built as a DLL won't have need for this.
-//
-#ifdef TO_WINDOWS
-    #define RXIEXT __declspec(dllexport)
-#else
-    #define RXIEXT extern
-#endif
-
-RXIEXT const char *RX_Init(int opts, RL_LIB *lib);
-RXIEXT int RX_Quit(int opts);
-RXIEXT int RX_Call(int cmd, const REBVAL *frm, void *data);
-}
-
-e-lib/emit newline
-
 e-lib/emit-lines [
     {#ifdef __cplusplus}
     "}"
