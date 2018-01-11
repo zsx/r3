@@ -645,10 +645,13 @@ void Pick_Or_Poke_Date(
             Init_Integer(opt_out, cast(REBINT, Julian_Date(VAL_DATE(v))));
             break;
 
-        case SYM_UTC:
-            Move_Value(opt_out, v); // don't adjust
+        case SYM_UTC: {
+            Move_Value(opt_out, v);
+            SET_VAL_FLAG(opt_out, DATE_FLAG_HAS_ZONE);
             INIT_VAL_ZONE(opt_out, 0);
-            break;
+            const REBOOL to_utc = TRUE;
+            Adjust_Date_Zone(opt_out, to_utc);
+            break; }
 
         case SYM_HOUR:
             if (NOT_VAL_FLAG(v, DATE_FLAG_HAS_TIME))
