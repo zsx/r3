@@ -221,12 +221,11 @@ either block? user-config/with-ffi [
             file? lib [
                 make rebmake/ext-dynamic-class [
                     output: lib
-                    flags: either user-config/with-ffi = 'static [[static]][_]
                 ]
             ]
             all [
                     object? lib
-                    find [dynamic-library-class static-library-class] lib/class-name
+                    find [ext-dynamic-class ext-static-class] lib/class-name
             ][
                 lib
             ]
@@ -507,6 +506,7 @@ available-modules: reduce [
             %ffi/t-routine.c
         ]
         includes: cfg-ffi/includes
+        definitions: cfg-ffi/definitions
         cflags: cfg-ffi/cflags
         searches: cfg-ffi/searches
         ldflags: cfg-ffi/ldflags
