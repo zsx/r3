@@ -1961,11 +1961,14 @@ REBARR *Scan_Array(
                 ss->token = TOKEN_DATE;
                 while (*ep == '/' || IS_LEX_NOT_DELIMIT(*ep))
                     ++ep;
-                ss->begin = ep;
                 len = cast(REBCNT, ep - bp);
                 DS_PUSH_TRASH;
                 if (ep != Scan_Date(DS_TOP, bp, len))
                     fail (Error_Syntax(ss));
+
+                // !!! used to set ss->begin to ep, for reasons that aren't
+                // clear...which tripped up an assert that ss->end is greater
+                // than ss->begin at the start of the loop.  Review.
             }
             break;
 
