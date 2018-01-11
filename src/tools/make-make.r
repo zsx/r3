@@ -20,9 +20,15 @@ user-config: make object! load config-dir/default-config.r
 
 ; Load user defined config.r
 args: parse-args/all system/options/args
-if select args 'CONFIG [
-    user-config: make user-config load config-dir/(args/CONFIG)
+if targets: find args '| [
+    args: copy/part args targets
+    targets: next targets
 ]
+while [a: find args 'CONFIG] [
+    args: next a
+    user-config: make user-config load config-dir/(args/1)
+]
+args: head args
 
 ; Allow any of the settings in user-config to be overwritten by command line
 ; options
@@ -64,8 +70,7 @@ for-each [name value] args [
     ]
 ]
 ; process standalone args
-if args: find args '| [args: next args]
-if not empty? args [user-config/target: load args]
+if not empty? targets [user-config/target: load targets]
 
 dump user-config
 
