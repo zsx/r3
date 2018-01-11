@@ -99,6 +99,8 @@ gen-obj: func [
     s
     /dir directory [any-string!]
     /D definitions [block!]
+    /I includes [block!]
+    /F cflags [block!]
     <local>
     flags
 ][
@@ -164,11 +166,14 @@ gen-obj: func [
         s: s/1
     ]
 
+    if F [append flags :cflags]
+
     make rebmake/object-file-class compose/only [
         source: to-file join-of either dir [directory][src-dir] s
         output: to-obj-path to string! s
         cflags: either empty? flags [_] [flags]
         definitions: (to-value :definitions)
+        includes: (to-value :includes)
     ]
 ]
 
@@ -622,6 +627,9 @@ available-extensions: reduce [
             mod-ffi
         ]
         source: %ffi/ext-ffi.c
+        includes: cfg-ffi/includes
+        cflags: cfg-ffi/cflags
+        definitions: cfg-ffi/definitions
         init: %ffi/ext-ffi-init.reb
     ]
 
@@ -1728,7 +1736,12 @@ for-each ext builtin-extensions [
             app-config/debug
     ]
     if ext/source [
-        append any [all [mod-obj mod-obj/depends] ext-objs] gen-obj/dir ext/source src-dir/extensions/%
+        append any [all [mod-obj mod-obj/depends] ext-objs] gen-obj/dir/I/D/F
+            ext/source
+            src-dir/extensions/%
+            opt ext/includes
+            opt ext/definitions
+            opt ext/cflags
     ]
 ]
 
@@ -1961,7 +1974,12 @@ for-each ext dynamic-extensions [
     append ext-dynamic-objs copy mod-objs
 
     if ext/source [
-        append mod-objs gen-obj/dir/D ext/source src-dir/extensions/% ["EXT_DLL"]
+        append mod-objs gen-obj/dir/I/D/F
+            ext/source
+            src-dir/extensions/%
+            opt ext/includes
+            append copy ["EXT_DLL"] opt ext/definitions
+            opt ext/cflags
     ]
     append dynamic-libs ext-proj: make rebmake/dynamic-library-class [
         name: join-of either system-config/os-base = 'windows ["r3-"]["libr3-"]
