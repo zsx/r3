@@ -1915,7 +1915,7 @@ visual-studio: make generator-class [
             lib: make string! 1024
             for-each i project/depends [
                 switch i/class-name [
-                    ext-dynamic-class static-library-class [
+                    ext-dynamic-class ext-static-class static-library-class [
                         if ext: filter-flag/leading-char i/output "msc" "" [
                             append lib unspaced [
                                 ext
