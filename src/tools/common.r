@@ -295,19 +295,32 @@ find-record-unique: function [
 
 parse-args: function [
     args
-    /all "Keeps also args without '=', puts them after a '| ."
+    /all "Extended syntax: allows args without '=' (puts them after a '| ); allows set-words (name: value)"
 ][
     ret: make block! 4
     standalone: make block! 4
     args: any [args copy []]
     unless block? args [args: split args [some " "]]
-    for-each a args [
-        either idx: find a #"=" [; name=value
-            name: to word! copy/part a (index-of idx) - 1
-            value: copy next idx
-            append ret reduce [name value]
-        ][; standalone-arg
-            if all [append standalone a]
+    forall args [
+        a: args/1
+        case [
+            idx: find a #"=" [; name=value
+                name: to word! copy/part a (index-of idx) - 1
+                value: copy next idx
+                append ret reduce [name value]
+            ]
+            all and (#":" = last a) [; name=value
+                name: to word! copy/part a (length-of a) - 1
+                args: next args
+                if empty? args [
+                    fail ["Missing value after" a]
+                ]
+                value: args/1
+                append ret reduce [name value]
+            ]
+            all [; standalone-arg
+                append standalone a
+            ]
         ]
     ]
     if any [not all empty? standalone] [return ret]
