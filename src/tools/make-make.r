@@ -15,18 +15,25 @@ append lib compose [
 rebmake: import %rebmake.r
 
 config-dir: %../../make
-print pwd
+base-dir: pwd
 user-config: make object! load config-dir/default-config.r
 
 ; Load user defined config.r
-args: parse-args system/options/args
-if select args 'CONFIG [
-    user-config: make user-config load config-dir/(args/CONFIG)
+args: parse-args/all system/options/args
+if targets: find args '| [
+    args: copy/part args targets
+    targets: next targets
 ]
+while [a: find args 'CONFIG] [
+    args: next a
+    user-config: make user-config load config-dir/(args/1)
+]
+args: head args
 
 ; Allow any of the settings in user-config to be overwritten by command line
 ; options
 for-each [name value] args [
+    if name = '| [break] ; begin of standalone args
     switch/default name [
         CONFIG [
             ;pass
@@ -62,6 +69,8 @@ for-each [name value] args [
             load value
     ]
 ]
+; process standalone args
+if not empty? targets [user-config/target: load targets]
 
 dump user-config
 
@@ -1815,7 +1824,9 @@ solution: make rebmake/solution-class [
     debug: app-config/debug
 ]
 
-switch/default user-config/target [
+target: user-config/target
+if not block? target [target: reduce [target]]
+forall target [switch/default target/1 [
     clean [
         change-dir %../../make
         rebmake/execution/run make rebmake/solution-class [
@@ -1823,7 +1834,21 @@ switch/default user-config/target [
                 clean
             ]
         ]
+        change-dir base-dir
     ]
+    prep [
+        change-dir %../../make
+        rebmake/execution/run make rebmake/solution-class [
+            depends: flatten reduce [
+                vars
+                prep
+                t-folders
+                dynamic-libs
+            ]
+        ]
+        change-dir base-dir
+    ]
+    r3
     execution [
         change-dir %../../make
         rebmake/execution/run make rebmake/solution-class [
@@ -1835,6 +1860,7 @@ switch/default user-config/target [
                 dynamic-libs
             ]
         ]
+        change-dir base-dir
     ]
     makefile [
         rebmake/makefile/generate %../../make/makefile solution
@@ -1851,7 +1877,8 @@ switch/default user-config/target [
     ]
 ][
     fail [
-        "Unsupported target (execution, makefile or nmake):"
+        "Unsupported target"
         user-config/target
+        "^/Choose between: clean prep r3 execution makefile nmake vs2017 visual-studio vs2015"
     ]
-]
+]]
