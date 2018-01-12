@@ -1966,9 +1966,11 @@ REBARR *Scan_Array(
                 if (ep != Scan_Date(DS_TOP, bp, len))
                     fail (Error_Syntax(ss));
 
-                // !!! used to set ss->begin to ep, for reasons that aren't
-                // clear...which tripped up an assert that ss->end is greater
-                // than ss->begin at the start of the loop.  Review.
+                // !!! used to just set ss->begin to ep...which tripped up an
+                // assert that ss->end is greater than ss->begin at the start
+                // of the loop.  So this sets both to ep.  Review.
+
+                ss->begin = ss->end = ep;
             }
             break;
 

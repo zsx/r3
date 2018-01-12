@@ -82,7 +82,7 @@
 #define STEP_BACKWARD(term) \
     do { \
         --term->pos; \
-    } while ((term->buffer[term->pos] & 0xC0) == 0x80); 
+    } while ((term->buffer[term->pos] & 0xC0) == 0x80);
 
 typedef struct term_data {
     REBYTE *buffer;
@@ -362,12 +362,12 @@ static void End_Line(STD_TERM *term)
 //  !!! Used to calculate the correct number of BS to us in Show_Line().
 //      Would stepping through the UTF-8 string be better?
 //
-static int Strlen_UTF8(REBYTE *buffer, int byte_count) 
+static int Strlen_UTF8(REBYTE *buffer, int byte_count)
 {
     int char_count = 0;
     int i = 0;
-        for(i = 0 ; i < byte_count ; i++) 
-            if ((buffer[i] & 0xC0) != 0x80) 
+        for(i = 0 ; i < byte_count ; i++)
+            if ((buffer[i] & 0xC0) != 0x80)
                 char_count++;
 
         return char_count;
@@ -492,7 +492,7 @@ static void Delete_Char(STD_TERM *term, REBOOL back)
     if (term->pos == term->end && NOT(back))
         return; //Ctrl-D at EOL
 
-    if (back) 
+    if (back)
         STEP_BACKWARD(term);
 
     int encoded_len = 1 + trailingBytesForUTF8[term->buffer[term->pos]];
