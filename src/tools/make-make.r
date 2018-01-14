@@ -93,7 +93,7 @@ for-each x targets [
 ; [CONFIG | OPTION | COMMAND] ...
 ; COMMAND = WORD
 ; OPTION = 'NAME=VALUE' | 'NAME: VALUE'
-; CONFIG = 'config=CONFIG-FILE'
+; CONFIG = 'config=CONFIG-FILE' | 'config: CONFIG-FILE'
 args: parse-args/all system/options/args
 ; now args are ordered and separated by bar:
 ; [NAME VALUE ... '| COMMAND ...]
@@ -161,48 +161,46 @@ indent: func [
 
 help-topics: reduce [
 ;; !! Only 1 indentation level in help strings !!
+
 'usage {USAGE:
     > cd PATH/TO/REN-C/make
     then:
-    > ./r3-make make.r [TARGET | OPTION | CONFIG ...]
-
+    > ./r3-make make.r [TARGET | OPTION | CONFIG ...]^/
     MORE HELP:
     > {-h | -help | --help} targets | options | configs | os-id | all
     }
+
 'targets unspaced [{TARGETS:
     }
     indent form target-names
     ]
+
 'configs unspaced [ {CONFIGS:
-    config: CONFIG-FILE
-    
-    Files in config/ subfolder are:
-    
+    config: CONFIG-FILE^/
+    Files in config/ subfolder are:^/
     }
-    indent/space form map-each x ;\
+    indent/space form sort map-each x ;\
         load join-of pwd %../../make/configs/
         [to-string x]
     newline ]
-'options unspaced [ {OPTIONS:
-    
+
+'options unspaced [ {OPTIONS:^/
     CURRENT VALUES:
     }
     indent mold/only body-of user-config
-    {
-
+    {^/
     NOTES:
     - names are case-insensitive
     - `_` instead of '-' is ok
     - NAME=VALUE is the same as NAME: VALUE
     - e.g `OS_ID=0.4.3` === `os-id: 0.4.3`
     } ]
-'os-id unspaced [ {OS-ID:
 
+'os-id unspaced [ {OS-ID:^/
     CURRENT OS:
     }
     indent mold/only body-of config-system user-config/os-id
-    {
-
+    {^/
     OS-ID:  OS-NAME:}
     indent form collect [for-each-system s [
         keep unspaced [
