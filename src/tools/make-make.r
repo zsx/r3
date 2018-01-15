@@ -785,10 +785,10 @@ help: function [topic [string! blank!]] [
 ]
 
 ; process help: {-h | -help | --help} [TOPIC]
-forall commands [
+if commands [forall commands [
     if find ["-h" "-help" "--help"] first commands
     [help second commands quit]
-]
+]]
 
 ;;;; GO!
 
