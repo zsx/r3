@@ -23,71 +23,6 @@ config-dir: %../../make
 base-dir: pwd
 user-config: make object! load config-dir/default-config.r
 
-;;;; TARGETS
-; I need targets here, for gathering names
-; and use they with --help targets ...
-targets: [
-    clean [
-        change-dir %../../make
-        rebmake/execution/run make rebmake/solution-class [
-            depends: reduce [
-                clean
-            ]
-        ]
-        change-dir base-dir
-    ]
-    prep [
-        change-dir %../../make
-        rebmake/execution/run make rebmake/solution-class [
-            depends: flatten reduce [
-                vars
-                prep
-                t-folders
-                dynamic-libs
-            ]
-        ]
-        change-dir base-dir
-    ]
-    r3
-    execution [
-        change-dir %../../make
-        rebmake/execution/run make rebmake/solution-class [
-            depends: flatten reduce [
-                vars
-                prep
-                t-folders
-                app
-                dynamic-libs
-            ]
-        ]
-        change-dir base-dir
-    ]
-    makefile [
-        rebmake/makefile/generate %../../make/makefile solution
-    ]
-    nmake [
-        rebmake/nmake/generate %../../make/makefile solution
-    ]
-    vs2017
-    visual-studio [
-        rebmake/visual-studio/generate/(all [system-config/os-name = 'Windows-x86 'x86]) %../../make solution
-    ]
-    vs2015 [
-        rebmake/vs2015/generate/(all [system-config/os-name = 'Windows-x86 'x86]) %../../make solution
-    ]
-]
-target-names: make block! 16
-for-each x targets [
-    either word? x [
-        append target-names x
-        append target-names '|
-    ][
-        take/last target-names
-        append target-names
-        newline
-    ]
-]
-
 ;;;; PROCESS ARGS
 ; args are:
 ; [CONFIG | OPTION | COMMAND] ...
@@ -110,6 +45,7 @@ for-each [name value] options [
     ]
 ]
 
+; then process options
 ; Allow any of the settings in user-config
 ; to be overwritten by command line options
 for-each [name value] options [
@@ -149,127 +85,12 @@ for-each [name value] options [
     ]
 ]
 
-;;;; HELP ;;;;
-indent: func [
-    text [string!]
-    /space
-][
-    replace/all text ;\
-        either space [" "] [newline]
-        "^/    "
-]
-
-help-topics: reduce [
-;; !! Only 1 indentation level in help strings !!
-
-'usage {USAGE:
-    > cd PATH/TO/REN-C/make
-    then:
-    > ./r3-make make.r [TARGET | OPTION | CONFIG ...]^/
-    MORE HELP:
-    > {-h | -help | --help} targets | options | configs | os-id | all
-    }
-
-'targets unspaced [{TARGETS:
-    }
-    indent form target-names
-    ]
-
-'configs unspaced [ {CONFIGS:
-    config: CONFIG-FILE^/
-    Files in config/ subfolder are:^/
-    }
-    indent/space form sort map-each x ;\
-        load join-of pwd %../../make/configs/
-        [to-string x]
-    newline ]
-
-'options unspaced [ {OPTIONS:^/
-    CURRENT VALUES:
-    }
-    indent mold/only body-of user-config
-    {^/
-    NOTES:
-    - names are case-insensitive
-    - `_` instead of '-' is ok
-    - NAME=VALUE is the same as NAME: VALUE
-    - e.g `OS_ID=0.4.3` === `os-id: 0.4.3`
-    } ]
-
-'os-id unspaced [ {OS-ID:^/
-    CURRENT OS:
-    }
-    indent mold/only body-of config-system user-config/os-id
-    {^/
-    OS-ID:  OS-NAME:}
-    indent form collect [for-each-system s [
-        keep unspaced [
-            newline format 8 s/id s/os-name
-        ]
-    ]]
-    ]
-]
-
-help: function [topic [string! blank!]] [
-    topic: attempt [to-word topic]
-    print ""
-    case [
-        topic = 'all [forskip help-topics 2 [
-            print help-topics/2
-        ] ]
-        msg: select help-topics topic [
-            print msg
-        ]
-        /else [print help-topics/usage]
-    ]
-]
-
-; process help: {-h | -help | --help} [TOPIC]
-if all [
-    not empty? commands
-    find ["-h" "-help" "--help"] first commands
-] [help second commands quit]
-
-; process other commands as targets
+; process commands
 if not empty? commands [user-config/target: load commands]
 
-;;;;
-app-config: make object! [
-    cflags: make block! 8
-    ldflags: make block! 8
-    libraries: make block! 8
-    debug: off
-    optimization: 2
-    definitions: copy []
-    includes: copy [%../src/include]
-    searches: make block! 8
-]
-
-assert-no-blank-inside: proc [
-    block [block! blank!]
-    <local> e
-][
-    if blank? block [leave]
-
-    for-each e block [
-        if blank? e [
-            dump block
-            fail "No blanks allowed"
-        ]
-    ]
-]
-
-set-exec-path: proc [
-    tool [object!]
-    path
-][
-    if path [
-        unless file? path [
-            fail "Tool path has to be a file!"
-        ]
-        tool/exec-file: path
-    ]
-]
+;;;; MODULES & EXTENSIONS
+system-config: config-system user-config/os-id
+rebmake/set-target-platform system-config/os-base
 
 to-obj-path: func [
     file [any-string!]
@@ -344,256 +165,6 @@ gen-obj: func [
     ]
 ]
 
-add-project-flags: proc [
-    project [object!]
-    /I includes
-    /D definitions
-    /c cflags
-    /O optimization
-    /g debug
-][
-    assert [
-        find? [
-            dynamic-library-class
-            object-library-class
-            static-library-class
-            application-class
-        ] project/class-name
-    ]
-
-    if D [
-        assert-no-blank-inside definitions
-        either block? project/definitions [
-            append project/definitions definitions
-        ][
-            project/definitions: definitions
-        ]
-    ]
-
-    if I [
-        assert-no-blank-inside includes
-        either block? project/includes [
-            either locked? project/includes [
-                project/includes: join-of project/includes includes
-            ][
-                append project/includes includes
-            ]
-        ][
-            project/includes: includes
-        ]
-    ]
-    if c [
-        assert-no-blank-inside cflags
-        either block? project/cflags [
-            append project/cflags cflags
-        ][
-            project/cflags: cflags
-        ]
-    ]
-    if g [project/debug: debug]
-    if O [project/optimization: optimization]
-]
-
-process-module: func [
-    mod [object!]
-    <local>
-    s
-    ret
-][
-    assert [mod/class-name = 'module-class]
-    ;dump mod
-
-    assert-no-blank-inside mod/includes
-    assert-no-blank-inside mod/definitions
-    assert-no-blank-inside mod/depends
-    if block? mod/libraries [assert-no-blank-inside mod/libraries]
-    if block? mod/cflags [assert-no-blank-inside mod/cflags]
-    ret: make rebmake/object-library-class [
-        name: mod/name
-        depends: map-each s (append reduce [mod/source] opt mod/depends) [
-            ;dump s
-            case [
-                any [file? s block? s][
-                    gen-obj/dir s "../src/extensions/"
-                ]
-                all [object? s
-                    find? [
-                        object-library-class
-                        object-file-class
-                    ] s/class-name
-                ][
-                    s
-                    ;object-library-class has already been taken care of above
-                    ;if s/class-name = 'object-file-class [s]
-                ]
-                true [
-                    dump s
-                    fail [type-of s "can't be a dependency of a module"]
-                ]
-            ]
-        ]
-        libraries: to-value if mod/libraries [
-            map-each lib mod/libraries [
-                case [
-                    file? lib [
-                        make rebmake/ext-dynamic-class [
-                            output: lib
-                        ]
-                    ]
-                    all [object? lib
-                        find? [
-                            ext-dynamic-class
-                            ext-static-class
-                        ] lib/class-name
-                    ][
-                        lib
-                    ]
-                    true [
-                        dump lib
-                        fail "unrecognized module library"
-                    ]
-                ]
-            ]
-        ]
-
-        includes: mod/includes
-        definitions: mod/definitions
-        cflags: mod/cflags
-        searches: mod/searches
-    ]
-
-    ret
-]
-
-add-new-obj-folders: procedure [
-    objs
-    folders
-    <local>
-    lib
-    obj
-][
-    for-each lib objs [
-        switch/default lib/class-name [
-            object-file-class [
-                lib: reduce [lib]
-            ]
-            object-library-class [
-                lib: lib/depends
-            ]
-        ][
-            dump lib
-            fail ["unexpected class"]
-        ]
-
-        for-each obj lib [
-            ;if blank? obj [continue]
-            ;dump obj
-            dir: first split-path obj/output
-            ;dump dir
-            unless find? folders dir [
-                append folders dir
-            ]
-        ]
-    ]
-]
-
-
-parse user-config/toolset [
-    any [
-        'gcc opt set cc-exec [file! | blank!] (
-            rebmake/default-compiler: rebmake/gcc
-        )
-        | 'clang opt set cc-exec [file! | blank!] (
-            rebmake/default-compiler: rebmake/clang
-        )
-        | 'cl opt set cc-exec [file! | blank!] (
-            rebmake/default-compiler: rebmake/cl
-        )
-        | 'ld opt set linker-exec [file! | blank!] (
-            rebmake/default-linker: rebmake/ld
-        )
-        | 'llvm-link opt set linker-exec [file! | blank!] (
-            rebmake/default-linker: rebmake/llvm-link
-        )
-        | 'link opt set linker-exec [file! | blank!] (
-            rebmake/default-linker: rebmake/link
-        )
-        | 'strip opt set strip-exec [file! | blank!] (
-            rebmake/default-strip: rebmake/strip
-            rebmake/default-strip/options: [<gnu:-S> <gnu:-x> <gnu:-X>]
-            if all [set? 'strip-exec strip-exec][
-                set-exec-path rebmake/default-strip strip-exec
-            ]
-        )
-        | pos: (unless tail? pos [fail ["failed to parset toolset at:" mold pos]])
-    ]
-]
-
-; sanity checking the compiler and linker
-if blank? rebmake/default-compiler [
-    fail ["Compiler is not set"]
-]
-if blank? rebmake/default-linker [
-    fail ["Default linker is not set"]
-]
-
-switch/default rebmake/default-compiler/name [
-    gcc [
-        if rebmake/default-linker/name != 'ld [
-            fail ["Incompatible compiler (GCC) and linker: " rebmake/default-linker/name]
-        ]
-    ]
-    clang [
-        unless find [ld llvm-link] rebmake/default-linker/name [
-            fail ["Incompatible compiler (CLANG) and linker: " rebmake/default-linker/name]
-        ]
-    ]
-    cl [
-        if rebmake/default-linker/name != 'link [
-            fail ["Incompatible compiler (CL) and linker: " rebmake/default-linker/name]
-        ]
-    ]
-][
-    fail ["Unrecognized compiler (gcc, clang or cl):" cc]
-]
-if all [set? 'cc-exec cc-exec][
-    set-exec-path rebmake/default-compiler cc-exec
-]
-if all [set? 'linker-exec linker-exec][
-    set-exec-path rebmake/default-linker linker-exec
-]
-
-system-config: config-system user-config/os-id
-dump system-config
-rebmake/set-target-platform system-config/os-base
-
-add-app-def: adapt specialize :append [series: app-config/definitions] [
-    value: flatten/deep reduce bind value system-definitions
-]
-add-app-cflags: adapt specialize :append [series: app-config/cflags] [
-    value: if block? value [flatten/deep reduce bind value compiler-flags]
-]
-add-app-lib: adapt specialize :append [series: app-config/libraries] [
-    value: either block? value [
-        value: flatten/deep reduce bind value system-libraries
-        ;dump value
-        map-each w flatten value [
-            make rebmake/ext-dynamic-class [
-                output: w
-            ]
-        ]
-    ][
-        assert [any-string? value]
-        make rebmake/ext-dynamic-class [
-            output: value
-        ]
-    ]
-]
-
-add-app-ldflags: adapt specialize :append [series: app-config/ldflags] [
-    value: if block? value [flatten/deep reduce bind value linker-flags]
-]
-
 libuuid-objs: map-each s [
     %uuid/libuuid/gen_uuid.c
     %uuid/libuuid/unpack.c
@@ -665,7 +236,6 @@ either block? user-config/with-ffi [
                     any [user-config/pkg-config {pkg-config}]
                     var
                     %libffi
-                ;dump x
                 unless empty? x [
                     set (in cfg-ffi var) x
                 ]
@@ -693,7 +263,6 @@ either block? user-config/with-ffi [
         ]
     ]
 ]
-print ["cfg-ffi:" mold cfg-ffi]
 
 available-modules: reduce [
     ;name module-file other-files
@@ -946,8 +515,6 @@ available-modules: reduce [
     ]
 ]
 
-;dump mod-uuid
-
 available-extensions: reduce [
     ext-crypt: make extension-class [
         name: 'Crypt
@@ -1054,11 +621,264 @@ available-extensions: reduce [
         init: %debugger/ext-debugger-init.reb
     ]
 ]
+extension-names: map-each x available-extensions [to-lit-word x/name]
 
-;dump ext-uuid
-;for-each m ext-uuid/modules [
-;    dump m
-;]
+;;;; TARGETS
+; I need targets here, for gathering names
+; and use they with --help targets ...
+targets: [
+    clean [
+        change-dir %../../make
+        rebmake/execution/run make rebmake/solution-class [
+            depends: reduce [
+                clean
+            ]
+        ]
+        change-dir base-dir
+    ]
+    prep [
+        change-dir %../../make
+        rebmake/execution/run make rebmake/solution-class [
+            depends: flatten reduce [
+                vars
+                prep
+                t-folders
+                dynamic-libs
+            ]
+        ]
+        change-dir base-dir
+    ]
+    r3
+    execution [
+        change-dir %../../make
+        rebmake/execution/run make rebmake/solution-class [
+            depends: flatten reduce [
+                vars
+                prep
+                t-folders
+                app
+                dynamic-libs
+            ]
+        ]
+        change-dir base-dir
+    ]
+    makefile [
+        rebmake/makefile/generate %../../make/makefile solution
+    ]
+    nmake [
+        rebmake/nmake/generate %../../make/makefile solution
+    ]
+    vs2017
+    visual-studio [
+        rebmake/visual-studio/generate/(all [system-config/os-name = 'Windows-x86 'x86]) %../../make solution
+    ]
+    vs2015 [
+        rebmake/vs2015/generate/(all [system-config/os-name = 'Windows-x86 'x86]) %../../make solution
+    ]
+]
+target-names: make block! 16
+for-each x targets [
+    either word? x [
+        append target-names x
+        append target-names '|
+    ][
+        take/last target-names
+        append target-names
+        newline
+    ]
+]
+
+;;;; HELP ;;;;
+indent: func [
+    text [string!]
+    /space
+][
+    replace/all text ;\
+        either space [" "] [newline]
+        "^/    "
+]
+
+help-topics: reduce [
+;; !! Only 1 indentation level in help strings !!
+
+'usage copy {=== USAGE ===^/
+    > cd PATH/TO/REN-C/make
+    then:
+    > ./r3-make make.r [CONFIG | OPTION | TARGET ...]^/
+MORE HELP:^/
+    { -h | -help | --help } { HELP-TOPICS }
+    }
+
+'targets unspaced [{=== TARGETS ===^/
+    }
+    indent form target-names
+    ]
+
+'configs unspaced [ {=== CONFIGS ===^/
+    config: CONFIG-FILE^/
+FILES IN config/ SUBFOLDER:^/
+    }
+    indent/space form sort map-each x ;\
+        load join-of pwd %../../make/configs/
+        [to-string x]
+    newline ]
+
+'options unspaced [ {=== OPTIONS ===^/
+CURRENT VALUES:^/
+    }
+    indent mold/only body-of user-config
+    {^/
+NOTES:^/
+    - names are case-insensitive
+    - `_` instead of '-' is ok
+    - NAME=VALUE is the same as NAME: VALUE
+    - e.g `OS_ID=0.4.3` === `os-id: 0.4.3`
+    } ]
+
+'os-id unspaced [ {=== OS-ID ===^/
+CURRENT OS:^/
+    }
+    indent mold/only body-of config-system user-config/os-id
+    {^/
+LIST:^/
+    OS-ID:  OS-NAME:}
+    indent form collect [for-each-system s [
+        keep unspaced [
+            newline format 8 s/id s/os-name
+        ]
+    ]]
+    newline
+    ]
+
+'extensions unspaced [{=== EXTENSIONS ===^/
+    "[FLAG NAME MODULE ...]"^/
+FLAG:
+    - => disable
+    * => dynamic
+    + => builtin (default)^/
+NAME:
+    }
+    indent delimit extension-names " | "
+    {^/
+CURRENT VALUE:
+    }
+    indent mold user-config/extensions
+    newline
+    ]
+]
+; dynamically fill help topics list ;-)
+replace help-topics/usage "HELP-TOPICS" ;\
+    form append map-each x help-topics [either string? x ['|] [x]] 'all
+
+help: function [topic [string! blank!]] [
+    topic: attempt [to-word topic]
+    print ""
+    case [
+        topic = 'all [forskip help-topics 2 [
+            print help-topics/2
+        ] ]
+        msg: select help-topics topic [
+            print msg
+        ]
+        /else [print help-topics/usage]
+    ]
+]
+
+; process help: {-h | -help | --help} [TOPIC]
+forall commands [
+    if find ["-h" "-help" "--help"] first commands
+    [help second commands quit]
+]
+
+;;;; GO!
+
+set-exec-path: proc [
+    tool [object!]
+    path
+][
+    if path [
+        unless file? path [
+            fail "Tool path has to be a file!"
+        ]
+        tool/exec-file: path
+    ]
+]
+
+parse user-config/toolset [
+    any [
+        'gcc opt set cc-exec [file! | blank!] (
+            rebmake/default-compiler: rebmake/gcc
+        )
+        | 'clang opt set cc-exec [file! | blank!] (
+            rebmake/default-compiler: rebmake/clang
+        )
+        | 'cl opt set cc-exec [file! | blank!] (
+            rebmake/default-compiler: rebmake/cl
+        )
+        | 'ld opt set linker-exec [file! | blank!] (
+            rebmake/default-linker: rebmake/ld
+        )
+        | 'llvm-link opt set linker-exec [file! | blank!] (
+            rebmake/default-linker: rebmake/llvm-link
+        )
+        | 'link opt set linker-exec [file! | blank!] (
+            rebmake/default-linker: rebmake/link
+        )
+        | 'strip opt set strip-exec [file! | blank!] (
+            rebmake/default-strip: rebmake/strip
+            rebmake/default-strip/options: [<gnu:-S> <gnu:-x> <gnu:-X>]
+            if all [set? 'strip-exec strip-exec][
+                set-exec-path rebmake/default-strip strip-exec
+            ]
+        )
+        | pos: (unless tail? pos [fail ["failed to parset toolset at:" mold pos]])
+    ]
+]
+
+; sanity checking the compiler and linker
+if blank? rebmake/default-compiler [
+    fail ["Compiler is not set"]
+]
+if blank? rebmake/default-linker [
+    fail ["Default linker is not set"]
+]
+
+switch/default rebmake/default-compiler/name [
+    gcc [
+        if rebmake/default-linker/name != 'ld [
+            fail ["Incompatible compiler (GCC) and linker: " rebmake/default-linker/name]
+        ]
+    ]
+    clang [
+        unless find [ld llvm-link] rebmake/default-linker/name [
+            fail ["Incompatible compiler (CLANG) and linker: " rebmake/default-linker/name]
+        ]
+    ]
+    cl [
+        if rebmake/default-linker/name != 'link [
+            fail ["Incompatible compiler (CL) and linker: " rebmake/default-linker/name]
+        ]
+    ]
+][
+    fail ["Unrecognized compiler (gcc, clang or cl):" cc]
+]
+if all [set? 'cc-exec cc-exec][
+    set-exec-path rebmake/default-compiler cc-exec
+]
+if all [set? 'linker-exec linker-exec][
+    set-exec-path rebmake/default-linker linker-exec
+]
+
+app-config: make object! [
+    cflags: make block! 8
+    ldflags: make block! 8
+    libraries: make block! 8
+    debug: off
+    optimization: 2
+    definitions: copy []
+    includes: copy [%../src/include]
+    searches: make block! 8
+]
 
 cfg-sanitize: false
 cfg-symbols: false
@@ -1490,8 +1310,21 @@ case [
     ]
 ]
 
+assert-no-blank-inside: proc [
+    block [block! blank!]
+    <local> e
+][
+    if blank? block [leave]
 
-prin ["Sanity checking on user config ... "]
+    for-each e block [
+        if blank? e [
+            dump block
+            fail "No blanks allowed"
+        ]
+    ]
+]
+
+print/only ["Sanity checking on user config ... "]
 ;add user settings
 for-each word [definitions includes cflags libraries ldflags][
     assert-no-blank-inside get in user-config word
@@ -1504,7 +1337,33 @@ append app-config/ldflags opt user-config/ldflags
 print ["Good"]
 
 ;add system settings
-prin ["Sanity checking on system config ... "]
+add-app-def: adapt specialize :append [series: app-config/definitions] [
+    value: flatten/deep reduce bind value system-definitions
+]
+add-app-cflags: adapt specialize :append [series: app-config/cflags] [
+    value: if block? value [flatten/deep reduce bind value compiler-flags]
+]
+add-app-lib: adapt specialize :append [series: app-config/libraries] [
+    value: either block? value [
+        value: flatten/deep reduce bind value system-libraries
+        map-each w flatten value [
+            make rebmake/ext-dynamic-class [
+                output: w
+            ]
+        ]
+    ][
+        assert [any-string? value]
+        make rebmake/ext-dynamic-class [
+            output: value
+        ]
+    ]
+]
+
+add-app-ldflags: adapt specialize :append [series: app-config/ldflags] [
+    value: if block? value [flatten/deep reduce bind value linker-flags]
+]
+
+print/only ["Sanity checking on system config ... "]
 for-each word [definitions cflags libraries ldflags][
     assert-no-blank-inside get in system-config word
 ]
@@ -1514,7 +1373,7 @@ add-app-lib copy system-config/libraries
 add-app-ldflags copy system-config/ldflags
 print ["Good"]
 
-prin ["Sanity checking on app config ... "]
+print/only ["Sanity checking on app config ... "]
 assert-no-blank-inside app-config/definitions
 assert-no-blank-inside app-config/includes
 assert-no-blank-inside app-config/cflags
@@ -1594,7 +1453,6 @@ for-each [action name modules] user-config/extensions [
             ]
 
             if action = '* [;dynamic extension
-                ;dump item
                 selected-modules: either blank? modules [
                     ; all modules in the extension
                     item/modules
@@ -1623,22 +1481,140 @@ for-each [action name modules] user-config/extensions [
 
 print ["Builtin extensions"]
 for-each ext builtin-extensions [
-    prin unspaced ["ext: " ext/name ": ["]
+    print/only unspaced ["ext: " ext/name ": ["]
     for-each mod ext/modules [
-        prin [mod/name space]
+        print/only [mod/name space]
     ]
     print ["]"]
 ]
 print ["Dynamic extensions"]
 for-each ext dynamic-extensions [
-    prin unspaced ["ext: " ext/name ": ["]
+    print/only unspaced ["ext: " ext/name ": ["]
     for-each mod ext/modules [
-        prin [mod/name space]
+        print/only [mod/name space]
     ]
     print ["]"]
 ]
 
 all-extensions: join-of builtin-extensions dynamic-extensions
+
+add-project-flags: proc [
+    project [object!]
+    /I includes
+    /D definitions
+    /c cflags
+    /O optimization
+    /g debug
+][
+    assert [
+        find? [
+            dynamic-library-class
+            object-library-class
+            static-library-class
+            application-class
+        ] project/class-name
+    ]
+
+    if D [
+        assert-no-blank-inside definitions
+        either block? project/definitions [
+            append project/definitions definitions
+        ][
+            project/definitions: definitions
+        ]
+    ]
+
+    if I [
+        assert-no-blank-inside includes
+        either block? project/includes [
+            either locked? project/includes [
+                project/includes: join-of project/includes includes
+            ][
+                append project/includes includes
+            ]
+        ][
+            project/includes: includes
+        ]
+    ]
+    if c [
+        assert-no-blank-inside cflags
+        either block? project/cflags [
+            append project/cflags cflags
+        ][
+            project/cflags: cflags
+        ]
+    ]
+    if g [project/debug: debug]
+    if O [project/optimization: optimization]
+]
+
+process-module: func [
+    mod [object!]
+    <local>
+    s
+    ret
+][
+    assert [mod/class-name = 'module-class]
+    assert-no-blank-inside mod/includes
+    assert-no-blank-inside mod/definitions
+    assert-no-blank-inside mod/depends
+    if block? mod/libraries [assert-no-blank-inside mod/libraries]
+    if block? mod/cflags [assert-no-blank-inside mod/cflags]
+    ret: make rebmake/object-library-class [
+        name: mod/name
+        depends: map-each s (append reduce [mod/source] opt mod/depends) [
+            case [
+                any [file? s block? s][
+                    gen-obj/dir s "../src/extensions/"
+                ]
+                all [object? s
+                    find? [
+                        object-library-class
+                        object-file-class
+                    ] s/class-name
+                ][
+                    s
+                    ;object-library-class has already been taken care of above
+                    ;if s/class-name = 'object-file-class [s]
+                ]
+                true [
+                    dump s
+                    fail [type-of s "can't be a dependency of a module"]
+                ]
+            ]
+        ]
+        libraries: to-value if mod/libraries [
+            map-each lib mod/libraries [
+                case [
+                    file? lib [
+                        make rebmake/ext-dynamic-class [
+                            output: lib
+                        ]
+                    ]
+                    all [object? lib
+                        find? [
+                            ext-dynamic-class
+                            ext-static-class
+                        ] lib/class-name
+                    ][
+                        lib
+                    ]
+                    true [
+                        dump lib
+                        fail "unrecognized module library"
+                    ]
+                ]
+            ]
+        ]
+
+        includes: mod/includes
+        definitions: mod/definitions
+        cflags: mod/cflags
+        searches: mod/searches
+    ]
+
+    ret
+]
 
 ext-objs: make block! 8
 for-each ext builtin-extensions [
@@ -1669,8 +1645,6 @@ for-each ext builtin-extensions [
         ]
 
         if mod/ldflags [
-            ;dump mod/ldflags
-
             if block? mod/ldflags [assert-no-blank-inside mod/ldflags]
             append app-config/ldflags mod/ldflags
         ]
@@ -1780,12 +1754,39 @@ prep: make rebmake/entry-class [
     ]
 ]
 
-; dump prep/commands
-
 ; Analyze what directories were used in this build's entry from %file-base.r
 ; to add those obj folders.  So if the `%generic/host-memory.c` is listed,
 ; this will make sure `%objs/generic/` is in there.
-;
+
+add-new-obj-folders: procedure [
+    objs
+    folders
+    <local>
+    lib
+    obj
+][
+    for-each lib objs [
+        switch/default lib/class-name [
+            object-file-class [
+                lib: reduce [lib]
+            ]
+            object-library-class [
+                lib: lib/depends
+            ]
+        ][
+            dump lib
+            fail ["unexpected class"]
+        ]
+
+        for-each obj lib [
+            dir: first split-path obj/output
+            unless find? folders dir [
+                append folders dir
+            ]
+        ]
+    ]
+]
+
 folders: copy [%objs/]
 for-each file os-file-block [
     ;
@@ -1803,8 +1804,6 @@ for-each file os-file-block [
 ]
 add-new-obj-folders ext-objs folders
 
-;print ["ext-objs: (" length-of ext-objs ")" mold ext-objs]
-;print ["app-config/ldflags:" mold app-config/ldflags]
 app: make rebmake/application-class [
     name: 'main
     output: %r3 ;no suffix
@@ -1841,7 +1840,6 @@ ext-dynamic-objs: make block! 8
 for-each ext dynamic-extensions [
     mod-objs: make block! 8
     for-each mod ext/modules [
-        ;dump mod
         append mod-objs mod-obj: process-module mod
         append ext-libs opt mod-obj/libraries
 
@@ -1896,9 +1894,6 @@ for-each ext dynamic-extensions [
 
     add-new-obj-folders mod-objs folders
 ]
-
-;dump folders
-;print ["dynamic-libs:" mold dynamic-libs]
 
 top: make rebmake/entry-class [
     target: "top"
@@ -1962,8 +1957,6 @@ check: make rebmake/entry-class [
         ]
     ]
 ]
-
-;print ["check:" mold check]
 
 solution: make rebmake/solution-class [
     name: 'app
