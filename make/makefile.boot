@@ -11,7 +11,7 @@
 #
 #	make -f makefile.boot make
 #
-# This runs a Rebol script in the %src/tools directory called %make-make.r
+# This runs a Rebol script in the %src/tools directory called %make.r
 # which will generate a platform-specific makefile.  Since it is a Rebol
 # script, you will need a Rebol3 interpreter...and it expects you to have
 # one in the %make/ directory called 'r3-make' (or 'r3-make.exe' on Windows)
@@ -115,7 +115,7 @@ top: makefile
 .FORCE:
 
 makefile: $(REBOL_TOOL) .FORCE
-	$(REBOL) $T/make-make.r OS_ID="$(OS_ID)" DEBUG="$(DEBUG)" \
+	$(REBOL) make.r OS_ID="$(OS_ID)" DEBUG="$(DEBUG)" \
 		GIT_COMMIT="{$(GIT_COMMIT)}" STANDARD="$(STANDARD)" \
 		RIGOROUS="$(RIGOROUS)" WITH_FFI="$(WITH_FFI)" \
 		WITH_TCC="$(WITH_TCC)" STATIC="$(STATIC)" \

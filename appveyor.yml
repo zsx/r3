@@ -87,7 +87,7 @@ build_script:
 
     popd
 
-    .\r3-make.exe ../src/tools/make-make.r CONFIG=configs/$Env:CONFIG DEBUG=$Env:DEBUG STANDARD=$Env:STANDARD TARGET=$Env:TARGET OPTIMIZE=$Env:OPTIMIZE EXTENSIONS=$Env:EXTENSIONS
+    .\r3-make.exe make.r CONFIG=configs/$Env:CONFIG DEBUG=$Env:DEBUG STANDARD=$Env:STANDARD TARGET=$Env:TARGET OPTIMIZE=$Env:OPTIMIZE EXTENSIONS=$Env:EXTENSIONS
 
     If ($Env:TARGET -eq "VISUAL-STUDIO") {
         If ($Env:DEBUG -eq "NO") {

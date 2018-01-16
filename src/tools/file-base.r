@@ -239,7 +239,7 @@ os-osx: [
 
 ; The Rebol open source build did not differentiate between linux and simply
 ; posix builds.  However Atronix R3/View uses a different `os-base` name.
-; make-make.r requires an `os-(os-base)` entry here for each named target.
+; make.r requires an `os-(os-base)` entry here for each named target.
 ;
 os-linux: [
     + generic/host-memory.c

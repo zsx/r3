@@ -99,10 +99,10 @@ For the moment, some usable binaries are committed into the `%make/` directory f
 platforms on Linux/Mac/Windows.
 
 Building is a matter of picking a config out of the `%make/configs/` directory, or just
-taking the defaults.  Options may be overridden on the command line of %make-make.r (which
+taking the defaults.  Options may be overridden on the command line of %make.r (which
 is a client of Rebmake):
 
-    r3-make ../src/tools/make-make.r CONFIG=configs/vs2017-x64.r DEBUG=asserts
+    r3-make make.r CONFIG=configs/vs2017-x64.r DEBUG=asserts
 
 That would use the Windows r3-make tool to build a project for Visual Studio 2017.
 

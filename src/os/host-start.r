@@ -509,7 +509,7 @@ host-start: function [
                 ; !!! historically you could combine switches when used with
                 ; a single dash, but this feature should be part of a better
                 ; thought out implementation.  For now, any historically
-                ; significant combinations (e.g. used in make-make.r) will
+                ; significant combinations (e.g. used in make.r) will
                 ; be supported manually.  This is "quiet unsecure"
                 ;
                 o/quiet: true
