@@ -644,15 +644,25 @@ targets: [
             ]
         ]
     ]
-    r3
-    execution [
+    app build r3 [
         rebmake/execution/run make rebmake/solution-class [
             depends: flatten reduce [
                 vars
-                prep
                 t-folders
-                app
                 dynamic-libs
+                app
+            ]
+        ]
+    ]
+    all execution [
+        rebmake/execution/run make rebmake/solution-class [
+            depends: flatten reduce [
+                clean
+                prep
+                vars
+                t-folders
+                dynamic-libs
+                app
             ]
         ]
     ]
@@ -1660,10 +1670,10 @@ vars: reduce [
     reb-tool: make rebmake/var-class [
         name: {REBOL_TOOL}
         value: any [
-                user-config/rebol-tool
-                form system/options/boot
-                unspaced [{./r3-make} rebmake/target-platform/exe-suffix]
-            ]
+            user-config/rebol-tool
+            form system/options/boot
+            unspaced [{./r3-make} rebmake/target-platform/exe-suffix]
+        ]
     ]
     make rebmake/var-class [
         name: {REBOL}
