@@ -1661,6 +1661,7 @@ vars: reduce [
         name: {REBOL_TOOL}
         value: any [
                 user-config/rebol-tool
+                form system/options/boot
                 unspaced [{./r3-make} rebmake/target-platform/exe-suffix]
             ]
     ]
