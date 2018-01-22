@@ -34,7 +34,7 @@ REBOL [
 ;
 ; This should be initialized by make-host-init.r, but set a default just in
 ; case
-host-prot: default _
+host-prot: default [_]
 
 boot-print: procedure [
     "Prints during boot when not quiet."

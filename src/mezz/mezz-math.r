@@ -90,7 +90,7 @@ sign-of: func [
     case [
         positive? number [1]
         negative? number [-1]
-    ] else 0
+    ] else [0]
 ]
 
 

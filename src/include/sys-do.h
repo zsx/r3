@@ -1139,12 +1139,17 @@ inline static REBOOL Eval_Value_Core_Throws(
 // result when no branch ran.  This gives a uniform way of determining
 // whether a branch ran or not (utilized by ELSE, THEN, etc.)
 //
+// Note: Tolerance of non-BLOCK! and non-FUNCTION! branches to act as literal
+// values was proven to cause more harm than good.
+//
+// https://forum.rebol.info/t/backpedaling-on-non-block-branches/476
+//
 inline static REBOOL Run_Branch_Throws(
     REBVAL *out,
     const REBVAL *condition,
     const REBVAL *branch,
     REBOOL only
-) {
+){
     assert(branch != out); // !!! review, CASE can perhaps do better...
     assert(condition != out); // direct pointer in va_list, also destination
 
@@ -1152,25 +1157,12 @@ inline static REBOOL Run_Branch_Throws(
         if (Do_Any_Array_At_Throws(out, branch))
             return TRUE;
     }
-    else if (IS_FUNCTION(branch)) {
+    else {
+        assert(IS_FUNCTION(branch));
+
         const REBOOL fully = FALSE; // arity-0 functions can ignore condition
         if (Apply_Only_Throws(out, fully, branch, condition, END))
             return TRUE;
-    }
-    else {
-        // `if condition 3` is legal, but `var: 3 | if condition var` is not.
-        // This is to allow casual usages indirected through an evaluation
-        // to be known that they will "double-evaluate", e.g. code will
-        // always be run that is not visible literally in the source.
-        //
-        // Someone who knows what they are doing can bypass this check with
-        // the only flag.  e.g. `var: 3 | if/only condition var`.  (They could
-        // also just use `condition ?? var`)
-        //
-        if (NOT(only) && NOT_VAL_FLAG(branch, VALUE_FLAG_UNEVALUATED))
-            fail (Error_Non_Block_Branch_Raw(branch));
-
-        Move_Value(out, branch); // it's not code -- nothing to run
     }
 
     if (NOT(only) && IS_VOID(out))

@@ -66,8 +66,7 @@
 //      return: [<opt> any-value!]
 //          {void on FALSEY? condition, else branch result (BLANK! if void)}
 //      condition [any-value!]
-//      branch [<opt> any-value!]
-//          {Evaluated if block or function, else literal value}
+//      branch [block! function!]
 //      /only
 //          "If branch runs and returns void, do not convert it to BLANK!"
 //  ]
@@ -94,8 +93,7 @@ REBNATIVE(if)
 //      return: [<opt> any-value!]
 //          {void on TRUTHY? condition, else branch result (BLANK! if void)}
 //      condition [any-value!]
-//      branch [<opt> any-value!]
-//          {Evaluated if block or function, else literal value}
+//      branch [block! function!]
 //      /only
 //          "If branch runs and returns void, do not convert it to BLANK!"
 //  ]
@@ -121,8 +119,8 @@ REBNATIVE(unless)
 //
 //      return: [<opt> any-value!]
 //      condition [any-value!]
-//      true-branch [<opt> any-value!]
-//      false-branch [<opt> any-value!]
+//      true-branch [block! function!]
+//      false-branch [block! function!]
 //      /only
 //          "If branch runs and returns void, do not convert it to BLANK!"
 //  ]
@@ -156,8 +154,7 @@ REBNATIVE(either)
 //      test [function! datatype! typeset! block! logic!]
 //          {Typeset membership, LOGIC! to test TRUTHY?, filter function}
 //      value [<opt> any-value!]
-//      branch [<opt> any-value!]
-//          {If test fails, evaluated if block/function, else literal value}
+//      branch [block! function!]
 //      /only
 //          "If branch runs and returns void, do not convert it to BLANK!"
 //  ]
@@ -276,8 +273,7 @@ test_failed:
 //      return: [<opt> any-value!]
 //          {Void if input is void, or branch result (BLANK! if void)}
 //      value [<opt> any-value!]
-//      branch [<opt> any-value!]
-//          {If valued input, evaluated if block/function, else literal value}
+//      branch [block! function!]
 //      /only
 //          "If branch runs and returns void, do not convert it to BLANK!"
 //  ]
@@ -309,8 +305,7 @@ REBNATIVE(either_test_void)
 //      return: [<opt> any-value!]
 //          {Input value if not void, or branch result (BLANK! if void)}
 //      value [<opt> any-value!]
-//      branch [<opt> any-value!]
-//          {If void input, evaluated if block/function, else literal value}
+//      branch [block! function!]
 //      /only
 //          "If branch runs and returns void, do not convert it to BLANK!"
 //  ]
@@ -542,9 +537,6 @@ static REB_R Case_Choose_Core(
             return R_OUT_IS_THROWN;
         }
 
-        if (IS_CONDITIONAL_FALSE(block, only))
-            continue;
-
         // CHOOSE simply sets the out slot to the matched value as-is.  But
         // when the condition is TRUE?, CASE actually does a double evaluation
         // if a block is yielded as the branch:
@@ -559,9 +551,23 @@ static REB_R Case_Choose_Core(
         // block evaluation doesn't need the copy.  Review how this shared
         // code might get more efficient if the data were already in D_OUT.
         //
-        if (choose)
+        if (choose) {
+            if (IS_CONDITIONAL_FALSE(block, only))
+                continue;
+
             Move_Value(out, cell);
+        }
         else {
+            // The check for IS_CONDITIONAL_FALSE is deferred until after we
+            // see if it's a CASE or a CHOOSE, so that when running CASE we
+            // ensure any evaluated but *non-taken* branches are type-checked
+            //
+            if (NOT(IS_FUNCTION(cell)) && NOT(IS_BLOCK(cell)))
+                fail (Error_Invalid_Arg_Raw(cell));
+
+            if (IS_CONDITIONAL_FALSE(block, only))
+                continue;
+
             // Note that block now holds the cached evaluated condition
             //
             if (Run_Branch_Throws(out, block, cell, only)) {
@@ -654,8 +660,8 @@ REBNATIVE(choose)
 //          "Block of cases (comparison lists followed by block branches)"
 //      /default
 //          "Default case if no others found"
-//      default-case [any-value!]
-//          "Block to execute (or value to return)"
+//      default-case [function! block!]
+//          "Block to execute or function to run if no cases match"
 //      /all
 //          "Evaluate all matches (not just first one)"
 //      /strict

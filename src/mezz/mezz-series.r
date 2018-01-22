@@ -176,7 +176,7 @@ replace: function [
 
     len: case [
         ; leave bitset patterns as-is regardless of target type, len = 1
-        bitset? :pattern 1
+        bitset? :pattern [1]
 
         any-string? target [
             unless string? :pattern [pattern: form :pattern]
@@ -190,7 +190,7 @@ replace: function [
         ]
 
         any-block? :pattern [length of :pattern]
-    ] else 1
+    ] else [1]
 
     while [pos: find/(all [case_REPLACE 'case]) target :pattern] [
         ; apply replacement if function, or drops pos if not
@@ -570,7 +570,7 @@ format: function [
             :integer! [abs rule]
             :string! [length of rule]
             :char! [1]
-        ] else 0
+        ] else [0]
     ]
 
     out: make string! val

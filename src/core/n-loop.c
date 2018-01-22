@@ -1256,7 +1256,7 @@ REBNATIVE(every)
 //      count [any-number! logic! blank!]
 //          "Repetitions (true loops infinitely, FALSE? doesn't run)"
 //      body [block! function!]
-//          "Block to evaluate or function to run (may be a BRANCHER)."
+//          "Block to evaluate or function to run."
 //  ]
 //
 REBNATIVE(loop)

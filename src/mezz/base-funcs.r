@@ -51,22 +51,13 @@ default: enfix func [
     return: [any-value!]
     'target [set-word! set-path!]
         "The word to which might be set"
-    value [any-value!] ; not <opt> on purpose
-        "Value to set (blocks and 0-arity functions evaluated)"
+    branch [block! function!]
+        "Will be evaluated and used as value to set only if not set already"
     /only
         "Consider target being BLANK! to be a value not to overwrite"
 
     <local> gotten
 ][
-    ; Protect against `var: 10 | x: default var`, only allow vars if blocks
-    ; (same general behavior as IF)
-    ;
-    unless any [only | maybe [function! block!] :value] [
-        unless semiquoted? 'value [
-            fail ["Evaluated non-block/function used with DEFAULT" mold value]
-        ]
-    ]
-
     ; A lookback quoting function that quotes a SET-WORD! on its left is
     ; responsible for setting the value if it wants it to change since the
     ; SET-WORD! is not actually active.  But if something *looks* like an
@@ -83,7 +74,7 @@ default: enfix func [
     set* target either-test/only
         (only ?? :any-value? !! :something?) ;-- test function
         get* target ;-- value to test, and to return if passes test
-        :value ;-- branch to use if test fails
+        :branch ;-- branch to use if test fails
 ]
 
 update: enfix func [
@@ -92,26 +83,17 @@ update: enfix func [
     return: [any-value!]
     'target [set-word! set-path!]
         "The word to which might be set"
-    value [<opt> any-value!]
-        "Value to set (blocks and 0-arity functions evaluated)"
+    code [block! function!]
+        "Code that is always evaluated, result only assigned if not nothing"
     /only
         "Consider value being BLANK! to be a value to use for overwriting"
 
     <local> gotten
 ][
-    ; See notes on DEFAULT above, which works the same way.  This should also
-    ; ultimately be a native, once a name is invented for the prefix form.
-
-    unless any [only | maybe [function! block!] :value] [
-        unless semiquoted? 'value [
-            fail ["Evaluated non-block/function used with UPDATE" mold value]
-        ]
-    ]
-
     set* target either-test/only
         (only ?? :any-value? !! :something?) ;-- test function
-        if* true :value ;-- use IF to dispatch branch for value being tested
-        [get* target] ;-- branch if test fails, in block to avoid execution
+        do :code ;-- value being tested, return result if it passes
+        [get* target] ;-- branch to evaluate and return if test fails
 ]
 
 

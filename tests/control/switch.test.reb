@@ -26,5 +26,5 @@
 ]
 
 [t: 1 | 1 = switch t [(t)]]
-[1 = switch/default 1 [] 1]
+[1 = switch/default 1 [] [1]]
 

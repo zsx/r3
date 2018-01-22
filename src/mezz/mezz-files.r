@@ -167,7 +167,7 @@ list-dir: procedure [
     /i "Indent"
         indent
 ][
-    indent: default ""
+    indent: default [""]
 
     save-dir: what-dir
 
