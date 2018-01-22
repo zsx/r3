@@ -264,7 +264,7 @@ project-class: make object! [
 
     post-build-commands: _ ; commands to run after the "build" command
 
-    complier: _
+    compiler: _
 
     ; common settings applying to all included obj-files
     ; setting inheritage:
@@ -1351,7 +1351,8 @@ makefile: make generator-class [
                     ][
                         entry/target
                     ]
-                    ":" space case [
+                    either word? entry/target [": .PHONY"] [":"]
+                    space case [
                         block? entry/depends [
                             spaced map-each w entry/depends [
                                 switch/default w/class-name [
@@ -1506,7 +1507,7 @@ makefile: make generator-class [
 
         emit buf solution
 
-        write output buf
+        write output append buf "^/^/.PHONY:"
     ]
 ]
 
@@ -1554,7 +1555,11 @@ Execution: make generator-class [
                 ;pass: already been taken care of by PREPARE
             ]
             entry-class [
-                if exists? to-file target/target [leave] ;TODO: Check the timestamp to see if it needs to be updated
+                if all [
+                    not word? target/target 
+                    ; so you can use words for "phony" targets
+                    exists? to-file target/target
+                ] [leave] ;TODO: Check the timestamp to see if it needs to be updated
                 either block? target/commands [
                     for-each cmd target/commands [
                         cmd: reify cmd
