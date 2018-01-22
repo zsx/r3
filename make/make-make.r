@@ -1,9 +1,9 @@
 REBOL []
-do %../../make/make.r
+do %make.r
 
 print {
 === WARNING! WARNING! WARNING! ===
-The file %src/tools/make-make.r is deprecated.
-Use %make/make.r instead.
+The file %make-make.r is deprecated.
+Use %make.r instead.
 }
 
