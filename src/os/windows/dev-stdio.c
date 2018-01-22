@@ -314,14 +314,27 @@ DEVICE_CMD Read_IO(REBREQ *req)
     // aware cursoring/backspacing/line-editing to the OS.  Which also means
     // a smaller executable than trying to rewrite it oneself.
     //
-    CONSOLE_READCONSOLE_CONTROL ctl;
+
+#ifdef PRE_VISTA
+    LPVOID pInputControl = NULL;
+#else
+    CONSOLE_READCONSOLE_CONTROL ctl; // Unavailable before Vista, e.g. Mingw32
+    LPVOID pInputControl = &ctl;
+
     ctl.nLength = sizeof(CONSOLE_READCONSOLE_CONTROL);
     ctl.nInitialChars = 0; // when hit, empty buffer...no CR LF
     ctl.dwCtrlWakeupMask = (1 << 4); // ^D (^C is implicit)
     ctl.dwControlKeyState = 0; // no alt+shift modifiers (beyond ctrl)
+#endif
 
     DWORD total;
-    REBOOL ok = ReadConsoleW(Std_Inp, Std_Buf, BUF_SIZE - 1, &total, &ctl);
+    REBOOL ok = ReadConsoleW(
+        Std_Inp,
+        Std_Buf,
+        BUF_SIZE - 1,
+        &total,
+        pInputControl
+    );
     if (NOT(ok)) {
         req->error = GetLastError();
         return DR_ERROR;
