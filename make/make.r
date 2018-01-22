@@ -1725,7 +1725,7 @@ vars: reduce [
 ]
 
 prep: make rebmake/entry-class [
-    target: "prep"
+    target: 'prep ; phony target
     commands: compose [
         {$(REBOL) make-natives.r}
         {$(REBOL) make-headers.r}
@@ -1936,12 +1936,12 @@ for-each ext dynamic-extensions [
 ]
 
 top: make rebmake/entry-class [
-    target: "top"
+    target: 'top ; phony target
     depends: flatten reduce [app dynamic-libs]
 ]
 
 t-folders: make rebmake/entry-class [
-    target: "folders"
+    target: 'folders ; phony target
     commands: map-each dir sort folders [;sort it so that the parent folder gets created first
         make rebmake/cmd-create-class compose [
             file: (dir)
@@ -1950,7 +1950,7 @@ t-folders: make rebmake/entry-class [
 ]
 
 clean: make rebmake/entry-class [
-    target: "clean"
+    target: 'clean ; phony target
     commands: flatten reduce [
         make rebmake/cmd-delete-class [file: %objs/]
         make rebmake/cmd-delete-class [file: %prep/]
@@ -1959,7 +1959,7 @@ clean: make rebmake/entry-class [
 ]
 
 check: make rebmake/entry-class [
-    target: "check"
+    target: 'check ; phony target
     depends: join-of dynamic-libs app
     commands: append reduce [
         make rebmake/cmd-strip-class [
