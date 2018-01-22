@@ -97,6 +97,19 @@ update: enfix func [
 ]
 
 
+was: func [
+    {Return a variable's value prior to an assignment, then do the assignment}
+
+    return: [<opt> any-value!]
+        {Value of the following SET-WORD! or SET-PATH! before assignment}
+    evaluation [<opt> any-value! <...>]
+        {Used to take the assigned value}
+    :look [set-word! set-path! <...>]
+][
+    (get* first look) also-do [take evaluation]
+]
+
+
 make-action: func [
     {Internal generator used by FUNCTION and PROCEDURE specializations.}
     return: [function!]

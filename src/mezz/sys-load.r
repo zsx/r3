@@ -152,11 +152,15 @@ load-header: function [
             return either required ['no-header] [reduce [_ tmp tail of tmp]]
         ]
 
-        ; get 'rebol keyword
-        set* [key: rest:] transcode/only data [blank]
+        true [
+            ; get 'rebol keyword
+            ;
+            set* [key: rest:] transcode/only data
 
-        ; get header block
-        set* [hdr: rest:] transcode/next/relax rest [blank]
+            ; get header block
+            ;
+            set* [hdr: rest:] transcode/next/relax rest
+        ]
 
         not block? :hdr [
             ; header block is incomplete
@@ -219,18 +223,18 @@ load-header: function [
                         return 'bad-compress
                     ]
 
-                    if all [sum | sum != checksum/secure rest] [
+                    if sum and (sum != checksum/secure rest) [
                         return 'bad-checksum
                     ]
                 ] ; else assumed not compressed
 
-                all [sum | sum != checksum/secure/part rest end] [
+                sum and (sum <> checksum/secure/part rest end) [
                     return 'bad-checksum
                 ]
             ]
         ]
 
-        :key != 'rebol [
+        :key <> 'rebol [
             ; block-embedded script, only script compression, ignore hdr/length
 
             tmp: really binary! rest ; saved for possible checksum calc later
@@ -244,12 +248,12 @@ load-header: function [
                         return 'bad-compress
                     ]
 
-                    if all [sum | sum != checksum/secure rest] [
+                    if sum and (sum <> checksum/secure rest) [
                         return 'bad-checksum
                     ]
                 ]
 
-                all [sum | sum != checksum/secure/part tmp back end] [
+                sum and (sum <> checksum/secure/part tmp back end) [
                     return 'bad-checksum
                 ]
             ]
