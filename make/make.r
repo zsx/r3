@@ -1704,10 +1704,10 @@ for-each ext builtin-extensions [
 vars: reduce [
     reb-tool: make rebmake/var-class [
         name: {REBOL_TOOL}
-        value: any [
+        value: really file! any [
             user-config/rebol-tool
-            form system/options/boot
-            unspaced [{./r3-make} rebmake/target-platform/exe-suffix]
+            system/options/boot
+            to-file unspaced [{./r3-make} rebmake/target-platform/exe-suffix]
         ]
     ]
     make rebmake/var-class [
