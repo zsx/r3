@@ -378,21 +378,23 @@ REBTYPE(Typeset)
 
         fail (arg);
 
-    case SYM_AND_T:
-    case SYM_OR_T:
-    case SYM_XOR_T:
+    case SYM_INTERSECT:
+    case SYM_UNION:
+    case SYM_DIFFERENCE:
         if (IS_DATATYPE(arg)) {
             VAL_TYPESET_BITS(arg) = FLAGIT_KIND(VAL_TYPE(arg));
         }
         else if (NOT(IS_TYPESET(arg)))
             fail (arg);
 
-        if (action == SYM_OR_T)
+        if (action == SYM_UNION)
             VAL_TYPESET_BITS(val) |= VAL_TYPESET_BITS(arg);
-        else if (action == SYM_AND_T)
+        else if (action == SYM_INTERSECT)
             VAL_TYPESET_BITS(val) &= VAL_TYPESET_BITS(arg);
-        else
+        else {
+            assert(action == SYM_DIFFERENCE);
             VAL_TYPESET_BITS(val) ^= VAL_TYPESET_BITS(arg);
+        }
         Move_Value(D_OUT, D_ARG(1));
         return R_OUT;
 

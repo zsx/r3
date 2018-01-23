@@ -50,21 +50,16 @@ r3-alpha-quote: func [:spelling [word! string!]] [
 
 ; Make top-level words for things not added by %b-init.c (e.g. /, //)
 ;
-+: -: *: **: and*: or+: xor+: _
++: -: *: **: _
 
 for-each [math-op function-name] [
     +       add
     -       subtract
     *       multiply
-    **      power
-
     /       divide ;-- !!! may become pathing operator (which also divides)
 
-    //      remainder ;-- !!! bad WORD!... https://forum.rebol.info/t/275
-
-    and*    and~
-    or+     or~
-    xor+    xor~
+    **      power ;-- !!! more a separator? https://forum.rebol.info/t/474/4
+    //      remainder ;-- !!! new comment? https://forum.rebol.info/t/275
 ][
     ; Ren-C's infix math obeys the "tight" parameter convention of R3-Alpha.
     ; But since the prefix functions themselves have normal parameters, this
@@ -78,6 +73,27 @@ for-each [math-op function-name] [
     ; one wants (e.g. to switch one parameter from normal to quoted).
     ;
     set/enfix math-op (tighten get function-name)
+]
+
+
+; Make top-level words
+;
+and+: or+: xor+: _
+
+for-each [set-op function-name] [
+    and+    intersect
+    or+     union
+    xor+    difference
+][
+    ; The enfixed versions of the set operations currently can't take any
+    ; refinements, so we go ahead and specialize them out.  (It's also the
+    ; case that TIGHTEN currently changes all normal parameters to #tight,
+    ; which creates an awkward looking /SKIP's SIZE.
+    ;
+    set/enfix set-op (tighten specialize function-name [
+        case: false
+        skip: false
+    ])
 ]
 
 

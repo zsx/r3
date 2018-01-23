@@ -123,24 +123,24 @@ parse-asn: function [
     while [d: first data] [
         switch mode [
             type [
-                constructed?: not zero? (d and* 32)
+                constructed?: not zero? (d and+ 32)
                 class: pick class-types 1 + shift d -6
 
                 switch class [
                     universal [
-                        tag: pick universal-tags 1 + (d and* 31)
+                        tag: pick universal-tags 1 + (d and+ 31)
                     ]
                     context-specific [
                         tag: class
-                        val: d and* 31
+                        val: d and+ 31
                     ]
                 ]
                 mode: 'size
             ]
 
             size [
-                size: d and* 127
-                unless zero? (d and* 128) [
+                size: d and+ 127
+                unless zero? (d and+ 128) [
                     ; long form
                     ln: size
                     size: to-integer/unsigned copy/part next data size

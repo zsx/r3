@@ -1368,9 +1368,9 @@ REBTYPE(String)
 
     //-- Bitwise:
 
-    case SYM_AND_T:
-    case SYM_OR_T:
-    case SYM_XOR_T: {
+    case SYM_INTERSECT:
+    case SYM_UNION:
+    case SYM_DIFFERENCE: {
         if (NOT(IS_BINARY(arg)))
             fail (arg);
 

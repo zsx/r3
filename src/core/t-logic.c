@@ -235,17 +235,17 @@ REBTYPE(Logic)
 
     switch (action) {
 
-    case SYM_AND_T:
+    case SYM_INTERSECT:
         val2 = Math_Arg_For_Logic(D_ARG(2));
         val1 = LOGICAL(val1 && val2);
         break;
 
-    case SYM_OR_T:
+    case SYM_UNION:
         val2 = Math_Arg_For_Logic(D_ARG(2));
         val1 = LOGICAL(val1 || val2);
         break;
 
-    case SYM_XOR_T:
+    case SYM_DIFFERENCE:
         val2 = Math_Arg_For_Logic(D_ARG(2));
         val1 = LOGICAL(!val1 != !val2);
         break;

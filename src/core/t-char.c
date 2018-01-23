@@ -220,17 +220,17 @@ REBTYPE(Char)
         chr %= arg;
         break;
 
-    case SYM_AND_T:
+    case SYM_INTERSECT:
         arg = Math_Arg_For_Char(D_ARG(2), action);
         chr &= cast(REBUNI, arg);
         break;
 
-    case SYM_OR_T:
+    case SYM_UNION:
         arg = Math_Arg_For_Char(D_ARG(2), action);
         chr |= cast(REBUNI, arg);
         break;
 
-    case SYM_XOR_T:
+    case SYM_DIFFERENCE:
         arg = Math_Arg_For_Char(D_ARG(2), action);
         chr ^= cast(REBUNI, arg);
         break;

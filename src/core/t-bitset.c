@@ -696,9 +696,9 @@ REBTYPE(Bitset)
         Clear_Series(VAL_SERIES(value));
         goto return_bitset;
 
-    case SYM_AND_T:
-    case SYM_OR_T:
-    case SYM_XOR_T:
+    case SYM_INTERSECT:
+    case SYM_UNION:
+    case SYM_DIFFERENCE:
         if (!IS_BITSET(arg) && !IS_BINARY(arg))
             fail (Error_Math_Args(VAL_TYPE(arg), action));
         ser = Xandor_Binary(action, value, arg);

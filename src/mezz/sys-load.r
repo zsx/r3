@@ -449,8 +449,8 @@ do-needs: function [
                     blank
                 ]
 
-                (needs and* 0.0.0.255.255)
-                != (system/version and* 0.0.0.255.255) [
+                (needs and+ 0.0.0.255.255)
+                <> (system/version and+ 0.0.0.255.255) [
                     cause-error 'syntax 'needs reduce ['core needs]
                 ]
             ]

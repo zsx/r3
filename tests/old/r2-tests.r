@@ -416,7 +416,7 @@
 [#"^(fe)" = add #"^(ff)" #"^(ff)"]
 ; tuple
 ; string
-["^(03)^(00)" and* "^(02)^(00)" = "^(02)^(00)"]
+["^(03)^(00)" and+ "^(02)^(00)" = "^(02)^(00)"]
 ; functions/math/arccosine.r
 ; char
 [#"^(ff)" = complement #"^@"]

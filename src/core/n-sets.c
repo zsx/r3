@@ -30,13 +30,6 @@
 
 #include "sys-core.h"
 
-enum {
-    SOP_NONE = 0, // used by UNIQUE (other flags do not apply)
-    SOP_FLAG_BOTH = 1 << 0, // combine and interate over both series
-    SOP_FLAG_CHECK = 1 << 1, // check other series for value existence
-    SOP_FLAG_INVERT = 1 << 2 // invert the result of the search
-};
-
 
 //
 //  Make_Set_Operation_Series: C
@@ -44,18 +37,13 @@ enum {
 // Do set operations on a series.  Case-sensitive if `cased` is TRUE.
 // `skip` is the record size.
 //
-static REBSER *Make_Set_Operation_Series(
+REBSER *Make_Set_Operation_Series(
     const REBVAL *val1,
     const REBVAL *val2,
     REBFLGS flags,
     REBOOL cased,
     REBCNT skip
-) {
-    REBCNT i;
-    REBINT h = 1; // used for both logic true/false and hash check
-    REBOOL first_pass = TRUE; // are we in the first pass over the series?
-    REBSER *out_ser;
-
+){
     assert(ANY_SERIES(val1));
 
     if (val2) {
@@ -94,8 +82,13 @@ static REBSER *Make_Set_Operation_Series(
     // will be allocated at this size, but copied out at the exact size of
     // the actual result.
     //
-    i = VAL_LEN_AT(val1);
-    if (flags & SOP_FLAG_BOTH) i += VAL_LEN_AT(val2);
+    REBCNT i = VAL_LEN_AT(val1);
+    if (flags & SOP_FLAG_BOTH)
+        i += VAL_LEN_AT(val2);
+
+    REBINT h = 1; // used for both logic true/false and hash check
+    REBOOL first_pass = TRUE; // are we in the first pass over the series?
+    REBSER *out_ser;
 
     if (ANY_ARRAY(val1)) {
         REBSER *hser = 0;   // hash table for series
@@ -262,71 +255,6 @@ static REBSER *Make_Set_Operation_Series(
 
 
 //
-//  difference: native [
-//
-//  "Returns the special difference of two values."
-//
-//      series1 [any-array! any-string! binary! bitset! date! typeset!]
-//      series2 [any-array! any-string! binary! bitset! date! typeset!]
-//      /case
-//          "Uses case-sensitive comparison"
-//      /skip
-//          "Treat the series as records of fixed size"
-//      size [integer!]
-//  ]
-//
-REBNATIVE(difference)
-{
-    INCLUDE_PARAMS_OF_DIFFERENCE;
-
-    REBVAL *val1 = ARG(series1);
-    REBVAL *val2 = ARG(series2);
-
-    // Plain SUBTRACT on dates has historically given a count of days.
-    // DIFFERENCE has been the way to get the time difference.
-    // !!! Is this sensible?
-    //
-    if (IS_DATE(val1) || IS_DATE(val2)) {
-        if (VAL_TYPE(val1) != VAL_TYPE(val2))
-            fail (Error_Unexpected_Type(VAL_TYPE(val1), VAL_TYPE(val2)));
-
-        Subtract_Date(val1, val2, D_OUT);
-        return R_OUT;
-    }
-
-    if (IS_BITSET(val1) || IS_BITSET(val2)) {
-        if (VAL_TYPE(val1) != VAL_TYPE(val2))
-            fail (Error_Unexpected_Type(VAL_TYPE(val1), VAL_TYPE(val2)));
-
-        Init_Bitset(D_OUT, Xandor_Binary(SYM_XOR_T, val1, val2));
-        return R_OUT;
-    }
-
-    if (IS_TYPESET(val1) || IS_TYPESET(val2)) {
-        if (VAL_TYPE(val1) != VAL_TYPE(val2))
-            fail (Error_Unexpected_Type(VAL_TYPE(val1), VAL_TYPE(val2)));
-
-        Move_Value(D_OUT, val1);
-        VAL_TYPESET_BITS(D_OUT) ^= VAL_TYPESET_BITS(val2);
-        return R_OUT;
-    }
-
-    Init_Any_Series(
-        D_OUT,
-        VAL_TYPE(val1),
-        Make_Set_Operation_Series(
-            val1,
-            val2,
-            SOP_FLAG_BOTH | SOP_FLAG_CHECK | SOP_FLAG_INVERT,
-            REF(case),
-            REF(skip) ? Int32s(ARG(size), 1) : 1
-        )
-    );
-    return R_OUT;
-}
-
-
-//
 //  exclude: native [
 //
 //  {Returns the first data set less the second data set.}
@@ -379,114 +307,6 @@ REBNATIVE(exclude)
             REF(skip) ? Int32s(ARG(size), 1) : 1
         )
     );
-    return R_OUT;
-}
-
-
-//
-//  intersect: native [
-//
-//  "Returns the intersection of two data series."
-//
-//      series1 [any-array! any-string! binary! bitset! typeset!]
-//      series2 [any-array! any-string! binary! bitset! typeset!]
-//      /case
-//          "Uses case-sensitive comparison"
-//      /skip
-//          "Treat the series as records of fixed size"
-//      size [integer!]
-//  ]
-//
-REBNATIVE(intersect)
-{
-    INCLUDE_PARAMS_OF_INTERSECT;
-
-    REBVAL *val1 = ARG(series1);
-    REBVAL *val2 = ARG(series2);
-
-    if (IS_BITSET(val1) || IS_BITSET(val2)) {
-        if (VAL_TYPE(val1) != VAL_TYPE(val2))
-            fail (Error_Unexpected_Type(VAL_TYPE(val1), VAL_TYPE(val2)));
-
-        Init_Bitset(D_OUT, Xandor_Binary(SYM_AND_T, val1, val2));
-        return R_OUT;
-    }
-
-    if (IS_TYPESET(val1) || IS_TYPESET(val2)) {
-        if (VAL_TYPE(val1) != VAL_TYPE(val2))
-            fail (Error_Unexpected_Type(VAL_TYPE(val1), VAL_TYPE(val2)));
-
-        Move_Value(D_OUT, val1);
-        VAL_TYPESET_BITS(D_OUT) &= VAL_TYPESET_BITS(val2);
-        return R_OUT;
-    }
-
-    Init_Any_Series(
-        D_OUT,
-        VAL_TYPE(val1),
-        Make_Set_Operation_Series(
-            val1,
-            val2,
-            SOP_FLAG_CHECK,
-            REF(case),
-            REF(skip) ? Int32s(ARG(size), 1) : 1
-        )
-    );
-
-    return R_OUT;
-}
-
-
-//
-//  union: native [
-//
-//  "Returns the union of two data series."
-//
-//      series1 [any-array! any-string! binary! bitset! typeset!]
-//      series2 [any-array! any-string! binary! bitset! typeset!]
-//      /case
-//          "Use case-sensitive comparison"
-//      /skip
-//          "Treat the series as records of fixed size"
-//      size [integer!]
-//  ]
-//
-REBNATIVE(union)
-{
-    INCLUDE_PARAMS_OF_UNION;
-
-    REBVAL *val1 = ARG(series1);
-    REBVAL *val2 = ARG(series2);
-
-    if (IS_BITSET(val1) || IS_BITSET(val2)) {
-        if (VAL_TYPE(val1) != VAL_TYPE(val2))
-            fail (Error_Unexpected_Type(VAL_TYPE(val1), VAL_TYPE(val2)));
-
-        Init_Bitset(D_OUT, Xandor_Binary(SYM_OR_T, val1, val2));
-        return R_OUT;
-    }
-
-    if (IS_TYPESET(val1) || IS_TYPESET(val2)) {
-        if (VAL_TYPE(val1) != VAL_TYPE(val2))
-            fail (Error_Unexpected_Type(VAL_TYPE(val1), VAL_TYPE(val2)));
-
-        Move_Value(D_OUT, val1);
-        VAL_TYPESET_BITS(D_OUT) |= VAL_TYPESET_BITS(val2);
-        return R_OUT;
-    }
-
-    Init_Any_Series(
-        D_OUT,
-        VAL_TYPE(val1),
-        Make_Set_Operation_Series(
-            val1,
-            val2,
-            SOP_FLAG_BOTH,
-            REF(case),
-            REF(skip) ? Int32s(ARG(size), 1) : 1
-        )
-    );
-
     return R_OUT;
 }
 

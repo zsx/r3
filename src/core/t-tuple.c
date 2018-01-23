@@ -328,9 +328,9 @@ REBTYPE(Tuple)
         || action == SYM_MULTIPLY
         || action == SYM_DIVIDE
         || action == SYM_REMAINDER
-        || action == SYM_AND_T
-        || action == SYM_OR_T
-        || action == SYM_XOR_T
+        || action == SYM_INTERSECT
+        || action == SYM_UNION
+        || action == SYM_DIFFERENCE
     ){
         assert(vp);
 
@@ -392,15 +392,15 @@ REBTYPE(Tuple)
                 v %= a;
                 break;
 
-            case SYM_AND_T:
+            case SYM_INTERSECT:
                 v &= a;
                 break;
 
-            case SYM_OR_T:
+            case SYM_UNION:
                 v |= a;
                 break;
 
-            case SYM_XOR_T:
+            case SYM_DIFFERENCE:
                 v ^= a;
                 break;
 

@@ -88,9 +88,9 @@ ctx-zip: context [
     ][
         value: get-ishort value
         to time! reduce [
-            63488 and* value / 2048
-            2016 and* value / 32
-            31 and* value * 2
+            63488 and+ value / 2048
+            2016 and+ value / 32
+            31 and+ value * 2
         ]
     ]
 
@@ -100,9 +100,9 @@ ctx-zip: context [
     ][
         value: get-ishort value
         to date! reduce [
-            65024 and* value / 512 + 1980
-            480 and* value / 32
-            31 and* value
+            65024 and+ value / 512 + 1980
+            480 and+ value / 32
+            31 and+ value
         ]
     ]
 
@@ -195,13 +195,13 @@ ctx-zip: context [
     ]
 
     any-file?: func [
-        "Returns TRUE for file and* url values." value [<opt> any-value!]
+        "Returns TRUE for file and url values." value [<opt> any-value!]
     ][
         any [file? value url? value]
     ]
 
     to-path-file: func [
-        {Converts url! to file! and* removes heading "/"}
+        {Converts url! to file! and removes heading "/"}
         value [file! url!] "AnyValue to convert"
     ][
         if file? value [
@@ -337,7 +337,7 @@ ctx-zip: context [
                 (nb-entries: nb-entries + 1)
                 2 skip ; version
                 copy flags: 2 skip
-                    (if not zero? flags/1 and* 1 [return false])
+                    (if not zero? flags/1 and+ 1 [return false])
                 copy method-number: 2 skip (
                     method-number: get-ishort method-number
                     method: select [0 store 8 deflate] method-number
@@ -419,7 +419,7 @@ ctx-zip: context [
                             empty? uncompressed-data
                         ][blank][uncompressed-data]
                     ][
-                        ; make directory and* / or+ write file
+                        ; make directory and/or write file
                         either #"/" = last name [
                             if not exists? where/:name [
                                 make-dir/deep where/:name

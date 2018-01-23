@@ -243,67 +243,82 @@ REBSER *Temp_UTF8_At_Managed(const RELVAL *val, REBCNT *index, REBCNT *length)
 //
 REBSER *Xandor_Binary(REBCNT action, REBVAL *value, REBVAL *arg)
 {
-        REBSER *series;
-        REBYTE *p0 = VAL_BIN_AT(value);
-        REBYTE *p1 = VAL_BIN_AT(arg);
-        REBYTE *p2;
+    REBYTE *p0 = VAL_BIN_AT(value);
+    REBYTE *p1 = VAL_BIN_AT(arg);
+
+    REBCNT t0 = VAL_LEN_AT(value);
+    REBCNT t1 = VAL_LEN_AT(arg);
+
+    REBCNT mt = MIN(t0, t1); // smaller array size
+
+    // !!! This used to say "For AND - result is size of shortest input:" but
+    // the code was commented out
+    /*
+        if (action == A_AND || (action == 0 && t1 >= t0))
+            t2 = mt;
+        else
+            t2 = MAX(t0, t1);
+    */
+
+    REBCNT t2 = MAX(t0, t1);
+
+    REBSER *series;
+    if (IS_BITSET(value)) {
+        //
+        // Although bitsets and binaries share some implementation here,
+        // they have distinct allocation functions...and bitsets need
+        // to set the REBSER.misc.negated union field (BITS_NOT) as
+        // it would be illegal to read it if it were cleared via another
+        // element of the union.
+        //
+        assert(IS_BITSET(arg));
+        series = Make_Bitset(t2 * 8);
+    }
+    else {
+        // Ordinary binary
+        //
+        series = Make_Binary(t2);
+        SET_SERIES_LEN(series, t2);
+    }
+
+    REBYTE *p2 = BIN_HEAD(series);
+
+    switch (action) {
+    case SYM_INTERSECT: { // and
         REBCNT i;
-        REBCNT mt, t1, t0, t2;
+        for (i = 0; i < mt; i++)
+            *p2++ = *p0++ & *p1++;
+        CLEAR(p2, t2 - mt);
+        return series; }
 
-        t0 = VAL_LEN_AT(value);
-        t1 = VAL_LEN_AT(arg);
+    case SYM_UNION: { // or
+        REBCNT i;
+        for (i = 0; i < mt; i++)
+            *p2++ = *p0++ | *p1++;
+        break; }
 
-        mt = MIN(t0, t1); // smaller array size
-        // For AND - result is size of shortest input:
-//      if (action == A_AND || (action == 0 && t1 >= t0))
-//          t2 = mt;
-//      else
-        t2 = MAX(t0, t1);
+    case SYM_DIFFERENCE: { // xor
+        REBCNT i;
+        for (i = 0; i < mt; i++)
+            *p2++ = *p0++ ^ *p1++;
+        break; }
 
-        if (IS_BITSET(value)) {
-            //
-            // Although bitsets and binaries share some implementation here,
-            // they have distinct allocation functions...and bitsets need
-            // to set the REBSER.misc.negated union field (BITS_NOT) as
-            // it would be illegal to read it if it were cleared via another
-            // element of the union.
-            //
-            assert(IS_BITSET(arg));
-            series = Make_Bitset(t2 * 8);
-        }
-        else {
-            // Ordinary binary
-            //
-            series = Make_Binary(t2);
-            SET_SERIES_LEN(series, t2);
-        }
+    default: {
+        //
+        // special bit set case EXCLUDE
+        //
+        REBCNT i;
+        for (i = 0; i < mt; i++)
+            *p2++ = *p0++ & ~*p1++;
+        if (t0 > t1)
+            memcpy(p2, p0, t0 - t1); // residual from first only
+        return series; }
+    }
 
-        p2 = BIN_HEAD(series);
-
-        switch (action) {
-        case SYM_AND_T: // and~
-            for (i = 0; i < mt; i++) *p2++ = *p0++ & *p1++;
-            CLEAR(p2, t2 - mt);
-            return series;
-
-        case SYM_OR_T: // or~
-            for (i = 0; i < mt; i++) *p2++ = *p0++ | *p1++;
-            break;
-
-        case SYM_XOR_T: // xor~
-            for (i = 0; i < mt; i++) *p2++ = *p0++ ^ *p1++;
-            break;
-
-        default:
-            // special bit set case EXCLUDE:
-            for (i = 0; i < mt; i++) *p2++ = *p0++ & ~*p1++;
-            if (t0 > t1) memcpy(p2, p0, t0 - t1); // residual from first only
-            return series;
-        }
-
-        // Copy the residual:
-        memcpy(p2, ((t0 > t1) ? p0 : p1), t2 - mt);
-        return series;
+    // Copy the residual
+    //
+    memcpy(p2, ((t0 > t1) ? p0 : p1), t2 - mt);
+    return series;
 }
 
 
@@ -314,20 +329,20 @@ REBSER *Xandor_Binary(REBCNT action, REBVAL *value, REBVAL *arg)
 //
 REBSER *Complement_Binary(REBVAL *value)
 {
-        REBSER *series;
-        REBYTE *str = VAL_BIN_AT(value);
-        REBINT len = VAL_LEN_AT(value);
-        REBYTE *out;
+    REBSER *series;
+    REBYTE *str = VAL_BIN_AT(value);
+    REBINT len = VAL_LEN_AT(value);
+    REBYTE *out;
 
-        series = Make_Binary(len);
-        SET_SERIES_LEN(series, len);
-        out = BIN_HEAD(series);
-        for (; len > 0; len--) {
-            *out++ = ~(*str);
-            ++str;
-        }
+    series = Make_Binary(len);
+    SET_SERIES_LEN(series, len);
+    out = BIN_HEAD(series);
+    for (; len > 0; len--) {
+        *out++ = ~(*str);
+        ++str;
+    }
 
-        return series;
+    return series;
 }
 
 

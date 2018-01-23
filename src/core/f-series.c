@@ -151,6 +151,69 @@ REB_R Series_Common_Action_Maybe_Unhandled(
         Move_Value(D_OUT, value);
         return R_OUT; }
 
+    case SYM_INTERSECT: {
+        if (IS_BINARY(value))
+            return R_UNHANDLED; // !!! use bitwise math, for now
+
+        INCLUDE_PARAMS_OF_INTERSECT;
+
+        UNUSED(ARG(value1)); // covered by value
+
+        Init_Any_Series(
+            D_OUT,
+            VAL_TYPE(value),
+            Make_Set_Operation_Series(
+                value,
+                ARG(value2),
+                SOP_FLAG_CHECK,
+                REF(case),
+                REF(skip) ? Int32s(ARG(size), 1) : 1
+            )
+        );
+        return R_OUT; }
+
+    case SYM_UNION: {
+        if (IS_BINARY(value))
+            return R_UNHANDLED; // !!! use bitwise math, for now
+
+        INCLUDE_PARAMS_OF_UNION;
+
+        UNUSED(ARG(value1)); // covered by value
+
+        Init_Any_Series(
+            D_OUT,
+            VAL_TYPE(value),
+            Make_Set_Operation_Series(
+                value,
+                ARG(value2),
+                SOP_FLAG_BOTH,
+                REF(case),
+                REF(skip) ? Int32s(ARG(size), 1) : 1
+            )
+        );
+        return R_OUT; }
+
+    case SYM_DIFFERENCE: {
+        if (IS_BINARY(value))
+            return R_UNHANDLED; // !!! use bitwise math, for now
+
+        INCLUDE_PARAMS_OF_DIFFERENCE;
+
+        UNUSED(ARG(value1)); // covered by value
+
+        Init_Any_Series(
+            D_OUT,
+            VAL_TYPE(value),
+            Make_Set_Operation_Series(
+                value,
+                ARG(value2),
+                SOP_FLAG_BOTH | SOP_FLAG_CHECK | SOP_FLAG_INVERT,
+                REF(case),
+                REF(skip) ? Int32s(ARG(size), 1) : 1
+            )
+        );
+        return R_OUT; }
+
     default:
         break;
     }

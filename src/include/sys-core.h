@@ -360,6 +360,14 @@ enum {
     COPY_SAME = 16
 };
 
+// Mathematical set operations for UNION, INTERSECT, DIFFERENCE
+enum {
+    SOP_NONE = 0, // used by UNIQUE (other flags do not apply)
+    SOP_FLAG_BOTH = 1 << 0, // combine and interate over both series
+    SOP_FLAG_CHECK = 1 << 1, // check other series for value existence
+    SOP_FLAG_INVERT = 1 << 2 // invert the result of the search
+};
+
 
 // Breakpoint hook callback, signature:
 //

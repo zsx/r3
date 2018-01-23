@@ -67,7 +67,7 @@
 [
     a-value: first [:a]
     f: closure [] [:a-value]
-    (same? :a-value f) and* (:a-value == f)
+    (same? :a-value f) and (:a-value == f)
 ]
 [
     f: closure [] [#"^@"]

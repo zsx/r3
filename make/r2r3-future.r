@@ -537,7 +537,7 @@ eval: get 'do
 ; There is no way to get a conditional infix AND using those binaries.
 ; In some cases, the bitwise and will be good enough for logic purposes...
 ;
-and*: get 'and
+and+: get 'and
 and?: func [a b] [to-logic all [:a :b]]
 and: get 'and ; see above
 

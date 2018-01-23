@@ -1283,7 +1283,7 @@ set 'r3-legacy* func [<local> if-flags] [
 
     ; In the object appending model above, can't use ENFIX or SET/ENFIX...
     ;
-    system/contexts/user/and: enfix tighten :and*
+    system/contexts/user/and: enfix tighten :and+
     system/contexts/user/or: enfix tighten :or+
     system/contexts/user/xor: enfix tighten :xor+
 

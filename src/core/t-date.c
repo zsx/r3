@@ -939,7 +939,7 @@ REBTYPE(Date)
         }
     }
     else {
-        switch(action) {
+        switch (action) {
         case SYM_EVEN_Q:
             return ((~day) & 1) == 0 ? R_TRUE : R_FALSE;
 
@@ -982,6 +982,32 @@ REBTYPE(Date)
 
         case SYM_ABSOLUTE:
             goto setDate;
+
+        case SYM_DIFFERENCE: {
+            INCLUDE_PARAMS_OF_DIFFERENCE;
+
+            REBVAL *val1 = ARG(value1);
+            REBVAL *val2 = ARG(value2);
+
+            if (REF(case))
+                fail (Error_Bad_Refines_Raw());
+
+            if (REF(skip))
+                fail (Error_Bad_Refines_Raw());
+            UNUSED(PAR(size));
+
+            // !!! Plain SUBTRACT on dates has historically given INTEGER! of
+            // days, while DIFFERENCE has given back a TIME!.  This is not
+            // consistent with the "symmetric difference" that all other
+            // applications of difference are for.  Review.
+            //
+            // https://forum.rebol.info/t/486
+            //
+            if (NOT(IS_DATE(val2)))
+                fail (Error_Unexpected_Type(VAL_TYPE(val1), VAL_TYPE(val2)));
+
+            Subtract_Date(val1, val2, D_OUT);
+            return R_OUT; }
 
         default:
             fail (Error_Illegal_Action(REB_DATE, action));

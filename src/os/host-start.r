@@ -185,7 +185,7 @@ usage: procedure [
 ]
 
 boot-welcome:
-{Welcome to the Rebol console.  For more information please type in the commands below:
+{Welcome to Rebol.  For more information please type in the commands below:
 
   HELP    - For starting information
   ABOUT   - Information about your Rebol

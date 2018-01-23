@@ -386,9 +386,9 @@ REBTYPE(Integer)
         || action == SYM_MULTIPLY
         || action == SYM_DIVIDE
         || action == SYM_POWER
-        || action == SYM_AND_T
-        || action == SYM_OR_T
-        || action == SYM_XOR_T
+        || action == SYM_INTERSECT
+        || action == SYM_UNION
+        || action == SYM_DIFFERENCE
         || action == SYM_REMAINDER
     ){
         if (IS_INTEGER(val2))
@@ -490,15 +490,15 @@ REBTYPE(Integer)
         num = (arg != -1) ? (num % arg) : 0; // !!! was macro called REM2 (?)
         break;
 
-    case SYM_AND_T:
+    case SYM_INTERSECT:
         num &= arg;
         break;
 
-    case SYM_OR_T:
+    case SYM_UNION:
         num |= arg;
         break;
 
-    case SYM_XOR_T:
+    case SYM_DIFFERENCE:
         num ^= arg;
         break;
 

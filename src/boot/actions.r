@@ -55,23 +55,66 @@ power: action [
     exponent [any-number!]
 ]
 
-and~: action [
-    {Returns the first value ANDed with the second.}
-    value1 [logic! integer! char! tuple! binary! bitset! typeset! datatype!]
-    value2 [logic! integer! char! tuple! binary! bitset! typeset! datatype!]
+
+intersect: action [
+    {Returns the intersection (AND) of two values.}
+    value1 [
+        logic! integer! char! tuple! ;-- math
+        any-array! any-string! bitset! typeset! ;-- sets
+        binary! ;-- ???
+    ]
+    value2 [
+        logic! integer! char! tuple! ;-- math
+        any-array! any-string! bitset! typeset! ;-- sets
+        binary! ;-- ???
+    ]
+    /case
+        "Uses case-sensitive comparison"
+    /skip
+        "Treat the series as records of fixed size"
+    size [integer!]
 ]
 
-or~: action [
-    {Returns the first value ORed with the second.}
-    value1 [logic! integer! char! tuple! binary! bitset! typeset! datatype!]
-    value2 [logic! integer! char! tuple! binary! bitset! typeset! datatype!]
+union: action [
+    {Returns the union (OR) of two values.}
+    value1 [
+        logic! integer! char! tuple! ;-- math
+        any-array! any-string! bitset! typeset! ;-- sets
+        binary! ;-- ???
+    ]
+    value2 [
+        logic! integer! char! tuple! ;-- math
+        any-array! any-string! bitset! typeset! ;-- sets
+        binary! ;-- ???
+    ]
+    /case
+        "Use case-sensitive comparison"
+    /skip
+        "Treat the series as records of fixed size"
+    size [integer!]
 ]
 
-xor~: action [
-    {Returns the first value exclusive ORed with the second.}
-    value1 [logic! integer! char! tuple! binary! bitset! typeset! datatype!]
-    value2 [logic! integer! char! tuple! binary! bitset! typeset! datatype!]
+difference: action [
+    {Returns the special difference (XOR) of two values.}
+    value1 [
+        logic! integer! char! tuple! ;-- math
+        any-array! any-string! bitset! typeset! ;-- sets
+        binary! ;-- ???
+        date! ;-- !!! Under review, this really doesn't fit
+    ]
+    value2 [
+        logic! integer! char! tuple! ;-- math
+        any-array! any-string! bitset! typeset! ;-- sets
+        binary! ;-- ???
+        date! ;-- !!! Under review, this really doesn't fit
+    ]
+    /case
+        "Uses case-sensitive comparison"
+    /skip
+        "Treat the series as records of fixed size"
+    size [integer!]
 ]
+
 
 ;-- Unary
 

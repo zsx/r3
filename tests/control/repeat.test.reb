@@ -4,9 +4,9 @@
     num: 0
     repeat i 10 [
         num: num + 1
-        success: (i = num) and* success
+        success: success and (i = num)
     ]
-    (10 = num) and* success
+    success and (10 = num)
 ]
 ; cycle return value
 [bar? repeat i 1 [false]]
