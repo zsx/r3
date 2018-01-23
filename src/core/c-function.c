@@ -1520,17 +1520,65 @@ REBOOL Specialize_Function_Throws(
     REBDSP dsp_orig = DSP;
     DS_PUSH(FUNC_VALUE(VAL_FUNC(specializee))); // !!! is inheriting good?
 
+    // If a refinement gets specialized out, we want to go ahead and make sure
+    // that it was a LOGIC!, and that if it was false that any refinement
+    // arguments are also void.
+    //
+    enum Reb_Param_Class mode = PARAM_CLASS_NORMAL;
+    REBOOL active = TRUE;
+
     REBVAL *param = CTX_KEYS_HEAD(exemplar);
     REBVAL *arg = CTX_VARS_HEAD(exemplar);
     for (; NOT_END(param); ++param, ++arg) {
-        if (IS_VOID(arg))
-            DS_PUSH(param);
+        switch (VAL_PARAM_CLASS(param)) {
+        case PARAM_CLASS_REFINEMENT: {
+            mode = PARAM_CLASS_REFINEMENT;
 
-        // !!! Should the VALUE_FLAG_UNEVALUATED bit be set on elements of
-        // the exemplar?  If it is not, then attempts to specialize things
-        // like branches with raw literals won't work.  Review in light of
-        // whatever rules are designed to help make dealing with wrapping
-        // the evaluated/unevaluated bit easier.
+            if (IS_VOID(arg)) {
+                DS_PUSH(param);
+                active = FALSE; // indefinite refinements need void args
+                continue;
+            }
+            
+            if (NOT(IS_LOGIC(arg)))
+                fail (Error_Non_Logic_Refinement(param, arg));
+            
+            active = VAL_LOGIC(arg);
+            continue; }
+
+        case PARAM_CLASS_RETURN:
+        case PARAM_CLASS_LEAVE:
+        case PARAM_CLASS_LOCAL:
+            mode = PARAM_CLASS_LOCAL;
+            active = FALSE; // locals should not have values in exemplar
+            break;
+
+        default:
+            break;
+        }
+
+        if (active) {
+            if (mode == PARAM_CLASS_NORMAL) {
+                if (IS_VOID(arg))
+                    DS_PUSH(param); // not specialized out
+            }
+            else {
+                assert(mode == PARAM_CLASS_REFINEMENT); // active refinement
+                if (IS_VOID(arg))
+                    fail (Error_Bad_Refine_Revoke(param, arg));
+            }
+        }
+        else {
+            if (mode == PARAM_CLASS_REFINEMENT) {
+                if (NOT(IS_VOID(arg)))
+                    fail (Error_Bad_Refine_Revoke(param, arg));
+            }
+            else {
+                assert(mode == PARAM_CLASS_LOCAL);
+                if (NOT(IS_VOID(arg)))
+                    fail ("Local variable is non-void in exemplar frame");
+            }
+        }
     }
 
     REBARR *paramlist = Pop_Stack_Values_Core(

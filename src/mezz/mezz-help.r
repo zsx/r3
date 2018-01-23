@@ -540,7 +540,9 @@ help: procedure [
         :chainees [
             {a chained function}
         ]
-    ] else {a function}
+    ] else [
+        {a function}
+    ]
 
     print-newline
 
@@ -549,7 +551,7 @@ help: procedure [
             |
         space4 (any [description | "(undocumented)"])
             |
-        space4 (uppercase mold topic) {is} classification {.}
+        space4 (uppercase mold topic) {is} classification
     ]
 
     print-args: procedure [list /indent-words] [
@@ -558,9 +560,9 @@ help: procedure [
             type: maybe [block! any-word!] select types to-word param
 
             ;-- parameter name and type line
-            either all [type | not refinement? param] [
+            if type and (not refinement? param) [
                 print/only [space4 param space "[" type "]" newline]
-            ][
+            ] else [
                 print/only [space4 param newline]
             ]
 

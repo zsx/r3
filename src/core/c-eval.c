@@ -765,8 +765,8 @@ reevaluate:;
                         Move_Value(f->arg, f->special);
                     }
 
-                    if (!IS_LOGIC(f->arg))
-                        fail (Error_Non_Logic_Refinement(f));
+                    if (NOT(IS_LOGIC(f->arg)))
+                        fail (Error_Non_Logic_Refinement(f->param, f->arg));
 
                     if (IS_TRUTHY(f->arg))
                         f->refine = f->arg; // remember so we can revoke!
@@ -1307,7 +1307,7 @@ reevaluate:;
                     // didn't trigger revocation, or refine wouldn't be logic.
                     //
                     if (f->refine + 1 != f->arg)
-                        fail (Error_Bad_Refine_Revoke(f));
+                        fail (Error_Bad_Refine_Revoke(f->param, f->arg));
 
                     Init_Logic(f->refine, FALSE); // can't re-enable...
                     f->refine = ARG_TO_REVOKED_REFINEMENT;
@@ -1335,7 +1335,7 @@ reevaluate:;
                 // in a revoked or unused state.
                 //
                 if (IS_FALSEY(f->refine))
-                    fail (Error_Bad_Refine_Revoke(f));
+                    fail (Error_Bad_Refine_Revoke(f->param, f->arg));
             }
 
             if (NOT_VAL_FLAG(f->param, TYPESET_FLAG_VARIADIC)) {

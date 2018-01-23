@@ -724,7 +724,7 @@ ensure*: specialize 'ensure [only: true]
 find?: redescribe [
     {Variant of FIND that returns TRUE if present and FALSE if not.}
 ](
-    chain [:find | :to-logic]
+    chain [:find | :something?]
 )
 
 select: redescribe [

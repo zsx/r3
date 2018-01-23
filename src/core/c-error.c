@@ -1064,10 +1064,10 @@ REBCTX *Error_Lookback_Quote_Too_Late(const RELVAL *word, REBSPC *specifier) {
 // corresponding to refinements must be canonized to either TRUE or FALSE
 // by these specializations, because that's what the called function expects.
 //
-REBCTX *Error_Non_Logic_Refinement(REBFRM *f) {
+REBCTX *Error_Non_Logic_Refinement(const RELVAL *param, const REBVAL *arg) {
     DECLARE_LOCAL (word);
-    Init_Word(word, VAL_PARAM_SPELLING(f->param));
-    return Error_Non_Logic_Refine_Raw(word, Type_Of(f->arg));
+    Init_Word(word, VAL_PARAM_SPELLING(param));
+    return Error_Non_Logic_Refine_Raw(word, Type_Of(arg));
 }
 
 
@@ -1212,20 +1212,20 @@ REBCTX *Error_Bad_Func_Def_Core(const RELVAL *item, REBSPC *specifier)
 // by the error handling).  See the remarks about the state of f->refine in
 // the Reb_Frame definition.
 //
-REBCTX *Error_Bad_Refine_Revoke(REBFRM *f)
+REBCTX *Error_Bad_Refine_Revoke(const RELVAL *param, const REBVAL *arg)
 {
-    assert(IS_TYPESET(f->param));
+    assert(IS_TYPESET(param));
 
     DECLARE_LOCAL (param_name);
-    Init_Word(param_name, VAL_PARAM_SPELLING(f->param));
+    Init_Word(param_name, VAL_PARAM_SPELLING(param));
 
-    while (VAL_PARAM_CLASS(f->param) != PARAM_CLASS_REFINEMENT)
-        --f->param;
+    while (VAL_PARAM_CLASS(param) != PARAM_CLASS_REFINEMENT)
+        --param;
 
     DECLARE_LOCAL (refine_name);
-    Init_Refinement(refine_name, VAL_PARAM_SPELLING(f->param));
+    Init_Refinement(refine_name, VAL_PARAM_SPELLING(param));
 
-    if (IS_VOID(f->arg)) // was void and shouldn't have been
+    if (IS_VOID(arg)) // was void and shouldn't have been
         return Error_Bad_Refine_Revoke_Raw(refine_name, param_name);
 
     // wasn't void and should have been
