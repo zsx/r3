@@ -92,12 +92,31 @@ REBNATIVE(nand_q)
 
 
 //
+//  did?: native [
+//
+//  "Clamps a value to LOGIC! (e.g. a synonym for NOT? NOT? or TO-LOGIC)"
+//
+//      return: [logic!]
+//          "Only LOGIC!'s FALSE and BLANK! for value return FALSE"
+//      value [any-value!]
+//  ]
+//
+REBNATIVE(did_q)
+{
+    INCLUDE_PARAMS_OF_DID_Q;
+
+    return R_FROM_BOOL(IS_TRUTHY(ARG(value)));
+}
+
+
+//
 //  not?: native [
 //
 //  "Returns the logic complement."
 //
+//      return: [logic!]
+//          "Only LOGIC!'s FALSE and BLANK! for value return TRUE"
 //      value [any-value!]
-//          "(Only LOGIC!'s FALSE and BLANK! return TRUE)"
 //  ]
 //
 REBNATIVE(not_q)

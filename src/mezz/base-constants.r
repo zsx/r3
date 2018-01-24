@@ -49,7 +49,7 @@ crlf:      "^M^J"
 
 ;-- Function synonyms:
 not: :not?
-!: :not?
+did: :did?
 min: :minimum
 max: :maximum
 abs: :absolute

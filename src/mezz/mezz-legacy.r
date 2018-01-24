@@ -237,22 +237,16 @@ value?: func [dummy:] [
 
 true?: func [dummy:] [
     fail/where [
-        {TRUE? is misleading/ambiguous, use either TO-LOGIC or `= TRUE`} |
-        {(TRUTHY? is also provided to see if anyone actually likes it)}
+        {Historical TRUE? is ambiguous, use either TO-LOGIC or `= TRUE`} |
+        {(experimental alternative of DID as "anti-NOT" is also offered)}
     ] 'dummy
 ]
 
 false?: func [dummy:] [
     fail/where [
-        {FALSE? is misleading/ambiguous, use either NOT or `= FALSE`} |
-        {(FALSEY? is still provided to see if anyone actually likes it)}
+        {Historical FALSE? is ambiguous, use either NOT or `= FALSE`}
     ] 'dummy
 ]
-
-; Silly names, but someone might like them
-;
-truthy?: :to-logic
-falsey?: :not
 
 none-of: :none ;-- reduce mistakes for now by renaming NONE out of the way
 
