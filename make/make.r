@@ -690,10 +690,10 @@ targets: [
     ]
     vs2017
     visual-studio [
-        rebmake/visual-studio/generate/(all [system-config/os-name = 'Windows-x86 'x86]) %make solution
+        rebmake/visual-studio/generate/(all [system-config/os-name = 'Windows-x86 'x86]) %. solution
     ]
     vs2015 [
-        rebmake/vs2015/generate/(all [system-config/os-name = 'Windows-x86 'x86]) %make solution
+        rebmake/vs2015/generate/(all [system-config/os-name = 'Windows-x86 'x86]) %. solution
     ]
 ]
 target-names: make block! 16
