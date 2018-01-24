@@ -26,3 +26,14 @@
      error? try [x: load/header ""]
      not error? x
 ]
+
+[
+    #1421
+    did all [
+        error? try [load "[a<]"]
+        error? try [load "[a>]"]
+        error? try [load "[a+<]"]
+        error? try [load "[1<]"]
+        error? try [load "[+<]"]
+    ]
+]

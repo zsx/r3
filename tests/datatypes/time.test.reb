@@ -6,6 +6,7 @@
 [0:0:10 = to time! 10]
 [error? try [to time! "a"]]
 ["0:00" = mold 0:00]
+
 ; small value
 [
     any? [
@@ -13,6 +14,7 @@
         t = load mold t
     ]
 ]
+
 ; big value
 [
     any? [
@@ -20,23 +22,37 @@
         t = load mold t
     ]
 ]
+
 ; strange value
 [error? try [load "--596523:-14:-07.772224"]]
+
 ; minimal time
 [time? -596523:14:07.999999999]
+
 ; maximal negative time
 [negative? -0:0:0.000000001]
+
 ; minimal positive time
 [positive? 0:0:0.000000001]
+
 ; maximal time
 [time? 596523:14:07.999999999]
-; bug#96
+
 [
+    #96
     time: 1:23:45.6
     1:23:45.7 = (time + 0.1)
-]
-; bug#96
-[
+][
+    #96
     time: 1:23:45.6
     0:41:52.8 = (time * .5)
+]
+
+
+[
+    #1156
+    0:01:00 / 0:00:07 = 8.571428571428571
+][
+    #1156
+    8 * 0:00:07 = 0:00:56
 ]

@@ -194,3 +194,12 @@
 [not (0.0.255 < 0.0.0)]
 [not (0.0.255 < 0.0.1)]
 [not (0.0.255 < 0.0.255)]
+
+[
+    #1151
+    did all [
+        error? try [maximum-of [1 %]]
+        error? try [greater? [a] "a"]
+        error? try [lesser? [a] "a"]
+    ]
+]
