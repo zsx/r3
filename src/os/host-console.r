@@ -48,8 +48,8 @@ REBOL [
 console!: make object! [
     name: _
     repl: true      ;-- used to identify this as a console! object (quack!)
-    loaded?:  false ;-- if true then this is a loaded (external) skin
-    updated?: false ;-- if true then console! object found in loaded skin
+    is-loaded:  false ;-- if true then this is a loaded (external) skin
+    was-updated: false ;-- if true then console! object found in loaded skin
     last-result: _  ;-- last evaluated result (sent by HOST-CONSOLE)
 
     ;; APPEARANCE (can be overridden)
@@ -204,11 +204,11 @@ start-console: procedure [
                 select new-skin 'repl ;; quacks like REPL, say it's a console!
             ][
                 proto-skin: new-skin
-                proto-skin/updated?: true
+                proto-skin/was-updated: true
                 proto-skin/name: any [proto-skin/name "updated"]
             ]
 
-            proto-skin/loaded?: true
+            proto-skin/is-loaded: true
             proto-skin/name: any [proto-skin/name "loaded"]
             append o/loaded skin-file
 
@@ -261,9 +261,9 @@ start-console: procedure [
     ] else [
        loud-print [
             space space
-            either proto-skin/loaded? {Loaded skin} {Skin does not exist}
+            proto-skin/is-loaded ?? {Loaded skin} !! {Skin does not exist}
             "-" skin-file
-            spaced ["(CONSOLE" unless proto-skin/updated? {not} "updated)"]
+            spaced ["(CONSOLE" (proto-skin/was-updated !! {not}) "updated)"]
         ]
     ]
 
