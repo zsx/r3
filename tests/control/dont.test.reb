@@ -17,7 +17,7 @@
 ]
 
 [
-    success: true 
+    success: true
     all? [
         don't [success: false (success: false) :abs set 'success <bad>]
         success = true
@@ -28,7 +28,7 @@
     code: [success: 1 + 2 (success: false) :abs set 'success <bad>]
     all? [
         don't code
-        don't/next code 'pos 
+        don't/next code 'pos
         pos = [(success: false) :abs set 'success <bad>]
         don't/next pos 'pos
         pos = [:abs set 'success <bad>]
@@ -38,7 +38,7 @@
         pos = []
         don't/next pos 'pos
         pos = []
-        success = true 
+        success = true
     ]
 ]
 

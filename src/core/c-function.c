@@ -1539,10 +1539,10 @@ REBOOL Specialize_Function_Throws(
                 active = FALSE; // indefinite refinements need void args
                 continue;
             }
-            
+
             if (NOT(IS_LOGIC(arg)))
                 fail (Error_Non_Logic_Refinement(param, arg));
-            
+
             active = VAL_LOGIC(arg);
             continue; }
 

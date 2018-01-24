@@ -918,7 +918,7 @@ void callback_dispatcher(
     if (error) {
         //
         // If a callback encounters an error in mid-run, there's nothing that
-        // can be done 
+        // can be done
         //
         panic (error);
     }
@@ -1009,7 +1009,7 @@ REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec, ffi_abi abi) {
     //
     // !!! Should this use the data stack?  What about the schemas, they can't
     // *both* be using the data stack...
-    //    
+    //
     Alloc_Tail_Array(paramlist); // trash, but not managed, so OK
 
     // arguments can be complex, defined as structures.  A "schema" is a

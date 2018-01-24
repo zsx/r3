@@ -16,7 +16,7 @@ REBOL [
         stop processing if it hit another "OP!".  This meant that a sequence
         of all infix ops would appear to process left-to-right, e.g.
         `1 + 2 * 3` would be 9.
-        
+
         Ren-C does not have an "OP!" function type, it just has FUNCTION!, but
         a WORD! can be SET with the /ENFIX refinement.  This indicates that
         when the function is dispatched through that word, it should get its
@@ -109,7 +109,7 @@ for-each [comparison-op function-name] [
     >       greater?
     >=      greater-or-equal?
 
-    !=      not-equal? ;-- !!! http://www.rebol.net/r3blogs/0017.html 
+    !=      not-equal? ;-- !!! http://www.rebol.net/r3blogs/0017.html
 
     ==      strict-equal?
     !==     strict-not-equal?

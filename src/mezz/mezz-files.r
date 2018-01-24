@@ -184,7 +184,7 @@ list-dir: procedure [
 
     if r [l: true]
     unless l [l: make string! 62] ; approx width
- 
+
     if not (files: attempt [read %./]) [
         print ["Not found:" :path]
         change-dir save-dir
@@ -274,7 +274,7 @@ to-relative-file: function [
     ]
 
     unless no-copy [file: copy file]
-    
+
     file
 ]
 

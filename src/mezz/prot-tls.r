@@ -524,7 +524,7 @@ decrypt-data: function [
 
 parse-protocol: function [
     data [binary!]
-    
+
     <static>
 
     protocol-types ([
@@ -873,7 +873,7 @@ parse-messages: function [
                     4
                 ]
 
-                data: skip data (len + skip-amount) 
+                data: skip data (len + skip-amount)
             ]
         ]
 
@@ -920,7 +920,7 @@ parse-response: function [
     if empty? messages [
         fail "unknown/invalid protocol message"
     ]
-    
+
     proto/messages: messages
 
     debug [
@@ -1175,7 +1175,7 @@ tls-awake: function [event [event!]] [
 
             complete?: tls-read-data tls-port/state port/data
             application?: false
-            
+
             for-each proto tls-port/state/resp [
                 switch proto/type [
                     application [
@@ -1204,9 +1204,9 @@ tls-awake: function [event [event!]] [
                     ]
                 ]
             ]
-            
+
             debug ["data complete?:" complete? "application?:" application?]
-            
+
             either application? [
                 insert system/ports/system make event! [
                     type: 'read

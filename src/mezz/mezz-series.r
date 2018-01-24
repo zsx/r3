@@ -313,7 +313,7 @@ reword: function [
 
                 ; GROUP! execution code for remembering which keyword matched.
                 ; We want the actual keyword as-is in the MAP! key, not any
-                ; variation modified to 
+                ; variation modified to
                 ;
                 ; Note also that getting to this point doesn't mean a full
                 ; match necessarily happened, as the enclosing rule may have
@@ -359,13 +359,13 @@ reword: function [
 
             ; End marking text to copy verbatim to output
             b:
-             
+
             ; Consume the prefix (again, this could be a no-op, which means
             ; there's no guarantee we'll be at the start of a match for
             ; an `any-keyword-rule`
             ;
             prefix
-            
+
             [
                 [
                     any-keyword-rule suffix (
@@ -397,12 +397,12 @@ reword: function [
         ; Seek to end, just so rule succeeds
         ;
         to end
-        
+
         ; Finalize the output, such that any remainder is transferred verbatim
         ;
         (output: insert output a)
     ]
-    
+
     unless parse/(all [case_REWORD 'case]) source rule [
         fail "Unexpected error in REWORD's parse rule, should not happen."
     ]
@@ -634,7 +634,7 @@ split: function [
         ]
     ][
         size: dlm   ; alias for readability
-        
+
         res: collect [
             parse series case [
                 all [integer? size | into] [

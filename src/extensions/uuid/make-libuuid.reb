@@ -1,4 +1,23 @@
-REBOL []
+REBOL [
+    Title: {Extract}
+    File: %make-libuuid.reb
+
+    Description: {
+        The Linux Kernel organization has something called `util-linux`, which
+        is a standard package implementing various functionality:
+
+        https://en.wikipedia.org/wiki/Util-linux
+
+        This script is designed to extract just the files that relate to UUID
+        generation and handling, to be built into the Rebol executable.  The
+        files are read directly from GitHub, and tweaked to build without
+        warnings uunder the more rigorous settings used in compilation, which
+        includes compiling as C++.
+
+        The extracted files are committed into the Ren-C repository, to reduce
+        the number of external dependencies in the build.
+    }
+]
 
 ROOT: https://raw.githubusercontent.com/karelzak/util-linux/master/
 
@@ -40,8 +59,8 @@ fix-randutils.c: func [
 
         any [
             comment-out-includes
-            
-            ;randutils.c:137:12: error: invalid conversion from ‘void*’ to ‘unsigned char*’ 
+
+            ;randutils.c:137:12: error: invalid conversion from ‘void*’ to ‘unsigned char*’
             | change {cp = buf} {cp = (unsigned char*)buf}
 
             ; Fix "error: invalid suffix on literal; C++11 requires a space between literal and identifier"
@@ -117,7 +136,7 @@ files: compose [
     %include/nls.h              _
     %include/randutils.h        _
     %lib/randutils.c            (:fix-randutils.c)
-    %libuuid/src/gen_uuid.c     (:fix-gen_uuid.c)    
+    %libuuid/src/gen_uuid.c     (:fix-gen_uuid.c)
     %libuuid/src/pack.c         _
     %libuuid/src/unpack.c       _
     %libuuid/src/uuidd.h        _
@@ -126,16 +145,18 @@ files: compose [
 ]
 
 for-each [file fix] files [
-    unless :fix [fix: :pass]
-    trap/with [
-       cnt: read url: join-of ROOT file
-    ] proc [
-        error [error!]
-    ][
-        print ["Failed to fetch" url]
-        dump error
-    ]
-    write join-of %libuuid/ (last split-path file) fix cnt
+    data: to-string read url: join-of ROOT file
+    target: join-of %libuuid/ (last split-path file)
+
+    print url
+    print ["->" target]
+    print []
+
+    if :fix [data: fix data] ;-- correct compiler warnings
+
+    replace/all data tab {    } ;-- spaces not tabs
+
+    write target data
 ]
 
 ;write %tmp.c fix-randutils.c read %libuuid/randutils.c

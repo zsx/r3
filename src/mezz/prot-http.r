@@ -54,7 +54,7 @@ sync-op: function [port body] [
 
     state: port/state
     state/awake: :read-sync-awake
-    
+
     do body
 
     if state/state = 'ready [do-request port]
@@ -73,7 +73,7 @@ sync-op: function [port body] [
     ]
 
     body: copy port
-    
+
     if state/close? [close port]
 
     either port/spec/debug [
@@ -601,7 +601,7 @@ hex-digits: charset "1234567890abcdefABCDEF"
 sys/make-scheme [
     name: 'http
     title: "HyperText Transport Protocol v1.1"
-    
+
     spec: construct system/standard/port-spec-net [
         path: %/
         method: 'get
@@ -611,7 +611,7 @@ sys/make-scheme [
         debug: _
         follow: 'redirect
     ]
-    
+
     info: construct system/standard/file-info [
         response-line:
         response-parsed:

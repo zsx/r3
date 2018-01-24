@@ -397,7 +397,7 @@ REBNATIVE(decode_bmp)
     REBSER *ser = Make_Image(w, h, TRUE);
 
     REBCNT *dp = cast(REBCNT *, IMG_DATA(ser));
-    
+
     dp += w * h - w;
 
     c = 0xDECAFBAD; // should be overwritten, but avoid uninitialized warning

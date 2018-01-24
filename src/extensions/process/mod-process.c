@@ -1533,7 +1533,7 @@ REBNATIVE(call)
         os_input = s_cast(VAL_BIN_AT(ARG(in)));
         input_len = VAL_LEN_AT(ARG(in));
         break;
-        
+
     case REB_FILE:
         input_ser = Value_To_OS_Path(ARG(in), FALSE);
         MANAGE_SERIES(input_ser);
@@ -1569,7 +1569,7 @@ REBNATIVE(call)
     }
     else
         flag_wait = FALSE;
-        
+
     // We synthesize the argc and argv from the "command", and in the
     // process we may need to do dynamic allocations of argc strings.  In
     // Rebol this is always done by making a series, and if those series
@@ -1833,7 +1833,7 @@ REBNATIVE(get_os_browsers)
 
     DWORD type;
     DWORD flag = RegQueryValueExW(key, L"", 0, &type, NULL, &num_bytes);
-    
+
     if (
         (flag != ERROR_MORE_DATA && flag != ERROR_SUCCESS)
         || num_bytes == 0
@@ -2118,7 +2118,7 @@ static REBNATIVE(set_env)
     }
     else {
         assert(IS_STRING(value));
-        
+
         wchar_t *val = rebSpellingOfAllocW(NULL, value);
         success = SetEnvironmentVariable(key, val);
         OS_FREE(val);

@@ -2,8 +2,8 @@
 #define UTIL_LINUX_RANDUTILS
 
 #ifdef HAVE_SRANDOM
-#define srand(x)	srandom(x)
-#define rand()		random()
+#define srand(x)    srandom(x)
+#define rand()        random()
 #endif
 
 /* rand() based */

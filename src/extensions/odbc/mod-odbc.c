@@ -378,7 +378,7 @@ REBNATIVE(open_statement)
         Sink_Field(statement, ODBC_WORD_HSTMT),
         hstmt, // pointer
         0 // len
-    ); 
+    );
 
     return R_TRUE;
 }
@@ -506,7 +506,7 @@ SQLRETURN ODBC_BindParameter(
         SQLWCHAR *chars = Make_SqlWChar_From_String(&length, v);
 
         p->buffer_size = sizeof(SQLWCHAR) * length;
-        
+
         p->length = p->column_size = 2 * length;
 
         c_type = SQL_C_WCHAR;
@@ -545,7 +545,7 @@ SQLRETURN ODBC_BindParameter(
         p->buffer_size, // BufferLength
         &p->length // StrLen_Or_IndPtr
     );
-   
+
     return rc;
 }
 
@@ -566,7 +566,7 @@ SQLRETURN ODBC_GetCatalog(
         // !!! What if not at head?  Original code seems incorrect, because
         // it passed the array at the catalog word, which is not a string.
         //
-        RELVAL *value = VAL_ARRAY_AT_HEAD(block, arg + 1); 
+        RELVAL *value = VAL_ARRAY_AT_HEAD(block, arg + 1);
         if (IS_STRING(value)) {
             pattern[arg] = Make_SqlWChar_From_String(&length[arg], value);
         }
@@ -723,7 +723,7 @@ SQLRETURN ODBC_DescribeResults(
         assert(sizeof(REBUNI) == sizeof(SQLWCHAR));
         REBSER *title_utf8 =
             Make_UTF8_Binary(title, title_length, 0, OPT_ENC_UNISRC);
-        
+
         column->title =
             Intern_UTF8_Managed(BIN_HEAD(title_utf8), BIN_LEN(title_utf8));
 
@@ -744,7 +744,7 @@ SQLRETURN ODBC_BindColumns(
     SQLHSTMT hstmt,
     int num_columns,
     COLUMN *columns
-) {    
+){
     SQLSMALLINT col_num;
     for (col_num = 0; col_num < num_columns; ++col_num) {
         COLUMN *c = &columns[col_num];
@@ -1117,7 +1117,7 @@ REBNATIVE(insert_odbc)
 
 
 //
-// A query will fill a column's buffer with data.  This data can be 
+// A query will fill a column's buffer with data.  This data can be
 // reinterpreted as a Rebol value.  Successive queries for records reuse the
 // buffer for a column.
 //
@@ -1218,7 +1218,7 @@ void ODBC_Column_To_Rebol_Value(
             + stamp->minute * 60
             + stamp->second
         );
-        
+
         // if we had a timezone, we'd need to set DATE_FLAG_HAS_ZONE and
         // then INIT_VAL_ZONE().  But since DATE_FLAG_HAS_ZONE is not set,
         // the timezone bitfield in the date is ignored.
@@ -1327,7 +1327,7 @@ REBNATIVE(copy_odbc)
         Init_Block(DS_TOP, record);
         ++row;
     }
-    
+
     Init_Block(D_OUT, Pop_Stack_Values(dsp_orig));
     return R_OUT;
 }
@@ -1365,7 +1365,7 @@ REBNATIVE(update_odbc)
         ),
         SQL_IS_UINTEGER
     );
-    
+
     if (rc != SQL_SUCCESS && rc != SQL_SUCCESS_WITH_INFO)
         fail (Error_ODBC_Dbc(hdbc));
 
@@ -1408,7 +1408,7 @@ REBNATIVE(close_statement)
         SQLHSTMT hstmt = cast(SQLHSTMT, VAL_HANDLE_VOID_POINTER(field));
         assert(hstmt != NULL);
         SQLFreeHandle(SQL_HANDLE_STMT, hstmt);
-        SET_HANDLE_POINTER(field, SQL_NULL_HANDLE); // avoid GC cleanup free 
+        SET_HANDLE_POINTER(field, SQL_NULL_HANDLE); // avoid GC cleanup free
         Init_Blank(field);
     }
     else

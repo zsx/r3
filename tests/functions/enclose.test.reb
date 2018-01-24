@@ -11,12 +11,12 @@
 ][
     n-add: enclose 'add function [f [frame!]] [
         if 10 = f/value1 [return blank]
-        f/value1: 5 
+        f/value1: 5
         do f
     ]
 
     all? [
         blank? n-add 10 20
-        25 = n-add 20 20 
+        25 = n-add 20 20
     ]
 ]

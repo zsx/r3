@@ -99,7 +99,7 @@ body-of: function [
             ; critical (relative to dispatch speed, or even creation speed)
             ; it could be done with a reverse lookup
 
-            assert [false] 
+            assert [false]
 
             compose [
                 comment {FFI Bridge to C Function (via make-routine)}

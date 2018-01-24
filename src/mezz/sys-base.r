@@ -88,7 +88,7 @@ do*: function [
         else [
             fail [
                 {Module} source {not in rebol/locale/library}
-            ]            
+            ]
         ]
     ]
 

@@ -33,7 +33,7 @@ dump-obj: function [
         ; Form a limited string from the value provided.
         if any-block? :val [return spaced ["length:" length of val]]
         if image? :val [return spaced ["size:" val/size]]
-        if datatype? :val [return form val] 
+        if datatype? :val [return form val]
         if function? :val [
             return clip-str any [title-of :val mold spec-of :val]
         ]
@@ -372,9 +372,14 @@ help: procedure [
         maybe [function! datatype!] get :topic
     ][
         item: form :topic
-        browse join-of 
-        either function? get :topic [
-            for-each [a b] [ ; need a better method !
+        if function? get :topic [
+            ;
+            ; !!! The logic here repeats somewhat the same thing that is done
+            ; by TO-C-NAME for generating C identifiers.  It might be worth it
+            ; to standardize how symbols are textualized for C with what the
+            ; documentation uses (though C must use underscores, not hyphen)
+            ;
+            for-each [a b] [
                 "!" "-ex"
                 "?" "-q"
                 "*" "-mul"
@@ -384,15 +389,23 @@ help: procedure [
                 "<" "-lt"
                 ">" "-gt"
                 "|" "-bar"
-            ][replace/all item a b]
-            tmp: %.MD
-            https://github.com/gchiu/reboldocs/blob/master/
-        ][
-            remove back tail of item ; the !
-            tmp: %.html
-            http://www.rebol.com/r3/docs/datatypes/
+            ][
+                replace/all item a b
+            ]
+
+            browse join-of [
+                https://github.com/gchiu/reboldocs/blob/master/
+                item
+                %.MD
+            ]
+        ] else [
+            remove back tail of item ;-- it's a DATATYPE!, so remove the !
+            browse join-of [
+                http://www.rebol.com/r3/docs/datatypes/
+                item
+                tmp: %.html
+            ]
         ]
-        [item tmp]
     ]
 
     if all [word? :topic | set? :topic | datatype? get :topic] [
@@ -766,28 +779,44 @@ chat: proc [
 ]
 
 ; temporary solution to ensuring scripts run on a minimum build
+;
 require-commit: procedure [
     "checks current commit against required commit"
     commit [string!]
 ][
-    if find system/script/header 'commit [
-        c: :system/script/header/commit
-        if all [
-            find? c 'date
-            date: :c/date
-            rebol/build < date
-        ][
-            fail ["This script needs a build newer or equal to" date "so run `upgrade`"]            
+    if not c: select system/script/header 'commit [leave]
+
+    ; If we happen to have commit information that includes a date, then we
+    ; can look at the date of the running Rebol and know that a build that is
+    ; older than that won't work.
+    ;
+    if all [
+        date: select c 'date
+        rebol/build < date
+    ][
+        fail [
+            "This script needs a build newer or equal to" date
+            "so run `upgrade`"
         ]
-        if all [
-            find? c 'id
-            id: :c/id
-            id <> commit
-        ][
-            print ["This script has only been tested again commit" id |
-                "If it doesn't run as expected you can try seeing if this commit is still available" |
-                unspaced ["by using the `do <dl-renc>` tool and look for r3-" copy/part id 7 "*"
-                if find/last form rebol/version "0.3.4" [%.exe]]
+    ]
+
+    ; If there's a specific ID then assume that if the current build does not
+    ; have that ID then there *could* be a problem.
+    ;
+    if all [
+        id: select c 'id
+        id <> commit
+    ][
+        print [
+            "This script has only been tested again commit" id
+                |
+            "If it doesn't run as expected"
+            "you can try seeing if this commit is still available"
+                |
+            "by using the `do <dl-renc>` tool and look for"
+            unspaced [
+                "r3-" copy/part id 7 "*"
+                if find/last form rebol/version "0.3.4" [%.exe]
             ]
         ]
     ]

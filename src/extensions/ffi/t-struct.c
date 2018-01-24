@@ -1433,7 +1433,7 @@ REB_R PD_Struct(REBPVS *pvs, const REBVAL *picker, const REBVAL *opt_setval)
                 );
             else
                 Move_Value(specific, pvs->out);
-            
+
             if (!Set_Struct_Var(stu, sel_orig, pvs->refine, specific))
                 return R_UNHANDLED;
 

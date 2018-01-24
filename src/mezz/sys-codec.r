@@ -54,7 +54,7 @@ register-codec*: func [
     ; !!! Should be a map, with blocks of codecs on collisions
     ;
     append append system/options/file-types suffixes (bind name system/codecs)
-    
+
     return codec
 ]
 
@@ -78,7 +78,7 @@ append system/options/file-types switch fourth system/version [
 
 decode: function [
     {Decodes a series of bytes into the related datatype (e.g. image!).}
-    
+
     type [word!]
         {Media type (jpeg, png, etc.)}
     data [binary!]

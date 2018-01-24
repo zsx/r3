@@ -18,7 +18,7 @@ REBOL [
 
 ffi-type-mappings: [
     void [<opt>]
-    
+
     uint8 [integer!]
     int8 [integer!]
     uint16 [integer!]
@@ -26,7 +26,7 @@ ffi-type-mappings: [
     uint32 [integer!]
     int32 [integer!]
     uint64 [integer!]
-    
+
     float [decimal!]
     double [decimal!]
 

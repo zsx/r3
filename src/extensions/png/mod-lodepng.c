@@ -258,7 +258,7 @@ REBNATIVE(decode_png)
     // is just thrown away, but it might be interesting to have access to.
     // Because Rebol_Malloc() was used to make the strings, they could easily
     // be Rebserize()'d and put in an object.
-    // 
+    //
     lodepng_state_cleanup(&state);
 
     if (error != 0)

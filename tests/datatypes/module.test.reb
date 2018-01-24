@@ -76,7 +76,7 @@
 ]
 [
     save/header %test.r [1 2 3] [title: "Test"]
-    [1 2 3] = load %test.r 
+    [1 2 3] = load %test.r
 ]
 [
     save/header %test-checksum.r [1 2 3] [checksum: true]

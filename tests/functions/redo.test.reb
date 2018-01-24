@@ -5,13 +5,13 @@
     foo: func [n] [
         frame: context of 'n
         if n = 0 [
-            return "success!" 
+            return <success>
         ]
-        n: n - 1 
+        n: n - 1
         redo frame
     ]
 
-    "success!" = foo 100
+    <success> = foo 100
 ]
 
 ; REDO via extraction of FRAME! from an ANY-WORD!
@@ -19,13 +19,13 @@
 [
     foo: func [n] [
         if n = 0 [
-           return "success!"
+           return <success>
         ]
         n: n - 1
         redo 'n
     ]
 
-    "success!" = foo 100
+    <success> = foo 100
 ]
 
 ; REDO locals clearing test
@@ -54,12 +54,12 @@
             return <success> ;-- impossible for this case
         ]
         n: n - 1
-        i: #some-junk ;-- type check should fail on redo 
+        i: #some-junk ;-- type check should fail on redo
         redo 'return
     ]
 
     error? trap [foo 100]
-] 
+]
 
 ; REDO phase test
 ; (shared frame compositions should redo the appropriate "phase")
@@ -152,7 +152,7 @@
 
     base: func [n delta /captured-frame f [frame!]] [
         log [{BASE: n =} n {delta =} delta]
-        
+
         n: n - delta
         if n < 0 [return "base less than zero"]
         if n = 0 [return "base done"]
@@ -163,7 +163,7 @@
     c: chain [
         adapt 'base [
            log [{   C: n =} n {delta =} delta]
-           
+
            f: context of 'n
            captured-frame: true
            redo/other 'n :s

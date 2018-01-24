@@ -352,7 +352,7 @@ REBNATIVE(request_file_p)
     int argc = 0;
     if (NOT(gtk_init_check(&argc, NULL)))
         fail ("gtk_init_check() failed");
-    
+
     if (REF(filter)) {
         // !!! wasn't implemented in GTK for Atronix R3
         //
@@ -411,7 +411,7 @@ REBNATIVE(request_file_p)
         // On success there are two different code paths, because the multi
         // file return convention (a singly linked list of strings) is not the
         // same as the single file return convention (one string).
-        
+
         if (REF(multi)) {
             REBYTE *folder = b_cast(
                 gtk_file_chooser_get_current_folder(chooser)
@@ -521,7 +521,7 @@ int CALLBACK ReqDirCallbackProc(
 
     const wchar_t* dir = cast(wchar_t*, lpData);
 
-    static REBOOL inited = FALSE; 
+    static REBOOL inited = FALSE;
     switch (uMsg) {
     case BFFM_INITIALIZED:
         if (dir != NULL)

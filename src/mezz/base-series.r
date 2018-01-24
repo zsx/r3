@@ -133,7 +133,7 @@ repend: redescribe [
 ; REPEND very literally does what it says, which is to reduce the argument
 ; and call APPEND.  This is not necessarily the most useful operation.
 ; Note that `x: 10 | repend [] 'x` would give you `[x]` in R3-Alpha
-; and not 10.  The new JOIN (temporarily ADJOIN) and JOIN-OF operations  
+; and not 10.  The new JOIN (temporarily ADJOIN) and JOIN-OF operations
 ; can take more license with their behavior if it makes the function more
 ; convenient, and not be beholden to the behavior that the name REPEND would
 ; seem to suggest.

@@ -381,7 +381,7 @@ load: function [
             ]
             assert [binary? data]
             data: transcode/file/line data :file :line
-            take/last data ;-- !!! always the residual, a #{}... why? 
+            take/last data ;-- !!! always the residual, a #{}... why?
         ]
 
         header [insert data hdr]
@@ -492,13 +492,13 @@ do-needs: function [
         ; Import the module
         mod: apply 'import [
             module: name
-            
+
             version: true
             ver: opt vers
-            
-            check: true 
+
+            check: true
             sum: opt hash
-            
+
             no-share: no-share
             no-lib: no-lib
             no-user: no-user

@@ -44,12 +44,12 @@
 typedef unsigned char uuid_t[16];
 
 /* UUID Variant definitions */
-#define UUID_VARIANT_NCS	0
-#define UUID_VARIANT_DCE	1
-#define UUID_VARIANT_MICROSOFT	2
-#define UUID_VARIANT_OTHER	3
+#define UUID_VARIANT_NCS    0
+#define UUID_VARIANT_DCE    1
+#define UUID_VARIANT_MICROSOFT    2
+#define UUID_VARIANT_OTHER    3
 
-#define UUID_VARIANT_SHIFT	5
+#define UUID_VARIANT_SHIFT    5
 #define UUID_VARIANT_MASK     0x7
 
 /* UUID Type definitions */
@@ -62,15 +62,15 @@ typedef unsigned char uuid_t[16];
 #define UUID_TYPE_SHIFT      4
 #define UUID_TYPE_MASK     0xf
 
-#define UUID_STR_LEN	37
+#define UUID_STR_LEN    37
 
 /* Allow UUID constants to be defined */
 #ifdef __GNUC__
 #define UUID_DEFINE(name,u0,u1,u2,u3,u4,u5,u6,u7,u8,u9,u10,u11,u12,u13,u14,u15) \
-	static const uuid_t name __attribute__ ((unused)) = {u0,u1,u2,u3,u4,u5,u6,u7,u8,u9,u10,u11,u12,u13,u14,u15}
+    static const uuid_t name __attribute__ ((unused)) = {u0,u1,u2,u3,u4,u5,u6,u7,u8,u9,u10,u11,u12,u13,u14,u15}
 #else
 #define UUID_DEFINE(name,u0,u1,u2,u3,u4,u5,u6,u7,u8,u9,u10,u11,u12,u13,u14,u15) \
-	static const uuid_t name = {u0,u1,u2,u3,u4,u5,u6,u7,u8,u9,u10,u11,u12,u13,u14,u15}
+    static const uuid_t name = {u0,u1,u2,u3,u4,u5,u6,u7,u8,u9,u10,u11,u12,u13,u14,u15}
 #endif
 
 #ifdef __cplusplus

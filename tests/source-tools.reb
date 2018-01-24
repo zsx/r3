@@ -239,10 +239,9 @@ rebsource: context [
             {Analyse a source file returning facts.}
             file
             data
-        ] [
-
-            ;
-            ; In this analysis we are interested in textual formatting irrespective of language.
+        ][
+            ; In this analysis we are interested in textual formatting
+            ; (irrespective of language).
 
             analysis: make block! []
 
@@ -273,7 +272,7 @@ rebsource: context [
 
             count-line: [
                 (
-                    line-len: subtract index of position index of bol 
+                    line-len: subtract index of position index of bol
                     if line-len > standard/std-line-length [
                         append over-std-len line
                         if line-len > standard/max-line-length [

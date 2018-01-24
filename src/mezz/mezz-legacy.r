@@ -1142,7 +1142,7 @@ set 'r3-legacy* func [<local> if-flags] [
 
             if find spec [[any-type!]] [
                 spec: copy/deep spec
-                replace/all spec [[any-type!]] [[<opt> any-value!]] 
+                replace/all spec [[any-type!]] [[<opt> any-value!]]
             ]
 
             lib/func compose [
@@ -1176,7 +1176,7 @@ set 'r3-legacy* func [<local> if-flags] [
 
             if find spec [[any-type!]] [
                 spec: copy/deep spec
-                replace/all spec [[any-type!]] [[<opt> any-value!]] 
+                replace/all spec [[any-type!]] [[<opt> any-value!]]
             ]
 
             if block? :object [object: has object]

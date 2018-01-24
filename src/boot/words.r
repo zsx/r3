@@ -82,7 +82,7 @@ system
 ; (e.g. BODY OF SOME-FUNCTION)
 ;
 index
-xy ;-- !!! There was an INDEX?/XY, which is an XY reflector for the time being 
+xy ;-- !!! There was an INDEX?/XY, which is an XY reflector for the time being
 length
 head
 tail

@@ -214,17 +214,17 @@ Script: [
     tcc-invalid-library: [{Library expects a block or a path:} :arg1]
     tcc-invalid-library-path: [{Library path expects a block or a path:} :arg1]
     tcc-invalid-runtime-path: [{Runtime library path expects a block or a path:} :arg1]
-    tcc-empty-spec:    	{Spec for natives must not be empty}
+    tcc-empty-spec:        {Spec for natives must not be empty}
     tcc-empty-source:    {Source for natives must not be empty}
     tcc-construction:    {TCC failed to create a TCC context}
     tcc-set-options:     {TCC failed to set TCC options}
-    tcc-include:    	 [{TCC failed to add include path:} :arg1]
-    tcc-library:    	 [{TCC failed to add library:} :arg1]
+    tcc-include:         [{TCC failed to add include path:} :arg1]
+    tcc-library:         [{TCC failed to add library:} :arg1]
     tcc-library-path:    [{TCC failed to add library path:} :arg1]
     tcc-runtime-path:    [{TCC failed to add runtime library path:} :arg1]
     tcc-output-type:     {TCC failed to set output to memory}
-    tcc-compile:    	 [{TCC failed to compile the code} :arg1]
-    tcc-relocate:    	 {TCC failed to relocate the code}
+    tcc-compile:         [{TCC failed to compile the code} :arg1]
+    tcc-relocate:         {TCC failed to relocate the code}
     tcc-invalid-name:    [{C name must be a string:} :arg1]
     tcc-sym-not-found:   [{TCC failed to find symbol:} :arg1]
     tcc-error-warn:      [{TCC reported error/warnings. Fix error/warnings, or use '-w' to disable all of the warnings:} :arg1]
@@ -256,7 +256,7 @@ Access: [
     type: "access error"
 
     protected-word:     [{variable} :arg1 {locked by PROTECT (see UNPROTECT)}]
-    
+
     series-protected:   {series read-only due to PROTECT (see UNPROTECT)}
     series-frozen:      {series is source or permanently locked, can't modify}
     series-held:        {series has temporary read-only hold for iteration}

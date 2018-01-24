@@ -49,7 +49,7 @@ finish-init-core: procedure [
     tmp: make object! 320
     append tmp reduce [
         'system :system
-        
+
         'adjoin (get 'join)
         'join (func [dummy] [
             fail/where [

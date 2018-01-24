@@ -466,7 +466,7 @@ static REBNATIVE(dh_compute_key)
             dh_ctx.p = VAL_BIN_AT(var);
             dh_ctx.len = VAL_LEN_AT(var);
         }
-        else if (canon == CRYPT_WORD_PRIV_KEY) { 
+        else if (canon == CRYPT_WORD_PRIV_KEY) {
             if (NOT(IS_BINARY(var)))
                 fail (Error(RE_EXT_CRYPT_INVALID_KEY, var));
 

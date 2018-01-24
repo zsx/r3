@@ -124,7 +124,7 @@ eval proc [
             {Returns TRUE if the value is a} type-name
         ]
         meta/return-type: [logic!]
-        set-meta :tester meta 
+        set-meta :tester meta
     ]
 ]
     ; This list consumed by the variadic evaluation, up to the | barrier

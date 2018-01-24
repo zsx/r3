@@ -106,9 +106,9 @@ locale: construct [] [
 ]
 
 set in locale 'library construct [][
-    modules: https://raw.githubusercontent.com/r3n/renclib/master/usermodules.reb 
-    utilities: https://raw.githubusercontent.com/r3n/renclib/master/userutils.reb 
-] 
+    modules: https://raw.githubusercontent.com/r3n/renclib/master/usermodules.reb
+    utilities: https://raw.githubusercontent.com/r3n/renclib/master/userutils.reb
+]
 
 options: construct [] [  ; Options supplied to REBOL during startup
     bin: _          ; Path to directory where Rebol executable binary lives
@@ -127,7 +127,7 @@ options: construct [] [  ; Options supplied to REBOL during startup
     debug: _        ; debug flags
     secure: _       ; security policy
     version: _      ; script version needed
-    
+
     dump-size: 68   ; used by dump
 
     quiet: false    ; do not show startup info (compatibility)

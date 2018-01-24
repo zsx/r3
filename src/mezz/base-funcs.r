@@ -714,7 +714,7 @@ ensure: func [
             fail/where
                 ["ENSURE received a BLANK! (use ENSURE* if this is ok)"]
                 'value
-        ] 
+        ]
     ]
 ]
 
@@ -951,7 +951,7 @@ has: func [
 
 module: func [
     {Creates a new module.}
-    
+
     spec [block! object!]
         "The header block of the module (modified)"
     body [block!]
@@ -960,7 +960,7 @@ module: func [
         "Mix in words from other modules"
     mixins [object!]
         "Words collected into an object"
-    
+
     <local> hidden w mod
 ][
     mixins: to-value :mixins
@@ -1119,7 +1119,7 @@ cause-error: func [
 ][
     ; Make sure it's a block:
     args: compose [(:args)]
-    
+
     ; Filter out functional values:
     for-next args [
         if function? first args [

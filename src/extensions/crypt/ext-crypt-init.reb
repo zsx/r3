@@ -9,7 +9,7 @@ REBOL [
 hmac-sha256: function [
     {computes the hmac-sha256 for message m using key k}
 
-    k [binary!] 
+    k [binary!]
     m [binary!]
 ][
     key: copy k
