@@ -62,7 +62,6 @@ extern "C" {
 #define CONFIG_SSL_CERT_VERIFICATION
 #undef CONFIG_SSL_GENERATE_X509_CERT
 
-#include <stdint.h>
 #include "bigint/bigint.h"
 
 /*  To use this exported function of dll, include this header

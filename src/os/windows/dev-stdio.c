@@ -319,7 +319,7 @@ DEVICE_CMD Read_IO(REBREQ *req)
     LPVOID pInputControl = NULL;
 #else
     CONSOLE_READCONSOLE_CONTROL ctl; // Unavailable before Vista, e.g. Mingw32
-    LPVOID pInputControl = &ctl;
+    PCONSOLE_READCONSOLE_CONTROL pInputControl = &ctl;
 
     ctl.nLength = sizeof(CONSOLE_READCONSOLE_CONTROL);
     ctl.nInitialChars = 0; // when hit, empty buffer...no CR LF

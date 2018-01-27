@@ -3,8 +3,8 @@ Simple implementation of Diffie-Hellman algorithm (c) 2013 Richard Smolak
 The code uses Bigint implementation Copyright (c) 2007, Cameron Rich
 */
 
-#include "dh.h"
 #include "rsa/rsa.h"
+#include "dh.h"
 
 void DH_generate_key(DH_CTX *dh_ctx)
 {

@@ -114,6 +114,19 @@ gen-obj: func [
     flags
 ][
     flags: make block! 8
+
+    ; Microsoft shouldn't bother having the C warning that foo() in standard
+    ; C doesn't mean the same thing as foo(void), when in their own published
+    ; headers (ODBC, Windows.h) they treat them interchangeably.  See for
+    ; instance EnableMouseInPointerForThread().  Or ODBCGetTryWaitValue().
+    ;
+    ; Just disable the warning, and hope the Linux build catches most of it.
+    ;
+    ;     'function' : no function prototype given:
+    ;     converting '()' to '(void)'
+
+    append flags <msc:/wd4255>
+
     if block? s [
         for-each flag next s [
             append flags opt switch/default flag [
@@ -477,17 +490,7 @@ available-modules: reduce [
         source: [
             %odbc/mod-odbc.c
 
-            ; ODBCGetTryWaitValue() is prototyped as a C++-style void argument
-            ; function, as opposed to ODBCGetTryWaitValue(void), which is the
-            ; right way to do it in C.  But we can't change <sqlext.h>, so
-            ; disable the warning.
-            ;
-            ;     'function' : no function prototype given:
-            ;     converting '()' to '(void)'
-            ;
-            <msc:/wd4255>
-
-            ; The ODBC include also uses nameless structs/unions, which are a
+            ; The ODBC include uses nameless structs/unions, which are a
             ; non-standard extension.
             ;
             ;     nonstandard extension used: nameless struct/union

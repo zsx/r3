@@ -24,6 +24,13 @@ REBOL [
     }
     Note: [
         "This runs relative to ../tools directory."
+
+        !!! TBD: The `register` keyword has been deprecated.  If zlib doesn't
+        remove it itself, then on the next import the by-hand removals will
+        have to be repeated -or- this script will need to be updated to get
+        rid of them:
+
+        https://stackoverflow.com/a/30809775
     ]
 ]
 

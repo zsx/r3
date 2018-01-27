@@ -28,10 +28,21 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <stdint.h>
-
 #ifndef BIGINT_IMPL_HEADER
 #define BIGINT_IMPL_HEADER
+
+#include <stdint.h>
+
+// !!! Ren-C addition to build under Visual Studio without warnings.
+//
+// https://stackoverflow.com/a/4234022
+//
+// "Any C library which defines a macro named max in its standard library is
+// broken beyond imagination."  Well, Visual Studio 2017 does (when you're not
+// building as C++) in stdlib.h, and it's a bad thing.  Compensate for it.
+//
+#undef min
+#undef max
 
 /* Maintain a number of precomputed variables when doing reduction */
 #define BIGINT_M_OFFSET     0    /**< Normal modulo offset. */

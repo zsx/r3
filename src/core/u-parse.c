@@ -283,14 +283,14 @@ static REBOOL Subparse_Throws(
 // question, but now the `where` at the time of failure will indicate the
 // location in the parse dialect that's the problem.
 //
-static REBCTX *Error_Parse_Rule() {
+static REBCTX *Error_Parse_Rule(void) {
     return Error_Parse_Rule_Raw();
 }
 
 
 // Also generic.
 //
-static REBCTX *Error_Parse_End() {
+static REBCTX *Error_Parse_End(void) {
     return Error_Parse_End_Raw();
 }
 

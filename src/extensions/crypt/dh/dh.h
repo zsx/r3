@@ -3,7 +3,6 @@ Simple implementation of Diffie-Hellman algorithm (c) 2013 Richard Smolak
 The code uses Bigint implementation Copyright (c) 2007, Cameron Rich
 */
 
-#include <stdint.h>
 #include "bigint/bigint.h"
 
 typedef struct

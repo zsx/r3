@@ -752,8 +752,8 @@ local unsigned long crc32_little(
     const unsigned char FAR *buf,
     z_size_t len)
 {
-    register z_crc_t c;
-    register const z_crc_t FAR *buf4;
+    z_crc_t c;
+    const z_crc_t FAR *buf4;
 
     c = (z_crc_t)crc;
     c = ~c;
@@ -792,8 +792,8 @@ local unsigned long crc32_big(
     const unsigned char FAR *buf,
     z_size_t len)
 {
-    register z_crc_t c;
-    register const z_crc_t FAR *buf4;
+    z_crc_t c;
+    const z_crc_t FAR *buf4;
 
     c = ZSWAP32((z_crc_t)crc);
     c = ~c;
@@ -2351,9 +2351,9 @@ local uInt longest_match(
     IPos cur_match)
 {
     unsigned chain_length = s->max_chain_length;/* max hash chain length */
-    register Bytef *scan = s->window + s->strstart; /* current string */
-    register Bytef *match;                      /* matched string */
-    register int len;                           /* length of current match */
+    Bytef *scan = s->window + s->strstart; /* current string */
+    Bytef *match;                      /* matched string */
+    int len;                           /* length of current match */
     int best_len = (int)s->prev_length;         /* best match length so far */
     int nice_match = s->nice_match;             /* stop if match long enough */
     IPos limit = s->strstart > (IPos)MAX_DIST(s) ?
@@ -2368,13 +2368,13 @@ local uInt longest_match(
     /* Compare two bytes at a time. Note: this is not always beneficial.
      * Try with and without -DUNALIGNED_OK to check.
      */
-    register Bytef *strend = s->window + s->strstart + MAX_MATCH - 1;
-    register ush scan_start = *(ushf*)scan;
-    register ush scan_end   = *(ushf*)(scan+best_len-1);
+    Bytef *strend = s->window + s->strstart + MAX_MATCH - 1;
+    ush scan_start = *(ushf*)scan;
+    ush scan_end   = *(ushf*)(scan+best_len-1);
 #else
-    register Bytef *strend = s->window + s->strstart + MAX_MATCH;
-    register Byte scan_end1  = scan[best_len-1];
-    register Byte scan_end   = scan[best_len];
+    Bytef *strend = s->window + s->strstart + MAX_MATCH;
+    Byte scan_end1  = scan[best_len-1];
+    Byte scan_end   = scan[best_len];
 #endif
 
     /* The code is optimized for HASH_BITS >= 8 and MAX_MATCH-2 multiple of 16.
@@ -5069,7 +5069,7 @@ local unsigned bi_reverse(
     unsigned code,
     int len)
 {
-    register unsigned res = 0;
+    unsigned res = 0;
     do {
         res |= code & 1;
         code >>= 1, res <<= 1;

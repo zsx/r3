@@ -58,13 +58,7 @@
 
 static REBI64 ran_x[KK];                    /* the generator state */
 
-#if defined __STDC__ || defined __cplusplus
 void ran_array(REBI64 aa[], int n)
-#else
-void ran_array(aa,n)    /* put n new random numbers in aa */
-    REBI64 *aa;         /* destination */
-    int n;              /* array length (must be at least KK) */
-#endif
 {
     int i,j;
     for (j=0;j<KK;j++) aa[j]=ran_x[j];
@@ -116,7 +110,7 @@ void Set_Random(REBI64 seed)
 }
 
 #define ran_arr_next() (*ran_arr_ptr>=0? *ran_arr_ptr++: ran_arr_cycle())
-static REBI64 ran_arr_cycle()
+static REBI64 ran_arr_cycle(void)
 {
     if (ran_arr_ptr==&ran_arr_dummy)
         Set_Random(314159L); /* the user forgot to initialize */
