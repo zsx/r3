@@ -1484,6 +1484,7 @@ REBOOL Specialize_Function_Throws(
     assert(out != specializee);
 
     REBCTX *exemplar = Make_Frame_For_Function(specializee);
+    MANAGE_ARRAY(CTX_VARLIST(exemplar));
 
     // Bind all the SET-WORD! in the body that match params in the frame
     // into the frame.  This means `value: value` can very likely have

@@ -39,11 +39,11 @@ args: parse-args system/options/args
 
 config: config-system to-value :args/OS_ID
 
-m-name: really string! args/MODULE
+m-name: ensure string! args/MODULE
 l-m-name: lowercase copy m-name
 u-m-name: uppercase copy m-name
 
-c-src: join-of %../../src/ fix-win32-path to file! really string! args/SRC
+c-src: join-of %../../src/ fix-win32-path to file! ensure string! args/SRC
 
 print ["building" m-name "from" c-src]
 
@@ -51,10 +51,10 @@ output-dir: system/options/path/prep
 mkdir/deep output-dir/include
 
 e-first: (make-emitter "Module C Header File Preface"
-    really file! join-all [output-dir/include/tmp-mod- l-m-name %-first.h])
+    ensure file! join-all [output-dir/include/tmp-mod- l-m-name %-first.h])
 
 e-last: (make-emitter "Module C Header File Epilogue"
-    really file! join-all [output-dir/include/tmp-mod- l-m-name %-last.h])
+    ensure file! join-all [output-dir/include/tmp-mod- l-m-name %-last.h])
 
 
 verbose: false

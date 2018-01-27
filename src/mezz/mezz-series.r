@@ -251,18 +251,16 @@ reword: function [
         ]
 
         block? delimiters [
-            unless (parse delimiters [
+            unless parse delimiters [
                 set prefix delimiter-types
                 set suffix opt delimiter-types
-            ])[
+            ][
                 fail ["Invalid /ESCAPE delimiter block" delimiters]
             ]
         ]
-
-        true [
-            assert [maybe? delimiter-types prefix]
-            prefix: delimiters
-        ]
+    ] else [
+        assert [match delimiter-types prefix]
+        prefix: delimiters
     ]
 
     ; MAKE MAP! will create a map with no duplicates from the input if it
@@ -293,7 +291,7 @@ reword: function [
     ;
     any-keyword-rule: collect [
         for-each [keyword value] values [
-            unless maybe? keyword-types keyword [
+            unless match keyword-types keyword [
                 fail ["Invalid keyword type:" keyword]
             ]
 
@@ -305,9 +303,9 @@ reword: function [
                 ; will work...so the keyword must be string converted for
                 ; the purposes of this rule.
                 ;
-                either maybe? [integer! word!] keyword [
+                if match [integer! word!] keyword [
                     to-string keyword
-                ][
+                ] else [
                     keyword
                 ]
 
@@ -344,8 +342,8 @@ reword: function [
     ;
     ; Integers have to be converted also.
     ;
-    if maybe [integer! word!] prefix [prefix: to-string prefix]
-    if maybe [integer! word!] suffix [suffix: to-string suffix]
+    if match [integer! word!] prefix [prefix: to-string prefix]
+    if match [integer! word!] suffix [suffix: to-string suffix]
 
     rule: [
         ; Begin marking text to copy verbatim to output
@@ -660,7 +658,7 @@ split: function [
                 ; apply to parse rules that were all integers, e.g. [1 1 1],
                 ; since those style blocks are handled by the other branch.
                 ;
-                assert [maybe [bitset! any-string! char! block!] dlm]
+                assert [match [bitset! any-string! char! block!] dlm]
                 [
                     any [mk1: some [mk2: dlm break | skip] (
                         keep/only copy/part mk1 mk2
@@ -691,7 +689,7 @@ split: function [
             integer? dlm []
         ]
         else [
-            assert [maybe [bitset! any-string! char! block!] dlm]
+            assert [match [bitset! any-string! char! block!] dlm]
 
             ; If the last thing in the series is a delimiter, there is an
             ; implied empty field after it, which we add here.

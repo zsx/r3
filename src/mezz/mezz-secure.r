@@ -170,8 +170,8 @@ secure: function [
 
     ; Set each policy target separately:
     for-each [target pol] policy [
-        really [word! file! url!] target
-        really [block! word! integer!] pol
+        ensure [word! file! url!] target
+        ensure [block! word! integer!] pol
         set-policy target make-policy target pol pol-obj
     ]
 

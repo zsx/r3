@@ -102,10 +102,16 @@ if true = attempt [void? :some-undefined-thing] [
 
     ; The once-arity-2 primitive known as ENSURE was renamed to REALLY, to
     ; better parallel MAYBE and free up ENSURE to simply mean "make sure it's
-    ; a value".  But older Ren-Cs have the arity-2 definition.  Adjust it.
+    ; a value".  Then it was changed back, when MAYBE and REALLY were moved
+    ; to be single arity and MATCH was introduced.  Try and smooth that over.
     ;
-    if find spec-of :ensure 'test [
-        really: :ensure
+    either all [
+        () <> :really
+        find spec-of :really 'test
+    ][
+        ensure: :really ;-- Ren-Cs up to around Jan 27, 2018
+    ][
+        assert [find spec-of :ensure 'test]
     ]
 
     QUIT ;-- !!! stops running if Ren-C here.

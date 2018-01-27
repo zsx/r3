@@ -197,7 +197,7 @@ make-scheme: function [
         scheme/actor: actor
     ]
 
-    unless maybe [object! handle!] :scheme/actor [
+    unless match [object! handle!] :scheme/actor [
         fail ["Scheme actor" :scheme/name "can't be" type of :scheme/actor]
     ]
 

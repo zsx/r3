@@ -478,7 +478,7 @@ r3-alpha-apply: function [
 ; warning: `apply :foo [| comment {This is a new APPLY} ...]`
 ;
 apply: adapt 'apply [
-    if not maybe [set-word! bar! blank!] first def [
+    if not match [set-word! bar! blank!] first def [
         fail {APPLY takes frame def block (or see r3-alpha-apply)}
     ]
 ]
@@ -1323,7 +1323,7 @@ set 'r3-legacy* func [<local> if-flags] [
                 adapt 'switch [use [last-was-block] [
                     last-was-block: false
                     for-next cases [
-                        if maybe [get-word! get-path! group!] cases/1 [
+                        if match [get-word! get-path! group!] cases/1 [
                             fail [{SWITCH non-<r3-legacy> evaluates} (cases/1)]
                         ]
                         if block? cases/1 [

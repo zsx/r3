@@ -77,22 +77,31 @@ default: enfix func [
         :branch ;-- branch to use if test fails
 ]
 
-update: enfix func [
+maybe: enfix func [
     "Set word or path to a default value if that value is set and not blank."
 
     return: [any-value!]
     'target [set-word! set-path!]
         "The word to which might be set"
-    code [block! function!]
-        "Code that is always evaluated, result only assigned if not nothing"
+    value [<opt> any-value!]
+        "Value to assign only if it is nothing not nothing"
     /only
-        "Consider value being BLANK! to be a value to use for overwriting"
+        "Consider value being BLANK! to be 'something' to use for overwriting"
 
     <local> gotten
 ][
+    ; While DEFAULT requires a BLOCK!, MAYBE does not.  Catch mistakes such
+    ; as `x: maybe [...]` 
+    ;
+    if semiquoted? 'value [
+        fail/where [
+            "Literal" type of :value "used w/MAYBE, use () if intentional"
+        ] 'value
+    ]
+
     set* target either-test/only
         (only ?? :any-value? !! :something?) ;-- test function
-        do :code ;-- value being tested, return result if it passes
+        :value ;-- value being tested
         [get* target] ;-- branch to evaluate and return if test fails
 ]
 
@@ -203,7 +212,7 @@ make-action: func [
         )
         any [
             set other: [word! | path!] (
-                other: really any-context! get other
+                other: ensure any-context! get other
                 bind new-body other
                 for-each [key val] other [
                     append exclusions key
@@ -299,7 +308,7 @@ dig-function-meta-fields: function [value [function!]] [
         ]
     ]
 
-    underlying: maybe function! any [
+    underlying: match function! any [
         :meta/specializee
         :meta/adaptee
         all [block? :meta/chainees | first meta/chainees]
@@ -321,7 +330,7 @@ dig-function-meta-fields: function [value [function!]] [
 
     return construct system/standard/function-meta [
         description: (
-            maybe string! any [
+            match string! any [
                 select meta 'description
                 all [fields | copy fields/description]
             ]
@@ -341,19 +350,19 @@ dig-function-meta-fields: function [value [function!]] [
             :temp
         )
         return-note: (
-            maybe string! any [
+            match string! any [
                 select meta 'return-note
                 all [fields | copy fields/return-note]
             ]
         )
         parameter-types: (
-            maybe frame! any [
+            match frame! any [
                 select meta 'parameter-types
                 all [fields | inherit-frame :fields/parameter-types]
             ]
         )
         parameter-notes: (
-            maybe frame! any [
+            match frame! any [
                 select meta 'parameter-notes
                 all [fields | inherit-frame :fields/parameter-notes]
             ]
@@ -508,10 +517,10 @@ default*: enfix redescribe [
     specialize 'default [only: true]
 )
 
-update*: enfix redescribe [
-    {Would be the same as UPDATE/ONLY if paths could dispatch infix}
+maybe*: enfix redescribe [
+    {Would be the same as MAYBE/ONLY if paths could dispatch infix}
 ](
-    specialize 'update [only: true]
+    specialize 'maybe [only: true]
 )
 
 
@@ -638,7 +647,7 @@ all?: redescribe [
     chain [:all | :to-value | :to-logic]
 )
 
-maybe: redescribe [
+match: redescribe [
    {Check value using tests (match types, TRUE? or FALSE?, filter function)}
 ](
     adapt specialize 'either-test [
@@ -650,7 +659,7 @@ maybe: redescribe [
         only: false ;-- no /ONLY, hence void branch returns BLANK!
     ][
         if void? :value [ ; !!! TBD: filter this via REDESCRIBE when possible
-            fail "Cannot use MAYBE on void values (try using EITHER-TEST)"
+            fail "Cannot use MATCH on void values (try using EITHER-TEST)"
         ]
 
         ; !!! Since a BLANK! result means test failure, an input of blank
@@ -659,15 +668,15 @@ maybe: redescribe [
         ; by returning blank on failure, but void on success...to help cue
         ; a problem to conditionals.  That is not easy to do with a
         ; specialization in this style, so just let people deal with it for
-        ; now...e.g. `maybe [function! block!] blank` will be blank, but so
-        ; will be `maybe [blank!] blank`.
+        ; now...e.g. `match [function! block!] blank` will be blank, but so
+        ; will be `match [blank!] blank`.
     ]
 )
 
-maybe?: redescribe [
+match?: redescribe [
     {Check value using tests (match types, TRUE? or FALSE?, filter function)}
     ; return: [logic!] ;-- blocks for type changes not supported yet
-    ;    {TRUE if match, FALSE if no match (use MAYBE to pass through value)}
+    ;    {TRUE if match, FALSE if no match (use MATCH to pass through value)}
 ](
     adapt chain [
         specialize 'either-test [
@@ -678,18 +687,18 @@ maybe?: redescribe [
         :any-value?
     ][
         if void? :value [ ; !!! TBD: filter this via REDESCRIBE when possible
-            fail "Cannot use MAYBE? on void values (try using EITHER-TEST)"
+            fail "Cannot use MATCH? on void values (try using EITHER-TEST)"
         ]
     ]
 )
 
-really: redescribe [
+ensure: redescribe [
     {Pass through value if it matches test, otherwise trigger a FAIL}
 ](
     specialize 'either-test [
         branch: func [value [<opt> any-value!]] [
             fail [
-                "REALLY did not expect argument of type" type of :value
+                "ENSURE did not expect argument of type" type of :value
             ]
 
             ; !!! There is currently no good way to SPECIALIZE a conditional
@@ -702,23 +711,34 @@ really: redescribe [
     ]
 )
 
-ensure: func [
+ensure*: specialize 'ensure [only: true]
+
+really: func [
     {FAIL if value is void (or blank if not /ONLY), otherwise pass it through}
 
     value [any-value!] ;-- always checked for void, since no <opt>
     /only
         {Just make sure the value isn't void, pass through BLANK!}
 ][
+    ; While DEFAULT requires a BLOCK!, REALLY does not.  Catch mistakes such
+    ; as `x: really [...]` 
+    ;
+    if semiquoted? 'value [
+        fail/where [
+            "Literal" type of :value "used w/REALLY, use () if intentional"
+        ] 'value
+    ]
+
     only ?? :value else [
         either-test :something? :value [
             fail/where
-                ["ENSURE received a BLANK! (use ENSURE* if this is ok)"]
+                ["REALLY received a BLANK! (use REALLY* if this is ok)"]
                 'value
         ]
     ]
 ]
 
-ensure*: specialize 'ensure [only: true]
+really*: specialize 'really [only: true]
 
 
 find?: redescribe [
@@ -1009,7 +1029,7 @@ module: func [
         spec/version [tuple! blank!]
         spec/options [block! blank!]
     ][
-        do compose/only [really (types) (var)] ;-- names to show if fails
+        do compose/only [ensure (types) (var)] ;-- names to show if fails
     ]
 
     ; In Ren-C, MAKE MODULE! acts just like MAKE OBJECT! due to the generic

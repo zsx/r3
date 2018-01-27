@@ -237,7 +237,7 @@ load-header: function [
         :key <> 'rebol [
             ; block-embedded script, only script compression, ignore hdr/length
 
-            tmp: really binary! rest ; saved for possible checksum calc later
+            tmp: ensure binary! rest ; saved for possible checksum calc later
 
             ; decode embedded script
             rest: skip first set [data: end:] transcode/next data 2
@@ -261,15 +261,15 @@ load-header: function [
 
     ]
 
-    really [binary! blank!] hdr/checksum
-    really [block! blank!] hdr/options
+    ensure [binary! blank!] hdr/checksum
+    ensure [block! blank!] hdr/options
 
     ; Return a BLOCK! with 3 elements in it
     ;
     return reduce [
-        really object! hdr
-        really [binary! block!] rest
-        really binary! end
+        ensure object! hdr
+        ensure [binary! block!] rest
+        ensure binary! end
     ]
 ]
 
@@ -339,7 +339,7 @@ load: function [
         ]
 
         ;-- What type of file? Decode it too:
-        maybe? [file! url!] source [
+        match [file! url!] source [
             file: source
             line: 1
 
@@ -648,12 +648,13 @@ load-module: function [
                 ; Return blank if no module of that name found
                 not tmp: find/skip system/modules source 3 [return blank]
 
-                ; get the module
-                set [mod: modsum:] next tmp [blank]
+                true [
+                    ; get the module
+                    ;
+                    set [mod: modsum:] next tmp
 
-                <check> [
-                    really [module! block!] mod
-                    really [binary! blank!] modsum
+                    ensure [module! block!] mod
+                    ensure [binary! blank!] modsum
                 ]
 
                 ; If no further processing is needed, shortcut return
@@ -665,7 +666,7 @@ load-module: function [
         binary? source [data: source]
         string? source [data: to binary! source]
 
-        any [file? source | url? source] [
+        match [file! url!] source [
             tmp: file-type? source
             case [ ; Return blank if read or load-extension fails
                 not tmp [
@@ -744,7 +745,7 @@ load-module: function [
         void? :mod [mod: _]
         module? mod [
             delay: no-share: _ hdr: meta-of mod
-            really [block! blank!] hdr/options
+            ensure [block! blank!] hdr/options
         ]
         block? mod [set* [hdr: code:] mod]
 
@@ -794,10 +795,10 @@ load-module: function [
                 module? :mod0 [hdr0: meta-of mod0] ; final header
                 block? :mod0 [hdr0: first mod0] ; cached preparsed header
 
-                <check> [
-                    really word! name0
-                    really object! hdr0
-                    really [binary! blank!] sum0
+                true [
+                    ensure word! name0
+                    ensure object! hdr0
+                    ensure [binary! blank!] sum0
                 ]
 
                 not tuple? ver0: :hdr0/version [ver0: 0.0.0]
@@ -865,8 +866,8 @@ load-module: function [
                 binary? code [code: to block! code]
             ]
 
-            really object! hdr
-            really block! code
+            ensure object! hdr
+            ensure block! code
 
             mod: catch/quit [
                 module/mixin hdr code (opt do-needs/no-user hdr)

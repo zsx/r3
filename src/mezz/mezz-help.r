@@ -58,9 +58,9 @@ dump-obj: function [
         for-each [word val] obj [
             type: type of :val
 
-            str: either maybe [function! object!] :type [
+            str: if match [function! object!] :type [
                 spaced [word _ mold spec-of :val _ words of :val]
-            ][
+            ] else [
                 form word
             ]
 
@@ -185,18 +185,18 @@ spec-of: function [
 
     value [function!]
 ][
-    meta: maybe object! meta-of :value
+    meta: match object! meta-of :value
 
-    specializee: maybe function! select meta 'specializee
-    adaptee: maybe function! select meta 'specializee
-    original-meta: maybe object! any [
+    specializee: match function! select meta 'specializee
+    adaptee: match function! select meta 'specializee
+    original-meta: match object! any [
         all [:specializee | meta-of :specializee]
         all [:adaptee | meta-of :adaptee]
     ]
 
     spec: copy []
 
-    if description: maybe string! any [
+    if description: match string! any [
         select meta 'description
         select original-meta 'description
     ][
@@ -204,11 +204,11 @@ spec-of: function [
         new-line back spec true
     ]
 
-    return-type: maybe block! any [
+    return-type: match block! any [
         select meta 'return-type
         select original-meta 'return-type
     ]
-    return-note: maybe string! any [
+    return-note: match string! any [
         select meta 'return-note
         select original-meta 'return-note
     ]
@@ -218,11 +218,11 @@ spec-of: function [
         if return-note [append spec return-note]
     ]
 
-    types: maybe frame! any [
+    types: match frame! any [
         select meta 'parameter-types
         select original-meta 'parameter-types
     ]
-    notes: maybe frame! any [
+    notes: match frame! any [
         select meta 'parameter-notes
         select original-meta 'parameter-notes
     ]
@@ -342,7 +342,7 @@ help: procedure [
     ; but they exist...e.g. DEFAULT.)  To make sure HELP DEFAULT works, HELP
     ; must hard quote and simulate its own soft quote semantics.
     ;
-    if maybe [group! get-word! get-path!] :topic [
+    if match [group! get-word! get-path!] :topic [
         topic: reduce target
     ]
 
@@ -369,7 +369,7 @@ help: procedure [
     if all [
         doc
         word? :topic
-        maybe [function! datatype!] get :topic
+        match [function! datatype!] get :topic
     ][
         item: form :topic
         if function? get :topic [
@@ -467,10 +467,10 @@ help: procedure [
             (uppercase mold topic) "is" (type-name :value) "of value: "
         ]
         print unspaced collect [
-            either maybe [object! port!] value [
+            if match [object! port!] value [
                 keep newline
                 keep dump-obj value
-            ][
+            ] else [
                 keep mold value
             ]
         ]
@@ -520,7 +520,7 @@ help: procedure [
     ;
     meta: meta-of :value
     all [
-        original-name: maybe word! (
+        original-name: match word! (
             any [
                 select meta 'specializee-name
                 select meta 'adaptee-name
@@ -529,9 +529,9 @@ help: procedure [
         original-name: uppercase mold original-name
     ]
 
-    specializee: maybe function! select meta 'specializee
-    adaptee: maybe function! select meta 'adaptee
-    chainees: maybe block! select meta 'chainees
+    specializee: match function! select meta 'specializee
+    adaptee: match function! select meta 'adaptee
+    chainees: match block! select meta 'chainees
 
     classification: case [
         :specializee [
@@ -569,8 +569,8 @@ help: procedure [
 
     print-args: procedure [list /indent-words] [
         for-each param list [
-            note: maybe string! select notes to-word param
-            type: maybe [block! any-word!] select types to-word param
+            note: match string! select notes to-word param
+            type: match [block! any-word!] select types to-word param
 
             ;-- parameter name and type line
             if type and (not refinement? param) [
@@ -646,7 +646,8 @@ source: make function! [[
                 ]
             ]
         ]
-        maybe [word! path!] :arg [
+
+        match [word! path!] :arg [
             name: arg
             f: get :arg
         ]

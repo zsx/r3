@@ -121,7 +121,7 @@ assert-debug: function [
         ; Otherwise it's a block!
         active: true
         until [tail? conditions] [
-            if option: maybe [issue! tag!] :conditions/1 [
+            if option: match [issue! tag!] :conditions/1 [
                 unless active: select live-asserts-map option [
                     ;
                     ; if not found in the map, go with default behavior.

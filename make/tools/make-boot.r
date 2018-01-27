@@ -157,9 +157,9 @@ for-each-record type boot-types [
             e-dispatch/emit-item "T_Unhooked"
         ]
     ][ ; All other types should have handlers
-        e-dispatch/emit-item ["T_" propercase-of really word! type/class]
+        e-dispatch/emit-item ["T_" propercase-of ensure word! type/class]
     ]
-    e-dispatch/emit-annotation really [word! integer!] type/name
+    e-dispatch/emit-annotation ensure [word! integer!] type/name
 ]
 e-dispatch/emit-end
 
@@ -177,16 +177,16 @@ for-each-record type boot-types [
     switch/default type/path [
         - [e-dispatch/emit-item "PD_Fail"]
         + [e-dispatch/emit-item [
-            "PD_" propercase-of really word! type/class]
+            "PD_" propercase-of ensure word! type/class]
         ]
         * [e-dispatch/emit-item "PD_Unhooked"]
     ][
         ; !!! Today's PORT! path dispatches through context even though that
         ; isn't its technical "class" for responding to actions.
         ;
-        e-dispatch/emit-item ["PD_" propercase-of really word! type/path]
+        e-dispatch/emit-item ["PD_" propercase-of ensure word! type/path]
     ]
-    e-dispatch/emit-annotation really [word! integer!] type/name
+    e-dispatch/emit-annotation ensure [word! integer!] type/name
 ]
 e-dispatch/emit-end
 
@@ -204,13 +204,13 @@ for-each-record type boot-types [
     switch/default type/make [
         - [e-dispatch/emit-item "MAKE_Fail"]
         + [e-dispatch/emit-item [
-            "MAKE_" propercase-of really word! type/class]
+            "MAKE_" propercase-of ensure word! type/class]
         ]
         * [e-dispatch/emit-item "MAKE_Unhooked"]
     ][
         fail "MAKE in %types.r should be, -, +, or *"
     ]
-    e-dispatch/emit-annotation really [word! integer!] type/name
+    e-dispatch/emit-annotation ensure [word! integer!] type/name
 ]
 e-dispatch/emit-end
 
@@ -228,13 +228,13 @@ for-each-record type boot-types [
     switch/default type/make [
         - [e-dispatch/emit-item "TO_Fail"]
         + [e-dispatch/emit-item [
-            "TO_" propercase-of really word! type/class
+            "TO_" propercase-of ensure word! type/class
         ]]
         * [e-dispatch/emit-item "TO_Unhooked"]
     ][
         fail "TO in %types.r should be -, +, or *"
     ]
-    e-dispatch/emit-annotation really [word! integer!] type/name
+    e-dispatch/emit-annotation ensure [word! integer!] type/name
 ]
 e-dispatch/emit-end
 
@@ -252,7 +252,7 @@ for-each-record type boot-types [
     switch/default type/mold [
         - [e-dispatch/emit-item "MF_Fail"]
         + [e-dispatch/emit-item [
-            "MF_" propercase-of really word! type/class
+            "MF_" propercase-of ensure word! type/class
         ]]
         * [e-dispatch/emit-item "MF_Unhooked"]
     ][
@@ -260,9 +260,9 @@ for-each-record type boot-types [
         ; beyond the class (falls through to ANY-CONTEXT! for mold), and
         ; BINARY! has a different handler than strings
         ;
-        e-dispatch/emit-item ["MF_" propercase-of really word! type/mold]
+        e-dispatch/emit-item ["MF_" propercase-of ensure word! type/mold]
     ]
-    e-dispatch/emit-annotation really [word! integer!] type/name
+    e-dispatch/emit-annotation ensure [word! integer!] type/name
 ]
 e-dispatch/emit-end
 
@@ -281,9 +281,9 @@ for-each-record type boot-types [
         0 [e-dispatch/emit-item "NULL"]
         * [e-dispatch/emit-item "CT_Unhooked"]
     ][
-        e-dispatch/emit-item ["CT_" propercase-of really word! type/class]
+        e-dispatch/emit-item ["CT_" propercase-of ensure word! type/class]
     ]
-    e-dispatch/emit-annotation really [word! integer!] type/name
+    e-dispatch/emit-annotation ensure [word! integer!] type/name
 ]
 e-dispatch/emit-end
 
@@ -318,7 +318,7 @@ for-each-record type boot-types [
     either type/name = 0 [
         e-types/emit-item/assign "REB_0" 0
     ][
-        e-types/emit-item/assign/upper ["REB_" really word! type/name] n
+        e-types/emit-item/assign/upper ["REB_" ensure word! type/name] n
     ]
     e-types/emit-annotation n
 
@@ -366,7 +366,7 @@ for-each-record type boot-types [
 ; reminded of the importance of adjusting them.
 ;
 types-header: first load/header %types.r
-e-types/emit trim/auto copy really string! types-header/macros
+e-types/emit trim/auto copy ensure string! types-header/macros
 
 
 e-types/emit {

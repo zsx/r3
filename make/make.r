@@ -169,7 +169,7 @@ gen-obj: func [
                     <msc:/wd4127>
                 ]
             ][
-                really [string! tag!] flag
+                ensure [string! tag!] flag
             ]
         ]
         s: s/1
