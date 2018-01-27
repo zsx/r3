@@ -33,6 +33,13 @@ blank: _
 bar: '|
 
 
+; Some find UNLESS confusing, so IF-NOT is a synonym.  NOT binds with the IF.
+; So `if-not x and (y)` => `if not (x and (y))` vs `if (not x) and (y)`
+;
+if-not: :unless
+while-not: :until
+
+
 ; COMMENT has a relatively complex-looking definition because it seeks to be
 ; "truly invisible".  This means that it can't disrupt the flow of evaluation,
 ; it must run eagerly--as if it were an enfix tight operation that pipes its
@@ -81,11 +88,19 @@ set/enfix quote of: func [ ;-- NOTE can't be (quote of:), OF: top-level...
     reflect :value property
 ]
 
-; While NEXT and BACK might be seen as somewhat "noun-like" themselves, it
-; doesn't seem NEXT-OF or BACK-OF are as necessary.
+; !!! NEXT and BACK seem somewhat "noun-like" and desirable to use as variable
+; names, but are very entrenched in Rebol history.  Also, since they are
+; specializations they don't fit easily into the NEXT OF SERIES model--this
+; is a problem which hasn't been addressed.
 ;
-next: specialize 'skip [offset: 1]
-back: specialize 'skip [offset: -1]
+next: specialize 'skip [
+    offset: 1
+    only: true ;-- don't clip (return BLANK! if already at head of series)
+]
+back: specialize 'skip [
+    offset: -1
+    only: true ;-- don't clip (return BLANK! if already at tail of series)
+]
 
 unspaced: specialize 'delimit [delimiter: blank]
 spaced: specialize 'delimit [delimiter: space]

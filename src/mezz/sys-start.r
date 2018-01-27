@@ -61,7 +61,6 @@ finish-init-core: procedure [
             ] 'dummy
         ])
 
-        'while-not (get 'until)
         'until (func [dummy] [
             fail/where [
                 {UNTIL is reserved in Ren-C for future use}

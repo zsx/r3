@@ -598,6 +598,13 @@ catch?: redescribe [
     specialize 'catch [?: true]
 )
 
+
+skip*: redescribe [
+    {Variant of SKIP that returns BLANK! instead of clipping to series bounds}
+](
+    specialize 'skip [only: true]
+)
+
 match: redescribe [
    {Check value using tests (match types, TRUE? or FALSE?, filter function)}
 ](

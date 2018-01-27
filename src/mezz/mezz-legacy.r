@@ -371,25 +371,25 @@ rejoin: function [
     block [block!]
         "Values to reduce and join together"
 ][
-    ;
     ; An empty block should result in an empty block.
+    ;
     if empty? block [return copy []]
 
+    ; Act like REDUCE of expression, but where void does not cause an error.
     ;
-    ; Perform a REDUCE of the expression but in which void does not cause an error.
     values: copy []
     position: block
-    while [not tail? position][
+    while-not [tail? position][
         value: do/next position 'position
         append/only values :value
     ]
 
-    ;
     ; An empty block of values should result in an empty string.
+    ;
     if empty? values [append values {}]
 
+    ; Take type of the first element for the result, or default to string.
     ;
-    ; Take the type of the first element for the result, or default to string.
     result: either series? first values [copy first values] [form first values]
     append result next values
 ]

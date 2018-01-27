@@ -100,6 +100,13 @@ if true = attempt [void? :some-undefined-thing] [
         fail "Do not use THEN in scripts which want compatibility w/R3-Alpha"
     ]
 
+    ; WHILE-NOT can't be written correctly in usermode R3-Alpha (RETURN won't
+    ; work definitionally)
+    ;
+    while-not: does [
+        fail "Don't use WHILE-NOT when you want R3-Alpha compatibility"
+    ]
+
     ; The once-arity-2 primitive known as ENSURE was renamed to REALLY, to
     ; better parallel MAYBE and free up ENSURE to simply mean "make sure it's
     ; a value".  Then it was changed back, when MAYBE and REALLY were moved

@@ -53,7 +53,7 @@ read-deep: function [
 
     queue: compose [(root)]
 
-    while [not tail? queue][
+    while-not [tail? queue][
         path: take queue
         append result :path ; Possible void.
     ]

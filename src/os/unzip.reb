@@ -248,7 +248,7 @@ ctx-zip: context [
         ]
 
         source: compose [(source)]
-        while [not tail? source][
+        while-not [tail? source][
             name: source/1
             no-modes: any [url? root/:name dir? root/:name]
             files: any [
