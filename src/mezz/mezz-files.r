@@ -124,7 +124,7 @@ ask: function [
     /hide
         "mask input with *"
 ][
-    print/only either block? question [spaced question] [question]
+    write-stdout either block? question [spaced question] [question]
     trim either hide [input/hide] [input]
 ]
 

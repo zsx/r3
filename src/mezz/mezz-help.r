@@ -463,10 +463,10 @@ help: procedure [
     ]
 
     unless function? :value [
-        print/only spaced [
-            (uppercase mold topic) "is" (type-name :value) "of value: "
-        ]
-        print unspaced collect [
+        print collect [
+            keep [
+                (uppercase mold topic) "is" (type-name :value) "of value:"
+            ]
             if match [object! port!] value [
                 keep newline
                 keep dump-obj value
@@ -574,13 +574,13 @@ help: procedure [
 
             ;-- parameter name and type line
             if type and (not refinement? param) [
-                print/only [space4 param space "[" type "]" newline]
+                print unspaced [space4 param space "[" type "]"]
             ] else [
-                print/only [space4 param newline]
+                print unspaced [space4 param]
             ]
 
             if note [
-                print/only [space4 space4 note newline]
+                print unspaced [space4 space4 note]
             ]
         ]
     ]
@@ -594,10 +594,10 @@ help: procedure [
         print-newline
         print ["RETURNS:" (if set? 'return-type [mold return-type])]
         either return-note [
-            print/only [space4 return-note newline]
+            print unspaced [space4 return-note]
         ][
             if not set? 'return-type [
-                print/only [space4 "(undocumented)" newline]
+                print unspaced [space4 "(undocumented)"]
             ]
         ]
     ]

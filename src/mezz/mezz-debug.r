@@ -249,9 +249,9 @@ net-trace: procedure [
 ][
     either val [
         hijack 'net-log func [txt /C /S][
-            if c [print/only "C: "]
-            if s [print/only "S: "]
-            print/eval txt
+            print [
+                (c ?? "C:") (s ?? "S:") either block? txt [spaced txt] [txt]
+            ]
             txt
         ]
         print "Net-trace is now on"

@@ -117,6 +117,9 @@ if true = attempt [void? :some-undefined-thing] [
     QUIT ;-- !!! stops running if Ren-C here.
 ]
 
+write-stdout: func [value] [prin :value]
+print-newline: does [prin newline]
+
 
 ; Running R3-Alpha/Rebol2, bootstrap VOID? into existence and continue
 ;

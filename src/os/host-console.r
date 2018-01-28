@@ -82,13 +82,13 @@ console!: make object! [
             ;
             if focus-frame [
                 if label-of focus-frame [
-                    print/only [label-of focus-frame ":"]
+                    write-stdout unspaced [label-of focus-frame ":"]
                 ]
-                print/only ["|" focus-level "|"]
+                write-stdout unspaced ["|" focus-level "|"]
             ]
         ]
 
-        print/only prompt
+        write-stdout block? prompt then [unspaced prompt] else [form prompt]
     ]
 
     print-result: proc [v [<opt> any-value!]]  [
@@ -380,9 +380,9 @@ host-console: function [
                 print "** Hit Ctrl-C to break into the console in 5 seconds"
                 repeat n 25 [
                     if 1 = remainder n 5 [
-                        print/only [5 - to-integer divide n 5]
+                        write-stdout form (5 - to-integer divide n 5)
                     ] else [
-                        print/only "."
+                        write-stdout "."
                     ]
                     wait 0.25
                 ]
@@ -391,7 +391,7 @@ host-console: function [
             ]
             return instruction
         ]
-        if all [block? prior | not find directives #no-unskin-if-error] [
+        if block? prior and (not find directives #no-unskin-if-error) [
             print "** UNSAFE ERROR ENCOUNTERED IN CONSOLE SKIN"
             print "** REVERTING TO DEFAULT SKIN"
             system/console: make console! []
@@ -562,7 +562,14 @@ host-console: function [
                 ]
 
                 if set? 'unclosed [
-                    print/only [unclosed space space space]
+                    ;
+                    ; Backslash is used in the second column to help make a
+                    ; pattern that isn't legal in Rebol code, which is also
+                    ; uncommon in program output.  This enables detection of
+                    ; transcripts, potentially to replay them without running
+                    ; program output or evaluation results.
+                    ;
+                    write-stdout [unclosed #"\" space space]
                     append source newline
                     continue
                 ] else [

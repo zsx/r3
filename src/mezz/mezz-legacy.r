@@ -311,14 +311,22 @@ clos: closure: func [dummy:] [
 ]
 
 
-; The legacy PRIN construct is replaced by PRINT/ONLY SPACED
+; The legacy PRIN construct is replaced by WRITE-STDOUT SPACED and similar
 ;
 prin: procedure [
-    "Print spaced w/no added terminal line break, reducing blocks."
+    "Print without implicit line break, blocks are SPACED."
 
     value [<opt> any-value!]
 ][
-    print/only/eval either block? :value [spaced :value] [:value]
+    if not set? 'value [leave]
+
+    write-stdout case [
+        string? :value [value]
+        char? :value [value]
+        block? :value [spaced value]
+    ] else [
+        form :value
+    ]
 ]
 
 

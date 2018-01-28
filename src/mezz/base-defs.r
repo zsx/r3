@@ -209,31 +209,28 @@ print: proc [
 
      value [any-value!]
           "Value or BLOCK! literal (BLANK! means print nothing)"
-     /only
-          "Do not add a newline, and do not implicitly space items if a block"
      /eval
           "Allow value to be a block and evaluated (even if not literal)"
-;    /quote
-;         "Do not reduce values in blocks"
     <local> eval_PRINT ;quote_PRINT
 ][
     eval_PRINT: eval
     eval: :lib/eval
-    ;quote_PRINT: quote
-    ;quote: :lib/quote
 
     if blank? :value [leave]
 
-    write-stdout (either block? :value [
-        either any [semiquoted? 'value | eval_PRINT] [
-            delimit value either only [blank] [space]
-        ][
-            fail "PRINT called on non-literal block without /EVAL switch"
+    write-stdout case [
+        not block? value [
+            form :value
         ]
-    ][
-        form :value ;-- Should this be TO-STRING, or is that MOLD semantics?
-    ])
-    unless only [write-stdout newline]
+
+        eval_PRINT or (semiquoted? 'value) [
+            spaced value
+        ]
+    ] else [
+        fail "PRINT called on non-literal block without /EVAL switch"
+    ]
+
+    write-stdout newline
 ]
 
 print-newline: specialize 'write-stdout [value: newline]

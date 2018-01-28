@@ -1372,7 +1372,7 @@ assert-no-blank-inside: proc [
     ]
 ]
 
-print/only ["Sanity checking on user config ... "]
+write-stdout "Sanity checking on user config .."
 ;add user settings
 for-each word [definitions includes cflags libraries ldflags][
     assert-no-blank-inside get in user-config word
@@ -1382,7 +1382,8 @@ append app-config/includes opt user-config/includes
 append app-config/cflags opt user-config/cflags
 append app-config/libraries opt user-config/libraries
 append app-config/ldflags opt user-config/ldflags
-print ["Good"]
+write-stdout "..Good"
+print-newline
 
 ;add system settings
 add-app-def: adapt specialize :append [series: app-config/definitions] [
@@ -1411,7 +1412,7 @@ add-app-ldflags: adapt specialize :append [series: app-config/ldflags] [
     value: if block? value [flatten/deep reduce bind value linker-flags]
 ]
 
-print/only ["Sanity checking on system config ... "]
+write-stdout "Sanity checking on system config.."
 for-each word [definitions cflags libraries ldflags][
     assert-no-blank-inside get in system-config word
 ]
@@ -1419,15 +1420,17 @@ add-app-def copy system-config/definitions
 add-app-cflags copy system-config/cflags
 add-app-lib copy system-config/libraries
 add-app-ldflags copy system-config/ldflags
-print ["Good"]
+write-stdout "..Good"
+print-newline
 
-print/only ["Sanity checking on app config ... "]
+write-stdout "Sanity checking on app config.."
 assert-no-blank-inside app-config/definitions
 assert-no-blank-inside app-config/includes
 assert-no-blank-inside app-config/cflags
 assert-no-blank-inside app-config/libraries
 assert-no-blank-inside app-config/ldflags
-print ["Good"]
+write-stdout "..Good"
+print-newline
 
 print ["definitions:" mold app-config/definitions]
 print ["includes:" mold app-config/includes]
@@ -1530,21 +1533,20 @@ for-each [action name modules] user-config/extensions [
     ]
 ]
 
-print ["Builtin extensions"]
-for-each ext builtin-extensions [
-    print/only unspaced ["ext: " ext/name ": ["]
-    for-each mod ext/modules [
-        print/only [mod/name space]
+for-each [label list] reduce [
+    {Builtin extensions} builtin-extensions
+    {Dynamic extensions} dynamic-extensions
+][
+    print label
+    for-each ext list [
+        print/eval collect [ ;-- CHAR! values don't auto-space in Ren-C PRINT
+            keep ["ext:" ext/name #":" space #"["]
+            for-each mod ext/modules [
+                keep to-string mod/name
+            ]
+            keep #"]"
+        ]
     ]
-    print ["]"]
-]
-print ["Dynamic extensions"]
-for-each ext dynamic-extensions [
-    print/only unspaced ["ext: " ext/name ": ["]
-    for-each mod ext/modules [
-        print/only [mod/name space]
-    ]
-    print ["]"]
 ]
 
 all-extensions: join-of builtin-extensions dynamic-extensions
