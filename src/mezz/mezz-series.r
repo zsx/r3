@@ -259,8 +259,7 @@ reword: function [
             ]
         ]
     ] else [
-        assert [match delimiter-types prefix]
-        prefix: delimiters
+        prefix: ensure delimiter-types delimiters
     ]
 
     ; MAKE MAP! will create a map with no duplicates from the input if it

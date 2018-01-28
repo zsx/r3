@@ -1133,7 +1133,9 @@ pe-format: context [
 
         remove/part skip exe-data target-sec/physical-offset target-sec/physical-size
 
-        (head of exe-data) also-do [reset]
+        head of exe-data ;-- return value
+
+        elide (reset)
     ]
 
     update-embedding: specialize 'update-section [section-name: encap-section-name]
@@ -1143,7 +1145,9 @@ pe-format: context [
     ][
         ;print ["Geting embedded from" mold file]
         exe-data: read file
-        (find-section/data exe-data encap-section-name) also-do [reset]
+        find-section/data exe-data encap-section-name ;--return value
+
+        elide (reset)
     ]
 ]
 
@@ -1184,7 +1188,7 @@ generic-format: context [
 
         while [0 != modulo (length of executable) 4096] [
             append executable #{00}
-        ] then [
+        ] also [
             print [{Executable padded to} length of executable {bytes long.}]
         ] else [
             print {No padding of executable length required.}

@@ -28,7 +28,9 @@ first+: func [
     'word [word!] "Word must refer to a series"
     <local> prior
 ][
-    (first prior: get word) also-do [set word next prior]
+    first prior: get word ;-- returned value
+
+    elide (set word next prior)
 ]
 
 second: redescribe [

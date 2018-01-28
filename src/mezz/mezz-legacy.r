@@ -284,13 +284,19 @@ op?: func [dummy:] [
     ] 'dummy
 ]
 
-also: func [dummy:] [
-    fail/where [
-        {ALSO has been reformulated from a prefix form to an enfix form}
-        {The new form is temporarily available as ALSO-DO, or you may enfix}
-        {the AFTER function to get that behavior.}
-        {See: https://trello.com/c/Y03HJTY4}
-    ] 'dummy
+hijack 'also adapt copy :also [
+    if (block? :branch) and (not semiquoted? 'branch) [
+        fail/where [
+            {ALSO serves a different and important purpose in Ren-C, it is a}
+            {complement to the ELSE function.  If you wish to do additional}
+            {evaluations and "comment out" their results, see ELIDE and <|.}
+            {If you mean to use a block expression, use ALSO [do make-block]}
+            {just for now, during the compatibility period.}
+            {See: https://trello.com/c/Y03HJTY4}
+        ] 'branch
+    ]
+
+    ;-- fall through to normal ALSO implementation
 ]
 
 clos: closure: func [dummy:] [
@@ -443,7 +449,8 @@ r3-alpha-apply: function [
 
     until [tail? block] [
         arg: either* only [
-            block/1 also-do [block: next block]
+            block/1
+            elide (block: next block)
         ][
             do/next block 'block
         ]

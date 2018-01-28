@@ -157,10 +157,11 @@ for-each [comparison-op function-name] [
 
 ; !!! Originally in Rebol2 and R3-Alpha, ?? was used to dump variables.  In
 ; the spirit of not wanting to take ? for something like HELP, that function
-; has been defined as DUMP (and extended with significant new features).
+; has been defined as DUMP (and extended with significant new features).  The
+; console makes D at the start of input a shortcut for this.
 ;
 ; Instead, ?? is used to make an infix operator, that takes a condition on the
-; left and a value on the right--like an IF that won't run blocks/functions.
+; left and a value on the right--like a THEN that won't run blocks/functions.
 ; As a complement, !! is then taken as a parallel to ELSE, which will also not
 ; run blocks or functions.  This is a similar to these operators from Perl6:
 ;
@@ -193,7 +194,23 @@ for-each [comparison-op function-name] [
 ]
 
 
-; THEN and ELSE are "non-TIGHTened" enfix functions which either pass through
+; THEN is an enfixed form of IF, which gives a branch running parallel for ??.
+; Since it has a longer name it may not seem useful--but it can occasionally
+; be useful in balancing the look of an expression, e.g. compare:
+;
+;    if (some long) and (complicated expression) [a + b] else [c + d]
+;
+;    (some long) and (complicated expression) then [a + b] else [c + d]
+;
+
+then: enfix :if
+
+then*: enfix specialize :if [ ;-- THEN/ONLY is a path, can't dispatch infix
+    only: true
+]
+
+
+; ALSO and ELSE are "non-TIGHTened" enfix functions which either pass through
 ; an argument or run a branch, based on void-ness of the argument.  They take
 ; advantage of the pattern of conditionals such as `if condition [...]` to
 ; only return void if the branch does not run, and never return void if it
@@ -203,17 +220,17 @@ for-each [comparison-op function-name] [
 ; native.  But due to their common use they are hand-optimized into their own
 ; specialized natives: EITHER-TEST-VOID and EITHER-TEST-VALUE.
 
-then: enfix redescribe [
+also: enfix redescribe [
     "Evaluate the branch if the left hand side expression is not void"
 ](
     comment [specialize 'either-test [test: :void?]]
     :either-test-void
 )
 
-then*: enfix redescribe [
-    "Would be the same as THEN/ONLY, if infix functions dispatched from paths"
+also*: enfix redescribe [
+    "Would be the same as ALSO/ONLY, if infix functions dispatched from paths"
 ](
-    specialize 'then [only: true]
+    specialize 'also [only: true]
 )
 
 else: enfix redescribe [
@@ -228,8 +245,6 @@ else*: enfix redescribe [
 ](
     specialize 'else [only: true]
 )
-
-also-do: enfix :after ;-- temporarily %mezz-legacy.r defines ALSO as error
 
 
 ; SHORT-CIRCUIT BOOLEAN OPERATORS

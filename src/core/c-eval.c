@@ -1607,6 +1607,7 @@ reevaluate:;
             f->special = f->args_head;
             f->refine = ORDINARY_ARG; // no gathering, but need for assert
             assert(NOT(GET_FUN_FLAG(f->phase, FUNC_FLAG_INVISIBLE)));
+            f->deferred = NULL; // frame filling decisions already made
             SET_END(f->out);
             goto process_function;
 
@@ -1617,6 +1618,7 @@ reevaluate:;
             // value of what f->phase is, for instance.
             //
             assert(NOT(GET_FUN_FLAG(f->phase, FUNC_FLAG_INVISIBLE)));
+            f->deferred = NULL; // frame filling decisions already made
             SET_END(f->out);
             goto redo_unchecked;
 

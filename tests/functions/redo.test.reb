@@ -111,14 +111,26 @@
 ;  ADAPTs are compatible with functions they adapt
 ;  SPECIALIZEs are compatible with functions they specialize...etc.)
 ;
-; If LOG is set to PRINT the following will output:
+; If LOG is set to DUMP the following will output:
 ;
-;        C: n = 11 delta = 0
-;        S: n = 11 delta = 10
-;     BASE: n = 11 delta = 10
-;        C: n = 1 delta = 10
-;        S: n = 1 delta = 10
-;     BASE: n = 10 delta = 10
+;     --- C ---
+;     n: => 11
+;     delta: => 0
+;     --- S ---
+;     n: => 11
+;     delta: => 10
+;     --- BASE ---
+;     n: => 11
+;     delta: => 10
+;     --- C ---
+;     n: => 1
+;     delta: => 10
+;     --- S ---
+;     n: => 1
+;     delta: => 10
+;     --- BASE ---
+;     n: => 10
+;     delta: => 10
 ;
 ; C is called and captures its frame into F.  Then it uses REDO/OTHER to
 ; reuse the frame to call S.  S gets the variables and args that its knows
@@ -148,10 +160,13 @@
 ; the chained functions will get that result.  The string is translated to
 ; a tag and signals success.
 [
-    log: :comment ;-- change to :PRINT to see what's going on
+    log: (
+        func ['x] [] ;-- no-op
+        :dump ;-- un-elide to get output
+    )
 
     base: func [n delta /captured-frame f [frame!]] [
-        log [{BASE: n =} n {delta =} delta]
+        log [{BASE} n delta]
 
         n: n - delta
         if n < 0 [return "base less than zero"]
@@ -162,7 +177,7 @@
 
     c: chain [
         adapt 'base [
-           log [{   C: n =} n {delta =} delta]
+           log [{C} n delta]
 
            f: context of 'n
            captured-frame: true
@@ -181,7 +196,7 @@
     ]
 
     s: specialize adapt 'base [
-        log [{   S: n =} n {delta =} delta]
+        log [{S} n delta]
 
         if n = 1 [n: 10]
     ][

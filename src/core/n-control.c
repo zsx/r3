@@ -281,14 +281,12 @@ test_failed:
 REBNATIVE(either_test_void)
 //
 // Native optimization of `specialize 'either-test-value [test: :void?]`
-// Worth it to write because this is the functionality enfixed as THEN.
+// Worth it to write because this is the functionality enfixed as ALSO.
 {
     INCLUDE_PARAMS_OF_EITHER_TEST_VOID;
 
-    if (IS_VOID(ARG(value))) {
-        Move_Value(D_OUT, ARG(value));
-        return R_OUT;
-    }
+    if (IS_VOID(ARG(value)))
+        return R_VOID;
 
     if (Run_Branch_Throws(D_OUT, ARG(value), ARG(branch), REF(only)))
         return R_OUT_IS_THROWN;

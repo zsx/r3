@@ -398,7 +398,7 @@ inline static REBOOL Reb_Do_Api_Core_Fails(
         va_end(*vaptr);
 
         if (Detect_Rebol_Pointer(second) != DETECTED_AS_END)
-            fail ("rebDo(utf8, END) is the only string DO supported ATM."); 
+            fail ("rebDo(utf8, END) is the only string DO supported ATM.");
 
         const REBYTE *utf8 = cast(const REBYTE*, p);
         REBARR *array = Scan_UTF8_Managed(

@@ -101,7 +101,7 @@ assert-debug: function [
 
         fail [
             "Assertion condition returned"
-             (case [
+             (choose [
                 (not set? 'bad-result) "void"
                     |
                 (blank? bad-result) "blank"

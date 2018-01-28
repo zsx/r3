@@ -1,4 +1,5 @@
-; COMMENT is *mostly* invisible, but interrupts evaluator order for simplicity
+; COMMENT is fully invisible.
+;
 ; https://trello.com/c/dWQnsspG
 
 [
@@ -11,25 +12,30 @@
 
 [
     pos: _
-    do/next [1 + comment "a" comment "b" 2 * 3 fail "didn't stop"] 'pos
-    pos = [fail "didn't stop"]
+    val: do/next [1 + comment "a" comment "b" 2 * 3 fail "didn't stop"] 'pos
+    did all [
+        val = 9
+        pos = [fail "didn't stop"]
+    ]
 ][
     pos: _
     val: do/next [1 comment "a" + comment "b" 2 * 3 fail "didn't stop"] 'pos
     did all [
-        val = 1
-        pos = [+ comment "b" 2 * 3 fail "didn't stop"]
+        val = 9
+        pos = [fail "didn't stop"]
     ]
 ][
     pos: _
     val: do/next [1 comment "a" comment "b" + 2 * 3 fail "didn't stop"] 'pos
     did all [
-        val = 1
-        pos = [+ 2 * 3 fail "didn't stop"] 'pos
+        val = 9
+        pos = [fail "didn't stop"] 'pos
     ]
 ]
 
-; ELIDE is fully invisible, but slaved to the evaluator order
+; ELIDE is not fully invisible, but trades this off to be able to run its
+; code "in turn", instead of being slaved to eager enfix evaluation order.
+;
 ; https://trello.com/c/snnG8xwW
 
 [
@@ -42,25 +48,30 @@
 
 [
     pos: _
-    do/next [1 + comment "a" comment "b" 2 * 3 fail "didn't stop"] 'pos
-    pos = [fail "didn't stop"]
+    error? trap [
+        do/next [1 elide "a" + elide "b" 2 * 3 fail "didn't stop"] 'pos
+    ]
 ][
     pos: _
-    do/next [1 elide "a" + elide "b" 2 * 3 fail "didn't stop"] 'pos
-    pos = [fail "didn't stop"]
+    error? trap [
+        do/next [1 elide "a" elide "b" + 2 * 3 fail "didn't stop"] 'pos
+    ]
 ][
     pos: _
-    do/next [1 elide "a" elide "b" + 2 * 3 fail "didn't stop"] 'pos
-    pos = [fail "didn't stop"]
+    val: do/next [1 + 2 * 3 elide "a" elide "b" fail "didn't stop"] 'pos
+    did all [
+        val = 9
+        pos = [fail "didn't stop"]
+    ]
 ]
+
 
 [
     unset 'x
-    x: 1 + 2 * 3 elide (y: :x)
-    did all [
-        x = 9
-        not set? 'y
-    ]
+    x: 1 + 2 * 3
+    elide (y: :x)
+
+    did all [x = 9 | y = 9]
 ][
     unset 'x
     x: 1 + elide (y: 10) 2 * 3
@@ -76,7 +87,7 @@
     unset 'z
 
     x: 10
-    y: 1 elide [+ 2
+    y: 1 comment [+ 2
     z: 30] + 7
 
     did all [

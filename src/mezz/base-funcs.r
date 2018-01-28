@@ -115,7 +115,9 @@ was: func [
         {Used to take the assigned value}
     :look [set-word! set-path! <...>]
 ][
-    (get* first look) also-do [take evaluation]
+    get* first look ;-- returned value
+
+    elide take evaluation
 ]
 
 
@@ -822,7 +824,7 @@ lambda: function [
     f: either only [:func] [:function]
 
     f (
-        :args then [to block! args] !! []
+        :args also [to block! args] !! []
     )(
         if block? first body [
             take body
@@ -852,7 +854,9 @@ right-bar: func [
     expressions [<opt> any-value! <...>]
         {Any number of expression.}
 ][
-    if* not tail? expressions [take* expressions] also-do [do expressions]
+    if* not tail? expressions [take* expressions] ;-- return result
+
+    elide do expressions
 ]
 
 
@@ -864,15 +868,15 @@ once-bar: func [
     :lookahead [any-value! <...>]
     look:
 ][
-    take right also-do [
-        unless any [
-            tail? right
-                |
-            '|| = look: take lookahead ;-- hack...recognize selfs
-        ][
-            fail [
-                "|| expected single expression, found residual of" :look
-            ]
+    take right ;-- returned value
+
+    elide unless any [
+        tail? right
+            |
+        '|| = look: take lookahead ;-- hack...recognize selfs
+    ][
+        fail [
+            "|| expected single expression, found residual of" :look
         ]
     ]
 ]

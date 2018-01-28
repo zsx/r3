@@ -30,16 +30,22 @@
 [[[1]] == head of r3-alpha-apply :insert [copy [] [1] blank blank true]]
 [function! == r3-alpha-apply (specialize 'of [property: 'type]) [:print]]
 [get-word! == r3-alpha-apply/only (specialize 'of [property: 'type]) [:print]]
-; bug#1760
-[1 == eval does [r3-alpha-apply does [] [return 1] 2]]
-; bug#1760
-[1 == eval does [r3-alpha-apply func [a] [a] [return 1] 2]]
-; bug#1760
-[1 == eval does [r3-alpha-apply does [] [return 1]]]
-[1 == eval does [r3-alpha-apply func [a] [a] [return 1]]]
-[1 == eval does [r3-alpha-apply :after [return 1 2]]]
-; bug#1760
-[1 == eval does [r3-alpha-apply :after [2 return 1]]]
+
+;-- #1760 --
+
+[
+    1 == eval does [r3-alpha-apply does [] [return 1] 2]
+][
+    1 == eval does [r3-alpha-apply func [a] [a] [return 1] 2]
+][
+    1 == eval does [r3-alpha-apply does [] [return 1]]
+][
+    1 == eval does [r3-alpha-apply func [a] [a] [return 1]]
+][
+    1 == eval does [r3-alpha-apply func [a b] [a] [return 1 2]]
+][
+    1 == eval does [r3-alpha-apply func [a b] [a] [2 return 1]]
+]
 
 ; EVAL/ONLY
 [

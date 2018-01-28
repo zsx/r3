@@ -28,31 +28,37 @@ REBOL [
 blank: _
 bar: '|
 
-; Because it has `return: []`, a comment is effectively "invisible".  Internal
-; optimizations make it so COMMENT doesn't need to be a native...the empty
-; body triggers an "eliding noop dispatcher".  To avoid looking deceptive,
-; you can only comment out inert types (e.g. no `comment (print "hi")`)
+; COMMENT has a relatively complex-looking definition because it seeks to be
+; "truly invisible".  This means that it can't disrupt the flow of evaluation,
+; it must run eagerly--as if it were an enfix tight operation that pipes its
+; left argument directly to the output.  (Even if it's an <end>, which is not
+; technically possible for normal operations, but the `return []` plus being
+; enfix cues the evaluator to do this.)
 ;
-comment: func [
+; Internal optimizations make it so COMMENT doesn't need to be a native...the
+; empty body triggers an "eliding noop dispatcher".  You can only comment out
+; inert types (e.g. no `comment print "hi"`) to avoid looking deceptive.
+;
+set/enfix quote comment: func [
     {Ignores the argument value, but does no evaluation (see also ELIDE).}
-
-    return: []
-        {The evaluator will skip over the result (not seen, not even void)}
-    :value [block! any-string! binary! any-scalar!]
-        "Literal value to be ignored."
-][
-    ; no body
-]
-
-set/enfix quote elide: func [
-    {Argument is evaluative, but discarded (see also COMMENT).}
 
     return: []
         {The evaluator will skip over the result (not seen, not even void)}
     #returned [<opt> <end> any-value!]
         {By protocol of `return: []`, this is the return value when enfixed}
-    #discarded [<opt> any-value!]
-        {Evaluative argument, tight semantics (so `1 elide "hi" + 2` works)}
+    :discarded [block! any-string! binary! any-scalar!]
+        "Literal value to be ignored."
+][
+    ; no body
+]
+
+elide: func [
+    {Argument is evaluative, but discarded (see also COMMENT).}
+
+    return: []
+        {The evaluator will skip over the result (not seen, not even void)}
+    discarded [<opt> any-value!]
+        {Evaluated value to be ignored.}
 ][
     ; no body
 ]
