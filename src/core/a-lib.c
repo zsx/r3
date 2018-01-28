@@ -378,6 +378,65 @@ inline static REBOOL Reb_Do_Api_Core_Fails(
         return TRUE;
     }
 
+    REBIXO indexor; // goto would cross initialization
+
+    // !!! The goal of rebDo() is to be able to support complex mixtures of
+    // UTF-8 string runs, Rebol values, and other instructions.  This involves
+    // some complicated decisions about binding, and modifying the scanner to
+    // be able to accept spliced content.  The variadic mechanics were set up
+    // initially to handle REBVAL* but not these string loading/binding
+    // mechanics, so for now do something akin to how Rebol has historically
+    // loaded and run code from %host-main.c.
+    //
+    if (Detect_Rebol_Pointer(p) == DETECTED_AS_UTF8) {
+        //
+        // The C standard requires that we call va_end, and as we have not
+        // passed this to a frame which knows about it, fail() can't clean it
+        // up for us.  Call va_end explicitly.
+        //
+        const void *second = va_arg(*vaptr, const void*);
+        va_end(*vaptr);
+
+        if (Detect_Rebol_Pointer(second) != DETECTED_AS_END)
+            fail ("rebDo(utf8, END) is the only string DO supported ATM."); 
+
+        const REBYTE *utf8 = cast(const REBYTE*, p);
+        REBARR *array = Scan_UTF8_Managed(
+            STR("rebDo()"), utf8, LEN_BYTES(utf8)
+        );
+
+        // Note this loads things into the user context, so we can't at the
+        // moment use it for loading the console in %host-main.c; binding
+        // will have to be generalized somehow.
+        //
+        REBCTX *user_context = VAL_CONTEXT(
+            Get_System(SYS_CONTEXTS, CTX_USER)
+        );
+        Bind_Values_Set_Midstream_Shallow(ARR_HEAD(array), user_context);
+
+        // Bind all words to the `lib' context, but not adding any new words
+        Bind_Values_Deep(ARR_HEAD(array), Lib_Context);
+
+        // The new policy for source code in Ren-C is that it loads read only.
+        // This didn't go through the LOAD Rebol function (should it?  it
+        // never did before.)  For now, use simple binding but lock it.
+        //
+        Deep_Freeze_Array(array);
+
+        if (Do_At_Throws(
+            out,
+            array,
+            0,
+            SPECIFIED
+        )){
+            goto handle_thrown;
+        }
+
+        DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
+        return FALSE;
+    }
+
+
     // Note: It's not possible to make C variadics that can take 0 arguments;
     // there always has to be one real argument to find the varargs.  Luckily
     // the design of REBFRM* allows us to pre-load one argument outside of the
@@ -385,7 +444,7 @@ inline static REBOOL Reb_Do_Api_Core_Fails(
     //
     // !!! Loading of UTF-8 strings is not supported yet, cast to REBVAL
     //
-    REBIXO indexor = Do_Va_Core(
+    indexor = Do_Va_Core(
         out,
         cast(const REBVAL*, p), // opt_first (see note above)
         vaptr,
@@ -395,6 +454,7 @@ inline static REBOOL Reb_Do_Api_Core_Fails(
     DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 
     if (indexor == THROWN_FLAG) {
+    handle_thrown:
         if (IS_FUNCTION(out) && VAL_FUNC_DISPATCHER(out) == &N_quit) {
             //
             // Command issued a purposeful QUIT or EXIT.  Convert the
@@ -413,8 +473,9 @@ inline static REBOOL Reb_Do_Api_Core_Fails(
         Init_Error(PG_last_error, Error_No_Catch_For_Throw(out));
         return TRUE;
     }
+    else
+        assert(indexor == END_FLAG); // we asked to do to end
 
-    assert(indexor == END_FLAG); // we asked to do to end
     return FALSE;
 }
 
