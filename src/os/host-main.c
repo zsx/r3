@@ -533,9 +533,9 @@ int main(int argc, char **argv_ansi)
             status, // BLANK! if no error, BAR! if halt, or the ERROR!
             END
         );
-        rebFree(code);
-        rebFree(result);
-        rebFree(status);
+        rebRelease(code);
+        rebRelease(result);
+        rebRelease(status);
 
         if ((code = new_code) == NULL) {
             //
@@ -617,9 +617,9 @@ int main(int argc, char **argv_ansi)
 
     int exit_status = VAL_INT32(status);
 
-    rebFree(status);
-    rebFree(code);
-    rebFree(result);
+    rebRelease(status);
+    rebRelease(code);
+    rebRelease(result);
 
     DROP_GUARD_VALUE(argv_value);
 

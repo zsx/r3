@@ -85,10 +85,10 @@ static enum Reb_Kind RXT_To_Reb[RXT_MAX];
 //
 // !!! Review the balance of which APIs can set or clear errors.  It's not
 // useful if they all do as a rule...for instance, it may be more convenient
-// to `rebFree()` something before an error check than be forced to free it
-// on branches that test for an error on the call before the free.  See the
-// notes on Windows GetLastError() about how the APIs document whether they
-// manipulate the error or not--not all of them clear it rotely.
+// to `rebRelease()` something before an error check than be forced to release
+// it on branches that test for an error on the call before the release.  See
+// the notes on Windows GetLastError() about how the APIs document whether
+// they manipulate the error or not--not all of them clear it rotely.
 //
 inline static void Enter_Api_Cant_Error(void) {
     if (PG_last_error == NULL)
@@ -341,7 +341,7 @@ REBVAL *RL_rebBlock(
 
     // For now, do a test of manual memory management in a pairing, and let's
     // just say a BLANK! means that for now.  Assume caller has to explicitly
-    // rebFree() the result.
+    // rebRelease() the result.
     //
     REBVAL *result = Alloc_Pairing(NULL);
     Init_Block(result, array);
@@ -494,7 +494,7 @@ REBVAL *RL_rebDo(const void *p, ...)
 
     // For now, do a test of manual memory management in a pairing, and let's
     // just say a BLANK! means that for now.  Assume caller has to explicitly
-    // rebFree() the result.
+    // rebRelease() the result.
     //
     REBVAL *result = Alloc_Pairing(NULL);
     assert(IS_TRASH_DEBUG(result)); // ok: Do_Va_Core() will set to END
@@ -515,7 +515,7 @@ REBVAL *RL_rebDo(const void *p, ...)
     }
 
     va_end(va);
-    return result; // client's responsibility to rebFree(), for now
+    return result; // client's responsibility to rebRelease(), for now
 }
 
 
@@ -571,7 +571,7 @@ REBVAL *RL_rebLastError(void)
     Move_Value(result, PG_last_error);
     Init_Blank(PAIRING_KEY(result)); // manual lifetime for now
 
-    return result; // for now, caller has to rebFree() the result
+    return result; // for now, caller has to rebRelease() the result
 }
 
 
@@ -1311,9 +1311,9 @@ REBVAL *RL_rebUnmanage(REBVAL *v)
 
 
 //
-//  rebFree: RL_API
+//  rebRelease: RL_API
 //
-void RL_rebFree(REBVAL *v)
+void RL_rebRelease(REBVAL *v)
 {
     Enter_Api_Cant_Error();
 
@@ -1336,7 +1336,7 @@ REBVAL *RL_rebError(const char *msg)
     Init_Error(result, Error_User(msg));
     Init_Blank(PAIRING_KEY(result));
 
-    return result; // user currently responsible for rebFree()-ing
+    return result; // caller currently responsible for rebRelease()-ing
 }
 
 
