@@ -538,11 +538,9 @@ REBVAL *RL_rebDoValue(const REBVAL *v)
     // loaded and bound each time.
     //
     // As with much of the API it could be more optimal, but this is a test
-    // of the concept.  BLANK_VALUE has to be used for the moment as the
-    // first instruction since rebEval() instructions are not allowed in
-    // the preload slot of a variadic yet.
+    // of the concept.
     //
-    return rebDo(BLANK_VALUE, rebEval(NAT_VALUE(do)), v, END);
+    return rebDo(rebEval(NAT_VALUE(do)), v, END);
 }
 
 
@@ -1396,7 +1394,6 @@ void RL_rebPanic(const void *p)
     switch (Detect_Rebol_Pointer(p)) {
     case DETECTED_AS_UTF8:
         rebDo(
-            BLANK_VALUE, // temp workaround, can't rebEval() first slot yet
             rebEval(NAT_VALUE(panic)),
             rebString(cast(const char*, p)),
             END
@@ -1416,7 +1413,6 @@ void RL_rebPanic(const void *p)
 
     case DETECTED_AS_VALUE:
         rebDo(
-            BLANK_VALUE, // temp workaround, can't rebEval() first slot yet
             rebEval(NAT_VALUE(panic_value)),
             cast(const REBVAL*, p),
             END
