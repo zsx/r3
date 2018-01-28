@@ -679,13 +679,31 @@ REBARR *Collect_Unique_Words_Managed(
     if (IS_BLOCK(ignore)) {
         RELVAL *item = VAL_ARRAY_AT(ignore);
         for (; NOT_END(item); ++item) {
-            assert(ANY_WORD(item));
-            Add_Binder_Index(&cl->binder, VAL_WORD_CANON(item), -1);
+            assert(ANY_WORD(item)); // pre-pass checked this
+            REBSTR *canon = VAL_WORD_CANON(item);
+
+            // A block may have duplicate words in it (this situation could
+            // arise when `function [/test /test] []` calls COLLECT-WORDS
+            // and tries to ignore both tests.  Have debug build count the
+            // number (overkill, but helps test binders).
+            //
+            if (NOT(Try_Add_Binder_Index(&cl->binder, canon, -1))) {
+            #if !defined(NDEBUG)
+                REBINT i = Get_Binder_Index_Else_0(&cl->binder, canon);
+                assert(i < 0);
+                Remove_Binder_Index_Else_0(&cl->binder, canon);
+                Add_Binder_Index(&cl->binder, canon, i - 1);
+            #endif
+            }
         }
     }
     else if (ANY_CONTEXT(ignore)) {
         REBVAL *key = CTX_KEYS_HEAD(VAL_CONTEXT(ignore));
         for (; NOT_END(key); ++key) {
+            //
+            // Shouldn't be possible to have an object with duplicate keys,
+            // use plain Add_Binder_Index.
+            //
             Add_Binder_Index(&cl->binder, VAL_KEY_CANON(key), -1);
         }
     }
@@ -700,7 +718,19 @@ REBARR *Collect_Unique_Words_Managed(
         RELVAL *item = VAL_ARRAY_AT(ignore);
         for (; NOT_END(item); ++item) {
             assert(ANY_WORD(item));
-            Remove_Binder_Index(&cl->binder, VAL_WORD_CANON(item));
+            REBSTR *canon = VAL_WORD_CANON(item);
+
+        #if !defined(NDEBUG)
+            REBINT i = Get_Binder_Index_Else_0(&cl->binder, canon);
+            assert(i < 0);
+            if (i != -1) {
+                Remove_Binder_Index_Else_0(&cl->binder, canon);
+                Add_Binder_Index(&cl->binder, canon, i + 1);
+                continue;
+            }
+        #endif
+
+            Remove_Binder_Index(&cl->binder, canon);
         }
     }
     else if (ANY_CONTEXT(ignore)) {

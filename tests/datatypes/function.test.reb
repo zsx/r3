@@ -364,3 +364,15 @@
         [2 "x" "y" "outer" 30]
     ]
 ]
+
+; Duplicate arguments or refinements.
+[
+    error? trap [func [a b a] []]
+][
+    error? trap [function [a b a] []]
+][
+    error? trap [func [/test /test] []]
+][
+    error? trap [function [/test /test] []]
+]
+
