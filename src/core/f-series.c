@@ -234,7 +234,8 @@ REBINT Cmp_Array(const RELVAL *sval, const RELVAL *tval, REBOOL is_case)
     RELVAL *t = VAL_ARRAY_AT(tval);
     REBINT diff;
 
-    if (C_STACK_OVERFLOWING(&s)) Trap_Stack_Overflow();
+    if (C_STACK_OVERFLOWING(&s))
+        Fail_Stack_Overflow();
 
     if ((VAL_SERIES(sval)==VAL_SERIES(tval))&&
      (VAL_INDEX(sval)==VAL_INDEX(tval)))

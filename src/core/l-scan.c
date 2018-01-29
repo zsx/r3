@@ -1795,7 +1795,7 @@ REBARR *Scan_Array(
     REBCTX *error;
 
     if (C_STACK_OVERFLOWING(&state))
-        Trap_Stack_Overflow();
+        Fail_Stack_Overflow();
 
     if (ss->opts & SCAN_RELAX) {
         PUSH_TRAP(&error, &state);

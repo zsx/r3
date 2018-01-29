@@ -166,8 +166,14 @@ void Expand_Data_Stack_May_Fail(REBCNT amount)
     // If adding in the requested amount would overflow the stack limit, then
     // give a data stack overflow error.
     //
-    if (SER_REST(SER(DS_Array)) + amount >= STACK_LIMIT)
-        Trap_Stack_Overflow();
+    if (SER_REST(SER(DS_Array)) + amount >= STACK_LIMIT) {
+        //
+        // Because the stack pointer was incremented and hit the END marker
+        // before the expansion, we have to decrement it if failing.
+        //
+        --DSP;
+        Fail_Stack_Overflow(); // !!! Should this be a "data stack" message?
+    }
 
     Extend_Series(SER(DS_Array), amount);
 

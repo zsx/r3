@@ -141,7 +141,7 @@ inline static void Push_Frame_Core(REBFRM *f)
     // not on each Do_Next_In_Frame_Throws() for `reduce [a | b | ... | z]`.
     //
     if (C_STACK_OVERFLOWING(&f))
-        Trap_Stack_Overflow();
+        Fail_Stack_Overflow();
 
     assert(f->flags.bits & NODE_FLAG_END);
     assert(NOT(f->flags.bits & NODE_FLAG_CELL));

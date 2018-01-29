@@ -502,7 +502,7 @@ void Mold_Or_Form_Value(REB_MOLD *mo, const RELVAL *v, REBOOL form)
     ASSERT_SERIES_TERM(s);
 
     if (C_STACK_OVERFLOWING(&s))
-        Trap_Stack_Overflow();
+        Fail_Stack_Overflow();
 
     if (GET_MOLD_FLAG(mo, MOLD_FLAG_LIMIT)) {
         //
