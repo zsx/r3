@@ -38,12 +38,16 @@ read-deep-seq: function [
 
 read-deep: function [
     {Return files and folders using recursive read strategy.}
+
     root [file! url! block!]
-    /full {Includes root path and retains full paths instead returning relative paths.}
-    /strategy {Allows Queue building to be overridden.}
-    take [function!] {TAKE next item from queue, building the queue as necessary.}
+    /full
+        {Include root path, retains full paths vs. returning relative paths.}
+    /strategy
+        {Allows Queue building to be overridden.}
+    take [function!]
+        {TAKE next item from queue, building the queue as necessary.}
 ][
-    unless strategy [take: :read-deep-seq]
+    take: default [:read-deep-seq]
 
     result: make block! []
 

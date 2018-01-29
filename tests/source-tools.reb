@@ -79,21 +79,15 @@ rebsource: context [
 
         files: function [
             {Analyse the source files of REBOL.}
+            return: [block!]
         ][
-            listing: list/source-files
-
-            files-analysis: make block! []
-
-            for-each source listing [
-                if not whitelisted? source [
-                    analysis: analyse/file source
-                    if analysis [
-                        append files-analysis analysis
+            collect [
+                for-each source list/source-files [
+                    if not find whitelisted source [
+                        keep (opt analyse/file source)
                     ]
                 ]
             ]
-
-            files-analysis
         ]
 
         file: function [
@@ -102,12 +96,9 @@ rebsource: context [
             file
         ][
             all [
-                filetype: filetype-of file
-                to-value if type: in source filetype [
-                    data: read src-folder/:file
-                    evaluate: get type
-                    evaluate file data
-                ]
+                filetype: select extensions extension-of file
+                type: in source filetype
+                eval (ensure function! get type) file (read src-folder/:file)
             ]
         ]
 
@@ -152,13 +143,13 @@ rebsource: context [
                 if all [
                     not tail? data
                     not equal? newline last data
-                ] [
+                ][
                     emit analysis [eof-eol-missing (file)]
                 ]
 
                 emit-proto: procedure [proto] [
                     if block? proto-parser/data [
-                        do bind [
+                        do in c-parser-extension [
                             if last-func-end [
                                 if not all [
                                     parse last-func-end [
@@ -167,7 +158,7 @@ rebsource: context [
                                         to end
                                     ]
                                     same? position proto-parser/parse.position
-                                ] [
+                                ][
                                     line: line-from-pos data proto-parser/parse.position
                                     append any [
                                         non-std-func-space
@@ -175,7 +166,7 @@ rebsource: context [
                                     ] line-from-pos data proto-parser/parse.position
                                 ]
                             ]
-                        ] c-parser-extension
+                        ]
 
                         either find/match mold proto-parser/data/2 {native} [
                             ;
@@ -260,14 +251,14 @@ rebsource: context [
             ;
             ; Identify line termination.
 
-            either all [
+            all [
                 position: find data #{0a}
                 1 < index of position
                 13 = first back position
-            ] [
-                set [line-ending alt-ending] reduce [crlf newline]
-            ][
-                set [line-ending alt-ending] reduce [newline crlf]
+            ] then [
+                line-ending: crlf | alt-ending: newline
+            ] else [
+                line-ending: newline | alt-ending: crlf
             ]
 
             count-line: [
@@ -377,10 +368,10 @@ rebsource: context [
                 insert queue map-each x contents [join-of item x]
                 unset 'item
             ] else [
-                if any [
+                any [
                     parse second split-path item ["tmp-" to end]
                     not find extensions extension-of item
-                ][
+                ] then [
                     unset 'item
                 ]
             ]
@@ -426,19 +417,5 @@ rebsource: context [
         file
     ][
         copy any [find/last file #"." {}]
-    ]
-
-    filetype-of: function [
-        {Return filetype for file.}
-        file
-    ][
-        to-value select extensions extension-of file
-    ]
-
-    whitelisted?: function [
-        {Returns true if file should not be analysed.}
-        file
-    ][
-        did find whitelisted file
     ]
 ]
