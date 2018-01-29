@@ -545,6 +545,19 @@ REBVAL *RL_rebDoValue(const REBVAL *v)
 
 
 //
+//  rebDoString: RL_API
+//
+// Non-variadic function which takes a single argument which must be a C string.
+// It invokes the basic behavior of the DO native on a C string
+// See comments in rebDoValue.
+//
+REBVAL *RL_rebDoString(const char *v)
+{
+    return rebDo(v, END);
+}
+
+
+//
 //  rebLastError: RL_API
 //
 // Get the last error that occurred, or NULL if none.
