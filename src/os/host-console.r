@@ -569,7 +569,7 @@ host-console: function [
                     ; transcripts, potentially to replay them without running
                     ; program output or evaluation results.
                     ;
-                    write-stdout [unclosed #"\" space space]
+                    write-stdout unspaced [unclosed #"\" space space]
                     append source newline
                     continue
                 ] else [

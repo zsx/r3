@@ -25,7 +25,7 @@ mod: function [
     ; but it is "almost" zero, i.e. "almost non-negative"
 
     ; Compute the smallest non-negative remainder
-    all [negative? r: a // b | r: r + b]
+    all [negative? r: remainder a b | r: r + b]
     ; Use abs a for comparisons
     a: abs a
     ; If r is "almost" b (i.e. negligible compared to b), the
