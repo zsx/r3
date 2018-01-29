@@ -263,7 +263,9 @@ start-console: procedure [
             space space
             proto-skin/is-loaded ?? {Loaded skin} !! {Skin does not exist}
             "-" skin-file
-            spaced ["(CONSOLE" (proto-skin/was-updated !! {not}) "updated)"]
+            spaced [
+                "(CONSOLE" (not proto-skin/was-updated ?? {not}) "updated)"
+            ]
         ]
     ]
 
@@ -285,13 +287,6 @@ host-console: function [
 
     status [<opt> blank! error! bar!]
         {BLANK! if no error, BAR! if HALT, or an ERROR! if a problem}
-
-    <static>
-
-    RE_SCAN_INVALID (2000)
-    RE_SCAN_MISSING (2001)
-    RE_SCAN_EXTRA (2002)
-    RE_SCAN_MISMATCH (2003)
 ][
     if not set? 'prior [
         ;
@@ -312,8 +307,7 @@ host-console: function [
         group? prior [[]]
         issue? first prior [reduce [first prior]]
         block? first prior [first prior]
-        true [[]]
-    ]
+    ] !! []
 
     if bar? status [ ; execution of prior code was halted
         assert [not set? 'result]
@@ -544,24 +538,22 @@ host-console: function [
             ;
             ; If loading the string gave back an error, check to see if it
             ; was the kind of error that comes from having partial input
-            ; (RE_SCAN_MISSING).  If so, CONTINUE and read more data until
+            ; (scan-missing).  If so, CONTINUE and read more data until
             ; it's complete (or until an empty line signals to just report
             ; the error as-is)
             ;
             code: error
 
-            if error/code = RE_SCAN_MISSING [
+            if error/id = 'scan-missing [
                 ;
                 ; Error message tells you what's missing, not what's open and
                 ; needs to be closed.  Invert the symbol.
                 ;
-                unclosed: switch error/arg1 [
+                switch error/arg1 [
                     "}" ["{"]
                     ")" ["("]
                     "]" ["["]
-                ]
-
-                if set? 'unclosed [
+                ] also unclosed -> [
                     ;
                     ; Backslash is used in the second column to help make a
                     ; pattern that isn't legal in Rebol code, which is also
@@ -576,7 +568,6 @@ host-console: function [
                     ;
                     ; Could be an unclosed double quote (unclosed tag?) which
                     ; more input on a new line cannot legally close ATM
-                    ;
                 ]
             ]
 
