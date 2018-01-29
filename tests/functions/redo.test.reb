@@ -162,7 +162,7 @@
 [
     log: (
         func ['x] [] ;-- no-op
-        :dump ;-- un-elide to get output
+        elide (:dump) ;-- un-elide to get output
     )
 
     base: func [n delta /captured-frame f [frame!]] [

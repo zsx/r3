@@ -101,7 +101,7 @@ REBARR *Copy_Array_At_Max_Shallow(
 
 
 //
-//  Copy_Values_Len_Extra_Skip_Shallow: C
+//  Copy_Values_Len_Extra_Skip_Shallow_Core: C
 //
 // Shallow copy the first 'len' values of `head` into a new
 // series created to hold exactly that many entries.

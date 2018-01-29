@@ -206,7 +206,7 @@ void Expand_Data_Stack_May_Fail(REBCNT amount)
 
 
 //
-//  Pop_Stack_Values: C
+//  Pop_Stack_Values_Core: C
 //
 // Pops computed values from the stack to make a new ARRAY.
 //

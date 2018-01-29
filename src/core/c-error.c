@@ -1132,7 +1132,7 @@ REBCTX *Error_No_Memory(REBCNT bytes)
 
 
 //
-//  Error_No_Relative: C
+//  Error_No_Relative_Core: C
 //
 REBCTX *Error_No_Relative_Core(const RELVAL *any_word)
 {

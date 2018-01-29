@@ -318,7 +318,7 @@ REBINT CT_Decimal(const RELVAL *a, const RELVAL *b, REBINT mode)
 
 
 //
-//  ML_Decimal: C
+//  MF_Decimal: C
 //
 // Notice this covers both DECIMAL! and PERCENT!
 //

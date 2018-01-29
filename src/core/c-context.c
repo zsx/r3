@@ -640,7 +640,7 @@ REBARR *Collect_Keylist_Managed(
 
 
 //
-//  Collect_Unique_Words: C
+//  Collect_Unique_Words_Managed: C
 //
 // Collect unique words from a block, possibly deeply...maybe just SET-WORD!s.
 //

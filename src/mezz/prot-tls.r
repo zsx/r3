@@ -475,7 +475,9 @@ encrypt-data: function [
 
     if ctx/block-size [
         ; add the padding data in CBC mode
-        padding: ctx/block-size - ((1 + (length of data)) // ctx/block-size)
+        padding: ctx/block-size - (
+            remainder (1 + (length of data)) ctx/block-size
+        )
         len: 1 + padding
         append data head of insert/dup make binary! len to-bin padding 1 len
     ]

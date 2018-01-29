@@ -946,7 +946,7 @@ static REBSER *Complement_Image(REBVAL *value)
 
 
 //
-//  ML_Image: C
+//  MF_Image: C
 //
 void MF_Image(REB_MOLD *mo, const RELVAL *v, REBOOL form)
 {
