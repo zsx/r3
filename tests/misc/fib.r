@@ -42,7 +42,7 @@ fib: func [
         t: i1
         i1: i0 + i1
         i0: t
-        n: -- 1
+        n: n - 1
     ]
     i1
 ]

@@ -80,6 +80,78 @@ REBNATIVE(eval)
 
 
 //
+//  eval-enfix: native [
+//
+//  {Service routine for implementing ME (needs review/generalization)}
+//
+//      return: [<opt> any-value!]
+//      left [<opt> any-value!]
+//          {Value to preload as the left hand-argument (won't reevaluate)}
+//      rest [varargs!]
+//          {The code stream to execute (head element must be enfixed)}
+//  ]
+//
+REBNATIVE(eval_enfix)
+//
+// !!! Being able to write `some-var: me + 10` isn't as "simple" <ahem> as:
+//
+// * making ME a backwards quoting operator that fetches the value of some-var
+// * quoting its next argument (e.g. +) to get a word looking up to a function
+// * making the next argument variadic, and normal-enfix TAKE-ing it
+// * APPLYing the quoted function on those two values
+// * setting the left set-word (e.g. some-var:) to the result
+//
+// The problem with that strategy is that the parameter conventions of +
+// matter.  Removing it from the evaluator and taking matters into one's own
+// hands means one must reproduce the evaluator's logic--and that means it
+// will probably be done poorly.  It's clearly not as sensible as having some
+// way of slipping the value of some-var into the flow of normal evaluation.
+//
+// But generalizing this mechanic is...non-obvious.  It needs to be done, but
+// this hacks up the specific case of "enfix with left hand side and variadic
+// feed" by loading the given value into D_OUT and then re-entering the
+// evaluator via the DO_FLAG_POST_SWITCH mechanic (which was actuallly
+// designed for backtracking on enfix normal deferment.)
+{
+    INCLUDE_PARAMS_OF_EVAL_ENFIX;
+
+    REBFRM *f;
+    if (NOT(Is_Frame_Style_Varargs_May_Fail(&f, ARG(rest)))) {
+        //
+        // It wouldn't be *that* hard to support block-style varargs, but as
+        // this routine is a hack to implement ME, don't make it any longer
+        // than it needs to be.
+        //
+        fail ("EVAL-ENFIX is not made to support MAKE VARARGS! [...] rest");
+    }
+
+    // Simulate as if the passed-in value was calculated into the output slot,
+    // which is where enfix functions usually find their left hand values.
+    //
+    Move_Value(D_OUT, ARG(left));
+
+    // We're kind-of-abusing an internal mechanism, where it is checked that
+    // we are actually doing a deferment.  Try not to make that abuse break
+    // the assertions in Do_Core.
+    //
+    // Note that while f may have a "prior" already, its prior will become
+    // this frame...so when it asserts about "f->prior->deferred" it means
+    // the frame of EVAL-ENFIX that is invoking it.
+    //
+    assert(FS_TOP->deferred == NULL);
+    FS_TOP->deferred = D_OUT;
+
+    REBFLGS flags = DO_FLAG_FULFILLING_ARG | DO_FLAG_POST_SWITCH;
+    if (Do_Next_In_Subframe_Throws(D_OUT, f, flags))
+        return R_OUT_IS_THROWN;
+
+    FS_TOP->deferred = NULL;
+
+    return R_OUT;
+}
+
+
+//
 //  Do_Or_Dont_Shared_Throws: C
 //
 REBOOL Do_Or_Dont_Shared_Throws(

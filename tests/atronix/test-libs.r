@@ -138,7 +138,7 @@ forever [
         a9/j: 490 + i
 
         read-s10 a a1 a2 a3 a4 a5 a6 a7 a8 a9
-        i: ++ 1
+        i: i + 1
     ]
 
     print ["a9:" mold a9]
@@ -160,7 +160,7 @@ forever [
         print ["i = " i]
         s: return-s i
         print ["s:" mold s]
-        i: ++ 1
+        i: i + 1
     ]
     print now
     wait [2]

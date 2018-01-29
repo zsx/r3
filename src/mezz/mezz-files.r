@@ -52,14 +52,14 @@ clean-path: function [
 
     parse reverse file [
         some [
-            "../" (count: ++ 1)
+            "../" (count: me + 1)
             | "./"
             | #"/" (
                 if any [not file? file | #"/" <> last out] [append out #"/"]
             )
             | copy f [to #"/" | to end] (
                 either count > 0 [
-                    count: -- 1
+                    count: me - 1
                 ][
                     unless find ["" "." ".."] as string! f [append out f]
                 ]

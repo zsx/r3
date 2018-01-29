@@ -48,18 +48,15 @@ r3-alpha-quote: func [:spelling [word! string!]] [
 ]
 
 
-; Make top-level words for things not added by %b-init.c (e.g. /, //)
+; Make top-level words (note: / is added by %b-init.c as an "odd word")
 ;
-+: -: *: **: _
++: -: *: _
 
 for-each [math-op function-name] [
     +       add
     -       subtract
     *       multiply
     /       divide ;-- !!! may become pathing operator (which also divides)
-
-    **      power ;-- !!! more a separator? https://forum.rebol.info/t/474/4
-    //      remainder ;-- !!! new comment? https://forum.rebol.info/t/275
 ][
     ; Ren-C's infix math obeys the "tight" parameter convention of R3-Alpha.
     ; But since the prefix functions themselves have normal parameters, this
@@ -315,6 +312,25 @@ nand: enfix func [
 ; There's no way to do a shortcut XOR...both sides have to be tested.
 ;
 xor: enfix :xor?
+
+
+; The -- and ++ operators were deemed too "C-like", so ME was created to allow
+; `some-var: me + 1` or `some-var: me / 2` in a generic way.
+;
+; !!! This depends on a fairly lame hack called EVAL-ENFIX at the moment, but
+; that evaluator exposure should be generalized more cleverly.
+;
+me: enfix func [
+    {Update variable using it as the left hand argument to an enfix operator}
+
+    return: [<opt> any-value!]
+    :var [set-word! set-path!]
+        {Variable to assign (and use as the left hand enfix argument)}
+    :rest [<opt> any-value! <...>]
+        {Code to run with var as left (first element should be enfixed)}
+][
+    set* var eval-enfix (get* var) rest
+]
 
 
 ; Lambdas are experimental quick function generators via a symbol

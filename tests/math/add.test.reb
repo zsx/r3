@@ -221,3 +221,10 @@
 [0.0.255 = add 0.0.255 0.0.0]
 [0.0.255 = add 0.0.255 0.0.1]
 [0.0.255 = add 0.0.255 0.0.255]
+
+; Slipstream a test of ME in here, as the replacement for "++"
+[
+    some-var: 20
+    some-var: me + 1 * 10
+    some-var = 210
+]

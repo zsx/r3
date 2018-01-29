@@ -722,7 +722,7 @@ for-each [id val] id-list [
         parse val [
             any [
                 get-word! (
-                    n-args: n-args + 1 ; don't use ++, not R3-Alpha compatible
+                    n-args: n-args + 1 ; don't use ME, not R3-Alpha compatible
                 )
                 | skip
             ]
@@ -755,7 +755,7 @@ for-each [id val] id-list [
             e-errfuncs/emit-line compose [ {const REBVAL *arg} (i + 1)
                 either i < (n-args - 1) [","] [""]
             ]
-            i: i + 1 ; don't use ++, not R3-Alpha compatible 
+            i: i + 1 ; don't use ME, not R3-Alpha compatible 
         ]
         e-errfuncs/emit-line [")"]
         e-errfuncs/emit-line [ "^{" ]
@@ -764,7 +764,7 @@ for-each [id val] id-list [
         i: 0
         while [i < n-args] [
             append args compose [ {, arg} (i + 1)]
-            i: i + 1 ; don't use ++, not R3-Alpha comptible
+            i: i + 1 ; don't use ME, not R3-Alpha comptible
         ]
 
         e-errfuncs/emit-line/indent [

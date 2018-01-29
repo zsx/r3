@@ -743,6 +743,6 @@ find-all: function [
         | (set series orig | false) ;-- reset series and break loop
     ]][
         do body
-        series: ++ 1
+        series: next series
     ]
 ]

@@ -191,7 +191,7 @@
 ; basic test for recursive closure! invocation
 [
     i: 0
-    countdown: clos [n] [if n > 0 [i: ++ 1 | countdown n - 1]]
+    countdown: clos [n] [if n > 0 [i: i + 1 | countdown n - 1]]
     countdown 10
     i = 10
 ]

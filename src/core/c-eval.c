@@ -325,7 +325,10 @@ void Do_Core(REBFRM * const f)
     if (f->flags.bits & DO_FLAG_POST_SWITCH) {
         evaluating = NOT(f->flags.bits & DO_FLAG_EXPLICIT_EVALUATE);
 
+        // !!! Note EVAL-ENFIX does a crude workaround to preserve this check.
+        //
         assert(f->prior->deferred != NULL);
+
         f->deferred = NULL;
         assert(NOT_END(f->out));
         f->flags.bits &= ~DO_FLAG_POST_SWITCH; // !!! unnecessary?

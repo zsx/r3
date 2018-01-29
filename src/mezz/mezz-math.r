@@ -14,36 +14,6 @@ REBOL [
 pi: 3.14159265358979323846
 
 
-; ++ and -- were previously used to take a quoted word and increment
-; it.  They were ordinary prefix operations
-
-++: enfix func [
-    {Set variable to the result of incrementing itself using the + operator}
-
-    return: [any-value!]
-        "The new state of the variable"
-    'var [set-word! set-path!]
-        "Variable to update"
-    n
-        "Amount to increment by"
-][
-    set var (get var) + n
-]
-
---: enfix func [
-    {Set variable to the result of decrementing itself using the - operator}
-
-    return: [any-value!]
-        "The new state of the variable"
-    'var [set-word! set-path!]
-        "Variable to update"
-    n
-        "Amount to decrement or skip backwards by"
-][
-    set var (get var) - n
-]
-
-
 mod: function [
     "Compute a nonnegative remainder of A divided by B."
     a [any-number! money! time!]

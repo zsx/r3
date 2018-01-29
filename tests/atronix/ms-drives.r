@@ -11,6 +11,6 @@ while [i < 26] [
     unless zero? maps and (shift 1 i) [
         print unspaced [to char! (to integer! #"A") + i ":"]
     ]
-    i: ++ 1
+    i: i + 1
 ]
 close msvcrt

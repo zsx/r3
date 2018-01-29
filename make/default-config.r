@@ -36,8 +36,13 @@ toolset: [
 debug: no
 
 ; one of 'no', 1, 2 or 4
+;
 optimize: 2
-standard: 'c ;one of: 'c, 'gnu89, 'gnu99, 'c99, 'c11, 'c++, 'c++98, 'c++0x, 'c++11, 'c++14 or 'c++17
+
+; one of [c gnu89 gnu99 c99 c11 c++ c++98 c++0x c++11 c++14 c++17]
+;
+standard: 'c
+
 rigorous: no
 
 static: no
