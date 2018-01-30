@@ -149,7 +149,7 @@ parse-asn: function [
                 either zero? size [
                     append/only result compose/deep [
                         (tag) [
-                            (either constructed? ["constructed"] ["primitive"])
+                            (constructed? ?? "constructed" !! "primitive")
                             (index of data)
                             (size)
                             _
@@ -167,7 +167,7 @@ parse-asn: function [
                         val: copy/part data size
                         append/only result compose/deep [
                             (tag) [
-                                (either constructed? ["constructed"] ["primitive"])
+                                (constructed? ?? "constructed" !! "primitive")
                                 (index of data)
                                 (size)
                                 (either constructed? [blank] [val])
@@ -441,7 +441,7 @@ finished: function [
     ctx [object!]
 ][
     ctx/seq-num-w: 0
-    who-finished: either ctx/server? ["server finished"] ["client finished"]
+    who-finished: ctx/server? ?? "server finished" !! "client finished"
 
     return join-all [
         #{14}       ; protocol message type (20=Finished)

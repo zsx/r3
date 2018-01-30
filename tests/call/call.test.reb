@@ -7,22 +7,32 @@
 ;; - https://github.com/metaeducation/ren-c/commit/e57c147465f3ed47f297e7a3ce3bb0319635f81f
 
 [
-    ; small
-    data: copy {}
-    call/wait/output [%../make/r3 "--suppress" "*" %call/print.reb "100"] data
-    100 == (length of data)
-]
-[
-    ; medium
-    data: copy {}
-    call/wait/output [%../make/r3 "--suppress" "*" %call/print.reb "9000"] data
-    9000 == (length of data)
-]
-[
-    ; large
-    data: copy {}
-    call/wait/output [%../make/r3 "--suppress" "*" %call/print.reb "80000"] data
-    80'000 == (length of data)
+    ; small - note Windows doesn't do BLOCK! arg to CALL (argv style) yet
+
+    call/wait/output reduce [
+        (file-to-local system/options/boot)
+        "--suppress" "*" %call/print.reb "100"
+    ] data: copy {}
+
+    length of data = 100
+][
+    ; medium - note Windows doesn't do BLOCK! arg to CALL (argv style) yet
+
+    call/wait/output spaced [
+        (file-to-local system/options/boot)
+        "--suppress" "*" %call/print.reb "9000"
+    ] data: copy {}
+
+    length of data = 9000
+][
+    ; large - note Windows doesn't do BLOCK! arg to CALL (argv style) yet
+
+    call/wait/output spaced [
+        (file-to-local system/options/boot)
+        "--suppress" "*" %call/print.reb "80000"
+    ] data: copy {}
+
+    length of data = 80'000
 ]
 
 ;; git log crash (inconsistent)

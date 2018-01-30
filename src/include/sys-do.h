@@ -813,17 +813,6 @@ inline static REBIXO Do_Array_At_Core(
 // !!! Not yet implemented--concept is to accept a REBVAL[] array, rather
 // than a REBARR of values.
 //
-// !!! Considerations of this core interface are to see the values as being
-// potentially in non-contiguous points in memory, and advanced with some
-// skip length between them.  Additionally the idea of some kind of special
-// Rebol value or "REB_INSTRUCTION" to say how far to skip is a possibility,
-// which would be more general in the sense that it would allow the skip
-// distances to be generalized, though this would cost a pointer size
-// entity at each point.  The advantage of REB_INSTRUCTION is that only the
-// clients using the esoteric ability would be paying anything for it or
-// the API complexity, but if an important client like Ren-C++ it might
-// be worth the savings.
-//
 // Note: Functionally it would be possible to assume a 0 index and require
 // the caller to bump the value pointer as necessary.  But an index-based
 // interface is likely useful to avoid the bookkeeping required for the caller.
