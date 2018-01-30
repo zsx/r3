@@ -9,27 +9,27 @@
 [
     ; small - note Windows doesn't do BLOCK! arg to CALL (argv style) yet
 
-    call/wait/output reduce [
+    call/shell/wait/output probe spaced [
         (file-to-local system/options/boot)
-        "--suppress" "*" %call/print.reb "100"
+        {--suppress "*" call/print.reb 100}
     ] data: copy {}
 
     length of data = 100
 ][
     ; medium - note Windows doesn't do BLOCK! arg to CALL (argv style) yet
 
-    call/wait/output spaced [
+    call/shell/wait/output spaced [
         (file-to-local system/options/boot)
-        "--suppress" "*" %call/print.reb "9000"
+        {--suppress "*" call/print.reb 9000}
     ] data: copy {}
 
     length of data = 9000
 ][
     ; large - note Windows doesn't do BLOCK! arg to CALL (argv style) yet
 
-    call/wait/output spaced [
+    call/shell/wait/output spaced [
         (file-to-local system/options/boot)
-        "--suppress" "*" %call/print.reb "80000"
+        {--suppress "*" call/print.reb 80000}
     ] data: copy {}
 
     length of data = 80'000

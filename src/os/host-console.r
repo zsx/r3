@@ -374,7 +374,7 @@ host-console: function [
                 print "** Hit Ctrl-C to break into the console in 5 seconds"
                 repeat n 25 [
                     if 1 = remainder n 5 [
-                        write-stdout form (5 - to-integer divide n 5)
+                        write-stdout form 5 - to-integer divide n 5
                     ] else [
                         write-stdout "."
                     ]

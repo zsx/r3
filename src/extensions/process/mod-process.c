@@ -1382,9 +1382,6 @@ cleanup:
             *err = NULL;
         }
 
-    if (info != NULL)
-        free(info);
-
     if (info_pipe[R] > 0)
         close(info_pipe[R]);
 
@@ -1407,13 +1404,21 @@ cleanup:
         non_errno_ret = WTERMSIG(status);
     }
     else if (WIFSTOPPED(status)) {
-        // Shouldn't be here, as the current behavior is keeping waiting when child is stopped
+        //
+        // Shouldn't be here, as the current behavior is keeping waiting when
+        // child is stopped
+        //
         assert(FALSE);
+        if (info != NULL)
+            free(info);
         fail (Error(RE_EXT_PROCESS_CHILD_STOPPED, END));
     }
     else {
         non_errno_ret = -2048; //randomly picked
     }
+
+    if (info != NULL)
+        free(info);
 
 info_pipe_err:
     if (stderr_pipe[R] > 0)
