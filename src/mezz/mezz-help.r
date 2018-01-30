@@ -58,7 +58,7 @@ dump-obj: function [
         for-each [word val] obj [
             type: type of :val
 
-            str: if match [function! object!] :type [
+            str: if lib/match [function! object!] :type [
                 spaced [word _ mold spec-of :val _ words of :val]
             ] else [
                 form word
