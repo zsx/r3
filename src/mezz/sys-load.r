@@ -198,7 +198,7 @@ load-header: function [
         ]
 
         sum: hdr/checksum [
-            ; blank saved to simplify later code
+            ; !!! "blank saved to simplify later code" -- what?
             blank ;[print sum]
         ]
 

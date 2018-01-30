@@ -924,10 +924,11 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
 // Although a BLOCK! value is true, some constructs are safer by not allowing
 // literal blocks.  e.g. `if [x] [print "this is not safe"`.  The evaluated
 // bit can let these instances be distinguished.  Note that making *all*
-// evaluations safe would be limiting, e.g. `foo: any [false-thing []]`.
+// evaluations safe would be limiting, e.g. `foo: any [false-thing []]`...
+// So ANY and ALL use IS_TRUTHY() directly
 //
-inline static REBOOL IS_CONDITIONAL_TRUE(const REBVAL *v, REBOOL only) {
-    if (NOT(only) && IS_BLOCK(v)) {
+inline static REBOOL IS_CONDITIONAL_TRUE(const REBVAL *v) {
+    if (IS_BLOCK(v)) {
         if (GET_VAL_FLAG(v, VALUE_FLAG_UNEVALUATED))
             fail (Error_Block_Conditional_Raw(v));
             
@@ -936,8 +937,8 @@ inline static REBOOL IS_CONDITIONAL_TRUE(const REBVAL *v, REBOOL only) {
     return IS_TRUTHY(v);
 }
 
-inline static REBOOL IS_CONDITIONAL_FALSE(const REBVAL *v, REBOOL only) {
-    if (NOT(only) && IS_BLOCK(v)) {
+inline static REBOOL IS_CONDITIONAL_FALSE(const REBVAL *v) {
+    if (IS_BLOCK(v)) {
         if (GET_VAL_FLAG(v, VALUE_FLAG_UNEVALUATED))
             fail (Error_Block_Conditional_Raw(v));
             

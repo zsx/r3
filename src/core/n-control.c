@@ -75,7 +75,7 @@ REBNATIVE(if)
 {
     INCLUDE_PARAMS_OF_IF;
 
-    if (IS_CONDITIONAL_FALSE(ARG(condition), REF(only)))
+    if (IS_CONDITIONAL_FALSE(ARG(condition)))
         return R_VOID;
 
     if (Run_Branch_Throws(D_OUT, ARG(condition), ARG(branch), REF(only)))
@@ -102,7 +102,7 @@ REBNATIVE(unless)
 {
     INCLUDE_PARAMS_OF_UNLESS;
 
-    if (IS_CONDITIONAL_TRUE(ARG(condition), REF(only)))
+    if (IS_CONDITIONAL_TRUE(ARG(condition)))
         return R_VOID;
 
     if (Run_Branch_Throws(D_OUT, ARG(condition), ARG(branch), REF(only)))
@@ -132,7 +132,7 @@ REBNATIVE(either)
     if (Run_Branch_Throws(
         D_OUT,
         ARG(condition),
-        IS_CONDITIONAL_TRUE(ARG(condition), REF(only))
+        IS_CONDITIONAL_TRUE(ARG(condition))
             ? ARG(true_branch)
             : ARG(false_branch),
         REF(only)
@@ -550,7 +550,7 @@ static REB_R Case_Choose_Core(
         // code might get more efficient if the data were already in D_OUT.
         //
         if (choose) {
-            if (IS_CONDITIONAL_FALSE(block, only))
+            if (IS_CONDITIONAL_FALSE(block))
                 continue;
 
             Move_Value(out, cell);
@@ -563,7 +563,7 @@ static REB_R Case_Choose_Core(
             if (NOT(IS_FUNCTION(cell)) && NOT(IS_BLOCK(cell)))
                 fail (Error_Invalid_Arg_Raw(cell));
 
-            if (IS_CONDITIONAL_FALSE(block, only))
+            if (IS_CONDITIONAL_FALSE(block))
                 continue;
 
             // Note that block now holds the cached evaluated condition

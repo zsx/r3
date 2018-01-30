@@ -169,12 +169,12 @@ for-each [comparison-op function-name] [
 ; hence these are not meant as a generic substitute for IF and ELSE.
 ;
 ??: enfix func [
-    {If left is true, return value on the right (as-is)}
+    {If left is conditionally true, return value on the right (as-is)}
 
     return: [<opt> any-value!]
         {Void if the condition is FALSEY?, else value}
     condition [any-value!]
-    value [<opt> any-value!]
+    value [any-value!]
 ][
     if/only :condition [:value]
 ]
@@ -185,9 +185,20 @@ for-each [comparison-op function-name] [
     return: [<opt> any-value!]
         {Left if it isn't void, else right}
     left [<opt> any-value!]
-    right [<opt> any-value!]
+    right [any-value!]
 ][
     either-test-value/only :left [:right]
+]
+
+!?: enfix func [
+    {If left is conditionally false, return value on the right (as-is)}
+
+    return: [<opt> any-value!]
+        {Void if the condition is FALSEY?, else value}
+    condition [any-value!]
+    value [any-value!]
+][
+    unless/only :condition [:value]
 ]
 
 
@@ -199,10 +210,18 @@ for-each [comparison-op function-name] [
 ;
 ;    (some long) and (complicated expression) then [a + b] else [c + d]
 ;
+; NAY is the somewhat weird name for enfixed UNLESS, until someone thinks of
+; a better name for it.  (ELSE is not an option)
 
 then: enfix :if
 
-then*: enfix specialize :if [ ;-- THEN/ONLY is a path, can't dispatch infix
+then*: enfix specialize :if [ ;-- THEN/ONLY is a path, can't run infix
+    only: true
+]
+
+nay: enfix :unless
+
+nay*: enfix specialize :unless [ ;-- UNLESS/ONLY is a path, can't run infix
     only: true
 ]
 
@@ -263,25 +282,48 @@ else*: enfix redescribe [
 and: enfix func [
     {Short-circuit boolean AND}
 
-    return: [logic!]
+    return: [any-value!]
+        {LOGIC! if both inputs are logic, otherwise right hand value or blank}
     left [any-value!]
         {Expression which will always be evaluated}
     :right [group!]
-        {Quoted expression, that will be evaluated only if LEFT is TRUTHY?}
+        {Quoted expression, that will be evaluated only if LEFT is "truthy"}
 ][
-    either left [to-logic do right] [false]
+    either left [
+        right: do right else [
+            fail/where "Right hand side of AND can't be void" 'right
+        ]
+        either all [logic? left | logic? right] [
+            right
+        ][
+            either right [right] [blank]
+        ]
+    ][
+        left ;-- FALSE or BLANK!
+    ]
 ]
 
 or: enfix func [
-    {Short-circuit boolean AND}
+    {Short-circuit boolean OR}
 
-    return: [logic!]
+    return: [any-value!]
     left [any-value!]
         {Expression which will always be evaluated}
     :right [group!]
         {Quoted expression, that will be evaluated only if LEFT is FALSEY?}
 ][
-    either left [true] [to-logic do right]
+    either left [
+        left
+    ][
+        right: do right else [
+            fail/where "Right hand side of OR can't be void" 'right
+        ]
+        either all [logic? left | logic? right] [
+            right
+        ][
+            either right [right] [blank]
+        ]
+    ]
 ]
 
 nor: enfix func [

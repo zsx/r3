@@ -264,7 +264,7 @@ start-console: procedure [
             proto-skin/is-loaded ?? {Loaded skin} !! {Skin does not exist}
             "-" skin-file
             spaced [
-                "(CONSOLE" (not proto-skin/was-updated ?? {not}) "updated)"
+                "(CONSOLE" (proto-skin/was-updated !? {not}) "updated)"
             ]
         ]
     ]
