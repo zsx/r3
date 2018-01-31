@@ -80,7 +80,7 @@ default: enfix func [
 maybe: enfix func [
     "Set word or path to a default value if that value is set and not blank."
 
-    return: [any-value!]
+    return: [<opt> any-value!]
     'target [set-word! set-path!]
         "The word to which might be set"
     value [<opt> any-value!]
@@ -323,9 +323,7 @@ dig-function-meta-fields: function [value [function!]] [
 
         child: make frame! :value
         for-each param child [
-            if any-value? select* parent param [
-                child/(param): copy parent/(param)
-            ]
+            child/:param: maybe select parent param
         ]
         return child
     ]
@@ -650,28 +648,26 @@ ensure: redescribe [
 ](
     specialize 'either-test [
         branch: func [value [<opt> any-value!]] [
+            ;
+            ; !!! Can't use FAIL/WHERE until there is a good way to SPECIALIZE
+            ; a conditional with a branch referring to invocation parameters:
+            ;
+            ; https://github.com/metaeducation/ren-c/issues/587
+            ;
             fail [
                 "ENSURE did not expect argument of type" type of :value
             ]
-
-            ; !!! There is currently no good way to SPECIALIZE a conditional
-            ; which takes a branch, with a branch that refers to parameters
-            ; of the running specialization.  Hence, there's no way to say
-            ; something like /WHERE 'TEST to indicate a parameter from the
-            ; callsite, until a solution is found for that. :-(
         ]
         only: false ;-- Doesn't matter (it fails) just hide the refinement
     ]
 )
 
-ensure*: specialize 'ensure [only: true]
-
 really: func [
-    {FAIL if value is void (or blank if not /ONLY), otherwise pass it through}
+    {FAIL if value is void or blank, otherwise pass it through}
 
     value [any-value!] ;-- always checked for void, since no <opt>
     /only
-        {Just make sure the value isn't void, pass through BLANK!}
+        {Just make sure value isn't void, pass through BLANK! (see REALLY*)}
 ][
     ; While DEFAULT requires a BLOCK!, REALLY does not.  Catch mistakes such
     ; as `x: really [...]`
@@ -685,13 +681,17 @@ really: func [
     only ?? :value else [
         either-test :something? :value [
             fail/where
-                ["REALLY received a BLANK! (use REALLY* if this is ok)"]
+                ["REALLY received BLANK! (use /ONLY or REALLY* if intended)"]
                 'value
         ]
     ]
 ]
 
-really*: specialize 'really [only: true]
+really*: redescribe [
+    {FAIL if value is void, otherwise pass it through}
+](
+    specialize 'really [only: true]
+)
 
 
 select: redescribe [

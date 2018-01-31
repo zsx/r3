@@ -922,7 +922,7 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
     NOT(IS_FALSEY(v)) // macro gets file + line # in debug build
 
 // Although a BLOCK! value is true, some constructs are safer by not allowing
-// literal blocks.  e.g. `if [x] [print "this is not safe"`.  The evaluated
+// literal blocks.  e.g. `if [x] [print "this is not safe"]`.  The evaluated
 // bit can let these instances be distinguished.  Note that making *all*
 // evaluations safe would be limiting, e.g. `foo: any [false-thing []]`...
 // So ANY and ALL use IS_TRUTHY() directly
