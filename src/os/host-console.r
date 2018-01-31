@@ -54,10 +54,10 @@ console!: make object! [
 
     ;; APPEARANCE (can be overridden)
 
-    prompt:   {>> }
-    result:   {== }
-    warning:  {!! }
-    error:    {** }                ;; not used yet
+    prompt:   {>>}
+    result:   {==}
+    warning:  {!!}
+    error:    {**}                 ;; not used yet
     info:     to-string #{e29398}  ;; info sign!
     greeting: _
 
@@ -88,24 +88,35 @@ console!: make object! [
             ]
         ]
 
+        ; We don't want to use PRINT here because it would put the cursor on
+        ; a new line.
+        ;
         write-stdout block? prompt then [unspaced prompt] else [form prompt]
+        write-stdout space
     ]
 
     print-result: proc [v [<opt> any-value!]]  [
         last-result: :v
-        if set? 'v [
-            print unspaced [result (mold :v)]
+        case [
+            not set? 'v [] ;-- void evaluation, just don't print anything
+
+            function? :v [ ;-- fully molded function output is too much
+                print [result "#[function!" (mold words-of :v) "...]"]
+            ]
+        ]
+        else [
+            print [result (mold :v)]
         ]
     ]
 
-    print-warning:  proc [s] [print unspaced [warning reduce s]]
+    print-warning:  proc [s] [print [warning reduce s]]
     print-error:    proc [e [error!]] [print e]
 
     print-halted: proc [] [
         print "[interrupted by Ctrl-C or HALT instruction]"
     ]
 
-    print-info:     proc [s] [print [info space space reduce s]]
+    print-info:     proc [s] [print [info space space space reduce s]]
     print-greeting: proc []  [boot-print greeting]
     print-gap:      proc []  [print-newline]
 
