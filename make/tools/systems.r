@@ -268,7 +268,10 @@ systems: [
 
     Emscripten: 16
     ;-------------------------------------------------------------------------
-    0.16.0 emscripten/emscripten _
+    0.16.01 emscripten-node/emscripten "node"
+        #LEN
+
+    0.16.02 emscripten-web/emscripten "web"
         #LEN
 
     AIX: 17
