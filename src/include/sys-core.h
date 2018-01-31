@@ -156,7 +156,7 @@
 // of in the debugger.
 //
 #if !defined(NDEBUG)
-    #if defined(TO_HAIKU)
+    #if defined(TO_HAIKU) || defined(TO_EMSCRIPTEN)
         inline static int debug_break() {
             int x = 0;
             while (1) { ++x; }
