@@ -283,7 +283,7 @@ and: enfix func [
     {Short-circuit boolean AND}
 
     return: [any-value!]
-        {LOGIC! if both inputs are logic, otherwise right hand value or blank}
+        {LOGIC! if first input is LOGIC!, else right hand value or blank}
     left [any-value!]
         {Expression which will always be evaluated}
     :right [group!]
@@ -291,10 +291,10 @@ and: enfix func [
 ][
     either left [
         right: do right else [
-            fail/where "Right hand side of AND can't be void" 'right
+            fail/where "Right arg of AND can't be void" 'right
         ]
-        either all [logic? left | logic? right] [
-            right
+        either logic? left [
+            did right ;-- force result to LOGIC! if left hand side was logic
         ][
             either right [right] [blank]
         ]
@@ -307,6 +307,7 @@ or: enfix func [
     {Short-circuit boolean OR}
 
     return: [any-value!]
+        {LOGIC! if first input is LOGIC!, else left or right value or blank}
     left [any-value!]
         {Expression which will always be evaluated}
     :right [group!]
@@ -316,10 +317,10 @@ or: enfix func [
         left
     ][
         right: do right else [
-            fail/where "Right hand side of OR can't be void" 'right
+            fail/where "Right arg of OR can't be void" 'right
         ]
-        either all [logic? left | logic? right] [
-            right
+        either logic? left [
+            did right ;-- force result to LOGIC! if left hand side was logic
         ][
             either right [right] [blank]
         ]

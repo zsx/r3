@@ -320,14 +320,14 @@ host-start: function [
     ;
     die: func [
         {A graceful way to "FAIL" during startup}
-        reason [string!]
+        reason [string! block!]
             {Error message}
         /error e [error!]
             {Error object, shown if --verbose option used}
         <with> return
     ][
         print "Startup encountered an error!"
-        print ["**" reason]
+        print ["**" block? reason then [spaced reason] else [reason]]
         if error [
             print either o/verbose [e] ["!! use --verbose for more detail"]
         ]
@@ -429,13 +429,10 @@ host-start: function [
 
     param-or-die: func [
         {Take --option argv and then check if param arg is present, else die}
-        switch-arg [string!] {Command-line option (switch) used}
+        option [string!] {Command-line option (switch) used}
     ][
         take argv
-        any [
-            first argv
-            die join-all [switch-arg { parameter missing}]
-        ]
+        return first argv or (die [option {parameter missing}])
     ]
 
     ; As we process command line arguments, we build up an "instruction" block
@@ -600,10 +597,10 @@ host-start: function [
             )
         |
             [copy cli-option: [["--" | "-" | "+"] to end ]] (
-                die join-all [
-                    "Unknown command line option: " cli-option
-                    newline
-                    {!! For a full list of command-line options use:  --help}
+                die [
+                    "Unknown command line option:" cli-option
+                        |
+                    {!! For a full list of command-line options use: --help}
                 ]
             )
         ]

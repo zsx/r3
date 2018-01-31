@@ -51,3 +51,71 @@
 [((pi * 2) / 3) = arccosine/radians -0.5]
 [error? try [arccosine 1.1]]
 [error? try [arccosine -1.1]]
+
+
+; If LOGIC! on the left, enfixed AND returns LOGIC!.  Otherwise, it returns
+; the last truthy value it evaluated if test passes, else blank.
+;
+[false and (false) = false]
+[false and (true) = false]
+[true and (false) = false]
+[true and (true) = true]
+[
+    x: 1020
+    did all [
+        true and (x: _) = false 
+        x = _
+    ]
+][
+    x: _
+    did all [
+        true and (x: 304) = true
+        x = 304
+    ]
+][
+    x: 1020
+    did all [
+        <truthy> and (x: 304) = 304
+        x = 304
+    ]
+][
+    x: 1020
+    did all [
+        <truthy> and (x: _) = _
+        x = _
+    ]
+]
+
+
+; If LOGIC! on the left, enfixed OR returns LOGIC!.  Otherwise, it returns
+; the last truthy value it evaluated if test passes, else blank.
+;
+[false or (false) = false]
+[false or (true) = true]
+[true or (false) = true]
+[true or (true) = true]
+[
+    x: 1020
+    did all [
+        false or (x: _) = false 
+        x = _
+    ]
+][
+    x: _
+    did all [
+        false or (x: 304) = true
+        x = 304
+    ]
+][
+    x: 1020
+    did all [
+        _ or (x: 304) = 304
+        x = 304
+    ]
+][
+    x: 1020
+    did all [
+        _ or (x: true) = true
+        x = true
+    ]
+]
