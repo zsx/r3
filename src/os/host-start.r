@@ -298,6 +298,14 @@ host-start: function [
 
     system/product: 'core
 
+    ; !!! If we don't load the extensions early, then we won't get the GET-ENV
+    ; function (it's provided by the Process extension).  Though optional,
+    ; knowing where the home directory is, is needed for running startup
+    ; scripts.  This should be rethought because it may be that extensions
+    ; can be influenced by command line parameters as well.
+    ;
+    load-boot-exts boot-exts
+
     ; !!! The debugger is a work in progress.  But the design attempts to make
     ; it an optional extension which doesn't need to be built into the EXE,
     ; and can be loaded dynamically into any Rebol-based binary.  But it has
@@ -342,16 +350,28 @@ host-start: function [
         return: [blank! file!]
             {Blank if not found}
     ][
-        home: attempt [
-            any [
-                get-env 'HOME
-                ; join-of could fail because it doesn't accept blank
-                attempt [join-of get-env 'HOMEDRIVE get-env 'HOMEPATH]
+        unless get-env: attempt [:system/modules/Process/get-env] [
+            loud-print [
+                "Interpreter not built with GET-ENV, can't detect HOME dir"
+                    |
+                "(Build with Process extension enabled to address this)"
             ]
+            return blank
         ]
+        
+        any [
+            get-env 'HOME
 
-        if blank? home [return _]
-        to-dir home
+            all [
+                homedrive: get-env 'HOMEDRIVE
+                homepath: get-env 'HOMEPATH
+                join-of homedrive homepath
+            ]
+        ] then home -> [
+            to-dir home
+        ] else [
+            blank
+        ]
     ]
 
     get-resources-path: function [
@@ -657,8 +677,6 @@ host-start: function [
 
     ; version, import, secure are all of valid type or blank
 
-
-    load-boot-exts boot-exts
 
     for-each [spec body] host-prot [module spec body]
     host-prot: 'done
