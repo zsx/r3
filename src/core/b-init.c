@@ -1111,6 +1111,7 @@ void Startup_Core(void)
 
 #ifndef NDEBUG
     PG_Always_Malloc = FALSE;
+    PG_Probe_Failures = FALSE;
 #endif
 
     // Globals

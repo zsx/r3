@@ -147,6 +147,15 @@
 #endif
 
 
+// The %reb-c.h file includes something like C99's <stdint.h> for setting up
+// a basis for concrete data type sizes, which define the Rebol basic types
+// (such as REBOOL, REBYTE, REBU64, etc.)  It also contains some other helpful
+// macros and tools for C programming.
+//
+#include "reb-c.h"
+#include "reb-defs.h"
+
+
 //
 // PROGRAMMATIC C BREAKPOINT
 //
@@ -168,13 +177,48 @@
 #endif
 
 
-// The %reb-c.h file includes something like C99's <stdint.h> for setting up
-// a basis for concrete data type sizes, which define the Rebol basic types
-// (such as REBOOL, REBYTE, REBU64, etc.)  It also contains some other helpful
-// macros and tools for C programming.
+
+//=////////////////////////////////////////////////////////////////////////=//
 //
-#include "reb-c.h"
-#include "reb-defs.h"
+//  TICK-RELATED FUNCTIONS <== **THESE ARE VERY USEFUL**
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Each iteration of DO bumps a global count, that in deterministic repro
+// cases can be very helpful in identifying the "tick" where certain problems
+// are occurring.  The debug build pokes this ticks lots of places--into
+// value cells when they are formatted, into series when they are allocated
+// or freed, or into stack frames each time they perform a new operation.
+//
+// BREAK_NOW() will show the stack status at the right moment.  If you have a
+// reproducible tick count, then BREAK_ON_TICK() is useful.  See also
+// TICK_BREAKPOINT in %c-eval.c for a description of all the places the debug
+// build hides tick counts which may be useful for sleuthing bug origins.
+//
+// The SPORADICALLY() macro uses the count to allow flipping between different
+// behaviors in debug builds--usually to run the release behavior some of the
+// time, and the debug behavior some of the time.  This exercises the release
+// code path even when doing a debug build.
+//
+
+#define BREAK_NOW() /* macro means no stack frame, breaks at callsite */ \
+    printf("BREAK_ON_TICK() from C @ tick %ld\n", cast(long int, TG_Tick)); \
+    fflush(stdout); \
+    Dump_Frame_Location(NULL, FS_TOP); \
+    debug_break(); /* see %debug_break.h */ \
+
+#define BREAK_ON_TICK(tick) \
+    if (tick == TG_Tick) BREAK_NOW()
+
+#ifdef NDEBUG
+    #define SPORADICALLY(modulus) \
+        FALSE
+#else
+    #define SPORADICALLY(modulus) \
+        (TG_Tick % modulus == 0)
+#endif
+
+
 
 // Must be defined at the end of reb-defs.h, but not *in* reb-defs.h so that
 // files including sys-core.h and reb-host.h can have differing definitions of

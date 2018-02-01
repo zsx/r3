@@ -22,11 +22,16 @@ REBOL [
     }
 ]
 
+; Easy to mistype, so alias it to avoid an even more painful debug session (!)
+;
+c-break-debug: :c-debug-break
+
 
 ; Words for BLANK! and BAR!, for those who don't like symbols
 
 blank: _
 bar: '|
+
 
 ; COMMENT has a relatively complex-looking definition because it seeks to be
 ; "truly invisible".  This means that it can't disrupt the flow of evaluation,

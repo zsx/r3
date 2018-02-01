@@ -174,6 +174,19 @@ void Assert_No_Relative(REBARR *array, REBU64 types)
 }
 
 
+inline static void Probe_Print_Helper(
+    const void *p,
+    const char *label,
+    const char *file,
+    int line
+){
+    printf("\n**PROBE(%s, %p): ", label, cast(void*, p));
+    printf("tick %d %s:%d\n", cast(int, TG_Tick), file, line);
+    fflush(stdout);
+    fflush(stderr);
+}
+
+
 //
 //  Probe_Core_Debug: C
 //
@@ -183,41 +196,37 @@ void* Probe_Core_Debug(
     const void *p,
     const char *file,
     int line
-) {
-    const struct Reb_Header *h = cast(const struct Reb_Header*, p);
+){
+    REBOOL was_disabled = GC_Disabled;
+    GC_Disabled = TRUE;
 
-    printf("\n** PROBE() ");
-    printf("tick %d %s:%d\n", cast(int, TG_Tick), file, line);
+    switch (Detect_Rebol_Pointer(p)) {
+    case DETECTED_AS_UTF8:
+        Probe_Print_Helper(p, "C String", file, line);
+        printf("\"%s\"\n", cast(const char*, p));
+        fflush(stdout);
+        break;
 
-    fflush(stdout);
-    fflush(stderr);
-
-    if (h->bits & NODE_FLAG_CELL)
-        Debug_Fmt("%r\n", cast(const REBVAL*, p));
-    else {
+    case DETECTED_AS_SERIES: {
         REBSER *s = m_cast(REBSER*, cast(const REBSER*, p));
 
-        // Invalid series would possibly (but not necessarily) crash the print
-        // routines--which are the same ones used to output a series normally.
-        // Hence don't attempt to print a known malformed series.  A more
-        // pointed message will probably come from ASSERT_SERIES, saying
-        // what is wrong rather than just crashing the print code...
-        //
-        ASSERT_SERIES(s);
+        ASSERT_SERIES(s); // if corrupt, gives better info than a print crash
 
-        if (GET_SER_FLAG(s, ARRAY_FLAG_VARLIST))
+        if (GET_SER_FLAG(s, ARRAY_FLAG_VARLIST)) {
+            Probe_Print_Helper(p, "Context Varlist", file, line);
             Debug_Fmt("%r\n", CTX_VALUE(CTX(s)));
+        }
         else {
-            REBOOL disabled = GC_Disabled;
-            GC_Disabled = TRUE;
-
             // This routine is also a little catalog of the outlying series
             // types in terms of sizing, just to know what they are.
 
-            if (BYTE_SIZE(s))
+            if (BYTE_SIZE(s)) {
+                Probe_Print_Helper(p, "Byte-Size Series", file, line);
                 Debug_Str(s_cast(BIN_HEAD(s)));
+            }
             else if (GET_SER_FLAG(s, SERIES_FLAG_ARRAY)) {
-                //
+                Probe_Print_Helper(p, "Array", file, line);
+
                 // May not actually be a REB_BLOCK, but we put it in a value
                 // container for now saying it is so we can output it.  May
                 // not want to Manage_Series here, so we use a raw
@@ -230,8 +239,10 @@ void* Probe_Core_Debug(
 
                 Debug_Fmt("%r", value);
             }
-            else if (SER_WIDE(s) == sizeof(REBUNI))
+            else if (SER_WIDE(s) == sizeof(REBUNI)) {
+                Probe_Print_Helper(p, "UTF16 String", file, line);
                 Debug_Uni(s);
+            }
             else if (s == PG_Canons_By_Hash) {
                 printf("can't probe PG_Canons_By_Hash\n");
                 panic (s);
@@ -243,10 +254,29 @@ void* Probe_Core_Debug(
             else
                 panic (s);
 
-            assert(GC_Disabled == TRUE);
-            GC_Disabled = disabled;
         }
+        break; }
+
+    case DETECTED_AS_FREED_SERIES:
+        Probe_Print_Helper(p, "Freed Series", file, line);
+        panic (p);
+
+    case DETECTED_AS_VALUE:
+        Probe_Print_Helper(p, "Value", file, line);
+        Debug_Fmt("%r\n", cast(const REBVAL*, p));
+        break;
+
+    case DETECTED_AS_END:
+        Probe_Print_Helper(p, "END", file, line);
+        panic (p); // !!! TBD: nicer handling, extract init location if avail?
+    
+    case DETECTED_AS_TRASH_CELL:
+        Probe_Print_Helper(p, "Trash Cell", file, line);
+        panic (p);
     }
+
+    assert(GC_Disabled == TRUE);
+    GC_Disabled = was_disabled;
 
     return m_cast(void*, p); // must be cast back to const if source was const
 }

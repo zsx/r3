@@ -83,6 +83,7 @@ PVAR REB_OPTS *Reb_Opts;
 
 #ifndef NDEBUG
     PVAR REBOOL PG_Always_Malloc;   // For memory-related troubleshooting
+    PVAR REBOOL PG_Probe_Failures; // helpful especially for boot errors & panics
 #endif
 
 // These are some canon BLANK, TRUE, and FALSE values (and void/end cells).
