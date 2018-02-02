@@ -49,7 +49,7 @@
 
 #include "sys-core.h"
 
-#if !defined(NDEBUG)
+#if !defined(NDEBUG) || defined(DEBUG_COUNT_TICKS)
 
 //
 //  Dump_Frame_Location: C
@@ -98,6 +98,10 @@ void Dump_Frame_Location(const RELVAL *current, REBFRM *f)
     }
 }
 
+#endif
+
+
+#if !defined(NDEBUG)
 
 // These are checks common to Expression and Exit checks (hence also common
 // to the "end of Start" checks, since that runs on the first expression)

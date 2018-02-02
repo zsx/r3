@@ -52,7 +52,7 @@
 #include "sys-core.h"
 
 
-#if !defined(NDEBUG)
+#if defined(DEBUG_COUNT_TICKS)
     //
     // The evaluator `tick` should be visible in the C debugger watchlist as a
     // local variable in Do_Core() for each stack level.  So if a fail()
@@ -120,13 +120,22 @@ static inline REBOOL Start_New_Expression_Throws(REBFRM *f) {
 }
 
 
-#ifdef DEBUG_COUNT_TICKS
+#if !defined(NDEBUG)
     #define START_NEW_EXPRESSION_MAY_THROW(f,g) \
         Do_Core_Expression_Checks_Debug(f); \
         if (Start_New_Expression_Throws(f)) \
             g; \
         evaluating = NOT((f)->flags.bits & DO_FLAG_EXPLICIT_EVALUATE);
+#else
+    #define START_NEW_EXPRESSION_MAY_THROW(f,g) \
+        if (Start_New_Expression_Throws(f)) \
+            g; \
+        evaluating = NOT((f)->flags.bits & DO_FLAG_EXPLICIT_EVALUATE);
+#endif
 
+
+#ifdef DEBUG_COUNT_TICKS
+    //
     // Macro is used to mutate local `tick` variable in Do_Core (for easier
     // browsing in the watchlist) as well as to not be in a deeper stack level
     // than Do_Core when a TICK_BREAKPOINT is hit.
@@ -155,12 +164,8 @@ static inline REBOOL Start_New_Expression_Throws(REBFRM *f) {
 #else
     #define UPDATE_TICK_DEBUG(cur) \
         NOOP
-
-    #define START_NEW_EXPRESSION_MAY_THROW(f,g) \
-        if (Start_New_Expression_Throws(f)) \
-            g; \
-        evaluating = NOT((f)->flags.bits & DO_FLAG_EXPLICIT_EVALUATE);
 #endif
+
 
 static inline void Drop_Function(REBFRM *f) {
     assert(NOT(THROWN(f->out)));

@@ -1111,6 +1111,9 @@ void Startup_Core(void)
 
 #ifndef NDEBUG
     PG_Always_Malloc = FALSE;
+#endif
+
+#ifdef DEBUG_HAS_PROBE
     PG_Probe_Failures = FALSE;
 #endif
 

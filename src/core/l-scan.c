@@ -425,8 +425,10 @@ static const REBYTE *Scan_Quote_Push_Mold(
             return NULL; // Scan_state shows error location.
 
         case '^':
-            if ((src = Scan_UTF8_Char_Escapable(&chr, src)) == NULL)
+            if ((src = Scan_UTF8_Char_Escapable(&chr, src)) == NULL) {
+                TERM_UNI(mo->series);
                 return NULL;
+            }
             --src;
             break;
 
@@ -444,16 +446,20 @@ static const REBYTE *Scan_Quote_Push_Mold(
             if (src[1] == LF) src++;
             // fall thru
         case LF:
-            if (term == '"')
+            if (term == '"') {
+                TERM_UNI(mo->series);
                 return NULL;
+            }
             lines++;
             chr = LF;
             break;
 
         default:
             if (chr >= 0x80) {
-                if ((src = Back_Scan_UTF8_Char(&chr, src, NULL)) == NULL)
+                if ((src = Back_Scan_UTF8_Char(&chr, src, NULL)) == NULL) {
+                    TERM_UNI(mo->series);
                     return NULL;
+                }
             }
         }
 

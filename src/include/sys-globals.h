@@ -81,9 +81,12 @@ PVAR REBYTE *PG_Pool_Map;   // Memory pool size map (created on boot)
 PVAR REBI64 PG_Boot_Time;   // Counter when boot started
 PVAR REB_OPTS *Reb_Opts;
 
+#ifdef DEBUG_HAS_PROBE
+    PVAR REBOOL PG_Probe_Failures; // helpful especially for boot errors & panics
+#endif
+
 #ifndef NDEBUG
     PVAR REBOOL PG_Always_Malloc;   // For memory-related troubleshooting
-    PVAR REBOOL PG_Probe_Failures; // helpful especially for boot errors & panics
 #endif
 
 // These are some canon BLANK, TRUE, and FALSE values (and void/end cells).

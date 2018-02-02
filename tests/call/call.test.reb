@@ -9,7 +9,7 @@
 [
     ; small - note Windows doesn't do BLOCK! arg to CALL (argv style) yet
 
-    call/shell/wait/output probe spaced [
+    call/shell/wait/output spaced [
         (file-to-local system/options/boot)
         {--suppress "*" call/print.reb 100}
     ] data: copy {}

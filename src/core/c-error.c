@@ -257,8 +257,14 @@ ATTRIBUTE_NO_RETURN void Fail_Core(const void *p)
     // This is set via an environment variable (e.g. R3_PROBE_FAILURES=1)
     // Helpful for debugging boot, before command line parameters are parsed.
     //
-    if (PG_Probe_Failures)
-        PROBE(p);
+    if (PG_Probe_Failures) {
+        if (p == cast(void*, VAL_CONTEXT(TASK_STACK_ERROR))) {
+            printf("PROBE(Stack Overflow) -> mold in PROBE would recurse");
+            fflush(stdout);
+        }
+        else
+           PROBE(p);
+    }
   #endif
 
     switch (Detect_Rebol_Pointer(p)) {

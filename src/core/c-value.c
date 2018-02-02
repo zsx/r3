@@ -180,6 +180,10 @@ void Assert_No_Relative(REBARR *array, REBU64 types)
     }
 }
 
+#endif // !defined(NDEBUG)
+
+
+#ifdef DEBUG_HAS_PROBE
 
 inline static void Probe_Print_Helper(
     const void *p,
@@ -187,7 +191,7 @@ inline static void Probe_Print_Helper(
     const char *file,
     int line
 ){
-    printf("\n**PROBE(%s, %p): ", label, cast(void*, p));
+    printf("\n**PROBE(%s, %p): ", label, p);
   #ifdef DEBUG_COUNT_TICKS
     printf("tick %d ", cast(int, TG_Tick));
   #endif
@@ -313,4 +317,4 @@ void* Probe_Core_Debug(
     return m_cast(void*, p); // must be cast back to const if source was const
 }
 
-#endif
+#endif // defined(DEBUG_HAS_PROBE)
