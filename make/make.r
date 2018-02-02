@@ -27,6 +27,10 @@ src-dir: append copy make-dir %../src
 src-dir: relative-to-path src-dir output-dir
 
 user-config: make object! load make-dir/default-config.r
+if not (make-dir = output-dir) [try [
+	user-config: make user-config load %default-config.r
+	print ["processed" output-dir/default-config.r]
+]]
 
 ;;;; PROCESS ARGS
 ; args are:
