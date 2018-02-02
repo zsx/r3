@@ -610,8 +610,8 @@ void *RL_rebEval(const REBVAL *v)
     // something to distinguish them.
     //
     REBARR *result = Alloc_Singular_Array();
-    Move_Value(KNOWN(ARR_HEAD(result)), v);
-    SET_VAL_FLAG(ARR_HEAD(result), VALUE_FLAG_EVAL_FLIP);
+    Move_Value(KNOWN(ARR_SINGLE(result)), v);
+    SET_VAL_FLAG(ARR_SINGLE(result), VALUE_FLAG_EVAL_FLIP);
 
     // !!! The intent for the long term is that these rebEval() instructions
     // not tax the garbage collector and be freed as they are encountered
@@ -666,6 +666,23 @@ REBVAL *RL_rebBlank(void)
 
     return result;
 }
+
+
+//
+//  rebInteger: RL_API
+//
+REBVAL *RL_rebInteger(int i)
+{
+    Enter_Api_Clear_Last_Error();
+
+    REBVAL *result = Alloc_Pairing(NULL);
+    Init_Integer(result, i);
+    Init_Blank(PAIRING_KEY(result));
+
+    return result;
+}
+
+
 
 //
 //  rebHalt: RL_API
@@ -1080,6 +1097,47 @@ void RL_rebInitDate(
 
     SET_VAL_FLAG(out, DATE_FLAG_HAS_TIME);
     VAL_NANO(out) = SECS_TO_NANO(seconds) + nano;
+}
+
+
+//
+//  rebMoldAlloc: RL_API
+//
+// Mold any value and produce a UTF-8 string from it.
+//
+// !!! API design question is whether the C APIs should focus on C types and
+// returning a char*, vs returning a STRING! which has to have its spelling
+// extracted in an additional step.  If someone wanted the latter, then the
+// idea is they could write `rebDo("mold", value, END);`...and that rather
+// than trying to optimize that the goal is to optimize the speed of that
+// pattern (e.g. by making a "prepared statement" that only loads and binds
+// "mold" once...)
+//
+char *RL_rebMoldAlloc(REBCNT *len_out, const REBVAL *v)
+{
+    Enter_Api_Clear_Last_Error();
+
+    DECLARE_MOLD (mo);
+    Push_Mold(mo);
+    Mold_Value(mo, v);
+
+    // !!! In UTF-8 Everywhere, the mold buffer is UTF-8, and could be copied
+    // out of directly without these extra steps.
+    //
+    DECLARE_LOCAL (molded);
+    Init_String(molded, Pop_Molded_String(mo));
+
+    REBCNT index = VAL_INDEX(molded);
+    REBCNT len = VAL_LEN_AT(molded);
+    REBSER *utf8 = Temp_UTF8_At_Managed(molded, &index, &len);
+
+    char *result = OS_ALLOC_N(char, len + 1);
+    memcpy(result, BIN_AT(utf8, index), len + 1); // has '\0' terminator
+
+    if (len_out != NULL)
+        *len_out = len;
+
+    return result;
 }
 
 

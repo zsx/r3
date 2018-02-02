@@ -137,6 +137,11 @@ inline static void Push_Frame_Core(REBFRM *f)
     assert(!IN_DATA_STACK_DEBUG(f->out));
   #endif
 
+  #ifdef STRESS_EXPIRED_FETCH
+    f->stress = cast(RELVAL*, malloc(sizeof(RELVAL)));
+    Prep_Stack_Cell(f->stress); // start out as trash
+  #endif
+
     // The arguments to functions in their frame are exposed via FRAME!s
     // and through WORD!s.  This means that if you try to do an evaluation
     // directly into one of those argument slots, and run arbitrary code
@@ -244,6 +249,10 @@ inline static void Abort_Frame_Core(REBFRM *f) {
 }
 
 inline static void Drop_Frame_Core(REBFRM *f) {
+  #if defined(STRESS_EXPIRED_FETCH)
+    free(f->stress);
+  #endif
+
   #if defined(DEBUG_BALANCE_STATE)
     //
     // To keep from slowing down the debug build too much, Do_Core() doesn't
@@ -330,8 +339,33 @@ inline static void Recover_Frame(REBFRM *f)
 // code has to be factored out (because a C va_list cannot have its first
 // parameter in the variadic).
 //
-inline static void Set_Frame_Detected_Fetch(REBFRM *f, const void *p)
+inline static const RELVAL *Set_Frame_Detected_Fetch(REBFRM *f, const void *p)
 {
+    const RELVAL *lookback;
+    if (f->flags.bits & DO_FLAG_VALUE_IS_INSTRUCTION) { // see flag notes
+        Move_Value(&f->cell, const_KNOWN(f->value));
+
+        // Flag is not copied, but is it necessary to set it on the lookback,
+        // or has the flag already been extracted to a local in Do_Core()?
+        //
+        SET_VAL_FLAG(&f->cell, VALUE_FLAG_EVAL_FLIP);
+
+        lookback = &f->cell;
+        f->flags.bits &= ~DO_FLAG_VALUE_IS_INSTRUCTION;
+
+        // Ideally we would free the singular array here, but since the free
+        // would occur during a Do_Core() it would appear to be happening
+        // outside of a checkpoint.  It's an important enough assert to
+        // not disable lightly just for this case, so the instructions
+        // are managed for now...but the intention is to free them as
+        // they are encountered.  For now, just unreadable-blank it.
+        //
+        /* Free_Array(Singular_From_Cell(f->value)); */
+        Init_Unreadable_Blank(m_cast(RELVAL*, cast(const RELVAL*, f->value)));
+    }
+    else
+        lookback = f->value;
+
 detect_again:
 
   #if !defined(NDEBUG)
@@ -397,24 +431,29 @@ detect_again:
         // palatable.)
         //
         REBARR *eval = ARR(m_cast(void*, p));
-        assert(NOT_SER_INFO(eval, SERIES_INFO_HAS_DYNAMIC));
-        assert(GET_VAL_FLAG(ARR_HEAD(eval), VALUE_FLAG_EVAL_FLIP));
 
-        Move_Value(&f->cell, KNOWN(ARR_HEAD(eval)));
-        SET_VAL_FLAG(&f->cell, VALUE_FLAG_EVAL_FLIP);
-        f->value = &f->cell;
+        // !!! The initial plan was to move the value into the frame cell and
+        // free the instruction array here.  That can't work because the
+        // evaluator needs to be able to see a cell and a unit ahead at the
+        // same time...and `rebDo(rebEval(x), rebEval(y), ...)` can't have
+        // `y` overwriting the cell where `x` is during that lookahead.
+        //
+        // So instead we point directly into the instruction and then set a
+        // frame flag indicating the GC that the f->value cell points into
+        // an instruction, so it needs to guard the singular array by doing
+        // pointer math to get its head.  Then on a subsequent fetch, if
+        // that flag is set we need to copy the data into the frame cell and
+        // return it.  Only variadic access should need to pay this cost.
+        //
+        // (That all is done at the top of this routine.)
+        //
+        f->value = ARR_SINGLE(eval);
+        assert(GET_VAL_FLAG(f->value, VALUE_FLAG_EVAL_FLIP));
+        f->flags.bits |= DO_FLAG_VALUE_IS_INSTRUCTION;
+ 
     #if !defined(NDEBUG)
         f->kind = VAL_TYPE(f->value);
     #endif
-
-        // !!! Ideally we would free the array here, but since the free
-        // would occur during a Do_Core() it would appear to be happening
-        // outside of a checkpoint.  It's an important enough assert to
-        // not disable lightly just for this case, so the instructions
-        // are managed for now...but the intention is to free them as
-        // they are encountered.
-        //
-        /* Free_Array(eval); */
         break; }
 
     case DETECTED_AS_FREED_SERIES:
@@ -452,6 +491,8 @@ detect_again:
     default:
         assert(FALSE);
     }
+
+    return lookback;
 }
 
 
@@ -466,8 +507,15 @@ detect_again:
 // More generally, an END marker in f->source.pending for this routine is a
 // signal that the vaptr (if any) should be consulted next.
 //
-inline static void Fetch_Next_In_Frame(REBFRM *f) {
+inline static const RELVAL *Fetch_Next_In_Frame(REBFRM *f) {
     assert(FRM_HAS_MORE(f)); // caller should test this first
+
+  #ifdef STRESS_EXPIRED_FETCH
+     TRASH_CELL_IF_DEBUG(f->stress);
+     free(f->stress);
+  #endif
+
+    const RELVAL *lookback;
 
     if (NOT_END(f->source.pending)) {
         //
@@ -481,6 +529,7 @@ inline static void Fetch_Next_In_Frame(REBFRM *f) {
             || f->source.pending == ARR_AT(f->source.array, f->source.index)
         );
 
+        lookback = f->value;
         f->value = f->source.pending;
     #if !defined(NDEBUG)
         f->kind = VAL_TYPE(f->value);
@@ -494,6 +543,7 @@ inline static void Fetch_Next_In_Frame(REBFRM *f) {
         // We're not processing a C variadic at all, so the first END we hit
         // is the full stop end.
         //
+        lookback = f->value;
         f->value = NULL;
     #if !defined(NDEBUG)
         f->kind = REB_0;
@@ -511,8 +561,16 @@ inline static void Fetch_Next_In_Frame(REBFRM *f) {
         f->source.index = TRASHED_INDEX;
     #endif
 
-        Set_Frame_Detected_Fetch(f, p);
+        lookback = Set_Frame_Detected_Fetch(f, p);
     }
+
+  #ifdef STRESS_EXPIRED_FETCH
+     f->stress = cast(RELVAL*, malloc(sizeof(RELVAL)));
+     memcpy(f->stress, lookback, sizeof(RELVAL));
+     lookback = f->stress;
+  #endif
+
+    return lookback;
 }
 
 
@@ -912,6 +970,7 @@ inline static REBIXO Do_Va_Core(
     REBFLGS flags
 ){
     DECLARE_FRAME (f);
+    Init_Endlike_Header(&f->flags, flags); // read by Set_Frame_Detected_Fetch
 
     f->gotten = END; // so REB_WORD and REB_GET_WORD do their own Get_Var
 
@@ -946,8 +1005,6 @@ inline static REBIXO Do_Va_Core(
     f->out = out;
 
     f->specifier = SPECIFIED; // relative values not allowed in va_lists
-
-    Init_Endlike_Header(&f->flags, flags); // see notes
 
     Push_Frame_Core(f);
     (*PG_Do)(f);

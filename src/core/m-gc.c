@@ -316,7 +316,7 @@ inline static void Queue_Mark_Singular_Array(REBARR *a) {
     assert(NOT_SER_INFO(a, SERIES_INFO_HAS_DYNAMIC));
 
     SER(a)->header.bits |= NODE_FLAG_MARKED;
-    Queue_Mark_Opt_Value_Deep(ARR_HEAD(a));
+    Queue_Mark_Opt_Value_Deep(ARR_SINGLE(a));
 }
 
 
@@ -476,7 +476,7 @@ static void Queue_Mark_Opt_Value_Deep(const RELVAL *v)
 
         #if !defined(NDEBUG)
             assert(ARR_LEN(singular) == 1);
-            RELVAL *single = ARR_HEAD(singular);
+            RELVAL *single = ARR_SINGLE(singular);
             assert(IS_HANDLE(single));
             assert(single->extra.singular == v->extra.singular);
             if (v != single) {
@@ -1153,8 +1153,13 @@ static void Mark_Frame_Stack_Deep(void)
         // will stay on the stack while the zero-arity function is running.
         // The array still might be used in an error, so can't GC it.
         //
-        if (FRM_HAS_MORE(f) && Is_Value_Managed(f->value))
-            Queue_Mark_Value_Deep(f->value);
+        if (FRM_HAS_MORE(f)) {
+            if (Is_Value_Managed(f->value))
+                Queue_Mark_Value_Deep(f->value);
+
+            if (f->flags.bits & DO_FLAG_VALUE_IS_INSTRUCTION)
+                Mark_Rebser_Only(cast(REBSER*, Singular_From_Cell(f->value)));
+        }
 
         if (NOT(f->specifier->header.bits & NODE_FLAG_CELL)) {
             assert(

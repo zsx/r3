@@ -64,8 +64,8 @@ void MAKE_Library(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
         fail (Error_Bad_Make(REB_LIBRARY, arg));
 
     REBARR *singular = Alloc_Singular_Array();
-    VAL_RESET_HEADER(ARR_HEAD(singular), REB_LIBRARY);
-    ARR_HEAD(singular)->payload.library.singular = singular;
+    VAL_RESET_HEADER(ARR_SINGLE(singular), REB_LIBRARY);
+    ARR_SINGLE(singular)->payload.library.singular = singular;
 
     LINK(singular).fd = fd;
     MISC(singular).meta = NULL; // build from spec, e.g. arg?

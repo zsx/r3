@@ -239,13 +239,33 @@
     FLAGIT_LEFT(14)
 
 
+//=//// DO_FLAG_VALUE_IS_INSTRUCTION //////////////////////////////////////=//
+//
+// If variadic processing of rebDo() comes across a rebEval() instruction,
+// it is responsible for freeing it.  It can't be freed on the cycle it is
+// used, because f->value still point at the singular cell in the instruction.
+// It can only be freed on the subsequent cycle...*but* the lookahead process
+// wants to fetch and still have access to the old value...while possibly
+// latching onto a new rebEval() simultaneously.
+//
+// To make the cell data available for lookback, it copies the content of
+// f->value into the frame's temporary cell in this case.  This flag signals
+// the need to make this copy and return it as an updated lookback pointer,
+// as well as a signal to the GC to preserve the pointed into array for the
+// duration that f->value points into the singular array's data.
+//
+#define DO_FLAG_VALUE_IS_INSTRUCTION \
+    FLAGIT_LEFT(15)
+
+
+
 // Currently the rightmost two bytes of the Reb_Frame->flags are not used,
 // so the flags could theoretically go up to 31.  It could hold something
 // like the ->eval_type, but performance is probably better to put such
 // information in a platform aligned position of the frame.
 //
 #ifdef CPLUSPLUS_11
-    static_assert(14 < 32, "DO_FLAG_XXX too high");
+    static_assert(15 < 32, "DO_FLAG_XXX too high");
 #endif
 
 
@@ -699,6 +719,19 @@ struct Reb_Frame {
     // evaluator step--see BALANCE_CHECK_EVERY_EVALUATION_STEP.
     //
     struct Reb_State state;
+  #endif
+
+  #if defined(STRESS_EXPIRED_FETCH)
+    //
+    // The contract for Fetch_Next_In_Frame is that it will return a pointer
+    // to a cell with equivalent data to what used to be in f->value, but
+    // that might not be f->value.  For all practical purposes, one is to
+    // assume that the f->value pointer died after the fetch.  To help
+    // stress this invariant, frames will forcibly expire REBVAL cells.
+    //
+    // !!! Test currently leaks on shutdown, review how to not leak.
+    //
+    RELVAL *stress;
   #endif
 };
 

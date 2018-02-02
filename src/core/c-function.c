@@ -1023,7 +1023,7 @@ REBFUN *Make_Function(
     // a block--it's anything that the dispatcher might wish to interpret.
 
     REBARR *body_holder = Alloc_Singular_Array();
-    Init_Blank(ARR_HEAD(body_holder));
+    Init_Blank(ARR_SINGLE(body_holder));
     MANAGE_ARRAY(body_holder);
 
     rootparam->payload.function.body_holder = body_holder;
@@ -1130,7 +1130,7 @@ REBCTX *Make_Expired_Frame_Ctx_Managed(REBFUN *func)
     MISC(varlist).meta = NULL; // seen by GC, must be initialized
     MANAGE_ARRAY(varlist);
 
-    RELVAL *rootvar = ARR_HEAD(varlist);
+    RELVAL *rootvar = ARR_SINGLE(varlist);
     VAL_RESET_HEADER(rootvar, REB_FRAME);
     rootvar->payload.any_context.varlist = varlist;
     rootvar->payload.any_context.phase = func;

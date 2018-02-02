@@ -77,7 +77,7 @@ static void get_scalar(
         //
         REBSTU *sub_stu = Alloc_Singular_Array();
         LINK(sub_stu).schema = field;
-        REBVAL *single = SINK(ARR_HEAD(sub_stu));
+        REBVAL *single = SINK(ARR_SINGLE(sub_stu));
 
         // In this case the structure lives at an offset inside another.
         //
@@ -267,7 +267,7 @@ REBARR *Struct_To_Array(REBSTU *stu)
             //
             REBCNT dimension = FLD_DIMENSION(field);
             REBARR *one_int = Alloc_Singular_Array();
-            Init_Integer(ARR_HEAD(one_int), dimension);
+            Init_Integer(ARR_SINGLE(one_int), dimension);
             Init_Block(Alloc_Tail_Array(typespec), one_int);
 
             // Initialization seems to be just another block after that (?)
@@ -1342,7 +1342,7 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
     // Set it to blank so the Kill_Series can be called upon in case of error
     // thrown before it is fully constructed.
     //
-    Init_Blank(ARR_HEAD(stu));
+    Init_Blank(ARR_SINGLE(stu));
 
     MANAGE_ARRAY(schema);
     LINK(stu).schema = schema;

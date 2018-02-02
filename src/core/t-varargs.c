@@ -382,9 +382,9 @@ void MAKE_Varargs(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
         //
         REBARR *array1 = Alloc_Singular_Array();
         if (IS_END(VAL_ARRAY_AT(arg)))
-            SET_END(ARR_HEAD(array1));
+            SET_END(ARR_SINGLE(array1));
         else
-            Move_Value(ARR_HEAD(array1), arg);
+            Move_Value(ARR_SINGLE(array1), arg);
         MANAGE_ARRAY(array1);
 
         VAL_RESET_HEADER(out, REB_VARARGS);
@@ -632,10 +632,10 @@ void MF_Varargs(REB_MOLD *mo, const RELVAL *v, REBOOL form) {
         }
         /*
         REBARR *array1 = ARR(VAL_BINDING(v));
-        if (IS_END(ARR_HEAD(array1)))
+        if (IS_END(ARR_SINGLE(array1)))
             Append_Unencoded(mo->series, "*exhausted*");
         else
-            Mold_Value(mo, ARR_HEAD(array1));
+            Mold_Value(mo, ARR_SINGLE(array1));
         */
     }
     else {

@@ -84,14 +84,8 @@ inline static REBVAL *FUNC_VALUE(REBFUN *f) {
 #define FUNC_DISPATCHER(f) \
     (MISC(FUNC_VALUE(f)->payload.function.body_holder).dispatcher)
 
-inline static RELVAL *FUNC_BODY(REBFUN *f) {
-    REBARR *body_holder = FUNC_VALUE(f)->payload.function.body_holder;
-    
-    // speed this up over ARR_HEAD() since function bodies are always singular
-    //
-    assert(NOT_SER_INFO(body_holder, SERIES_INFO_HAS_DYNAMIC));
-    return cast(RELVAL*, &SER(body_holder)->content.values[0]);
-}
+#define FUNC_BODY(f) \
+    ARR_SINGLE(FUNC_VALUE(f)->payload.function.body_holder)
 
 inline static REBVAL *FUNC_PARAM(REBFUN *f, REBCNT n) {
     assert(n != 0 && n < ARR_LEN(FUNC_PARAMLIST(f)));

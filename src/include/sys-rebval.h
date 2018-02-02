@@ -927,7 +927,10 @@ struct Reb_Cell
             : p (p) {}
 
         operator const Reb_Relative_Value* () { return p; }
-        
+        explicit operator Reb_Relative_Value* () {
+            return const_cast<Reb_Relative_Value*>(p);
+        }
+
         const Reb_Relative_Value* operator-> () { return p; } 
 
         const_Reb_Relative_Value_No_End_Ptr operator= (

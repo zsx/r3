@@ -386,10 +386,16 @@ do_next:;
     // !!! Review how often gotten has hits vs. misses, and what the benefit
     // of the feature actually is.
 
-    current = f->value;
     current_gotten = f->gotten;
     f->gotten = END;
-    Fetch_Next_In_Frame(f);
+
+    // Most calls to Fetch_Next_In_Frame() are no longer interested in the
+    // cell backing the pointer that used to be in f->value (this is enforced
+    // by a rigorous test in STRESS_EXPIRED_FETCH).  Special care must be
+    // taken when one is interested in that data, because it may have to be
+    // moved.  See notes in Fetch_Next_In_Frame.
+    //
+    current = Fetch_Next_In_Frame(f);
 
 reevaluate:;
     //

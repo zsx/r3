@@ -107,6 +107,28 @@ inline static RELVAL *ARR_TAIL(REBARR *a)
 inline static RELVAL *ARR_LAST(REBARR *a)
     { return SER_LAST(RELVAL, cast(REBSER*, a)); }
 
+// If you know something is a singular array a priori, then you don't have to
+// check the SERIES_INFO_HAS_DYNAMIC as you would in a generic ARR_HEAD.
+//
+inline static RELVAL *ARR_SINGLE(REBARR *a) {
+    assert(NOT_SER_INFO(a, SERIES_INFO_HAS_DYNAMIC));
+    return cast(RELVAL*, &SER(a)->content.values[0]);
+}
+
+// It's possible to calculate the array from just a cell if you know it's a
+// cell inside a singular array.
+//
+inline static REBARR *Singular_From_Cell(const RELVAL *v) {
+    REBARR *singular = ARR( // some checking in debug builds is done by ARR()
+        cast(void*,
+            cast(REBYTE*, m_cast(RELVAL*, v))
+            - offsetof(struct Reb_Series, content)
+        )
+    );
+    assert(NOT_SER_INFO(singular, SERIES_INFO_HAS_DYNAMIC));
+    return singular;
+}
+
 // As with an ordinary REBSER, a REBARR has separate management of its length
 // and its terminator.  Many routines seek to choose the precise moment to
 // sync these independently for performance reasons (for better or worse).

@@ -307,7 +307,7 @@ REBCTX *Context_For_Frame_May_Reify_Managed(REBFRM *f)
     // able to access this information.  This is under review for how it
     // might be stopped.
     //
-    REBVAL *rootvar = SINK(ARR_HEAD(f->varlist));
+    REBVAL *rootvar = SINK(ARR_SINGLE(f->varlist));
     VAL_RESET_HEADER(rootvar, REB_FRAME);
     rootvar->payload.any_context.varlist = f->varlist;
     rootvar->payload.any_context.phase = f->phase;

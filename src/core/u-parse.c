@@ -1213,7 +1213,7 @@ static REBIXO Do_Eval_Rule(REBFRM *f)
         // parse input is matched as a series.  Can this be avoided?
         //
         holder = Alloc_Singular_Array();
-        Move_Value(ARR_HEAD(holder), P_CELL);
+        Move_Value(ARR_SINGLE(holder), P_CELL);
         Deep_Freeze_Array(holder); // don't allow modification of temporary
     }
 

@@ -1578,7 +1578,7 @@ void GC_Kill_Series(REBSER *s)
 
         if (GET_SER_FLAG(s, SERIES_FLAG_ARRAY)) {
             RELVAL *v = ARR_HEAD(ARR(s));
-            if (NOT_END(v) && IS_HANDLE(v)) {
+            if (NOT_END(v) && VAL_TYPE_RAW(v) == REB_HANDLE) {
                 if (v->extra.singular == ARR(s)) {
                     (MISC(s).cleaner)(KNOWN(v));
                 }
