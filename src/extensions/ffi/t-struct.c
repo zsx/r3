@@ -726,7 +726,7 @@ static REBCNT Total_Struct_Dimensionality(REBARR *fields)
 //
 static void Prepare_Field_For_FFI(REBFLD *schema)
 {
-    assert(IS_UNREADABLE_IF_DEBUG(FLD_AT(schema, IDX_FIELD_FFTYPE)));
+    ASSERT_UNREADABLE_IF_DEBUG(FLD_AT(schema, IDX_FIELD_FFTYPE));
 
     ffi_type *fftype;
 

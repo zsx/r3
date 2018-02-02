@@ -60,12 +60,17 @@ ATTRIBUTE_NO_RETURN void Panic_Value_Debug(const RELVAL *v) {
     case REB_BLANK:
     case REB_LOGIC:
     case REB_BAR:
-        printf(
-            "REBVAL init on tick #%d at %s:%d\n",
-            cast(unsigned int, v->extra.tick),
-            v->payload.track.file,
-            v->payload.track.line
-        );
+      #if defined(DEBUG_TRACK_CELLS)
+        printf("REBVAL init ");
+
+        #if defined(DEBUG_TRACK_CELLS) && defined(DEBUG_COUNT_TICKS)
+            printf("on tick #%d", cast(unsigned int, v->extra.tick));
+        #endif
+
+        printf("at %s:%d\n", v->payload.track.file, v->payload.track.line);
+      #else
+        printf("No track info (see DEBUG_TRACK_CELLS/DEBUG_COUNT_TICKS)\n");
+      #endif
         fflush(stdout);
         break;
 
@@ -166,8 +171,10 @@ void Assert_No_Relative(REBARR *array, REBU64 types)
             printf("Array contained relative item and wasn't supposed to\n");
             panic (v);
         }
-        if (IS_UNREADABLE_IF_DEBUG(v))
+      #if defined(DEBUG_UNREADABLE_BLANKS)
+        if (IS_UNREADABLE_DEBUG(v))
             continue;
+      #endif
         if (types & FLAGIT_KIND(VAL_TYPE(v)) & TS_ARRAYS_OBJ)
              Assert_No_Relative(VAL_ARRAY(v), types);
     }
@@ -181,9 +188,30 @@ inline static void Probe_Print_Helper(
     int line
 ){
     printf("\n**PROBE(%s, %p): ", label, cast(void*, p));
-    printf("tick %d %s:%d\n", cast(int, TG_Tick), file, line);
+  #ifdef DEBUG_COUNT_TICKS
+    printf("tick %d ", cast(int, TG_Tick));
+  #endif
+    printf("%s:%d\n", file, line);
+
     fflush(stdout);
     fflush(stderr);
+}
+
+
+inline static void Probe_Molded_Value(const REBVAL *v)
+{
+    DECLARE_MOLD (mo);
+    Push_Mold(mo);
+    Mold_Value(mo, v);
+
+    DECLARE_LOCAL (molded);
+    Init_String(molded, Pop_Molded_String(mo));
+
+    REBCNT index = VAL_INDEX(molded);
+    REBCNT len = VAL_LEN_AT(molded);
+    REBSER *utf8 = Temp_UTF8_At_Managed(molded, &index, &len);
+    printf("%s\n", s_cast(BIN_AT(utf8, index)));
+    fflush(stdout);
 }
 
 
@@ -214,7 +242,7 @@ void* Probe_Core_Debug(
 
         if (GET_SER_FLAG(s, ARRAY_FLAG_VARLIST)) {
             Probe_Print_Helper(p, "Context Varlist", file, line);
-            Debug_Fmt("%r\n", CTX_VALUE(CTX(s)));
+            Probe_Molded_Value(CTX_VALUE(CTX(s)));
         }
         else {
             // This routine is also a little catalog of the outlying series
@@ -222,7 +250,11 @@ void* Probe_Core_Debug(
 
             if (BYTE_SIZE(s)) {
                 Probe_Print_Helper(p, "Byte-Size Series", file, line);
-                Debug_Str(s_cast(BIN_HEAD(s)));
+
+                // !!! It might be text bytes or a binary, currently no way
+                // to distinguish (there is in UTF-8 everywhere)
+                //
+                printf("%s", s_cast(BIN_HEAD(s)));
             }
             else if (GET_SER_FLAG(s, SERIES_FLAG_ARRAY)) {
                 Probe_Print_Helper(p, "Array", file, line);
@@ -232,12 +264,12 @@ void* Probe_Core_Debug(
                 // not want to Manage_Series here, so we use a raw
                 // initialization instead of Init_Block.
                 //
-                DECLARE_LOCAL (value);
-                VAL_RESET_HEADER(value, REB_BLOCK);
-                INIT_VAL_ARRAY(value, ARR(s));
-                VAL_INDEX(value) = 0;
+                DECLARE_LOCAL (block);
+                VAL_RESET_HEADER(block, REB_BLOCK);
+                INIT_VAL_ARRAY(block, ARR(s));
+                VAL_INDEX(block) = 0;
 
-                Debug_Fmt("%r", value);
+                Probe_Molded_Value(block);
             }
             else if (SER_WIDE(s) == sizeof(REBUNI)) {
                 Probe_Print_Helper(p, "UTF16 String", file, line);
@@ -261,15 +293,15 @@ void* Probe_Core_Debug(
         Probe_Print_Helper(p, "Freed Series", file, line);
         panic (p);
 
-    case DETECTED_AS_VALUE:
+    case DETECTED_AS_VALUE: {
         Probe_Print_Helper(p, "Value", file, line);
-        Debug_Fmt("%r\n", cast(const REBVAL*, p));
-        break;
+        Probe_Molded_Value(cast(const REBVAL*, p));
+        break; }
 
     case DETECTED_AS_END:
         Probe_Print_Helper(p, "END", file, line);
         panic (p); // !!! TBD: nicer handling, extract init location if avail?
-    
+
     case DETECTED_AS_TRASH_CELL:
         Probe_Print_Helper(p, "Trash Cell", file, line);
         panic (p);

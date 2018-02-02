@@ -112,9 +112,9 @@ void *Alloc_Mem(size_t size)
     // current implementations on all C platforms just pass through to
     // malloc and free.
 
-#ifdef NDEBUG
+  #ifdef NDEBUG
     return malloc(size);
-#else
+  #else
     // In debug builds we cache the size at the head of the allocation
     // so we can check it.  This also allows us to catch cases when
     // free() is paired with Alloc_Mem() instead of using Free_Mem()
@@ -127,7 +127,7 @@ void *Alloc_Mem(size_t size)
         return NULL;
     *cast(REBI64 *, ptr) = size;
     return cast(char *, ptr) + sizeof(REBI64);
-#endif
+  #endif
 }
 
 
@@ -158,9 +158,9 @@ void *Alloc_Mem(size_t size)
 //
 void Free_Mem(void *mem, size_t size)
 {
-#ifdef NDEBUG
+  #ifdef NDEBUG
     free(mem);
-#else
+  #else
     assert(mem != NULL);
     char *ptr = cast(char *, mem) - sizeof(REBI64);
     if (*cast(REBI64 *, ptr) == cast(REBI64, -1020))
@@ -168,7 +168,7 @@ void Free_Mem(void *mem, size_t size)
 
     assert(*cast(REBI64*, ptr) == cast(REBI64, size));
     free(ptr);
-#endif
+  #endif
     PG_Mem_Usage -= size;
 }
 
@@ -256,7 +256,7 @@ const REBPOOLSPEC Mem_Pool_Spec[MAX_POOLS] =
 //
 void Startup_Pools(REBINT scale)
 {
-#ifndef NDEBUG
+  #ifndef NDEBUG
     const char *env_always_malloc = NULL;
     env_always_malloc = getenv("R3_ALWAYS_MALLOC");
     if (env_always_malloc != NULL && atoi(env_always_malloc) != 0) {
@@ -268,7 +268,7 @@ void Startup_Pools(REBINT scale)
         );
         PG_Always_Malloc = TRUE;
     }
-#endif
+  #endif
 
     REBINT unscale = 1;
     if (scale == 0)
@@ -322,9 +322,9 @@ void Startup_Pools(REBINT scale)
     // !!! Revisit where series init/shutdown goes when the code is more
     // organized to have some of the logic not in the pools file
 
-#if !defined(NDEBUG)
+  #if !defined(NDEBUG)
     PG_Reb_Stats = ALLOC(REB_STATS);
-#endif
+  #endif
 
     // Manually allocated series that GC is not responsible for (unless a
     // trap occurs). Holds series pointers.
@@ -353,7 +353,7 @@ void Shutdown_Pools(void)
     //
     GC_Kill_Series(GC_Manuals);
 
-#if !defined(NDEBUG)
+  #if !defined(NDEBUG)
     REBSEG *debug_seg = Mem_Pools[SER_POOL].segs;
     for(; debug_seg != NULL; debug_seg = debug_seg->next) {
         REBSER *series = cast(REBSER*, debug_seg + 1);
@@ -366,7 +366,7 @@ void Shutdown_Pools(void)
             panic (series);
         }
     }
-#endif
+  #endif
 
     REBCNT pool_num;
     for (pool_num = 0; pool_num < MAX_POOLS; pool_num++) {
@@ -389,11 +389,11 @@ void Shutdown_Pools(void)
     // !!! Revisit location (just has to be after all series are freed)
     FREE_N(REBSER*, MAX_EXPAND_LIST, Prior_Expand);
 
-#if !defined(NDEBUG)
+  #if !defined(NDEBUG)
     FREE(REB_STATS, PG_Reb_Stats);
-#endif
+  #endif
 
-#if !defined(NDEBUG)
+  #if !defined(NDEBUG)
     if (PG_Mem_Usage != 0) {
         //
         // If using valgrind or address sanitizer, they can present more
@@ -414,7 +414,7 @@ void Shutdown_Pools(void)
             "to find out why this is happening.\n"
         );
     }
-#endif
+  #endif
 }
 
 
@@ -543,10 +543,10 @@ void Free_Node(REBCNT pool_id, void *p)
 
     REBPOL *pool = &Mem_Pools[pool_id];
 
-#ifdef NDEBUG
+  #ifdef NDEBUG
     node->next_if_free = pool->first;
     pool->first = node;
-#else
+  #else
     // !!! In R3-Alpha, the most recently freed node would become the first
     // node to hand out.  This is a simple and likely good strategy for
     // cache usage, but makes the "poisoning" nearly useless.
@@ -564,8 +564,7 @@ void Free_Node(REBCNT pool_id, void *p)
     pool->last->next_if_free = node;
     pool->last = node;
     node->next_if_free = NULL;
-
-#endif
+  #endif
 
     pool->free++;
 }
@@ -665,19 +664,19 @@ static REBOOL Series_Data_Alloc(REBSER *s, REBCNT length) {
     if ((GC_Ballast -= size) <= 0)
         SET_SIGNAL(SIG_RECYCLE);
 
-#if !defined(NDEBUG)
+  #if !defined(NDEBUG)
     if (pool_num >= SYSTEM_POOL)
         assert(Series_Allocation_Unpooled(s) == size);
-#endif
+  #endif
 
     if (GET_SER_FLAG(s, SERIES_FLAG_ARRAY)) {
         assert(wide == sizeof(REBVAL));
 
         REBCNT n;
 
-    #if !defined(NDEBUG)
+      #if !defined(NDEBUG)
         PG_Reb_Stats->Blocks++;
-    #endif
+      #endif
 
         // For REBVAL-valued-arrays, we mark as trash to mark the "settable"
         // bit, heeded by both SET_END() and RESET_HEADER().  See remarks on
@@ -725,9 +724,7 @@ static REBOOL Series_Data_Alloc(REBSER *s, REBCNT length) {
         //
         RELVAL *ultimate = ARR_AT(ARR(s), s->content.dynamic.rest - 1);
         Init_Endlike_Header(&ultimate->header, 0);
-    #if !defined(NDEBUG)
-        Set_Track_Payload_Debug(ultimate, __FILE__, __LINE__);
-    #endif
+        TRACK_CELL_IF_DEBUG(ultimate, __FILE__, __LINE__);
     }
 
     return TRUE;
@@ -866,10 +863,10 @@ REBSER *Make_Series_Core(REBCNT capacity, REBYTE wide, REBUPT flags)
     if (cast(REBU64, capacity) * wide > MAX_I32)
         fail (Error_No_Memory(cast(REBU64, capacity) * wide));
 
-#if !defined(NDEBUG)
+  #if !defined(NDEBUG)
     PG_Reb_Stats->Series_Made++;
     PG_Reb_Stats->Series_Memory += capacity * wide;
-#endif
+  #endif
 
     REBSER *s = cast(REBSER*, Make_Node(SER_POOL));
 
@@ -881,7 +878,7 @@ REBSER *Make_Series_Core(REBCNT capacity, REBYTE wide, REBUPT flags)
     if ((GC_Ballast -= sizeof(REBSER)) <= 0)
         SET_SIGNAL(SIG_RECYCLE);
 
-#if !defined(NDEBUG)
+  #if !defined(NDEBUG)
     //
     // For debugging purposes, it's nice to be able to crash on some
     // kind of guard for tracking the call stack at the point of allocation
@@ -897,8 +894,12 @@ REBSER *Make_Series_Core(REBCNT capacity, REBYTE wide, REBUPT flags)
     // the pool node so pointer-aligned entries are given out, so might as well
     // make that hold a useful value--the tick count when the series was made
     //
-    s->tick = TG_Tick;
-#endif
+    #if defined(DEBUG_COUNT_TICKS)
+        s->tick = TG_Tick;
+    #else
+        s->tick = 0;
+    #endif
+  #endif
 
     // The info bits must be able to implicitly terminate the `content`,
     // so that if a REBVAL is in slot [0] then it would appear terminated
@@ -1038,12 +1039,14 @@ REBVAL *Alloc_Pairing(REBFRM *opt_owning_frame) {
     Prep_Non_Stack_Cell(paired);
     TRASH_CELL_IF_DEBUG(paired);
 
-#if !defined(NDEBUG)
+  #if !defined(NDEBUG)
     s->guard = cast(int*, malloc(sizeof(*s->guard)));
     free(s->guard);
 
-    s->tick = TG_Tick;
-#endif
+    #if defined(DEBUG_COUNT_TICKS)
+        s->tick = TG_Tick;
+    #endif
+  #endif
 
     return paired;
 }
@@ -1087,9 +1090,11 @@ void Free_Pairing(REBVAL *paired) {
     TRASH_CELL_IF_DEBUG(paired);
     Free_Node(SER_POOL, series);
 
-#if !defined(NDEBUG)
-    series->tick = TG_Tick; // update to be tick on which node was freed
-#endif
+  #if !defined(NDEBUG)
+    #if defined(DEBUG_COUNT_TICKS)
+        series->tick = TG_Tick; // update to be tick on which node was freed
+    #endif
+  #endif
 }
 
 
@@ -1202,7 +1207,7 @@ void Expand_Series(REBSER *s, REBCNT index, REBCNT delta)
         s->content.dynamic.rest += delta;
         SER_SUB_BIAS(s, delta);
 
-    #if !defined(NDEBUG)
+      #if !defined(NDEBUG)
         if (GET_SER_FLAG(s, SERIES_FLAG_ARRAY)) {
             //
             // When the bias region was marked, it was made "unsettable" if
@@ -1216,7 +1221,7 @@ void Expand_Series(REBSER *s, REBCNT index, REBCNT delta)
             for (index = 0; index < delta; index++)
                 Prep_Non_Stack_Cell(ARR_AT(ARR(s), index));
         }
-    #endif
+      #endif
         return;
     }
 
@@ -1251,7 +1256,7 @@ void Expand_Series(REBSER *s, REBCNT index, REBCNT delta)
 
         TERM_SERIES(s);
 
-    #if !defined(NDEBUG)
+      #if !defined(NDEBUG)
         if (GET_SER_FLAG(s, SERIES_FLAG_ARRAY)) {
             //
             // The opened up area needs to be set to "settable" trash in the
@@ -1268,7 +1273,7 @@ void Expand_Series(REBSER *s, REBCNT index, REBCNT delta)
                 Prep_Non_Stack_Cell(ARR_AT(ARR(s), index + delta));
             }
         }
-    #endif
+      #endif
 
         return;
     }
@@ -1278,7 +1283,7 @@ void Expand_Series(REBSER *s, REBCNT index, REBCNT delta)
     if (GET_SER_FLAG(s, SERIES_FLAG_FIXED_SIZE))
         fail (Error_Locked_Series_Raw());
 
-#ifndef NDEBUG
+  #ifndef NDEBUG
     if (Reb_Opts->watch_expand) {
         printf(
             "Expand %p wide: %d tail: %d delta: %d\n",
@@ -1289,7 +1294,7 @@ void Expand_Series(REBSER *s, REBCNT index, REBCNT delta)
         );
         fflush(stdout);
     }
-#endif
+  #endif
 
     // Have we recently expanded the same series?
 
@@ -1305,11 +1310,11 @@ void Expand_Series(REBSER *s, REBCNT index, REBCNT delta)
             n_available = n_found;
     }
 
-#ifndef NDEBUG
+  #ifndef NDEBUG
     if (Reb_Opts->watch_expand) {
         // Print_Num("Expand:", series->tail + delta + 1);
     }
-#endif
+  #endif
 
     // !!! The protocol for doing new allocations currently mandates that the
     // dynamic content area be cleared out.  But the data lives in the content
@@ -1370,9 +1375,9 @@ void Expand_Series(REBSER *s, REBCNT index, REBCNT delta)
         Free_Unbiased_Series_Data(data_old - (wide * bias_old), size_old);
     }
 
-#if !defined(NDEBUG)
+  #if !defined(NDEBUG)
     PG_Reb_Stats->Series_Expanded++;
-#endif
+  #endif
 
     assert(NOT_SER_FLAG(s, NODE_FLAG_MARKED));
 }
@@ -1444,10 +1449,10 @@ void Remake_Series(REBSER *s, REBCNT units, REBYTE wide, REBUPT flags)
     REBCNT len_old = SER_LEN(s);
     REBYTE wide_old = SER_WIDE(s);
 
-#if !defined(NDEBUG)
+  #if !defined(NDEBUG)
     if (preserve)
         assert(wide == wide_old); // can't change width if preserving
-#endif
+  #endif
 
     assert(NOT_SER_FLAG(s, SERIES_FLAG_FIXED_SIZE));
 
@@ -1556,7 +1561,7 @@ void GC_Kill_Series(REBSER *s)
         // the GC watermarks interact with Alloc_Mem and the "higher
         // level" allocations.
 
-        i32 tmp;
+        int tmp;
         GC_Ballast = REB_I32_ADD_OF(GC_Ballast, size, &tmp) ? MAX_I32 : tmp;
     }
     else {
@@ -1581,9 +1586,9 @@ void GC_Kill_Series(REBSER *s)
         }
     }
 
-#if !defined(NDEBUG)
+  #if !defined(NDEBUG)
     s->info.bits = 0; // makes it look like width is 0
-#endif
+  #endif
 
     TRASH_POINTER_IF_DEBUG(MISC(s).trash);
     TRASH_POINTER_IF_DEBUG(LINK(s).trash);
@@ -1593,10 +1598,13 @@ void GC_Kill_Series(REBSER *s)
     // GC may no longer be necessary:
     if (GC_Ballast > 0) CLR_SIGNAL(SIG_RECYCLE);
 
-#if !defined(NDEBUG)
+  #if !defined(NDEBUG)
     PG_Reb_Stats->Series_Freed++;
-    s->tick = TG_Tick; // update to be tick on which series was freed
-#endif
+
+    #if defined(DEBUG_COUNT_TICKS)
+        s->tick = TG_Tick; // update to be tick on which series was freed
+    #endif
+  #endif
 }
 
 
@@ -1617,7 +1625,7 @@ inline static void Drop_Manual_Series(REBSER *s)
         //
         REBSER **current_ptr = last_ptr - 1;
         while (*current_ptr != s) {
-        #if !defined(NDEBUG)
+          #if !defined(NDEBUG)
             if (
                 current_ptr
                 <= cast(REBSER**, GC_Manuals->content.dynamic.data)
@@ -1625,7 +1633,7 @@ inline static void Drop_Manual_Series(REBSER *s)
                 printf("Series not in list of last manually added series\n");
                 panic(s);
             }
-        #endif
+          #endif
             --current_ptr;
         }
         *current_ptr = *last_ptr;
@@ -1645,7 +1653,7 @@ inline static void Drop_Manual_Series(REBSER *s)
 //
 void Free_Series(REBSER *s)
 {
-#if !defined(NDEBUG)
+  #if !defined(NDEBUG)
     //
     // If a series has already been freed, we'll find out about that
     // below indirectly, so better in the debug build to get a clearer
@@ -1663,7 +1671,7 @@ void Free_Series(REBSER *s)
         printf("Trying to Free_Series() on a series managed by GC.\n");
         panic (s);
     }
-#endif
+  #endif
 
     Drop_Manual_Series(s);
 
@@ -1703,12 +1711,12 @@ void Widen_String(REBSER *s, REBOOL preserve)
         data_old = cast(REBYTE*, &content_old);
     }
 
-#if !defined(NDEBUG)
+  #if !defined(NDEBUG)
     // We may be resizing a partially constructed series, or otherwise
     // not want to preserve the previous contents
     if (preserve)
         ASSERT_SERIES(s);
-#endif
+  #endif
 
     s->content.dynamic.data = NULL;
 
@@ -1756,12 +1764,12 @@ void Widen_String(REBSER *s, REBOOL preserve)
 //
 void Manage_Series(REBSER *s)
 {
-#if !defined(NDEBUG)
+  #if !defined(NDEBUG)
     if (IS_SERIES_MANAGED(s)) {
         printf("Attempt to manage already managed series\n");
         panic (s);
     }
-#endif
+  #endif
 
     s->header.bits |= NODE_FLAG_MANAGED;
 
@@ -1790,8 +1798,10 @@ REBOOL Is_Value_Managed(const RELVAL *v)
     // happens to not catch the alarm in this routine, they'll catch it as
     // soon as they try to do pretty much anything else with the value.
     //
-    if (IS_UNREADABLE_IF_DEBUG(v))
+  #if defined(DEBUG_UNREADABLE_BLANKS)
+    if (IS_UNREADABLE_DEBUG(v))
         return TRUE;
+  #endif
 
     if (ANY_CONTEXT(v)) {
         REBCTX *c = VAL_CONTEXT(v);
@@ -2051,9 +2061,11 @@ void Assert_Pointer_Detection_Working(void)
     assert(Detect_Rebol_Pointer(EMPTY_ARRAY) == DETECTED_AS_SERIES);
     assert(Detect_Rebol_Pointer(BLANK_VALUE) == DETECTED_AS_VALUE);
 
+  #if defined(DEBUG_TRASH_CELLS)
     DECLARE_LOCAL (trash_cell);
     assert(IS_TRASH_DEBUG(trash_cell));
     assert(Detect_Rebol_Pointer(trash_cell) == DETECTED_AS_TRASH_CELL);
+  #endif
 
     DECLARE_LOCAL (end_cell);
     SET_END(end_cell);

@@ -76,7 +76,7 @@
 // case the debug build was using printf() to output contextual information.
 //
 
-#if !defined(NDEBUG)
+#if defined(DEBUG_HAS_PROBE)
     #ifdef CPLUSPLUS_11
         template <typename T>
         T Probe_Cpp_Helper(T v, const char *file, int line) {
@@ -89,6 +89,12 @@
         #define PROBE(v) \
             Probe_Core_Debug((v), __FILE__, __LINE__) // just returns void* :(
     #endif
+#elif !defined(NDEBUG) // don't cause compile time error on PROBE()
+    #define PROBE(v) \
+        do { \
+            printf("DEBUG_HAS_PROBE disabled %s %d\n", __FILE__, __LINE__); \
+            fflush(stdout); \
+        } while (0)
 #endif
 
 
@@ -110,14 +116,25 @@
 // member of a value's payload.  It is also reported by panic().
 //
 
-#if !defined NDEBUG
+#if defined(DEBUG_TRACK_CELLS)
     inline static void Set_Track_Payload_Debug(
-        RELVAL *v, const char *file, int line
+        RELVAL *v,
+        const char *file,
+        int line
     ){
         v->payload.track.file = file;
         v->payload.track.line = line;
+
+    #ifdef DEBUG_COUNT_TICKS
         v->extra.tick = TG_Tick;
+    #endif
     }
+
+    #define TRACK_CELL_IF_DEBUG(v,file,line) \
+        Set_Track_Payload_Debug((v), (file), (line))
+#else
+    #define TRACK_CELL_IF_DEBUG(v,file,line) \
+        NOOP
 #endif
 
 
@@ -159,19 +176,24 @@
 #define VAL_TYPE_RAW(v) \
     ((enum Reb_Kind)(RIGHT_8_BITS((v)->header.bits)))
 
+// To help speed up VAL_TYPE_Debug, we push the blank flag into the
+// farthest right value bit...on a 32-bit architecture, this is going
+// to be the 24th flag...pushing up against the rightmost 8-bits used
+// for the value's type.  The odds are on any given value this flag will
+// not be set, but we still don't completely reserve it.
+//
+#ifdef DEBUG_UNREADABLE_BLANKS
+    #define BLANK_FLAG_UNREADABLE_DEBUG \
+        FLAGIT_LEFT(23)
+#else
+    #define BLANK_FLAG_UNREADABLE_DEBUG 0
+#endif
+
+
 #ifdef NDEBUG
     #define VAL_TYPE(v) \
         VAL_TYPE_RAW(v)
 #else
-    // To help speed up VAL_TYPE_Debug, we push the blank flag into the
-    // farthest right value bit...on a 32-bit architecture, this is going
-    // to be the 24th flag...pushing up against the rightmost 8-bits used
-    // for the value's type.  The odds are on any given value this flag will
-    // not be set, but we still don't completely reserve it.
-    //
-    #define BLANK_FLAG_UNREADABLE_DEBUG \
-        FLAGIT_LEFT(23)
-
     inline static enum Reb_Kind VAL_TYPE_Debug(
         const RELVAL *v, const char *file, int line
     ){
@@ -294,6 +316,9 @@
 
     #define CLEAR_VAL_FLAG(v,f) \
         CLEAR_VAL_FLAGS((v), (f))
+
+    #define CHECK_VALUE_FLAGS_EVIL_MACRO_DEBUG(flags) \
+        NOOP
 #else
     // For safety in the debug build, all the type-specific flags include a
     // type (or type representing a category) as part of the flag.  This type
@@ -369,20 +394,9 @@
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  CELL WRITABILITY AND SETUP
+//  CELL WRITABILITY
 //
 //=////////////////////////////////////////////////////////////////////////=//
-//
-// VAL_RESET_HEADER clears out the header of *most* bits, setting it to a
-// new type.  The type takes up the full "rightmost" byte of the header,
-// despite the fact it only needs 6 bits.  However, the performance advantage
-// of not needing to mask to do VAL_TYPE() is worth it...also there may be a
-// use for 256 types (although type bitsets are only 64-bits at the moment)
-//
-// The value is expected to already be "pre-formatted" with the NODE_FLAG_CELL
-// bit, so that is left as-is.  It is also expected that VALUE_FLAG_STACK has
-// been set if the value is stack-based (e.g. on the C stack or in a frame),
-// so that is left as-is also.
 //
 // Asserting writiablity helps avoid very bad catastrophies that might ensue
 // if "implicit end markers" could be overwritten.  These are the ENDs that
@@ -392,40 +406,7 @@
 // (A fringe benefit is catching writes to other unanticipated locations.)
 //
 
-#if !defined(NDEBUG)
-    #define REB_MAX_PLUS_ONE_TRASH \
-        (REB_MAX + 1) // used in the debug build to help identify trash nodes
-#endif
-
-#define HEADERIZE_KIND(kind) \
-    FLAGBYTE_RIGHT(kind)
-
-inline static void VAL_RESET_HEADER_common( // don't call directly
-    RELVAL *v,
-    enum Reb_Kind kind,
-    REBUPT extra_flags
-) {
-    v->header.bits &= CELL_MASK_RESET;
-    v->header.bits |= HEADERIZE_KIND(kind) | extra_flags;
-}
-
-#ifdef NDEBUG
-    #define ASSERT_CELL_WRITABLE(c,file,line) \
-        NOOP
-
-    #define VAL_RESET_HEADER_EXTRA(v,kind,extra) \
-        VAL_RESET_HEADER_common((v), (kind), (extra))
-
-    #define VAL_RESET(v,kind,extra) \
-        VAL_RESET_HEADER_EXTRA((v), (kind), (extra))
-
-    #define Prep_Non_Stack_Cell(c) \
-        (c)->header.bits = NODE_FLAG_NODE | NODE_FLAG_FREE | NODE_FLAG_CELL
-
-    #define Prep_Stack_Cell(c) \
-        (c)->header.bits = (NODE_FLAG_NODE | NODE_FLAG_FREE | NODE_FLAG_CELL \
-            | VALUE_FLAG_STACK)
-#else
+#if defined(DEBUG_CELL_WRITABILITY)
     inline static void Assert_Cell_Writable(
         const RELVAL *v,
         const char *file,
@@ -459,29 +440,76 @@ inline static void VAL_RESET_HEADER_common( // don't call directly
 
     #define ASSERT_CELL_WRITABLE(v,file,line) \
         Assert_Cell_Writable((v), (file), (line))
+#else
+    #define ASSERT_CELL_WRITABLE(c,file,line) \
+        NOOP
+#endif
 
-    inline static void VAL_RESET_HEADER_EXTRA_Debug(
-        RELVAL *v,
-        enum Reb_Kind kind,
-        REBUPT extra,
-        const char *file,
-        int line
-    ){
-        ASSERT_CELL_WRITABLE(v, file, line);
 
-        // The debug build puts some extra type information onto flags
-        // which needs to be cleared out.  (e.g. FUNC_FLAG_XXX has the bit
-        // pattern for REB_FUNCTION inside of it, to help make sure that flag
-        // doesn't get used with things that aren't words).
-        //
-        CHECK_VALUE_FLAGS_EVIL_MACRO_DEBUG(extra);
-        
-        VAL_RESET_HEADER_common(v, kind, extra);
-    }
+//=////////////////////////////////////////////////////////////////////////=//
+//
+//  CELL HEADERS AND PREPARATION
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// VAL_RESET_HEADER clears out the header of *most* bits, setting it to a
+// new type.  The type takes up the full "rightmost" byte of the header,
+// despite the fact it only needs 6 bits.  However, the performance advantage
+// of not needing to mask to do VAL_TYPE() is worth it...also there may be a
+// use for 256 types (although type bitsets are only 64-bits at the moment)
+//
+// The value is expected to already be "pre-formatted" with the NODE_FLAG_CELL
+// bit, so that is left as-is.  It is also expected that VALUE_FLAG_STACK has
+// been set if the value is stack-based (e.g. on the C stack or in a frame),
+// so that is left as-is also.
+//
 
+#if defined(DEBUG_TRASH_CELLS)
+    #define REB_MAX_PLUS_ONE_TRASH \
+        (REB_MAX + 1) // used in the debug build to help identify trash nodes
+#else
+    #define REB_MAX_PLUS_ONE_TRASH 0
+#endif
+
+#define HEADERIZE_KIND(kind) \
+    FLAGBYTE_RIGHT(kind)
+
+inline static void VAL_RESET_HEADER_EXTRA_Core(
+    RELVAL *v,
+    enum Reb_Kind kind,
+    REBUPT extra
+
+  #if defined(DEBUG_CELL_WRITABILITY)
+  , const char *file
+  , int line
+  #endif
+){
+    ASSERT_CELL_WRITABLE(v, file, line);
+
+    // The debug build puts some extra type information onto flags
+    // which needs to be cleared out.  (e.g. FUNC_FLAG_XXX has the bit
+    // pattern for REB_FUNCTION inside of it, to help make sure that flag
+    // doesn't get used with things that aren't words).
+    //
+    CHECK_VALUE_FLAGS_EVIL_MACRO_DEBUG(extra);
+
+    v->header.bits &= CELL_MASK_RESET;
+    v->header.bits |= HEADERIZE_KIND(kind) | extra;
+}
+
+#if defined(DEBUG_CELL_WRITABILITY)
     #define VAL_RESET_HEADER_EXTRA(v,kind,extra) \
-        VAL_RESET_HEADER_EXTRA_Debug((v), (kind), (extra), __FILE__, __LINE__)
+        VAL_RESET_HEADER_EXTRA_Core((v), (kind), (extra), __FILE__, __LINE__)
+#else
+    #define VAL_RESET_HEADER_EXTRA(v,kind,extra) \
+        VAL_RESET_HEADER_EXTRA_Core((v), (kind), (extra))
+#endif
 
+#define VAL_RESET_HEADER(v,kind) \
+    VAL_RESET_HEADER_EXTRA((v), (kind), 0)
+
+#ifdef DEBUG_TRACK_CELLS
+    //
     // VAL_RESET is a variant of VAL_RESET_HEADER_EXTRA that actually
     // overwrites the payload with tracking information.  It should not be
     // used if the intent is to preserve the payload and extra, and is
@@ -494,39 +522,75 @@ inline static void VAL_RESET_HEADER_common( // don't call directly
         const char *file,
         int line
     ){
-        VAL_RESET_HEADER_EXTRA_Debug(v, kind, extra, file, line);
-        Set_Track_Payload_Debug(v, file, line);
+    #ifdef DEBUG_CELL_WRITABILITY
+        VAL_RESET_HEADER_EXTRA_Core(v, kind, extra, file, line);
+    #else
+        VAL_RESET_HEADER_EXTRA(v, kind, extra);
+    #endif
+
+        TRACK_CELL_IF_DEBUG(v, file, line);
     }
 
     #define VAL_RESET(v,kind,extra) \
         VAL_RESET_Debug((v), (kind), (extra), __FILE__, __LINE__)
-
-    inline static void Prep_Non_Stack_Cell_Debug(
-        struct Reb_Cell *c, const char *file, int line
-    ){
-        c->header.bits =
-            NODE_FLAG_NODE | NODE_FLAG_FREE | NODE_FLAG_CELL
-            | HEADERIZE_KIND(REB_MAX_PLUS_ONE_TRASH);
-        Set_Track_Payload_Debug(cast(RELVAL*, c), file, line);
-    }
-
-    #define Prep_Non_Stack_Cell(c) \
-        Prep_Non_Stack_Cell_Debug((c), __FILE__, __LINE__)
-
-    inline static void Prep_Stack_Cell_Debug(
-        struct Reb_Cell *c, const char *file, int line
-    ){
-        c->header.bits = NODE_FLAG_NODE | NODE_FLAG_FREE | NODE_FLAG_CELL
-            | HEADERIZE_KIND(REB_MAX_PLUS_ONE_TRASH) | VALUE_FLAG_STACK;
-        Set_Track_Payload_Debug(cast(RELVAL*, c), file, line);
-    }
-
-    #define Prep_Stack_Cell(c) \
-        Prep_Stack_Cell_Debug((c), __FILE__, __LINE__)
+#else
+    #define VAL_RESET(v,kind,extra) \
+        VAL_RESET_HEADER_EXTRA((v), (kind), (extra))
 #endif
 
-#define VAL_RESET_HEADER(v,t) \
-    VAL_RESET_HEADER_EXTRA((v), (t), 0)
+
+inline static void Prep_Non_Stack_Cell_Core(
+    struct Reb_Cell *c
+
+  #if defined(DEBUG_TRACK_CELLS)
+  , const char *file
+  , int line
+  #endif
+){
+    c->header.bits =
+        NODE_FLAG_NODE
+        | NODE_FLAG_FREE
+        | NODE_FLAG_CELL
+        | HEADERIZE_KIND(REB_MAX_PLUS_ONE_TRASH);
+
+    TRACK_CELL_IF_DEBUG(cast(RELVAL*, c), file, line);
+}
+
+#if defined(DEBUG_TRACK_CELLS)
+    #define Prep_Non_Stack_Cell(c) \
+        Prep_Non_Stack_Cell_Core((c), __FILE__, __LINE__)
+#else
+    #define Prep_Non_Stack_Cell(c) \
+        Prep_Non_Stack_Cell_Core(c)
+#endif
+
+
+inline static void Prep_Stack_Cell_Core(
+    struct Reb_Cell *c
+
+  #if defined(DEBUG_TRACK_CELLS)
+  , const char *file
+  , int line
+  #endif
+){
+    c->header.bits =
+        NODE_FLAG_NODE
+        | NODE_FLAG_FREE
+        | NODE_FLAG_CELL
+        | HEADERIZE_KIND(REB_MAX_PLUS_ONE_TRASH)
+        | VALUE_FLAG_STACK;
+
+    TRACK_CELL_IF_DEBUG(cast(RELVAL*, c), file, line);
+}
+
+#if defined(DEBUG_TRACK_CELLS)
+    #define Prep_Stack_Cell(c) \
+        Prep_Stack_Cell_Core((c), __FILE__, __LINE__)
+#else
+    #define Prep_Stack_Cell(c) \
+        Prep_Stack_Cell_Core(c)
+#endif
+
 
 inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
     //
@@ -553,14 +617,14 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
 // The garbage collector is not tolerant of trash.
 //
 
-#ifdef NDEBUG
-    #define TRASH_CELL_IF_DEBUG(v) \
-        NOOP
-#else
+#if defined(DEBUG_TRASH_CELLS)
     inline static void Set_Trash_Debug(
-        RELVAL *v,
-        const char *file,
-        int line
+        RELVAL *v
+
+      #ifdef DEBUG_TRACK_CELLS
+      , const char *file
+      , int line
+      #endif
     ){
         ASSERT_CELL_WRITABLE(v, file, line);
 
@@ -568,7 +632,7 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
         v->header.bits |= NODE_FLAG_FREE
           | HEADERIZE_KIND(REB_MAX_PLUS_ONE_TRASH);
 
-        Set_Track_Payload_Debug(v, file, line);
+        TRACK_CELL_IF_DEBUG(v, file, line);
     }
 
     #define TRASH_CELL_IF_DEBUG(v) \
@@ -582,6 +646,21 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
         assert(VAL_TYPE_RAW(v) == REB_MAX_PLUS_ONE_TRASH);
         return TRUE;
     }
+
+    #define ASSERT_TRASH_IF_DEBUG(v) \
+        assert(IS_TRASH_DEBUG(v))
+
+    #define ASSERT_NOT_TRASH_IF_DEBUG(v) \
+        assert(NOT(IS_TRASH_DEBUG(v)));
+#else
+    #define TRASH_CELL_IF_DEBUG(v) \
+        NOOP
+
+    #define ASSERT_TRASH_IF_DEBUG(v) \
+        NOOP // uninitialized if not trashed, unsafe to read the bits
+
+    #define ASSERT_NOT_TRASH_IF_DEBUG(v) \
+        assert(VAL_TYPE_RAW(v) <= REB_MAX) // can technically check this
 #endif
 
 
@@ -612,14 +691,34 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
 // the type of an end marker is REB_0, but one can rarely exploit that.)
 //
 
+inline static void SET_END_Core(
+    RELVAL *v
+
+  #if defined(DEBUG_TRACK_CELLS) || defined(DEBUG_CELL_WRITABILITY)
+  , const char *file
+  , int line
+  #endif
+){
+    ASSERT_CELL_WRITABLE(v, file, line);
+ 
+    v->header.bits &= CELL_MASK_RESET; // leaves flags _CELL, _NODE, etc.
+    v->header.bits |= NODE_FLAG_END | HEADERIZE_KIND(REB_0);
+
+    TRACK_CELL_IF_DEBUG(v, file, line);
+}
+
+#if defined(DEBUG_TRACK_CELLS) || defined(DEBUG_CELL_WRITABILITY)
+    #define SET_END(v) \
+        SET_END_Core((v), __FILE__, __LINE__)
+#else
+    #define SET_END(v) \
+        SET_END_Core(v)
+#endif
+
+
 #ifdef NDEBUG
     #define IS_END(v) \
         LOGICAL((v)->header.bits & NODE_FLAG_END)
-
-    inline static void SET_END(RELVAL *v) {
-        v->header.bits &= CELL_MASK_RESET; // leaves flags _CELL, _NODE, etc.
-        v->header.bits |= NODE_FLAG_END | HEADERIZE_KIND(REB_0);
-    }
 
     // Warning: Only use on valid non-END REBVAL -or- on global END value
     //
@@ -672,16 +771,6 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
 
     #define IS_END(v) \
         IS_END_Debug((v), __FILE__, __LINE__)
-
-    inline static void SET_END_Debug(RELVAL *v, const char *file, int line) {
-        ASSERT_CELL_WRITABLE(v, file, line);
-        v->header.bits &= CELL_MASK_RESET; // leaves NODE_FLAG_CELL, etc.
-        v->header.bits |= NODE_FLAG_END | HEADERIZE_KIND(REB_0);
-        Set_Track_Payload_Debug(v, file, line);
-    }
-
-    #define SET_END(v) \
-        SET_END_Debug((v), __FILE__, __LINE__)
 
     inline static enum Reb_Kind VAL_TYPE_OR_0_Debug(
         const RELVAL *v,
@@ -806,19 +895,7 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
 #define Init_Blank(v) \
     VAL_RESET((v), REB_BLANK, VALUE_FLAG_FALSEY)
 
-#ifdef NDEBUG
-    #define Init_Unreadable_Blank(v) \
-        Init_Blank(v)
-
-    #define IS_BLANK_RAW(v) \
-        IS_BLANK(v)
-
-     #define IS_UNREADABLE_IF_DEBUG(v) \
-        FALSE
-
-    #define SINK(v) \
-        cast(REBVAL*, (v))
-#else
+#ifdef DEBUG_UNREADABLE_BLANKS
     #define Init_Unreadable_Blank(v) \
         VAL_RESET((v), REB_BLANK, \
             VALUE_FLAG_FALSEY | BLANK_FLAG_UNREADABLE_DEBUG)
@@ -827,7 +904,7 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
         return LOGICAL(VAL_TYPE_RAW(v) == REB_BLANK);
     }
 
-    inline static REBOOL IS_UNREADABLE_IF_DEBUG(const RELVAL *v) {
+    inline static REBOOL IS_UNREADABLE_DEBUG(const RELVAL *v) {
         if (NOT(VAL_TYPE_RAW(v) == REB_BLANK))
             return FALSE;
         return LOGICAL(v->header.bits & BLANK_FLAG_UNREADABLE_DEBUG);
@@ -846,33 +923,69 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
     // trigger errors through VAL_TYPE() if it's used.
     //
     inline static REBVAL *Sink_Debug(
-        RELVAL *v,
-        const char *file,
-        int line
-    ) {
+        RELVAL *v
+
+      #if defined(DEBUG_TRACK_CELLS) || defined(DEBUG_CELL_WRITABILITY)
+      , const char *file
+      , int line
+      #endif
+    ){
         ASSERT_CELL_WRITABLE(v, file, line);
 
         if (NOT(v->header.bits & NODE_FLAG_FREE)) {
-            VAL_RESET_HEADER_EXTRA_Debug(
+        #ifdef DEBUG_CELL_WRITABILITY
+            VAL_RESET_HEADER_EXTRA_Core(
                 v,
                 REB_BLANK,
                 VALUE_FLAG_FALSEY | BLANK_FLAG_UNREADABLE_DEBUG,
                 file,
                 line
             );
+        #else
+            VAL_RESET_HEADER_EXTRA(
+                v,
+                REB_BLANK,
+                VALUE_FLAG_FALSEY | BLANK_FLAG_UNREADABLE_DEBUG
+            );
+        #endif
         }
         else {
             // already trash, don't need to mess with the header
         }
 
-        Set_Track_Payload_Debug(v, file, line);
+        TRACK_CELL_IF_DEBUG(v, file, line);
 
         return cast(REBVAL*, v); // used by SINK, but not TRASH_CELL_IF_DEBUG
     }
 
-    #define SINK(v) \
-        Sink_Debug((v), __FILE__, __LINE__)
+    #if defined(DEBUG_TRACK_CELLS) || defined(DEBUG_CELL_WRITABILITY)
+        #define SINK(v) \
+            Sink_Debug((v), __FILE__, __LINE__)
+    #else
+        #define SINK(v) \
+            Sink_Debug(v)
+    #endif
 
+    #define ASSERT_UNREADABLE_IF_DEBUG(v) \
+        assert(IS_UNREADABLE_DEBUG(v))
+
+    #define ASSERT_READABLE_IF_DEBUG(v) \
+        assert(NOT(IS_UNREADABLE_DEBUG(v)))
+#else
+    #define Init_Unreadable_Blank(v) \
+        Init_Blank(v)
+
+    #define IS_BLANK_RAW(v) \
+        IS_BLANK(v)
+
+    #define ASSERT_UNREADABLE_IF_DEBUG(v) \
+        assert(IS_BLANK(v)) // would have to be a blank even if not unreadable
+
+    #define ASSERT_READABLE_IF_DEBUG(v) \
+        ASSERT_NOT_TRASH_IF_DEBUG(v) // DEBUG_TRASH_CELLS might be set
+
+    #define SINK(v) \
+        cast(REBVAL*, (v))
 #endif
 
 

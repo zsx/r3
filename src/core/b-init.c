@@ -780,7 +780,7 @@ static void Init_Root_Vars(void)
     // END (you always use SET_END), so we can make it unwritable.
     //
     Init_Endlike_Header(&PG_End_Node.header, 0); // mutate to read-only end
-#if !defined(NDEBUG)
+#if defined(DEBUG_TRACK_CELLS)
     Set_Track_Payload_Debug(&PG_End_Node, __FILE__, __LINE__);
 #endif
     assert(IS_END(END)); // sanity check that it took

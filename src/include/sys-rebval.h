@@ -337,7 +337,7 @@
 // break on that tick count, if it is deterministic.
 //
 
-#if !defined(NDEBUG)
+#if defined(DEBUG_TRACK_CELLS)
     struct Reb_Track {
         const char *file; // is REBYTE (UTF-8), but char* for debug watch
         int line;
@@ -759,17 +759,17 @@ union Reb_Value_Extra {
     //
     REBARR *singular;
 
-#if !defined(NDEBUG)
+  #if defined(DEBUG_TRACK_CELLS) && defined(DEBUG_COUNT_TICKS)
     REBUPT tick; // value initialization tick if the payload is Reb_Track
-#endif
+  #endif
 };
 
 union Reb_Value_Payload {
     struct Reb_All all;
 
-#if !defined(NDEBUG)
-    struct Reb_Track track; // debug only for void/trash, BLANK!, LOGIC!, BAR!
-#endif
+  #if defined(DEBUG_TRACK_CELLS)
+    struct Reb_Track track; // only for void/trash, BLANK!, LOGIC!, BAR!
+  #endif
 
     REBUNI character; // It's CHAR! (for now), but 'char' is a C keyword
     REBI64 integer;

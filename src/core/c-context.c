@@ -632,7 +632,7 @@ REBARR *Collect_Keylist_Managed(
     // but it's set to an unreadable blank at the moment just to make sure it
     // doesn't get used on accident.
     //
-    assert(IS_UNREADABLE_IF_DEBUG(ARR_HEAD(keylist)));
+    ASSERT_UNREADABLE_IF_DEBUG(ARR_HEAD(keylist));
 
     Collect_End(cl);
     return keylist;

@@ -250,12 +250,12 @@ REBNATIVE(panic)
     // the dump would be the one that would queue up right to the exact moment
     // *before* the PANIC FUNCTION! was invoked.
     //
-#ifdef NDEBUG
+  #ifdef DEBUG_COUNT_TICKS
+    Panic_Core(utf8, frame_->tick, FRM_FILE_UTF8(frame_), FRM_LINE(frame_));
+  #else
     const REBUPT tick = 0;
     Panic_Core(utf8, tick, FRM_FILE_UTF8(frame_), FRM_LINE(frame_));
-#else
-    Panic_Core(utf8, frame_->tick, FRM_FILE_UTF8(frame_), FRM_LINE(frame_));
-#endif
+  #endif
 }
 
 
@@ -272,15 +272,16 @@ REBNATIVE(panic_value)
 {
     INCLUDE_PARAMS_OF_PANIC_VALUE;
 
-    // Using frame's tick instead of TG_Tick so that tick count shown in the
-    // dump is the exact moment before the PANIC-VALUE FUNCTION! was invoked.
+  #ifdef DEBUG_TRACK_TICKS
     //
-#ifdef NDEBUG
-    const REBUPT tick = 0;
-    Panic_Core(ARG(value), tick, FRM_FILE_UTF8(frame_), FRM_LINE(frame_));
-#else
+    // Use frame tick (if available) instead of TG_Tick, so tick count dumped
+    // is the exact moment before the PANIC-VALUE FUNCTION! was invoked.
+    //
     Panic_Core(
         ARG(value), frame_->tick, FRM_FILE_UTF8(frame_), FRM_LINE(frame_)
     );
-#endif
+  #else
+    const REBUPT tick = 0;
+    Panic_Core(ARG(value), tick, FRM_FILE_UTF8(frame_), FRM_LINE(frame_));
+  #endif
 }

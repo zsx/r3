@@ -130,7 +130,7 @@
 // To formalize this rule, these definitions will help catch uses of <stdio.h>
 // in the release build, and give a hopefully informative error.
 //
-#if defined(NDEBUG) && !defined(REN_C_STDIO_OK)
+#if defined(NDEBUG) && !defined(DEBUG_STDIO_OK)
     #define printf dont_include_stdio_h
     #define fprintf dont_include_stdio_h
     #define putc dont_include_stdio_h
@@ -144,6 +144,14 @@
     // release build should catch if any of these aren't #if !defined(NDEBUG)
     //
     #include <stdio.h>
+
+    // NOTE: F/PRINTF DOES NOT ALWAYS FFLUSH() BUFFERS AFTER NEWLINES; it is
+    // an "implementation defined" behavior, and never applies to redirects:
+    //
+    // https://stackoverflow.com/a/5229135/211160
+    //
+    // So when writing information you intend to be flushed before a potential
+    // crash, be sure to fflush(), regardless of using `\n` or not.
 #endif
 
 
@@ -210,7 +218,7 @@
 #define BREAK_ON_TICK(tick) \
     if (tick == TG_Tick) BREAK_NOW()
 
-#ifdef NDEBUG
+#if defined(NDEBUG) || !defined(DEBUG_COUNT_TICKS)
     #define SPORADICALLY(modulus) \
         FALSE
 #else

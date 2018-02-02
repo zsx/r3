@@ -205,13 +205,13 @@ static REBOOL Subparse_Throws(
     f->refine = NULL;
     f->special = NULL;
 
-#if defined(NDEBUG)
+  #if defined(NDEBUG)
     assert(FUNC_NUM_PARAMS(NAT_FUNC(subparse)) == 2); // elides RETURN:
-#else
+  #else
     assert(FUNC_NUM_PARAMS(NAT_FUNC(subparse)) == 3); // checks RETURN:
     Prep_Stack_Cell(&f->args_head[2]);
     Init_Void(&f->args_head[2]);
-#endif
+  #endif
 
     Prep_Stack_Cell(&f->args_head[0]);
     Derelativize(&f->args_head[0], input, input_specifier);
@@ -1316,7 +1316,7 @@ REBNATIVE(subparse)
 
     assert(IS_END(P_OUT)); // invariant provided by evaluator
 
-#if !defined(NDEBUG)
+  #if !defined(NDEBUG)
     //
     // These parse state variables live in chunk-stack REBVARs, which can be
     // annoying to find to inspect in the debugger.  This makes pointers into
@@ -1324,9 +1324,11 @@ REBNATIVE(subparse)
     //
     const REBCNT *pos_debug = &P_POS;
     (void)pos_debug; // UNUSED() forces corruption in C++11 debug builds
+  #endif
 
+  #if defined(DEBUG_COUNT_TICKS)
     REBUPT tick = TG_Tick; // helpful to cache for visibility also
-#endif
+  #endif
 
     DECLARE_LOCAL (save);
 
@@ -1373,11 +1375,11 @@ REBNATIVE(subparse)
         /* Print_Parse_Index(f); */
         UPDATE_EXPRESSION_START(f);
 
-    #if !defined(NDEBUG)
+      #if defined(DEBUG_COUNT_TICKS)
         ++TG_Tick;
         tick = TG_Tick;
-        cast(void, tick); // suppress compiler warning about lack of use
-    #endif
+        cast(void, tick); // suppress unused warning (but UNUSED() corrupts)
+      #endif
 
     //==////////////////////////////////////////////////////////////////==//
     //

@@ -45,9 +45,9 @@ remove-macro: proc [
 
 remove-macro "__BASE_FILE__"
 
-;remove everything up to REN_C_STDIO_OK
+;remove everything up to DEBUG_STDIO_OK
 ;they all seem to be builtin macros
-remove/part inp -1 + index? find inp to binary! "#define REN_C_STDIO_OK"
+remove/part inp -1 + index? find inp to binary! "#define DEBUG_STDIO_OK"
 
 ;write %/tmp/sys-core.i inp
 

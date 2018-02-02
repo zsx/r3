@@ -149,14 +149,17 @@ TVAR REBSER *GC_Manuals;    // Manually memory managed (not by GC)
 
 TVAR REBUPT Stack_Limit;    // Limit address for CPU stack.
 
-#if !defined(NDEBUG)
+#ifdef DEBUG_COUNT_TICKS
+    //
     // This counter is incremented each time through the DO loop, and can be
     // used for many purposes...including setting breakpoints in routines
     // other than Do_Next that are contingent on a certain "tick" elapsing.
     //
     TVAR REBUPT TG_Tick; // expressions, EVAL moments, PARSE steps bump this
     TVAR REBUPT TG_Break_At_Tick; // runtime break tick set by C-DEBUG_BREAK
+#endif
 
+#if !defined(NDEBUG)
     TVAR REBIPT TG_Num_Black_Series;
 #endif
 

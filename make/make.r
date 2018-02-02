@@ -946,9 +946,15 @@ switch/default user-config/debug [
     callgrind [
         cfg-symbols: true
         append app-config/definitions ["NDEBUG"]
-        append app-config/definitions ["REN_C_STDIO_OK"] ;; for debugging
         append app-config/cflags "-g" ;; for symbols
         app-config/debug: off
+
+        ; Include debugging features which do not in-and-of-themselves affect
+        ; runtime performance (DEBUG_TRACK_CELLS would be an example of
+        ; something that significantly affects runtime)
+        ;
+        append app-config/definitions ["DEBUG_STDIO_OK"]
+        append app-config/definitions ["DEBUG_PROBE_OK"]
 
         ; A special CALLGRIND native is included which allows metrics
         ; gathering to be turned on and off.  Needs <valgrind/callgrind.h>
@@ -1797,7 +1803,7 @@ prep: make rebmake/entry-class [
                     ]
                     output: %prep/include/sys-core.i
                     source: src-dir/include/sys-core.h
-                    definitions: join-of app-config/definitions [ {REN_C_STDIO_OK} ]
+                    definitions: join-of app-config/definitions [ {DEBUG_STDIO_OK} ]
                     includes: append-of app-config/includes [%../external/tcc %../external/tcc/include]
                     cflags: append-of append-of [ {-dD} {-nostdlib} ] opt cfg-ffi/cflags opt cfg-tcc/cpp-flags
                 ]

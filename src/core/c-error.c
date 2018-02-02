@@ -252,14 +252,14 @@ ATTRIBUTE_NO_RETURN void Fail_Core(const void *p)
 {
     REBCTX *error;
 
-#ifndef NDEBUG
+  #ifdef DEBUG_HAS_PROBE
     //
     // This is set via an environment variable (e.g. R3_PROBE_FAILURES=1)
     // Helpful for debugging boot, before command line parameters are parsed.
     //
     if (PG_Probe_Failures)
         PROBE(p);
-#endif
+  #endif
 
     switch (Detect_Rebol_Pointer(p)) {
     case DETECTED_AS_UTF8: {
@@ -1502,7 +1502,7 @@ int Exit_Status_From_Value(REBVAL *value)
 //
 REBCTX *Startup_Errors(REBARR *boot_errors)
 {
-#ifndef NDEBUG
+  #ifdef DEBUG_HAS_PROBE
     const char *env_probe_failures = getenv("R3_PROBE_FAILURES");
     if (env_probe_failures != NULL && atoi(env_probe_failures) != 0) {
         Debug_Str(
@@ -1513,7 +1513,7 @@ REBCTX *Startup_Errors(REBARR *boot_errors)
         );
         PG_Probe_Failures = TRUE;
     }
-#endif
+  #endif
 
     REBCTX *catalog = Construct_Context(
         REB_OBJECT,

@@ -116,7 +116,7 @@ inline static void Push_Frame_Core(REBFRM *f)
     //
     // !!! A non-contiguous data stack which is not a series is a possibility.
     //
-#ifdef STRESS_CHECK_DO_OUT_POINTER
+  #ifdef STRESS_CHECK_DO_OUT_POINTER
     REBNOD *containing = Try_Find_Containing_Node_Debug(f->out);
 
     if (containing && NOT(containing->header.bits & NODE_FLAG_CELL)) {
@@ -133,9 +133,9 @@ inline static void Push_Frame_Core(REBFRM *f)
             panic (containing);
         }
     }
-#else
+  #else
     assert(!IN_DATA_STACK_DEBUG(f->out));
-#endif
+  #endif
 
     // The arguments to functions in their frame are exposed via FRAME!s
     // and through WORD!s.  This means that if you try to do an evaluation
@@ -147,7 +147,7 @@ inline static void Push_Frame_Core(REBFRM *f)
     // argument slot.  :-/  Note the availability of D_CELL for any functions
     // that have more than one argument, during their run.
     //
-#if !defined(NDEBUG)
+  #if !defined(NDEBUG)
     REBFRM *ftemp = FS_TOP;
     for (; ftemp != NULL; ftemp = ftemp->prior) {
         if (NOT(Is_Function_Frame(ftemp)))
@@ -159,7 +159,7 @@ inline static void Push_Frame_Core(REBFRM *f)
             f->out >= ftemp->args_head + FRM_NUM_ARGS(ftemp)
         );
     }
-#endif
+  #endif
 
     // Some initialized bit pattern is needed to check to see if a
     // function call is actually in progress, or if eval_type is just
@@ -170,15 +170,17 @@ inline static void Push_Frame_Core(REBFRM *f)
     f->phase = NULL;
 
     TRASH_POINTER_IF_DEBUG(f->opt_label);
-
-#if !defined(NDEBUG)
+  #if defined(DEBUG_FRAME_LABELS)
     TRASH_POINTER_IF_DEBUG(f->label_utf8);
+  #endif
 
+  #if !defined(NDEBUG)
+    //
     // !!! TBD: the relevant file/line update when f->source.array changes
     //
     f->file = FRM_FILE_UTF8(f);
     f->line = FRM_LINE(f);
-#endif
+  #endif
 
     f->prior = TG_Frame_Stack;
     TG_Frame_Stack = f;
@@ -202,9 +204,9 @@ inline static void Push_Frame_Core(REBFRM *f)
         }
     }
 
-#if !defined(NDEBUG)
+  #if defined(DEBUG_BALANCE_STATE)
     SNAP_STATE(&f->state); // to make sure stack balances, etc.
-#endif
+  #endif
 }
 
 inline static void UPDATE_EXPRESSION_START(REBFRM *f) {
@@ -242,14 +244,14 @@ inline static void Abort_Frame_Core(REBFRM *f) {
 }
 
 inline static void Drop_Frame_Core(REBFRM *f) {
-#if !defined(NDEBUG)
+  #if defined(DEBUG_BALANCE_STATE)
     //
     // To keep from slowing down the debug build too much, Do_Core() doesn't
     // check this every cycle, just on drop.  But if it's hard to find which
     // exact cycle caused the problem, see BALANCE_CHECK_EVERY_EVALUATION_STEP
     //
     ASSERT_STATE_BALANCED(&f->state);
-#endif
+  #endif
     Abort_Frame_Core(f);
 }
 
@@ -315,9 +317,9 @@ inline static void Recover_Frame(REBFRM *f)
     f->phase = NULL;
 
     TRASH_POINTER_IF_DEBUG(f->opt_label);
-#if !defined(NDEBUG)
+  #if defined(DEBUG_FRAME_LABELS)
     TRASH_POINTER_IF_DEBUG(f->label_utf8);
-#endif
+  #endif
 }
 
 
@@ -332,10 +334,10 @@ inline static void Set_Frame_Detected_Fetch(REBFRM *f, const void *p)
 {
 detect_again:
 
-#if !defined(NDEBUG)
+  #if !defined(NDEBUG)
     if (p == NULL)
         panic ("NULL should not be used to terminate C va_lists, use END");
-#endif
+  #endif
 
     switch (Detect_Rebol_Pointer(p)) {
     case DETECTED_AS_UTF8: {

@@ -618,7 +618,6 @@ struct Reb_Frame {
     REBVAL *refine;
     REBOOL doing_pickups; // want to encode
 
-
     // `deferred`
     //
     // The deferred pointer is used to mark an argument cell which *might*
@@ -649,7 +648,18 @@ struct Reb_Frame {
     //
     REBVAL *deferred;
 
-#if !defined(NDEBUG)
+   #if defined(DEBUG_COUNT_TICKS)
+    //
+    // `tick` [DEBUG]
+    //
+    // The expression evaluation "tick" where the Reb_Frame is starting its
+    // processing.  This is helpful for setting breakpoints on certain ticks
+    // in reproducible situations.
+    //
+    REBUPT tick; // !!! Should this be in release builds, exposed to users?
+  #endif
+
+  #if defined(DEBUG_FRAME_LABELS)
     //
     // `label` [DEBUG]
     //
@@ -658,7 +668,10 @@ struct Reb_Frame {
     // and cast to `char*` to help debuggers that have trouble with REBYTE.
     //
     const char *label_utf8;
+  #endif
 
+  #if !defined(NDEBUG)
+    //
     // `file` [DEBUG]
     //
     // An emerging feature in the system is the ability to connect user-seen
@@ -675,15 +688,10 @@ struct Reb_Frame {
     // The fetching mechanics cache the type of f->value
     //
     enum Reb_Kind kind;
+  #endif
 
-    // `tick` [DEBUG]
+  #if defined(DEBUG_BALANCE_STATE)
     //
-    // The expression evaluation "tick" where the Reb_Frame is starting its
-    // processing.  This is helpful for setting breakpoints on certain ticks
-    // in reproducible situations.
-    //
-    REBUPT tick; // !!! Should this be available in release builds?
-
     // `state` [DEBUG]
     //
     // Debug reuses PUSH_TRAP's snapshotting to check for leaks at each stack
@@ -691,7 +699,7 @@ struct Reb_Frame {
     // evaluator step--see BALANCE_CHECK_EVERY_EVALUATION_STEP.
     //
     struct Reb_State state;
-#endif
+  #endif
 };
 
 

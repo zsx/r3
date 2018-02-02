@@ -497,7 +497,7 @@ REBVAL *RL_rebDo(const void *p, ...)
     // rebRelease() the result.
     //
     REBVAL *result = Alloc_Pairing(NULL);
-    assert(IS_TRASH_DEBUG(result)); // ok: Do_Va_Core() will set to END
+    ASSERT_TRASH_IF_DEBUG(result); // ok: Do_Va_Core() will set to END
     Init_Blank(PAIRING_KEY(result)); // the meta-value of the API handle
 
     va_list va;
@@ -1386,10 +1386,10 @@ void RL_rebPanic(const void *p)
 {
     Enter_Api_Cant_Error();
 
-#ifdef NDEBUG
-    REBCNT tick = 0;
+#if defined(DEBUG_COUNT_TICKS)
+    const REBUPT tick = TG_Tick;
 #else
-    REBCNT tick = TG_Tick;
+    const REBUPT tick = 0;
 #endif
 
     // Like Panic_Core, the underlying API for rebPanic might want to take an

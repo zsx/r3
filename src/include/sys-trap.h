@@ -364,18 +364,36 @@ inline static void DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(struct Reb_State *s) {
 // NOTE: It's desired that there be a space in `panic (...)` to make it look
 // more "keyword-like" and draw attention to the fact it is a `noreturn` call.
 //
-#ifdef NDEBUG
-    #define panic(v) \
-        Panic_Core((v), 0, NULL, 0)
+#if defined(DEBUG_COUNT_TICKS)
+    #ifdef NDEBUG
+        #define panic(v) \
+            Panic_Core((v), TG_Tick, NULL, 0)
 
-    #define panic_at(v,file,line) \
-        (void)file; \
-        (void)line; \
-        panic(v)
+        #define panic_at(v,file,line) \
+            UNUSED(file); \
+            UNUSED(line); \
+            panic(v)
+    #else
+        #define panic(v) \
+            Panic_Core((v), TG_Tick, __FILE__, __LINE__)
+
+        #define panic_at(v,file,line) \
+            Panic_Core((v), TG_Tick, (file), (line))
+    #endif
 #else
-    #define panic(v) \
-        Panic_Core((v), TG_Tick, __FILE__, __LINE__)
+    #ifdef NDEBUG
+        #define panic(v) \
+            Panic_Core((v), 0, NULL, 0)
 
-    #define panic_at(v,file,line) \
-        Panic_Core((v), TG_Tick, (file), (line))
+        #define panic_at(v,file,line) \
+            UNUSED(file); \
+            UNUSED(line); \
+            panic(v)
+    #else
+        #define panic(v) \
+            Panic_Core((v), 0, __FILE__, __LINE__)
+
+        #define panic_at(v,file,line) \
+            Panic_Core((v), 0, (file), (line))
+    #endif
 #endif

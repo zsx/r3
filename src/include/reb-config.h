@@ -268,3 +268,21 @@ Special internal defines used by RT, not Host-Kit developers:
     #define HAS_SMART_CONSOLE
     #define NO_DL_LIB
 #endif
+
+
+// Initially the debug build switches were all (default) or nothing (-DNDEBUG)
+// but needed to be broken down into a finer-grained list.  This way, more
+// constrained systems (like emscripten) can build in just the features it
+// needs for a specific debug scenario.
+//
+#if !defined(NDEBUG)
+    #define DEBUG_STDIO_OK
+    #define DEBUG_HAS_PROBE
+    #define DEBUG_COUNT_TICKS
+    #define DEBUG_CELL_WRITABILITY
+    #define DEBUG_FRAME_LABELS
+    #define DEBUG_UNREADABLE_BLANKS
+    #define DEBUG_TRASH_CELLS
+    #define DEBUG_TRACK_CELLS
+    #define DEBUG_BALANCE_STATE
+#endif

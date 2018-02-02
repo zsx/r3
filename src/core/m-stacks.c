@@ -114,7 +114,7 @@ void Shutdown_Stacks(void)
 {
     assert(FS_TOP == NULL);
     assert(DSP == 0);
-    assert(IS_UNREADABLE_IF_DEBUG(ARR_HEAD(DS_Array)));
+    ASSERT_UNREADABLE_IF_DEBUG(ARR_HEAD(DS_Array));
 
     Free_Array(DS_Array);
 

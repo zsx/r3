@@ -95,9 +95,9 @@ REB_R Apply_Core(REBFRM * const f) {
 
 
 static inline REBOOL Start_New_Expression_Throws(REBFRM *f) {
-#if !defined(NDEBUG)
-    assert(IS_UNREADABLE_IF_DEBUG(f->out) || IS_END(f->out));
-#endif
+  #if defined(DEBUG_UNREADABLE_BLANKS)
+    assert(IS_UNREADABLE_DEBUG(f->out) || IS_END(f->out));
+  #endif
 
     assert(Eval_Count >= 0);
     if (--Eval_Count == 0) {
@@ -112,23 +112,15 @@ static inline REBOOL Start_New_Expression_Throws(REBFRM *f) {
 
     UPDATE_EXPRESSION_START(f); // !!! See FRM_INDEX() for caveats
 
-#if !defined(NDEBUG)
-    assert(IS_UNREADABLE_IF_DEBUG(f->out) || IS_END(f->out));
-#endif
+  #if defined(DEBUG_UNREADABLE_BLANKS)
+    assert(IS_UNREADABLE_DEBUG(f->out) || IS_END(f->out));
+  #endif
 
     return FALSE;
 }
 
 
-#ifdef NDEBUG
-    #define UPDATE_TICK_DEBUG(cur) \
-        NOOP
-
-    #define START_NEW_EXPRESSION_MAY_THROW(f,g) \
-        if (Start_New_Expression_Throws(f)) \
-            g; \
-        evaluating = NOT((f)->flags.bits & DO_FLAG_EXPLICIT_EVALUATE);
-#else
+#ifdef DEBUG_COUNT_TICKS
     #define START_NEW_EXPRESSION_MAY_THROW(f,g) \
         Do_Core_Expression_Checks_Debug(f); \
         if (Start_New_Expression_Throws(f)) \
@@ -160,6 +152,14 @@ static inline REBOOL Start_New_Expression_Throws(REBFRM *f) {
                 TG_Break_At_Tick = 0; \
             } \
         } while (FALSE)
+#else
+    #define UPDATE_TICK_DEBUG(cur) \
+        NOOP
+
+    #define START_NEW_EXPRESSION_MAY_THROW(f,g) \
+        if (Start_New_Expression_Throws(f)) \
+            g; \
+        evaluating = NOT((f)->flags.bits & DO_FLAG_EXPLICIT_EVALUATE);
 #endif
 
 static inline void Drop_Function(REBFRM *f) {
@@ -297,9 +297,9 @@ static inline void Link_Vararg_Param_To_Frame(REBFRM *f, REBOOL make) {
 //
 void Do_Core(REBFRM * const f)
 {
-#if !defined(NDEBUG)
+  #if defined(DEBUG_COUNT_TICKS)
     REBUPT tick = f->tick = TG_Tick; // snapshot start tick
-#endif
+  #endif
 
     // !!! Experimental feature that can kick the evaluator into a "mock" mode
     // where it attempts to complete expressions without actually having any
@@ -477,7 +477,9 @@ reevaluate:;
 
                 f->refine = ORDINARY_ARG;
                 if (NOT_VAL_FLAG(current_gotten, FUNC_FLAG_INVISIBLE)) {
-                    assert(IS_UNREADABLE_IF_DEBUG(f->out) || IS_END(f->out));
+                  #if defined(DEBUG_UNREADABLE_BLANKS)
+                    assert(IS_UNREADABLE_DEBUG(f->out) || IS_END(f->out));
+                  #endif
                     SET_END(f->out);
                 }
                 goto process_function;
@@ -660,7 +662,8 @@ reevaluate:;
                 assert(GET_FUN_FLAG(f->phase, FUNC_FLAG_INVISIBLE));
         }
         else {
-            assert(f->refine == LOOKBACK_ARG && NOT(IS_TRASH_DEBUG(f->out)));
+            assert(f->refine == LOOKBACK_ARG);
+            ASSERT_NOT_TRASH_IF_DEBUG(f->out);
         }
     #endif
 
@@ -1640,7 +1643,9 @@ reevaluate:;
             // no output in the cell yet (e.g. `do [comment "hi" ...]`) so it
             // would still be END after the fact.
             //
-            assert(IS_END(f->out) || NOT(IS_UNREADABLE_IF_DEBUG(f->out)));
+          #if defined(DEBUG_UNREADABLE_BLANKS)
+            assert(IS_END(f->out) || NOT(IS_UNREADABLE_DEBUG(f->out)));
+          #endif
 
             // If we hit the frame end, there are two different behaviors:
             //
@@ -1814,7 +1819,10 @@ reevaluate:;
                 // -OR- after FUNC_FLAG_INVISIBLE e.g. `10 comment "hi" + 20`.
                 //
                 f->refine = LOOKBACK_ARG;
-                assert(IS_END(f->out) || NOT(IS_UNREADABLE_IF_DEBUG(f->out)));
+
+              #if defined(DEBUG_UNREADABLE_BLANKS)
+                assert(IS_END(f->out) || NOT(IS_UNREADABLE_DEBUG(f->out)));
+              #endif
             }
             else {
                 f->refine = ORDINARY_ARG;

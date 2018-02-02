@@ -171,6 +171,7 @@ REBNATIVE(recycle)
         for (index = 0; index < count; ++index) {
             REBNOD *node = *SER_AT(REBNOD*, sweeplist, index);
             PROBE(node);
+            UNUSED(node);
         }
 
         Free_Series(sweeplist);
@@ -329,7 +330,7 @@ REBNATIVE(c_debug_break_at)
 {
     INCLUDE_PARAMS_OF_C_DEBUG_BREAK_AT;
 
-#ifndef NDEBUG
+#if !defined(NDEBUG) && defined(DEBUG_COUNT_TICKS)
     if (REF(compensate)) {
         //
         // Imagine two runs of Rebol console initialization.  In the first,
@@ -396,7 +397,7 @@ REBNATIVE(c_debug_break)
 {
     INCLUDE_PARAMS_OF_C_DEBUG_BREAK;
 
-#ifndef NDEBUG
+#if !defined(NDEBUG) && defined(DEBUG_COUNT_TICKS)
     TG_Break_At_Tick = frame_->tick + 1;
 
     // C-DEBUG-BREAK wants to appear invisible to the evaluator, so you can

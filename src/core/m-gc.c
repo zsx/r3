@@ -336,12 +336,14 @@ static void Queue_Mark_Opt_Value_Deep(const RELVAL *v)
     //
     assert(NOT(v->header.bits & VALUE_FLAG_THROWN));
 
-#if !defined(NDEBUG)
-    if (IS_UNREADABLE_IF_DEBUG(v))
+  #if defined(DEBUG_UNREADABLE_BLANKS)
+    if (IS_UNREADABLE_DEBUG(v))
         return;
+  #endif
 
+  #if !defined(NDEBUG)
     in_mark = TRUE;
-#endif
+  #endif
 
     // This switch is done via contiguous REB_XXX values, in order to
     // facilitate use of a "jump table optimization":
@@ -813,7 +815,7 @@ static void Propagate_All_GC_Marks(void)
                 }
                 else {
                     assert(NOT_SER_FLAG(keylist, ARRAY_FLAG_PARAMLIST));
-                    assert(IS_UNREADABLE_IF_DEBUG(ARR_HEAD(keylist)));
+                    ASSERT_UNREADABLE_IF_DEBUG(ARR_HEAD(keylist));
                 }
                 Queue_Mark_Array_Subclass_Deep(keylist);
             }
@@ -1014,7 +1016,7 @@ static void Mark_Root_Series(void)
 //
 static void Mark_Data_Stack(void)
 {
-    assert(IS_UNREADABLE_IF_DEBUG(&DS_Movable_Base[0]));
+    ASSERT_UNREADABLE_IF_DEBUG(&DS_Movable_Base[0]);
 
     REBVAL *stackval = DS_TOP;
     for (; stackval != &DS_Movable_Base[0]; --stackval) {
@@ -1249,7 +1251,10 @@ static void Mark_Frame_Stack_Deep(void)
                 // that output slot, and it also may be an END, which is not
                 // legal for any other slots.  We won't be needing to mark it.
                 //
-                assert(IS_END(f->arg) || NOT(IS_TRASH_DEBUG(f->arg)));
+              #if !defined(NDEBUG)
+                if (NOT_END(f->arg))
+                    ASSERT_NOT_TRASH_IF_DEBUG(f->arg);
+              #endif
 
                 // If we're not doing "pickups" then the cell slots after
                 // this one have not been initialized, not even to trash.
@@ -1271,7 +1276,7 @@ static void Mark_Frame_Stack_Deep(void)
                 // Slot was skipped, e.g. out of order refinement.  It's
                 // initialized bits, but left as trash until f->doing_pickups.
                 //
-                assert(IS_TRASH_DEBUG(arg)); // check more trash bits
+                ASSERT_TRASH_IF_DEBUG(arg); // check more trash bits
                 continue;
             }
 

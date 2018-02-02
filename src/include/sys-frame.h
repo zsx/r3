@@ -59,7 +59,8 @@ static inline void CONVERT_NAME_TO_THROWN(
     assert(!THROWN(name));
     SET_VAL_FLAG(name, VALUE_FLAG_THROWN);
 
-    assert(IS_UNREADABLE_IF_DEBUG(&TG_Thrown_Arg));
+    ASSERT_UNREADABLE_IF_DEBUG(&TG_Thrown_Arg);
+
     Move_Value(&TG_Thrown_Arg, arg);
 }
 
@@ -70,7 +71,7 @@ static inline void CATCH_THROWN(REBVAL *arg_out, REBVAL *thrown) {
     assert(THROWN(thrown));
     CLEAR_VAL_FLAG(thrown, VALUE_FLAG_THROWN);
 
-    assert(!IS_UNREADABLE_IF_DEBUG(&TG_Thrown_Arg));
+    ASSERT_READABLE_IF_DEBUG(&TG_Thrown_Arg);
     Move_Value(arg_out, &TG_Thrown_Arg);
     Init_Unreadable_Blank(&TG_Thrown_Arg);
 }
@@ -447,13 +448,13 @@ inline static void Push_Function(
     assert(IS_POINTER_TRASH_DEBUG(f->opt_label)); // only valid w/REB_FUNCTION
     f->opt_label = opt_label;
 
-#if !defined(NDEBUG)
+  #if defined(DEBUG_FRAME_LABELS)
     //
     // It's helpful when looking in the debugger to be able to look at a frame
     // and see a cached string for the function it's running.
     //
     f->label_utf8 = cast(const char*, Frame_Label_Or_Anonymous_UTF8(f));
-#endif
+  #endif
 
     f->original = f->phase = fun;
 
@@ -535,9 +536,9 @@ inline static void Drop_Function_Core(
         || GET_SER_FLAG(f->opt_label, SERIES_FLAG_UTF8_STRING)
     );
     TRASH_POINTER_IF_DEBUG(f->opt_label);
-#if !defined(NDEBUG)
+  #if defined(DEBUG_FRAME_LABELS)
     TRASH_POINTER_IF_DEBUG(f->label_utf8);
-#endif
+  #endif
 
     f->phase = NULL; // should args_head == NULL be the indicator instead?
 

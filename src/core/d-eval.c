@@ -104,20 +104,17 @@ void Dump_Frame_Location(const RELVAL *current, REBFRM *f)
 //
 static void Do_Core_Shared_Checks_Debug(REBFRM *f) {
     //
-    // There shouldn't have been any "accumulated state", in the sense that
-    // we should be back where we started in terms of the data stack, the
-    // mold buffer position, the outstanding manual series allocations, etc.
+    // The state isn't actually guaranteed to balance overall until a frame
+    // is completely dropped.  This is because a frame may be reused over
+    // multiple calls by something like REDUCE or FORM, accumulating items
+    // on the data stack or mold stack/etc.  See Drop_Frame_Core() for the
+    // actual balance check.
     //
-    // Because this check is a bit expensive it is lightened up and used in
-    // the exit case only.  But re-enable it to help narrowing down an
-    // imbalanced state discovered on an exit.
-    //
-#ifdef BALANCE_CHECK_EVERY_EVALUATION_STEP
-    ASSERT_STATE_BALANCED(&f->state);
-#endif
+  #ifdef DEBUG_BALANCE_STATE
+    assert(f->state.top_chunk == TG_Top_Chunk);
+  #endif
 
     assert(f == FS_TOP);
-    assert(f->state.top_chunk == TG_Top_Chunk);
     assert(DSP == f->dsp_orig);
 
     if (f->source.array != NULL) {
@@ -150,7 +147,7 @@ static void Do_Core_Shared_Checks_Debug(REBFRM *f) {
     assert(f->phase == NULL);
     assert(IS_POINTER_TRASH_DEBUG(f->opt_label));
 
-    assert(NOT(IS_TRASH_DEBUG(&f->cell)));
+    ASSERT_NOT_TRASH_IF_DEBUG(&f->cell);
 
     //=//// ^-- ABOVE CHECKS *ALWAYS* APPLY ///////////////////////////////=//
 
@@ -206,24 +203,27 @@ void Do_Core_Expression_Checks_Debug(REBFRM *f) {
     // give this more teeth by explicitly setting it to an unreadable blank,
     // but only if it wasn't an END marker (that's how we can tell no
     // evaluations have been done yet, consider `(comment [...] + 2)`)
-    //
-    assert(NOT(IS_TRASH_DEBUG(f->out)));
-    if (NOT(IS_UNREADABLE_IF_DEBUG(f->out)) && NOT_END(f->out))
+
+    ASSERT_NOT_TRASH_IF_DEBUG(f->out);
+
+  #if defined(DEBUG_UNREADABLE_BLANKS)
+    if (NOT(IS_UNREADABLE_DEBUG(f->out)) && NOT_END(f->out))
         Init_Unreadable_Blank(f->out);
 
     // Once a throw is started, no new expressions may be evaluated until
     // that throw gets handled.
     //
-    assert(IS_UNREADABLE_IF_DEBUG(&TG_Thrown_Arg));
+    assert(IS_UNREADABLE_DEBUG(&TG_Thrown_Arg));
 
     // Make sure `cell` is reset in debug build if not doing a `reevaluate`
     // (once this was used by EVAL the native, but now it's used by rebEval()
     // at the API level, which currently sets `f->value = &f->cell;`)
     //
-#if !defined(NDEBUG)
-    if (f->value != &f->cell)
-        Init_Unreadable_Blank(&f->cell);
-#endif
+    #if !defined(NDEBUG)
+        if (f->value != &f->cell)
+            Init_Unreadable_Blank(&f->cell);
+    #endif
+  #endif
 
     // Trash call variables in debug build to make sure they're not reused.
     // Note that this call frame will *not* be seen by the GC unless it gets
