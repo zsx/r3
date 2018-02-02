@@ -1485,6 +1485,13 @@ libr3-os: make libr3-core [
         gen-obj/dir s src-dir/os/%
     ]
 ]
+main: make libr3-os [
+    name: 'main
+    depends: reduce [
+        gen-obj/dir file-base/main src-dir/os/%
+    ]
+]
+
 
 pthread: make rebmake/ext-dynamic-class [
     output: %pthread
@@ -1881,6 +1888,7 @@ app: make rebmake/application-class [
         (libr3-os)
         (ext-objs)
         (app-config/libraries)
+        (main)
     ]
     post-build-commands: either cfg-symbols [
         _
@@ -2018,6 +2026,7 @@ solution: make rebmake/solution-class [
         ext-objs
         libr3-core
         libr3-os
+        main
         app
         dynamic-libs
         ext-dynamic-objs

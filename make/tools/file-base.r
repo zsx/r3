@@ -181,8 +181,9 @@ made: [
 ; the Rebol Core sources, except for the host.)
 ;
 
+main: 'host-main.c
+
 os: [
-    host-main.c
     + host-device.c
     host-stdio.c
     host-table.c
