@@ -57,14 +57,14 @@
 #if __has_builtin(__builtin_sadd_overflow) || GCC_VERSION_AT_LEAST(5, 1)
 #define REB_I32_ADD_OF(x, y, sum) __builtin_sadd_overflow((x), (y), (sum))
 #else
-REBOOL reb_i32_add_overflow(i32 x, i32 y, i32 *sum);
+REBOOL reb_i32_add_overflow(i32 x, i32 y, int *sum);
 #define REB_I32_ADD_OF(x, y, sum) reb_i32_add_overflow((x), (y), (sum))
 #endif
 
 #if __has_builtin(__builtin_uadd_overflow) || GCC_VERSION_AT_LEAST(5, 1)
 #define REB_U32_ADD_OF(x, y, sum) __builtin_uadd_overflow((x), (y), (sum))
 #else
-REBOOL reb_u32_add_overflow(u32 x, u32 y, u32 *sum);
+REBOOL reb_u32_add_overflow(u32 x, u32 y, unsigned int *sum);
 #define REB_U32_ADD_OF(x, y, sum) reb_u32_add_overflow((x), (y), (sum))
 #endif
 

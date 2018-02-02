@@ -33,19 +33,19 @@
 #include "reb-c.h"
 #include "sys-int-funcs.h"
 
-REBOOL reb_i32_add_overflow(i32 x, i32 y, i32 *sum)
+REBOOL reb_i32_add_overflow(i32 x, i32 y, int *sum)
 {
     i64 sum64 = (i64)x + (i64)y;
     if (sum64 > MAX_I32 || sum64 < MIN_I32) return TRUE;
-    *sum = (i32)sum64;
+    *sum = cast(i32, sum64);
     return FALSE;
 }
 
-REBOOL reb_u32_add_overflow(u32 x, u32 y, u32 *sum)
+REBOOL reb_u32_add_overflow(u32 x, u32 y, unsigned int *sum)
 {
     u64 s = (u64)x + (u64)y;
     if (s > MAX_I32) return TRUE;
-    *sum = (u32)s;
+    *sum = cast(u32, s);
     return FALSE;
 }
 

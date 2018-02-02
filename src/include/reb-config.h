@@ -276,7 +276,10 @@ Special internal defines used by RT, not Host-Kit developers:
 // needs for a specific debug scenario.
 //
 #if !defined(NDEBUG)
-    #define DEBUG_STDIO_OK
+    #ifndef DEBUG_STDIO_OK // !!! TCC currently respecifying this, review
+        #define DEBUG_STDIO_OK
+    #endif
+
     #define DEBUG_HAS_PROBE
     #define DEBUG_COUNT_TICKS
     #define DEBUG_CELL_WRITABILITY

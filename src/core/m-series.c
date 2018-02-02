@@ -224,8 +224,8 @@ void Remove_Series(REBSER *s, REBCNT index, REBINT len)
         }
         else {
             // Add bias to head:
-            u32 bias = SER_BIAS(s);
-            if (REB_U32_ADD_OF(bias, len, &bias))
+            unsigned int bias;
+            if (REB_U32_ADD_OF(SER_BIAS(s), len, &bias))
                 fail (Error_Overflow_Raw());
 
             if (bias > 0xffff) { //bias is 16-bit, so a simple SER_ADD_BIAS could overflow it

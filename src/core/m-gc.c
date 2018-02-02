@@ -1850,7 +1850,7 @@ static REBCNT Sweep_Gobs(void)
                 // GC_Ballast is of type REBINT, which might be long
                 // and REB_I32_ADD_OF takes (int*)
                 // it's illegal to convert form (long*) to (int*) in C++
-                i32 tmp;
+                int tmp;
                 GC_Ballast = REB_I32_ADD_OF(
                     GC_Ballast, Mem_Pools[GOB_POOL].wide, &tmp
                 ) ? MAX_I32 : tmp;
