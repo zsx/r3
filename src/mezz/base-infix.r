@@ -265,96 +265,84 @@ else*: enfix redescribe [
 
 ; SHORT-CIRCUIT BOOLEAN OPERATORS
 ;
-; Traditionally Rebol's AND/OR/XOR infix operations were bitwise operations,
-; not logical ones.  Because bitwise math is relatively uncommon, and most
-; languages would use the words to mean "conditional" operations, it was a
-; rather popular proposal to change the behavior:
+; Rebol's historical AND/OR/XOR infix operators were bitwise, but were turned
+; into short-circuiting conditionals:
 ;
 ; https://github.com/rebol/rebol-issues/issues/1879
 ;
-; However, many languages have "short-circuit" behavior, e.g. the right hand
-; side of an AND will not be evaluated if the left hand side is false.  In
-; Rebol this can't be done without using a BLOCK! or a quoted group.  For the
-; moment, Ren-C experiments with requiring the right hand side of a short
-; circuit operation to be a GROUP! so that it may be quoted and then either
-; executed or not.
+; To achieve short-circuiting, the right hand side is a quoted GROUP!.  If
+; if it were a BLOCK! passed normally it would confuse people who wrote
+; `block1 or block2` and had the first tested for logic and the second run
+; as code.  It would have to be quoted, and quoting a group makes more sense.
+;
+; For predictability when dealing with LOGIC!, input of a LOGIC! type to the
+; left will always give a LOGIC! result...whether the short circuit branch
+; runs or not.  More flexibility is offered when the left hand value is not
+; a LOGIC!, so the operation can return arbitrary values, more like ANY []
+; or ALL [].  This makes them useful as variants of ELSE and ALSO which do
+; conditional logic on their left (vs. testing for void).
+;
+; XOR is a little weirder since it can't short-circuit (always evaluates both
+; of the branches) but it is able to chain, and it kind of makes since that it
+; would differentiate its syntax on the left and the right, both for a
+; consistent look as well as to signal the left argument cues the return type.
+;
+; !!! NAND and NOR don't look very good because `if foo nor (bar)` seems to
+; need a "neither" in front of it.  Review if these should exist or not.
 
 and: enfix func [
-    {Short-circuit boolean AND}
+    {Short-circuit boolean AND, which can also pass thru non-LOGIC! values}
 
     return: [any-value!]
-        {LOGIC! if first input is LOGIC!, else right hand value or blank}
+        {LOGIC! if left arg is LOGIC!, else right arg or blank}
     left [any-value!]
         {Expression which will always be evaluated}
     :right [group!]
-        {Quoted expression, that will be evaluated only if LEFT is "truthy"}
+        {Quoted expression, evaluated unless left is blank or FALSE}
 ][
-    either left [
-        right: do right else [
-            fail/where "Right arg of AND can't be void" 'right
-        ]
-        either logic? left [
-            did right ;-- force result to LOGIC! if left hand side was logic
-        ][
-            either right [right] [blank]
-        ]
-    ][
-        left ;-- FALSE or BLANK!
-    ]
+    case [
+        :left = blank [blank]
+        :left = false [false]
+        :left = true [did to-value do right]
+    ] else [do right]
 ]
 
 or: enfix func [
-    {Short-circuit boolean OR}
+    {Short-circuit boolean OR, which can also pass thru non-LOGIC! values}
 
     return: [any-value!]
-        {LOGIC! if first input is LOGIC!, else left or right value or blank}
+        {LOGIC! if left arg is LOGIC!, else left or right value or blank}
     left [any-value!]
         {Expression which will always be evaluated}
     :right [group!]
-        {Quoted expression, that will be evaluated only if LEFT is FALSEY?}
+        {Quoted expression, evaluated only if left is blank or FALSE}
 ][
-    either left [
-        left
-    ][
-        right: do right else [
-            fail/where "Right arg of OR can't be void" 'right
-        ]
-        either logic? left [
-            did right ;-- force result to LOGIC! if left hand side was logic
-        ][
-            either right [right] [blank]
-        ]
+    case [
+        :left = blank [do right]
+        :left = false [did to-value do right]
+        :left = true [true]
+    ] else [:left]
+]
+
+xor: enfix func [
+    {Boolean XOR which can also pass thru non-LOGIC! values}
+
+    return: [any-value!]
+        {LOGIC! if left arg is LOGIC!, else left or right value or blank}
+    left [any-value!]
+        {Expression which will always be evaluated, guides result value}
+    :right [group!]
+        {Quoted expression, must be always evaluated as well}
+][
+    case [
+        :left = blank [do right]
+        :left = false [did to-value do right]
+        :left = true [not to-value do right]
+    ] else [
+        unless to-value do right [:left]
     ]
+
 ]
-
-nor: enfix func [
-    {Short-circuit boolean NOR}
-
-    return: [logic!]
-    left [any-value!]
-        {Expression which will always be evaluated}
-    :right [group!]
-        {Quoted expression, that will be evaluated only if LEFT is FALSEY?}
-][
-    either left [false] [not do right]
-]
-
-nand: enfix func [
-    {Short-circuit boolean NAND}
-
-    return: [logic!]
-    left [any-value!]
-        {Expression which will always be evaluated}
-    :right [group!]
-        {Quoted expression, that will be evaluated only if LEFT is FALSEY?}
-][
-    either left [not do right] [true]
-]
-
-
-; There's no way to do a shortcut XOR...both sides have to be tested.
-;
-xor: enfix :xor?
 
 
 ; The -- and ++ operators were deemed too "C-like", so ME was created to allow

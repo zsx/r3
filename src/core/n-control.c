@@ -166,8 +166,19 @@ REBNATIVE(either_test)
     REBVAL *test = ARG(test);
     REBVAL *value = ARG(value);
 
-    if (IS_LOGIC(test)) {
-        if (IS_VOID(value) || VAL_LOGIC(test) != IS_TRUTHY(value))
+    if (IS_LOGIC(test)) { // test for "truthy" or "falsey"
+        if (IS_VOID(value)) { // void is neither true nor false
+            DECLARE_LOCAL (word);
+            Init_Word(word, VAL_PARAM_SPELLING(PAR(test)));
+            fail (Error_No_Value(word));
+        }
+
+        // If this is the result of composing together a test with a literal,
+        // it may be the *test* that changes...so in effect, we could be
+        // "testing the test" on a fixed value.  Allow literal blocks (e.g.
+        // use IS_TRUTHY() instead of IS_CONDITIONAL_TRUE())
+        //
+        if (VAL_LOGIC(test) != IS_TRUTHY(value))
             goto test_failed;
         return R_FROM_BOOL(VAL_LOGIC(test));
     }

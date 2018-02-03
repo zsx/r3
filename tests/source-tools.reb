@@ -83,9 +83,7 @@ rebsource: context [
         ][
             collect [
                 for-each source list/source-files [
-                    if not find whitelisted source [
-                        keep (opt analyse/file source)
-                    ]
+                    find whitelisted source or (keep opt analyse/file source)
                 ]
             ]
         ]
@@ -168,24 +166,23 @@ rebsource: context [
                             ]
                         ]
 
-                        either find/match mold proto-parser/data/2 {native} [
+                        if find/match mold proto-parser/data/2 {native} [
                             ;
                             ; It's a `some-name?: native [...]`, so we expect
                             ; `REBNATIVE(some_name_q)` to be correctly lined up
                             ; as the "to-c-name" of the Rebol set-word
                             ;
-                            unless (
-                                equal?
+                            if (
                                 proto-parser/proto.arg.1
-                                (to-c-name to word! proto-parser/data/1)
-                            ) [
+                                <> (to-c-name to word! proto-parser/data/1)
+                            )[
                                 line: text-line-of proto-parser/parse.position
                                 emit analysis [
                                     id-mismatch
                                     (mold proto-parser/data/1) (file) (line)
                                 ]
                             ]
-                        ] [
+                        ] else [
                             ;
                             ; ... ? (not a native)
                             ;

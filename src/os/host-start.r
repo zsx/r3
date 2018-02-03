@@ -358,7 +358,7 @@ host-start: function [
             ]
             return blank
         ]
-        
+
         any [
             get-env 'HOME
 

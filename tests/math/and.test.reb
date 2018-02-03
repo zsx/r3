@@ -63,7 +63,7 @@
 [
     x: 1020
     did all [
-        true and (x: _) = false 
+        true and (x: _) = false
         x = _
     ]
 ][
@@ -97,7 +97,7 @@
 [
     x: 1020
     did all [
-        false or (x: _) = false 
+        false or (x: _) = false
         x = _
     ]
 ][
