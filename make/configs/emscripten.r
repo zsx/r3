@@ -11,7 +11,11 @@ toolset: [
 
 optimize: "z"
 
-ldflags: reduce [unspaced["-O" optimize]]
+ldflags: reduce [
+	unspaced["-O" optimize]
+	{-s 'EXTRA_EXPORTED_RUNTIME_METHODS=["ccall", "cwrap"]'}
+	{--post-js post.js}
+]
 
 extensions: [
     - crypt _
