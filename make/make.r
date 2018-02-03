@@ -672,13 +672,23 @@ targets: [
             ]
         ]
     ]
-    app build r3 [
+    app executable r3 [
         rebmake/execution/run make rebmake/solution-class [
             depends: flatten reduce [
                 vars
                 t-folders
                 dynamic-libs
                 app
+            ]
+        ]
+    ]
+    library [
+        rebmake/execution/run make rebmake/solution-class [
+            depends: flatten reduce [
+                vars
+                t-folders
+                dynamic-libs
+                library
             ]
         ]
     ]
@@ -1909,6 +1919,23 @@ app: make rebmake/application-class [
     definitions: app-config/definitions
 ]
 
+library: make rebmake/dynamic-library-class [
+    name: 'library
+    output: %r3 ;no suffix
+    depends: compose [
+        (libr3-core)
+        (libr3-os)
+        (ext-objs)
+        (app-config/libraries)
+    ]
+    searches: app-config/searches
+    ldflags: app-config/ldflags
+    cflags: app-config/cflags
+    optimization: app-config/optimization
+    debug: app-config/debug
+    includes: app-config/includes
+    definitions: app-config/definitions
+]
 
 dynamic-libs: make block! 8
 ext-libs: make block! 8
@@ -2028,6 +2055,7 @@ solution: make rebmake/solution-class [
         libr3-os
         main
         app
+				library
         dynamic-libs
         ext-dynamic-objs
         check
