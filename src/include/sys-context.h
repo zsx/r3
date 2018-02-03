@@ -311,14 +311,14 @@ inline static REBVAL *CTX_FRAME_FUNC_VALUE(REBCTX *c) {
 #define SELFISH(n) \
     ((n) + 1)
 
-#define Init_Any_Context(out,kind,context) \
-    Init_Any_Context_Core((out), (kind), (context))
+#define Init_Any_Context(out,kind,c) \
+    Init_Any_Context_Core((out), (kind), (c))
 
-#define Init_Object(v,c) \
-    Init_Any_Context((v), REB_OBJECT, (c))
+#define Init_Object(out,c) \
+    Init_Any_Context((out), REB_OBJECT, (c))
 
-#define Init_Port(v,c) \
-    Init_Any_Context((v), REB_PORT, (c))
+#define Init_Port(out,c) \
+    Init_Any_Context((out), REB_PORT, (c))
 
 
 //=////////////////////////////////////////////////////////////////////////=//

@@ -48,7 +48,7 @@
 // know that value exists.  So while the address may be stable, any series
 // it has in the payload might go bad.  Use PUSH_GUARD_VALUE() to protect a
 // stack variable's payload, and then DROP_GUARD_VALUE() when the protection
-// is not needed.  (You must always drop the last guard pushed.)
+// is not needed.  (You must always drop the most recently pushed guard.)
 //
 // For a means of creating a temporary array of GC-protected REBVALs, see
 // the "chunk stack" in %sys-stack.h.  This is used when building function
@@ -474,7 +474,7 @@
 #define HEADERIZE_KIND(kind) \
     FLAGBYTE_RIGHT(kind)
 
-inline static void VAL_RESET_HEADER_EXTRA_Core(
+inline static REBVAL *VAL_RESET_HEADER_EXTRA_Core(
     RELVAL *v,
     enum Reb_Kind kind,
     REBUPT extra
@@ -495,6 +495,7 @@ inline static void VAL_RESET_HEADER_EXTRA_Core(
 
     v->header.bits &= CELL_MASK_RESET;
     v->header.bits |= HEADERIZE_KIND(kind) | extra;
+    return cast(REBVAL*, v);
 }
 
 #if defined(DEBUG_CELL_WRITABILITY)
@@ -515,27 +516,28 @@ inline static void VAL_RESET_HEADER_EXTRA_Core(
     // used if the intent is to preserve the payload and extra, and is
     // wasteful if you're just going to overwrite them immediately afterward.
     //
-    inline static void VAL_RESET_Debug(
-        RELVAL *v,
+    inline static REBVAL *VAL_RESET_Debug(
+        RELVAL *out,
         enum Reb_Kind kind,
         REBUPT extra,
         const char *file,
         int line
     ){
     #ifdef DEBUG_CELL_WRITABILITY
-        VAL_RESET_HEADER_EXTRA_Core(v, kind, extra, file, line);
+        VAL_RESET_HEADER_EXTRA_Core(out, kind, extra, file, line);
     #else
-        VAL_RESET_HEADER_EXTRA(v, kind, extra);
+        VAL_RESET_HEADER_EXTRA(out, kind, extra);
     #endif
 
-        TRACK_CELL_IF_DEBUG(v, file, line);
+        TRACK_CELL_IF_DEBUG(out, file, line);
+        return cast(REBVAL*, out);
     }
 
-    #define VAL_RESET(v,kind,extra) \
-        VAL_RESET_Debug((v), (kind), (extra), __FILE__, __LINE__)
+    #define VAL_RESET(out,kind,extra) \
+        VAL_RESET_Debug((out), (kind), (extra), __FILE__, __LINE__)
 #else
-    #define VAL_RESET(v,kind,extra) \
-        VAL_RESET_HEADER_EXTRA((v), (kind), (extra))
+    #define VAL_RESET(out,kind,extra) \
+       VAL_RESET_HEADER_EXTRA((out), (kind), (extra))
 #endif
 
 
@@ -1120,9 +1122,10 @@ inline static enum Reb_Kind KIND_FROM_SYM(REBSYM s) {
 #define VAL_CHAR(v) \
     ((v)->payload.character)
 
-inline static void Init_Char(RELVAL *v, REBUNI uni) {
-    VAL_RESET_HEADER(v, REB_CHAR);
-    VAL_CHAR(v) = uni;
+inline static REBVAL *Init_Char(RELVAL *out, REBUNI uni) {
+    VAL_RESET_HEADER(out, REB_CHAR);
+    VAL_CHAR(out) = uni;
+    return cast(REBVAL*, out);
 }
 
 #define SPACE_VALUE \
@@ -1165,9 +1168,10 @@ inline static void Init_Char(RELVAL *v, REBUNI uni) {
     }
 #endif
 
-inline static void Init_Integer(RELVAL *v, REBI64 i64) {
-    VAL_RESET_HEADER(v, REB_INTEGER);
-    v->payload.integer = i64;
+inline static REBVAL *Init_Integer(RELVAL *out, REBI64 i64) {
+    VAL_RESET_HEADER(out, REB_INTEGER);
+    out->payload.integer = i64;
+    return cast(REBVAL*, out);
 }
 
 #define VAL_INT32(v) \
@@ -1210,14 +1214,16 @@ inline static void Init_Integer(RELVAL *v, REBI64 i64) {
     }
 #endif
 
-inline static void Init_Decimal(RELVAL *v, REBDEC d) {
-    VAL_RESET_HEADER(v, REB_DECIMAL);
-    v->payload.decimal = d;
+inline static REBVAL *Init_Decimal(RELVAL *out, REBDEC d) {
+    VAL_RESET_HEADER(out, REB_DECIMAL);
+    out->payload.decimal = d;
+    return cast(REBVAL*, out);
 }
 
-inline static void Init_Percent(RELVAL *v, REBDEC d) {
-    VAL_RESET_HEADER(v, REB_PERCENT);
-    v->payload.decimal = d;
+inline static REBVAL *Init_Percent(RELVAL *out, REBDEC d) {
+    VAL_RESET_HEADER(out, REB_PERCENT);
+    out->payload.decimal = d;
+    return cast(REBVAL*, out);
 }
 
 
@@ -1265,13 +1271,14 @@ inline static deci VAL_MONEY_AMOUNT(const RELVAL *v) {
     return amount;
 }
 
-inline static void Init_Money(RELVAL *v, deci amount) {
-    VAL_RESET_HEADER(v, REB_MONEY);
-    v->extra.m0 = amount.m0;
-    v->payload.money.m1 = amount.m1;
-    v->payload.money.m2 = amount.m2;
-    v->payload.money.s = amount.s;
-    v->payload.money.e = amount.e;
+inline static REBVAL *Init_Money(RELVAL *out, deci amount) {
+    VAL_RESET_HEADER(out, REB_MONEY);
+    out->extra.m0 = amount.m0;
+    out->payload.money.m1 = amount.m1;
+    out->payload.money.m2 = amount.m2;
+    out->payload.money.s = amount.s;
+    out->payload.money.e = amount.e;
+    return cast(REBVAL*, out);
 }
 
 
@@ -1290,7 +1297,7 @@ inline static void Init_Money(RELVAL *v, deci amount) {
 #define REB_0_REFERENCE \
     REB_0
 
-inline static void Init_Reference(
+inline static REBVAL *Init_Reference(
     RELVAL *out,
     RELVAL *cell,
     REBSPC *specifier
@@ -1298,6 +1305,7 @@ inline static void Init_Reference(
     VAL_RESET_HEADER(out, REB_0_REFERENCE);
     out->payload.reference.cell = cell;
     out->extra.binding = cast(REBNOD*, specifier);
+    return cast(REBVAL*, out);
 }
 
 inline static RELVAL *VAL_REFERENCE(const RELVAL *v) {
@@ -1337,9 +1345,10 @@ inline static RELVAL *VAL_REFERENCE(const RELVAL *v) {
 #define VAL_TUPLE_DATA(v) \
     ((v)->payload.tuple.tuple)
 
-inline static void SET_TUPLE(RELVAL *v, const void *data) {
-    VAL_RESET_HEADER(v, REB_TUPLE);
-    memcpy(VAL_TUPLE_DATA(v), data, sizeof(VAL_TUPLE_DATA(v)));
+inline static REBVAL *SET_TUPLE(RELVAL *out, const void *data) {
+    VAL_RESET_HEADER(out, REB_TUPLE);
+    memcpy(VAL_TUPLE_DATA(out), data, sizeof(VAL_TUPLE_DATA(out)));
+    return cast(REBVAL*, out);
 }
 
 

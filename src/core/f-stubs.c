@@ -322,7 +322,7 @@ REBINT Get_System_Int(REBCNT i1, REBCNT i2, REBINT default_int)
 //
 // Common function.
 //
-void Init_Any_Series_At_Core(
+REBVAL *Init_Any_Series_At_Core(
     RELVAL *out, // allows RELVAL slot as input, but will be filled w/REBVAL
     enum Reb_Kind type,
     REBSER *series,
@@ -365,6 +365,8 @@ void Init_Any_Series_At_Core(
     else if (ANY_STRING(out))
         assert(SER_WIDE(series) == 1 || SER_WIDE(series) == 2);
 #endif
+
+    return KNOWN(out);
 }
 
 
@@ -391,7 +393,7 @@ void Set_Tuple(REBVAL *value, REBYTE *bytes, REBCNT len)
 // is its canon form from a single pointer...the REBVAL sitting in the 0 slot
 // of the context's varlist.
 //
-void Init_Any_Context_Core(
+REBVAL *Init_Any_Context_Core(
     RELVAL *out, // allows RELVAL slot as input, but will be filled w/REBVAL
     enum Reb_Kind kind,
     REBCTX *c
@@ -471,6 +473,8 @@ void Init_Any_Context_Core(
     else
         assert(out->payload.any_context.phase == NULL);
 #endif
+
+    return KNOWN(out);
 }
 
 

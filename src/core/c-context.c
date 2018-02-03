@@ -212,8 +212,7 @@ REBVAL *Append_Context(
     // Add an unset value to var list
     //
     EXPAND_SERIES_TAIL(SER(CTX_VARLIST(context)), 1);
-    REBVAL *value = SINK(ARR_LAST(CTX_VARLIST(context)));
-    Init_Void(value);
+    REBVAL *value = Init_Void(ARR_LAST(CTX_VARLIST(context)));
     TERM_ARRAY_LEN(CTX_VARLIST(context), ARR_LEN(CTX_VARLIST(context)));
 
     if (opt_any_word) {

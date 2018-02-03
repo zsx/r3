@@ -85,10 +85,21 @@ static enum Reb_Kind RXT_To_Reb[RXT_MAX];
 //
 // !!! Review the balance of which APIs can set or clear errors.  It's not
 // useful if they all do as a rule...for instance, it may be more convenient
-// to `rebRelease()` something before an error check than be forced to release
-// it on branches that test for an error on the call before the release.  See
-// the notes on Windows GetLastError() about how the APIs document whether
-// they manipulate the error or not--not all of them clear it rotely.
+// to `rebRelease()` something before an error check than be forced to free it
+// on branches that test for an error on the call before the free.  See the
+// notes on Windows GetLastError() about how the APIs document whether they
+// manipulate the error or not--not all of them clear it rotely.
+//
+// !!! A better way of doing this kind of thing would probably be to have
+// the code generator for the RL_API notice attributes on the APIs in the
+// comment blocks, e.g. `// rebBlock: RL_API [#clears-error]` or similar.
+// Then the first line of the API would be `ENTER_API(rebBlock)` which
+// would run theappropriate code for what was described in the API header.
+//
+// !!! `return_api_error` is a fairly lame way of setting the error, but
+// shows the concept of what needs to be done to obey the convention.  How
+// could it return an "errant" result of an unboxing, for instance, if the
+// type cannot be unboxed as asked?
 //
 inline static void Enter_Api_Cant_Error(void) {
     if (PG_last_error == NULL)
@@ -97,6 +108,49 @@ inline static void Enter_Api_Cant_Error(void) {
 inline static void Enter_Api_Clear_Last_Error(void) {
     Enter_Api_Cant_Error();
     SET_END(PG_last_error);
+}
+#define return_api_error(msg) \
+    do { \
+        assert(IS_END(PG_last_error)); \
+        Init_Error(PG_last_error, Error_User(msg)); \
+        return NULL; \
+    } while (0)
+
+
+// !!! The return cell from this allocation is a trash cell which has had some
+// additional bits set.  This means it is not "canonized" trash that can be
+// detected as distinct from UTF-8 strings, so don't call IS_TRASH_DEBUG() or
+// Detect_Rebol_Pointer() on it until it has been further initialized.
+//
+inline static REBVAL *Alloc_Value(void)
+{
+    REBVAL *paired = Alloc_Pairing(NULL);
+
+    // Note the cell is trash (we're only allocating) so we can't use the
+    // SET_VAL_FLAGS macro.
+    //
+    /*paired->header.bits |=
+        (NODE_FLAG_MANAGED | NODE_FLAG_ROOT | VALUE_FLAG_STACK);*/
+
+    // The long term goal is to have diverse and sophisticated memory
+    // management options for API handles...where there is some automatic
+    // GC when the attached frame goes away, but also to permit manual
+    // management.  The extra information associated with the API value
+    // allows the GC to do this, but currently we just set it to a BLANK!
+    // in order to indicate manual management is needed.
+    //
+    // Manual release will always be necessary in some places, such as the
+    // console code: since it is top-level its "owning frame" never goes away.
+    // It may be that all "serious" code to the API does explicit management,
+    // some with the help of a C++ wrapper.
+    //
+    // In any case, it's not bad to have solid bookkeeping in the code for the
+    // time being and panics on shutdown if there's a leak.  But clients of
+    // the API will have simpler options also.
+    //
+    Init_Blank(PAIRING_KEY(paired)); // the meta-value of the API handle
+
+    return paired;
 }
 
 
@@ -116,9 +170,8 @@ void Startup_Api(void)
     // means no error.
     //
     assert(PG_last_error == NULL);
-    PG_last_error = Alloc_Pairing(NULL);
+    PG_last_error = Alloc_Value();
     SET_END(PG_last_error);
-    Init_Blank(PAIRING_KEY(PG_last_error));
 
     // These tables used to be built by overcomplicated Rebol scripts.  It's
     // less hassle to have them built on initialization.
@@ -339,15 +392,7 @@ REBVAL *RL_rebBlock(
     UNUSED(p4);
     TERM_ARRAY_LEN(array, 3);
 
-    // For now, do a test of manual memory management in a pairing, and let's
-    // just say a BLANK! means that for now.  Assume caller has to explicitly
-    // rebRelease() the result.
-    //
-    REBVAL *result = Alloc_Pairing(NULL);
-    Init_Block(result, array);
-    Init_Blank(PAIRING_KEY(result)); // the meta-value of the API handle
-
-    return result;
+    return Init_Block(Alloc_Value(), array);;
 }
 
 
@@ -492,13 +537,7 @@ REBVAL *RL_rebDo(const void *p, ...)
 {
     Enter_Api_Clear_Last_Error();
 
-    // For now, do a test of manual memory management in a pairing, and let's
-    // just say a BLANK! means that for now.  Assume caller has to explicitly
-    // rebRelease() the result.
-    //
-    REBVAL *result = Alloc_Pairing(NULL);
-    ASSERT_TRASH_IF_DEBUG(result); // ok: Do_Va_Core() will set to END
-    Init_Blank(PAIRING_KEY(result)); // the meta-value of the API handle
+    REBVAL *result = Alloc_Value();
 
     va_list va;
     va_start(va, p);
@@ -580,11 +619,7 @@ REBVAL *RL_rebLastError(void)
     // functions.  Giving back a direct pointer to the last error would mean
     // those APIs would overwrite it during inspection.
     //
-    REBVAL *result = Alloc_Pairing(NULL);
-    Move_Value(result, PG_last_error);
-    Init_Blank(PAIRING_KEY(result)); // manual lifetime for now
-
-    return result; // for now, caller has to rebRelease() the result
+    return Move_Value(Alloc_Value(), PG_last_error);
 }
 
 
@@ -627,61 +662,138 @@ void *RL_rebEval(const REBVAL *v)
 //
 //  rebVoid: RL_API
 //
-// One theory of the RL_API might be that void values not be allowed, as they
-// are illegal in blocks.  A question might be whether an API REBVAL is more
-// similar to a variable in a context, than it is to a cell in an array...and
-// if a REBVAL* could point to a cell which could be mutable from void to
-// non-void.
-//
-// For now, this rebVoid is one which returns a mutable REBVAL* and whose
-// lifetime requires that it be freed.
-//
 REBVAL *RL_rebVoid(void)
 {
     Enter_Api_Clear_Last_Error();
-
-    REBVAL *result = Alloc_Pairing(NULL);
-    Init_Void(result);
-    Init_Blank(PAIRING_KEY(result));
-
-    return result;
+    return Init_Void(Alloc_Value());
 }
 
 
 //
 //  rebBlank: RL_API
 //
-// As with rebVoid(), this is conceptually something that doesn't need to
-// be freed...but for uniformity might.  It could be reference counted just
-// to make sure the right number of free calls were made, even if it were
-// only allocated once.
-//
 REBVAL *RL_rebBlank(void)
 {
     Enter_Api_Clear_Last_Error();
+    return Init_Blank(Alloc_Value());
+}
 
-    REBVAL *result = Alloc_Pairing(NULL);
-    Init_Blank(result);
-    Init_Blank(PAIRING_KEY(result));
 
-    return result;
+//
+//  rebLogic: RL_API
+//
+// !!! Uses libRed convention that it takes a long where 0 is false and all
+// other values are true, for the moment.  REBOOL is standardized to only hold
+// 0 or 1 inside the core, so taking a foreign REBOOL is risky and would
+// require normalization anyway.
+//
+REBVAL *RL_rebLogic(long logic)
+{
+    Enter_Api_Clear_Last_Error();
+
+    return Init_Logic(Alloc_Value(), LOGICAL(logic));
 }
 
 
 //
 //  rebInteger: RL_API
 //
-REBVAL *RL_rebInteger(int i)
+// !!! Should there be rebSigned() and rebUnsigned(), in order to catch cases
+// of using out of range values?
+//
+REBVAL *RL_rebInteger(REBI64 i)
 {
     Enter_Api_Clear_Last_Error();
 
-    REBVAL *result = Alloc_Pairing(NULL);
-    Init_Integer(result, i);
-    Init_Blank(PAIRING_KEY(result));
+    return Init_Integer(Alloc_Value(), i);
+}
 
+
+//
+//  rebDecimal: RL_API
+//
+REBVAL *RL_rebDecimal(REBDEC dec)
+{
+    Enter_Api_Clear_Last_Error();
+
+    return Init_Decimal(Alloc_Value(), dec);
+}
+
+
+//
+//  rebTimeHMS: RL_API
+//
+REBVAL *RL_rebTimeHMS(
+    unsigned int hour,
+    unsigned int minute,
+    unsigned int second
+){
+    Enter_Api_Clear_Last_Error();
+
+    REBVAL *result = Alloc_Value();
+    VAL_RESET_HEADER(result, REB_TIME);
+    VAL_NANO(result) = SECS_TO_NANO(hour * 3600 + minute * 60 + second);
     return result;
 }
 
+
+//
+//  rebTimeNano: RL_API
+//
+REBVAL *RL_rebTimeNano(long nanoseconds) {
+    Enter_Api_Clear_Last_Error();
+
+    REBVAL *result = Alloc_Value();
+    VAL_RESET_HEADER(result, REB_TIME);
+    VAL_NANO(result) = nanoseconds;
+    return result;
+}
+
+
+//
+//  rebDateYMD: RL_API
+//
+REBVAL *RL_rebDateYMD(
+    unsigned int year,
+    unsigned int month,
+    unsigned int day
+){
+    Enter_Api_Clear_Last_Error();
+
+    REBVAL *result = Alloc_Value();
+    VAL_RESET_HEADER(result, REB_DATE); // no time or time zone flags
+    VAL_YEAR(result) = year;
+    VAL_MONTH(result) = month;
+    VAL_DAY(result) = day;
+    return result;
+}
+
+
+//
+//  rebDateTime: RL_API
+//
+REBVAL *RL_rebDateTime(const REBVAL *date, const REBVAL *time)
+{
+    Enter_Api_Clear_Last_Error();
+
+    if (NOT(IS_DATE(date)))
+        return_api_error("rebDateTime() date parameter must be DATE!");
+    if (NOT(IS_TIME(time)))
+        return_api_error("rebDateTime() time parameter must be TIME!");
+
+    // if we had a timezone, we'd need to set DATE_FLAG_HAS_ZONE and
+    // then INIT_VAL_ZONE().  But since DATE_FLAG_HAS_ZONE is not set,
+    // the timezone bitfield in the date is ignored.
+
+    REBVAL *result = Alloc_Value();
+    VAL_RESET_HEADER(result, REB_DATE);
+    SET_VAL_FLAG(result, DATE_FLAG_HAS_TIME);
+    VAL_YEAR(result) = VAL_YEAR(date);
+    VAL_MONTH(result) = VAL_MONTH(date);
+    VAL_DAY(result) = VAL_DAY(date);
+    VAL_NANO(result) = VAL_NANO(time);
+    return result;
+}
 
 
 //
@@ -747,95 +859,6 @@ int RL_rebEvent(REBEVT *evt)
 
 
 //
-//  rebUpdateEvent: RL_API
-//
-// Updates an application event (e.g. GUI) to the event port.
-//
-// Returns:
-//     Returns 1 if updated, or 0 if event appended, and -1 if full.
-// Arguments:
-//     evt - A properly initialized event structure. The
-//          model and type of the event are used to address
-//          the unhandled event in the queue, when it is found,
-//          it will be replaced with this one
-//
-int RL_rebUpdateEvent(REBEVT *evt)
-{
-    Enter_Api_Clear_Last_Error();
-
-    REBVAL *event = Find_Last_Event(evt->model, evt->type);
-
-    if (event) {
-        event->extra.eventee = evt->eventee;
-        event->payload.event.type = evt->type;
-        event->payload.event.flags = evt->flags;
-        event->payload.event.win = evt->win;
-        event->payload.event.model = evt->model;
-        event->payload.event.data = evt->data;
-        return 1;
-    }
-
-    return rebEvent(evt) - 1;
-}
-
-
-//
-//  rebFindEvent: RL_API
-//
-// Find an application event (e.g. GUI) to the event port.
-//
-// Returns:
-//     A pointer to the find event
-// Arguments:
-//     model - event model
-//     type - event type
-//
-REBEVT *RL_rebFindEvent(REBINT model, REBINT type)
-{
-    Enter_Api_Clear_Last_Error();
-
-    REBVAL * val = Find_Last_Event(model, type);
-    if (val != NULL) {
-        return cast(REBEVT*, val); // should be compatible!
-    }
-    return NULL;
-}
-
-
-//
-//  rebGobHead: RL_API
-//
-REBGOB** RL_rebGobHead(REBGOB *gob)
-{
-    Enter_Api_Clear_Last_Error();
-
-    return SER_HEAD(REBGOB*, GOB_PANE(gob));
-}
-
-
-//
-//  rebGobString: RL_API
-//
-REBYTE* RL_rebGobString(REBGOB *gob)
-{
-    Enter_Api_Clear_Last_Error();
-
-    return BIN_HEAD(GOB_CONTENT(gob));
-}
-
-
-//
-//  rebGobLen: RL_API
-//
-REBCNT RL_rebGobLen(REBGOB *gob)
-{
-    Enter_Api_Clear_Last_Error();
-
-    return SER_LEN(GOB_PANE(gob));
-}
-
-
-//
 // !!! These routines are exports of the macros and inline functions which
 // rely upon internal definitions that RL_XXX clients are not expected to have
 // available.  While this implementation file can see inside the definitions
@@ -884,14 +907,6 @@ REBVAL *RL_rebFrmArg(const REBVAL *frame, REBCNT n) {
     return FRM_ARG(f, n);
 }
 
-//
-//  rebValLogic: RL_API
-//
-REBOOL RL_rebValLogic(const REBVAL *v) {
-    Enter_Api_Clear_Last_Error();
-
-    return VAL_LOGIC(v);
-}
 
 //
 //  rebTypeOf: RL_API
@@ -910,45 +925,46 @@ REBRXT RL_rebTypeOf(const REBVAL *v) {
 
 
 //
-//  rebValInt64: RL_API
+//  rebUnboxLogic: RL_API
 //
-REBI64 RL_rebValInt64(const REBVAL *v) {
+REBOOL RL_rebUnboxLogic(const REBVAL *v) {
+    Enter_Api_Clear_Last_Error();
+
+    return VAL_LOGIC(v);
+}
+
+
+//
+//  rebUnboxInteger: RL_API
+//
+long RL_rebUnboxInteger(const REBVAL *v) {
     Enter_Api_Clear_Last_Error();
 
     return VAL_INT64(v);
 }
 
 //
-//  rebValInt32: RL_API
+//  rebUnboxDecimal: RL_API
 //
-REBINT RL_rebValInt32(const REBVAL *v) {
-    Enter_Api_Clear_Last_Error();
-
-    return VAL_INT32(v);
-}
-
-//
-//  rebValDecimal: RL_API
-//
-REBDEC RL_rebValDecimal(const REBVAL *v) {
+REBDEC RL_rebUnboxDecimal(const REBVAL *v) {
     Enter_Api_Clear_Last_Error();
 
     return VAL_DECIMAL(v);
 }
 
 //
-//  rebValChar: RL_API
+//  rebUnboxChar: RL_API
 //
-REBUNI RL_rebValChar(const REBVAL *v) {
+REBUNI RL_rebUnboxChar(const REBVAL *v) {
     Enter_Api_Clear_Last_Error();
 
     return VAL_CHAR(v);
 }
 
 //
-//  rebValTime: RL_API
+//  rebNanoOfTime: RL_API
 //
-REBI64 RL_rebValTime(const REBVAL *v) {
+long RL_rebNanoOfTime(const REBVAL *v) {
     Enter_Api_Clear_Last_Error();
 
     return VAL_NANO(v);
@@ -964,6 +980,7 @@ REBYTE *RL_rebValTupleData(const REBVAL *v) {
     return VAL_TUPLE_DATA(m_cast(REBVAL*, v));
 }
 
+
 //
 //  rebValIndex: RL_API
 //
@@ -973,82 +990,6 @@ REBCNT RL_rebValIndex(const REBVAL *v) {
     return VAL_INDEX(v);
 }
 
-//
-//  rebInitValIndex: RL_API
-//
-void RL_rebInitValIndex(REBVAL *v, REBCNT i) {
-    Enter_Api_Clear_Last_Error();
-
-    VAL_INDEX(v) = i;
-}
-
-//
-//  rebValHandlePointer: RL_API
-//
-void *RL_rebValHandlePointer(const REBVAL *v) {
-    Enter_Api_Clear_Last_Error();
-
-    return VAL_HANDLE_POINTER(void, v);
-}
-
-//
-//  rebSetHandlePointer: RL_API
-//
-void RL_rebSetHandlePointer(REBVAL *v, void *p) {
-    Enter_Api_Clear_Last_Error();
-
-    v->extra.singular = NULL; // !!! only support "dumb" handles for now
-    SET_HANDLE_POINTER(v, p);
-}
-
-//
-//  rebValImageWide: RL_API
-//
-REBCNT RL_rebValImageWide(const REBVAL *v) {
-    Enter_Api_Clear_Last_Error();
-
-    return VAL_IMAGE_WIDE(v);
-}
-
-//
-//  rebValImageHigh: RL_API
-//
-REBCNT RL_rebValImageHigh(const REBVAL *v) {
-    Enter_Api_Clear_Last_Error();
-
-    return VAL_IMAGE_HIGH(v);
-}
-
-//
-//  rebValPairXFloat: RL_API
-//
-// !!! Pairs in R3-Alpha were not actually pairs of arbitrary values; but
-// they were pairs of floats.  This meant their precision did not match either
-// 64-bit integers or 64-bit decimals, because you can't fit two of those in
-// one REBVAL and still have room for a header.  Ren-C changed the mechanics
-// so that two actual values were efficiently stored in a PAIR! via a special
-// kind of GC-able series node (with no further allocation).  Hence you can
-// tell the difference between 1x2, 1.0x2.0, 1x2.0, 1.0x2, etc.
-//
-// Yet the R3-Alpha external interface did not make this distinction, so this
-// API is for compatibility with those extracting floats.
-//
-float RL_rebValPairXFloat(const REBVAL *v) {
-    Enter_Api_Clear_Last_Error();
-
-    return VAL_PAIR_X(v);
-}
-
-//
-//  rebValPairYFloat: RL_API
-//
-// !!! See notes on RL_rebValPairXFloat
-//
-float RL_rebValPairYFloat(const REBVAL *v) {
-    Enter_Api_Clear_Last_Error();
-
-    return VAL_PAIR_Y(v);
-}
 
 //
 //  rebInitDate: RL_API
@@ -1307,13 +1248,7 @@ REBVAL *RL_rebString(const char *utf8)
 {
     Enter_Api_Clear_Last_Error();
 
-    // Default the returned handle's lifetime to the currently running FRAME!.
-    // The user can unmanage it if they want it to live longer.
-    //
-    REBVAL *pairing = Alloc_Pairing(NULL);
-    Init_String(pairing, Make_UTF8_May_Fail(cb_cast(utf8)));
-    Init_Blank(PAIRING_KEY(pairing));
-    return pairing;
+    return Init_String(Alloc_Value(), Make_UTF8_May_Fail(cb_cast(utf8)));
 }
 
 
@@ -1346,11 +1281,7 @@ REBVAL *RL_rebStringW(const wchar_t *wstr)
     memcpy(UNI_HEAD(ser), wstr, sizeof(wchar_t) * num_chars);
     TERM_UNI_LEN(ser, num_chars);
 
-    REBVAL *pairing = Alloc_Pairing(NULL);
-    Init_String(pairing, ser);
-    Init_Blank(PAIRING_KEY(pairing));
-
-    return pairing;
+    return Init_String(Alloc_Value(), ser);
 }
 
 
@@ -1403,11 +1334,7 @@ REBVAL *RL_rebError(const char *msg)
 {
     Enter_Api_Cant_Error();
 
-    REBVAL *result = Alloc_Pairing(NULL);
-    Init_Error(result, Error_User(msg));
-    Init_Blank(PAIRING_KEY(result));
-
-    return result; // caller currently responsible for rebRelease()-ing
+    return Init_Error(Alloc_Value(), Error_User(msg));
 }
 
 
@@ -1514,14 +1441,10 @@ REBVAL *RL_rebFileToLocal(const REBVAL *file, REBOOL full)
     if (NOT(IS_FILE(file)))
         fail ("rebFileToLocal() only works on FILE!");
 
-    REBVAL *result = Alloc_Pairing(NULL);
-    Init_String(
-        result,
+    return Init_String(
+        Alloc_Value(),
         Value_To_Local_Path(file, full)
     );
-    Init_Blank(PAIRING_KEY(result));
-
-    return result;
 }
 
 
@@ -1539,14 +1462,10 @@ REBVAL *RL_rebLocalToFile(const REBVAL *string, REBOOL is_dir)
     if (NOT(IS_STRING(string)))
         fail ("rebLocalToFile() only works on STRING!");
 
-    REBVAL *result = Alloc_Pairing(NULL);
-    Init_File(
-        result,
+    return Init_File(
+        Alloc_Value(),
         Value_To_REBOL_Path(string, is_dir)
     );
-    Init_Blank(PAIRING_KEY(result));
-
-    return result;
 }
 
 

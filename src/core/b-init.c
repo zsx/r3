@@ -789,8 +789,8 @@ static void Init_Root_Vars(void)
     // The EMPTY_BLOCK provides EMPTY_ARRAY.  It is locked for protection.
     //
     PG_Empty_Array = Make_Array(0);
+    Deep_Freeze_Array(PG_Empty_Array);
     Init_Block(ROOT_EMPTY_BLOCK, PG_Empty_Array);
-    Deep_Freeze_Array(VAL_ARRAY(ROOT_EMPTY_BLOCK));
     assert(IS_BLOCK(ROOT_EMPTY_BLOCK));
 
     REBSER *empty_series = Make_Binary(1);

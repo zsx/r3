@@ -104,9 +104,5 @@ inline static REBYTE *VAL_BIN_TAIL(const RELVAL *v) {
 #define VAL_BYTE_SIZE(v) \
     BYTE_SIZE(VAL_SERIES(v))
 
-// defined as an inline to avoid side effects in:
-//  Init_Binary(v, Make_Binary())
-inline static void Init_Binary(RELVAL *out, REBSER *s) {
-    assert(BYTE_SIZE(s));
-    Init_Any_Series(out, REB_BINARY, s);
-}
+#define Init_Binary(out,s) \
+    Init_Any_Series((out), REB_BINARY, (s))
