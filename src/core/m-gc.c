@@ -1154,11 +1154,10 @@ static void Mark_Frame_Stack_Deep(void)
         // The array still might be used in an error, so can't GC it.
         //
         if (FRM_HAS_MORE(f)) {
-            if (Is_Value_Managed(f->value))
-                Queue_Mark_Value_Deep(f->value);
-
             if (f->flags.bits & DO_FLAG_VALUE_IS_INSTRUCTION)
-                Mark_Rebser_Only(cast(REBSER*, Singular_From_Cell(f->value)));
+                Queue_Mark_Singular_Array(Singular_From_Cell(f->value));
+            else
+                Queue_Mark_Value_Deep(f->value);
         }
 
         if (NOT(f->specifier->header.bits & NODE_FLAG_CELL)) {

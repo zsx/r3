@@ -150,7 +150,7 @@ REBNATIVE(recycle)
     }
 
     if (REF(torture)) {
-        GC_Disabled = TRUE;
+        GC_Disabled = FALSE;
         VAL_INT64(TASK_BALLAST) = 0;
     }
 
