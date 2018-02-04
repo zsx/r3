@@ -98,3 +98,55 @@
     ; currently disallowed..."would expose or modify hidden values"
     error? try [append o [self: 1]]
 ]
+
+
+
+[
+    o1: make object! [a: 10 b: does [f: does [a] f]]
+    o2: make o1 [a: 20]
+
+    o2/b = 20
+]
+
+[
+    o-big: make object! collect [
+        repeat n 256 [
+            ;
+            ; var-1: 1
+            ; var-2: 2
+            ; ...
+            ; var-256: 256
+            ;
+            keep compose/only [
+                (to-set-word rejoin ["var-" n]) (n)
+            ]
+        ]
+        repeat n 256 [
+            ;
+            ; fun-1: does [var-1]
+            ; fun-2: does [var-1 + var-2]
+            ; ...
+            ; fun-256: does [var-1 + var-2 ... + var-256]
+            ;
+            keep compose/only [
+                (to-set-word rejoin ["fun-" n]) does (collect [
+                    keep 'var-1
+                    repeat i n - 1 [
+                        keep compose [
+                            + (to-word rejoin ["var-" i + 1])
+                        ]
+                    ]
+                ])
+            ]
+        ]
+    ]
+
+    o-big-b: make o-big [var-1: 100001]
+    o-big-c: make o-big-b [var-2: 200002]
+
+    did all [
+        o-big/fun-255 = 32640
+        o-big-b/fun-255 = 132640
+        o-big-c/fun-255 = 332640
+    ]
+]

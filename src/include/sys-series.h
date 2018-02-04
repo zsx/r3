@@ -77,29 +77,18 @@
 //
 // * For the struct definition of REBSER, see %sys-rebser.h
 //
-
-
-//=////////////////////////////////////////////////////////////////////////=//
-//
-// SERIES COERCION
-//
-//=////////////////////////////////////////////////////////////////////////=//
-//
-// It is desirable to have series subclasses be different types, even though
-// there are some common routines for processing them.  e.g. not every
-// function that would take a REBSER* would actually be handled in the same
-// way for a REBARR*.  Plus, just because a REBCTX* is implemented as a
-// REBARR* with a link to another REBARR* doesn't mean most clients should
-// be accessing the array--in a C++ build this would mean it would have some
-// kind of protected inheritance scheme.
-//
-// The SER() macro provides a compromise besides a raw cast of a
-// pointer to a REBSER*, because in the C++ build it makes sure that the
-// incoming pointer type is to a simple series subclass.  (It's just a raw
-// cast in the C build.)
+// * It is desirable to have series subclasses be different types, even though
+//   there are some common routines for processing them.  e.g. not every
+//   function that would take a REBSER* would actually be handled in the same
+//   way for a REBARR*.  Plus, just because a REBCTX* is implemented as a
+//   REBARR* with a link to another REBARR* doesn't mean most clients should
+//   be accessing the array--in a C++ build this would mean it would have some
+//   kind of protected inheritance scheme.
 //
 
-#if !defined(NDEBUG) && defined(CPLUSPLUS_11)
+// SER(p) gives REBSER* from a pointer to another type, with optional checking
+//
+#if defined(DEBUG_CHECK_CASTS) && defined(CPLUSPLUS_11) 
     template <class T>
     inline REBSER *SER(T *p) {
         static_assert(

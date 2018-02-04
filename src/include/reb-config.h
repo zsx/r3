@@ -288,4 +288,13 @@ Special internal defines used by RT, not Host-Kit developers:
     #define DEBUG_TRASH_CELLS
     #define DEBUG_TRACK_CELLS
     #define DEBUG_BALANCE_STATE
+
+    // Cast checks in SER(), NOD(), ARR() are expensive--they make sure that
+    // when you have a void pointer and cast it to a REBSER, that the header
+    // actually is for a REBSER (etc.)  Disable this by default unless you are
+    // using address sanitizer, where you expect your executable to be slow.
+    //
+    #ifdef __SANITIZE_ADDRESS__
+        #define DEBUG_CHECK_CASTS
+    #endif
 #endif

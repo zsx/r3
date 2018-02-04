@@ -55,11 +55,9 @@ struct Reb_Array {
     struct Reb_Series series; // http://stackoverflow.com/a/9747062
 };
 
-// These do REBSER <=> REBARR coercion.  Although it's desirable to make
-// them type incompatible for most purposes, some operations require treating
-// one kind of pointer as the other (and they are both Reb_Series)
+// ARR(p) gives REBARR* from a pointer to another type, with optional checking
 //
-#if !defined(NDEBUG) && defined(CPLUSPLUS_11)
+#if defined(DEBUG_CHECK_CASTS) && defined(CPLUSPLUS_11)
     template <class T>
     inline REBARR *ARR(T *p) {
         static_assert(

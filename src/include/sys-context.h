@@ -69,13 +69,18 @@ struct Reb_Context {
     #define ASSERT_CONTEXT(c) Assert_Context_Core(c)
 #endif
 
-// Series-to-Frame coercion, see notes in %sys-array.h header
+// CTX(p) gives REBCTX* from a pointer to another type, with optional checking
 //
-inline static REBCTX *CTX(void *p) {
-    REBARR *a = ARR(p);
-    assert(GET_SER_FLAG(a, ARRAY_FLAG_VARLIST));
-    return cast(REBCTX*, a);
-}
+#ifdef DEBUG_CHECK_CASTS
+    inline static REBCTX *CTX(void *p) {
+        REBARR *a = ARR(p);
+        assert(GET_SER_FLAG(a, ARRAY_FLAG_VARLIST));
+        return cast(REBCTX*, a);
+    }
+#else
+    #define CTX(p) \
+        cast(REBCTX*, p)
+#endif
 
 #define CTX_VARLIST(c) \
     (&(c)->varlist)

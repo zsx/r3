@@ -333,7 +333,7 @@ rebsource: context [
             ][
                 emit analysis [
                     eof-eol-missing (file) (
-                        reduce [text-line-of tail of data]
+                        reduce [text-line-of tail of to string! data]
                     )
                 ]
             ]

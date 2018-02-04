@@ -33,18 +33,24 @@
 // See %sys-rebnod.h for what a "node" means in this context.
 //
 
-// !!! TBD: Make a fancier checking version of this
+// NOD(p) gives REBNOD* from a pointer to another type, with optional checking
 //
-inline static REBNOD *NOD(void *p) {
-    assert(p != NULL);
+#ifdef DEBUG_CHECK_CASTS
+    inline static REBNOD *NOD(void *p) {
+        assert(p != NULL);
 
-    REBNOD *node = cast(REBNOD*, p);
-    assert(
-        (node->header.bits & NODE_FLAG_NODE)
-        && NOT(node->header.bits & NODE_FLAG_FREE)
-    );
-    return node;
-}
+        REBNOD *node = cast(REBNOD*, p);
+        assert(
+            (node->header.bits & NODE_FLAG_NODE)
+            && NOT(node->header.bits & NODE_FLAG_FREE)
+        );
+        return node;
+    }
+#else
+    #define NOD(p) \
+        cast(REBNOD*, p)
+#endif
+
 
 #ifdef NDEBUG
     inline static REBOOL IS_CELL(REBNOD *node) {
