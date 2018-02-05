@@ -1333,8 +1333,18 @@ sys/make-scheme [
             port
         ]
 
-        open?: func [port [port!]] [
-            port/state and (open? port/state/connection)
+        reflect: func [port [port!] property [word!]] [
+            switch property [
+                open? [
+                    port/state and (open? port/state/connection)
+                ]
+
+                length [
+                    ; actor is not an object!, so this isn't a recursive call
+                    ;
+                    either port/data [length of port/data] [0]
+                ]
+            ]
         ]
 
         close: func [port [port!] <local> ctx] [
@@ -1384,11 +1394,6 @@ sys/make-scheme [
 
         query: func [port [port!]] [
             all [port/state query port/state/connection]
-        ]
-
-        length-of: func [port [port!]] [
-            ; actor is not an object!, so this isn't a recursive length call
-            either port/data [length of port/data] [0]
         ]
     ]
 ]
