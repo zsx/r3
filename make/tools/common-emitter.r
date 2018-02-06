@@ -61,6 +61,8 @@ make-emitter: function [
 
     is-c: parse stem [[thru ".c" | thru ".h" | thru ".inc"] end]
 
+    is-js: parse stem [thru ".js" end]
+
     e: make object! compose [
         ;
         ; NOTE: %make-headers.r directly manipulates the buffer, because it
@@ -188,7 +190,7 @@ make-emitter: function [
         ]
     ]
 
-    either is-c [
+    either any [is-c is-js] [
         e/emit-lines [
             {/***********************************************************************}
             {**}

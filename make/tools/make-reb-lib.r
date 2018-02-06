@@ -43,6 +43,7 @@ struct-call-macros: make block! 50
 undecorated-prototypes: make block! 50
 direct-call-macros: make block! 50
 table-init-items: make block! 50
+cwrap-items: make block! 50
 
 emit-proto: proc [proto] [
     header: proto-parser/data
@@ -88,6 +89,7 @@ emit-proto: proc [proto] [
     fn.name: copy/part pos.id pos.lparen
     fn.name.upper: uppercase copy fn.name
     fn.name.lower: lowercase copy find/tail fn.name "RL_"
+	fn.args: copy/part next pos.lparen back tail proto
 
     append lib-struct-fields unspaced [
         fn.declarations "(*" fn.name.lower ")" pos.lparen ";"
@@ -108,6 +110,12 @@ emit-proto: proc [proto] [
     append table-init-items unspaced [
         fn.name ","
     ]
+
+    append cwrap-items reduce [
+		fn.declarations
+		fn.name
+		fn.args
+	]
 ]
 
 process: func [file] [
@@ -124,6 +132,16 @@ e-lib: (make-emitter
     "Lightweight Rebol Interface Library" output-dir/reb-lib.h)
 
 e-lib/emit-lines [
+    {// EMSCRIPTEN_KEEPALIVE is used in Emscripten}
+    {// to export a function}
+    {#ifdef TO_EMSCRIPTEN}
+    {    #define EMSCRIPTEN_KEEPALIVE __attribute__((used)) }
+    {    // from emscripten.h}
+    {    // NOTE: can't include emscripten.h}
+    {    // (incompatible with dont_include_stdio_h)}
+    {#else}
+    {    #define EMSCRIPTEN_KEEPALIVE}
+    {#endif}
     {#ifdef __cplusplus}
     {extern "C" ^{}
     {#endif}
@@ -197,7 +215,7 @@ e-lib/emit-line/indent [
     {// Undecorated prototypes, don't call with this name directly}
 ]
 for-each proto undecorated-prototypes [
-    e-lib/emit-line/indent proto
+    e-lib/emit-line/indent spaced ["EMSCRIPTEN_KEEPALIVE" proto]
 ]
 e-lib/emit newline
 
@@ -230,3 +248,44 @@ e-table/emit-line/indent table-init-items
 e-table/emit-line "};"
 
 e-table/write-emitted
+
+arg-to-js: func [s [string!]][
+	return case [
+		parse s [thru "char" some space "*" to end] ["'string'"]
+		find s "*" ["'number'"]
+		find s "[" ["'array'"]
+		parse/case s [
+			any space opt ["const" some space]
+			[ "REBCNT" | "REBOOL" | "REBDEC"
+			| "REBI64" | "REBRXT" | "REBUNI"
+			| "int" | "long" |"unsigned"
+			]
+			to END
+		] ["'number'"]
+		parse s ["void" any space] ["null"]
+		/else [to-tag s]
+	]
+]
+
+e-cwrap: (make-emitter
+    "C-Wraps" output-dir/reb-lib.js
+)
+
+for-each [result name args]  cwrap-items [
+	args: split args ","
+	args: unspaced [
+		at name 4 " = Module.cwrap('"
+		name "', "
+		arg-to-js result ", ["
+		delimit
+			map-each x args [arg-to-js x]
+			", "
+		"]);"
+	]
+	e-cwrap/emit-line ;\
+	either find args "<"
+	[spaced ["// Unknown type: <...> --" args]]
+	[args]
+]
+
+e-cwrap/write-emitted

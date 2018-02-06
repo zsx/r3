@@ -14,7 +14,7 @@ optimize: "z"
 ldflags: reduce [
 	unspaced["-O" optimize]
 	{-s 'EXTRA_EXPORTED_RUNTIME_METHODS=["ccall", "cwrap"]'}
-	{--post-js post.js}
+	{--post-js prep/include/reb-lib.js}
 ]
 
 extensions: [
