@@ -11,10 +11,13 @@ toolset: [
 
 optimize: "z"
 
+main: %../tests/test-node.js
+
 ldflags: reduce [
 	unspaced["-O" optimize]
 	{-s 'EXTRA_EXPORTED_RUNTIME_METHODS=["ccall", "cwrap"]'}
 	{--post-js prep/include/reb-lib.js}
+	if all [main 'file = exists? main] [spaced [{--post-js} main] ]
 ]
 
 extensions: [
