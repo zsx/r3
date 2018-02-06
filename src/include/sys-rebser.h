@@ -816,7 +816,7 @@ struct Reb_Series {
     //
     union Reb_Series_Misc misc_private;
 
-#if !defined(NDEBUG)
+#if defined(DEBUG_SERIES_ORIGINS) || defined(DEBUG_COUNT_TICKS)
     int *guard; // intentionally alloc'd and freed for use by Panic_Series
     REBUPT tick; // also maintains sizeof(REBSER) % sizeof(REBI64) == 0
 #endif

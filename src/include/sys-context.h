@@ -79,7 +79,7 @@ struct Reb_Context {
     }
 #else
     #define CTX(p) \
-        cast(REBCTX*, p)
+        cast(REBCTX*, (p))
 #endif
 
 #define CTX_VARLIST(c) \

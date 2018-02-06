@@ -296,5 +296,21 @@ Special internal defines used by RT, not Host-Kit developers:
     //
     #ifdef __SANITIZE_ADDRESS__
         #define DEBUG_CHECK_CASTS
+
+        // Both Valgrind and Address Sanitizer can provide the call stack at
+        // the moment of allocation when a freed pointer is used.  This is
+        // exploited by Touch_Series() to use a bogus allocation to help
+        // mark series origins that can later be used by `panic()`.  However,
+        // the feature is a waste if you're not using such tools.
+        //
+        // If you plan to use Valgrind with this, you'll have to set it
+        // explicitly...only Address Sanitizer can be detected here.
+        //
+        #define DEBUG_SERIES_ORIGINS
     #endif
+
+    // !!! Due to the massive change of UTF8-Everywhere, it motivates some
+    // particularly strong checks.
+    //
+    #define DEBUG_UTF8_EVERYWHERE
 #endif

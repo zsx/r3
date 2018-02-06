@@ -86,6 +86,39 @@
 //   kind of protected inheritance scheme.
 //
 
+
+//
+// For debugging purposes, it's nice to be able to crash on some kind of guard
+// for tracking the call stack at the point of allocation if we find some
+// undesirable condition that we want a trace from.  Generally, series get
+// set with this guard at allocation time.  But if you want to mark a moment
+// later, you can.
+//
+// This works with Address Sanitizer or with Valgrind, but the config flag to
+// enable it only comes automatically with address sanitizer.
+//
+#if defined(DEBUG_SERIES_ORIGINS) || defined(DEBUG_COUNT_TICKS)
+    inline static void Touch_Series(REBSER *s) {
+      #if defined(DEBUG_SERIES_ORIGINS)
+        s->guard = cast(int*, malloc(sizeof(*s->guard)));
+        free(s->guard);
+      #endif
+
+      #if defined(DEBUG_COUNT_TICKS)
+        s->tick = TG_Tick;
+      #else
+        s->tick = 0;
+      #endif
+    }
+
+    #define TOUCH_SERIES_IF_DEBUG(s) \
+        Touch_Series(s)
+#else
+    #define TOUCH_SERIES_IF_DEBUG(s) \
+        NOOP
+#endif
+
+
 // SER(p) gives REBSER* from a pointer to another type, with optional checking
 //
 #if defined(DEBUG_CHECK_CASTS) && defined(CPLUSPLUS_11) 

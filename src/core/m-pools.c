@@ -878,28 +878,10 @@ REBSER *Make_Series_Core(REBCNT capacity, REBYTE wide, REBUPT flags)
     if ((GC_Ballast -= sizeof(REBSER)) <= 0)
         SET_SIGNAL(SIG_RECYCLE);
 
-  #if !defined(NDEBUG)
-    //
-    // For debugging purposes, it's nice to be able to crash on some
-    // kind of guard for tracking the call stack at the point of allocation
-    // if we find some undesirable condition that we want a trace from
-    //
-    s->guard = cast(int*, malloc(sizeof(*s->guard)));
-    free(s->guard);
+    TOUCH_SERIES_IF_DEBUG(s);
 
     TRASH_POINTER_IF_DEBUG(LINK(s).trash);
     TRASH_POINTER_IF_DEBUG(MISC(s).trash);
-
-    // It's necessary to have another value in order to round out the size of
-    // the pool node so pointer-aligned entries are given out, so might as well
-    // make that hold a useful value--the tick count when the series was made
-    //
-    #if defined(DEBUG_COUNT_TICKS)
-        s->tick = TG_Tick;
-    #else
-        s->tick = 0;
-    #endif
-  #endif
 
     // The info bits must be able to implicitly terminate the `content`,
     // so that if a REBVAL is in slot [0] then it would appear terminated
@@ -1039,14 +1021,7 @@ REBVAL *Alloc_Pairing(REBFRM *opt_owning_frame) {
     Prep_Non_Stack_Cell(paired);
     TRASH_CELL_IF_DEBUG(paired);
 
-  #if !defined(NDEBUG)
-    s->guard = cast(int*, malloc(sizeof(*s->guard)));
-    free(s->guard);
-
-    #if defined(DEBUG_COUNT_TICKS)
-        s->tick = TG_Tick;
-    #endif
-  #endif
+    TOUCH_SERIES_IF_DEBUG(s); // pinpoints parent call stack on `panic (s);`
 
     return paired;
 }

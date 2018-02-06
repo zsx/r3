@@ -499,20 +499,26 @@ ATTRIBUTE_NO_RETURN void Panic_Series_Debug(REBSER *s)
         fprintf(stderr, "managed");
     else
         fprintf(stderr, "unmanaged");
-    fprintf(stderr, " series was likely ");
-    fflush(stderr);
 
+    fprintf(stderr, " series");
+
+  #if defined(DEBUG_COUNT_TICKS)
+    fprintf(stderr, "was likely ");
     if (s->header.bits & NODE_FLAG_FREE)
         fprintf(stderr, "freed");
     else
         fprintf(stderr, "created");
-    fflush(stderr);
 
     fprintf(
         stderr, " during evaluator tick: %lu\n", cast(unsigned long, s->tick)
     );
+  #else
+    fprintf(stderr, " has no tick tracking (see DEBUG_COUNT_TICKS)\n");  
+  #endif
+
     fflush(stderr);
 
+  #if defined(DEBUG_SERIES_ORIGINS)
     if (*s->guard == 1020) // should make valgrind or asan alert
         panic ("series guard didn't trigger ASAN/valgrind trap");
 
@@ -520,6 +526,9 @@ ATTRIBUTE_NO_RETURN void Panic_Series_Debug(REBSER *s)
         "series guard didn't trigger ASAN/Valgrind trap\n"
         "either not a REBSER, or you're not running ASAN/Valgrind\n"
     );
+  #else
+    panic ("Executable not built with DEBUG_SERIES_ORIGINS, no more info");
+  #endif
 }
 
 #endif

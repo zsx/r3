@@ -48,7 +48,7 @@
     }
 #else
     #define NOD(p) \
-        cast(REBNOD*, p)
+        cast(REBNOD*, (p))
 #endif
 
 
