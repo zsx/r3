@@ -1486,22 +1486,26 @@ os-file-block: get bind
 
 remove-each plus os-file-block [plus = '+] ;remove the '+ sign, we don't care here
 remove-each plus file-base/os [plus = '+] ;remove the '+ sign, we don't care here
+
 libr3-os: make libr3-core [
     name: 'libr3-os
+
     definitions: join-of ["REB_CORE"] app-config/definitions
-    includes: append-of app-config/includes %prep/os ;might be modified by the generator, thus copying
-    cflags: copy app-config/cflags ;might be modified by the generator, thus copying
+    includes: append-of app-config/includes %prep/os ; generator may modify
+    cflags: copy app-config/cflags ; generator may modify
+
     depends: map-each s append copy file-base/os os-file-block [
         gen-obj/dir s src-dir/os/%
     ]
 ]
+
 main: make libr3-os [
     name: 'main
+
     depends: reduce [
         gen-obj/dir file-base/main src-dir/os/%
     ]
 ]
-
 
 pthread: make rebmake/ext-dynamic-class [
     output: %pthread
@@ -1891,7 +1895,7 @@ for-each file os-file-block [
 add-new-obj-folders ext-objs folders
 
 app: make rebmake/application-class [
-    name: 'main
+    name: 'r3-exe
     output: %r3 ;no suffix
     depends: compose [
         (libr3-core)
