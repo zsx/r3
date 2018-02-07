@@ -34,10 +34,9 @@ if not (make-dir = output-dir) [try [
 
 ;;;; PROCESS ARGS
 ; args are:
-; [CONFIG | OPTION | COMMAND] ...
+; [OPTION | COMMAND] ...
 ; COMMAND = WORD
 ; OPTION = 'NAME=VALUE' | 'NAME: VALUE'
-; CONFIG = 'config=CONFIG-FILE' | 'config: CONFIG-FILE'
 args: parse-args system/options/args
 ; now args are ordered and separated by bar:
 ; [NAME VALUE ... '| COMMAND ...]
@@ -47,20 +46,10 @@ either commands: find args '| [
 ] [options: args]
 ; now args are splitted in options and commands
 
-; process configs first
-for-each [name value] options [
-    if name = 'CONFIG [
-        user-config: make user-config load to-file value
-    ]
-]
-
-; then process options
-; Allow any of the settings in user-config
-; to be overwritten by command line options
 for-each [name value] options [
     switch/default name [
-        CONFIG [
-            ;pass
+        CONFIG LOAD DO [
+						user-config: make user-config load to-file value
         ]
         EXTENSIONS [
             use [ext-file user-ext][
@@ -745,10 +734,11 @@ help-topics: reduce [
 
 'usage copy {=== USAGE ===^/
     > PATH/TO/r3-make PATH/TO/make.r [CONFIG | OPTION | TARGET ...]^/
-NOTE: current dir is the build dir,
+NOTE 1: current dir is the build dir,
     that will contain all generated stuff
     (%prep/, %objs/, %makefile, %r3 ...)
     You can have multiple build dirs.^/
+NOTE 2: order of configs and options IS relevant^/
 MORE HELP:^/
     { -h | -help | --help } { HELP-TOPICS }
     }
@@ -759,7 +749,7 @@ MORE HELP:^/
     ]
 
 'configs unspaced [ {=== CONFIGS ===^/
-    config: PATH/TO/CONFIG-FILE^/
+    { config: | load: | do: } PATH/TO/CONFIG-FILE^/
 FILES IN %make/configs/ SUBFOLDER:^/
     }
     indent/space form sort map-each x ;\

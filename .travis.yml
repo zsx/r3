@@ -579,7 +579,7 @@ script:
           # we do not apply it to any of the binaries which are uploaded to s3
           # -- not even debug ones.
           #
-          make -f makefile.boot NUM_JOBS=${MAKE_JOBS} REBOL_TOOL=${REBOL_TOOL} CONFIG="configs/${CONFIG}" STANDARD="${STANDARD}" OS_ID="${OS_ID}" RIGOROUS="${RIGOROUS}" DEBUG=sanitize OPTIMIZE=2 STATIC=no ODBC_REQUIRES_LTDL=${ODBC_REQUIRES_LTDL}
+          make -f makefile.boot CONFIG="configs/${CONFIG}" NUM_JOBS=${MAKE_JOBS} REBOL_TOOL=${REBOL_TOOL} STANDARD="${STANDARD}" OS_ID="${OS_ID}" RIGOROUS="${RIGOROUS}" DEBUG=sanitize OPTIMIZE=2 STATIC=no ODBC_REQUIRES_LTDL=${ODBC_REQUIRES_LTDL}
 
           mv r3 r3-make;
           make clean;
@@ -592,9 +592,9 @@ script:
     #
     - |
       if [[ -z ${TCC} ]]; then
-          make -f makefile.boot NUM_JOBS=${MAKE_JOBS} REBOL_TOOL=${REBOL_TOOL} CONFIG="configs/${CONFIG}" STANDARD="${STANDARD}" OS_ID="${OS_ID}" DEBUG="${DEBUG}" GIT_COMMIT="${GIT_COMMIT}" RIGOROUS="${RIGOROUS}" STATIC="${STATIC}" WITH_FFI=${FFI} WITH_TCC="no" ODBC_REQUIRES_LTDL=${ODBC_REQUIRES_LTDL}
+          make -f makefile.boot CONFIG="configs/${CONFIG}" NUM_JOBS=${MAKE_JOBS} REBOL_TOOL=${REBOL_TOOL} STANDARD="${STANDARD}" OS_ID="${OS_ID}" DEBUG="${DEBUG}" GIT_COMMIT="${GIT_COMMIT}" RIGOROUS="${RIGOROUS}" STATIC="${STATIC}" WITH_FFI=${FFI} WITH_TCC="no" ODBC_REQUIRES_LTDL=${ODBC_REQUIRES_LTDL}
       else
-          make -f makefile.boot NUM_JOBS=${MAKE_JOBS} REBOL_TOOL=${REBOL_TOOL} CONFIG="configs/${CONFIG}" STANDARD="${STANDARD}" OS_ID="${OS_ID}" DEBUG="${DEBUG}" GIT_COMMIT="${GIT_COMMIT}" RIGOROUS="${RIGOROUS}" STATIC="${STATIC}" WITH_FFI=${FFI} WITH_TCC="%${PWD}/tcc/${TCC}" ODBC_REQUIRES_LTDL=${ODBC_REQUIRES_LTDL}
+          make -f makefile.boot CONFIG="configs/${CONFIG}" NUM_JOBS=${MAKE_JOBS} REBOL_TOOL=${REBOL_TOOL} STANDARD="${STANDARD}" OS_ID="${OS_ID}" DEBUG="${DEBUG}" GIT_COMMIT="${GIT_COMMIT}" RIGOROUS="${RIGOROUS}" STATIC="${STATIC}" WITH_FFI=${FFI} WITH_TCC="%${PWD}/tcc/${TCC}" ODBC_REQUIRES_LTDL=${ODBC_REQUIRES_LTDL}
       fi
 
     # take a look at the preprocess header file

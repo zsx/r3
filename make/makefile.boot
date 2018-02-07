@@ -115,11 +115,11 @@ top: makefile
 .FORCE:
 
 makefile: $(REBOL_TOOL) .FORCE
-	$(REBOL) make.r OS_ID="$(OS_ID)" DEBUG="$(DEBUG)" \
+	$(REBOL) make.r CONFIG="$(CONFIG)" OS_ID="$(OS_ID)" DEBUG="$(DEBUG)" \
 		GIT_COMMIT="{$(GIT_COMMIT)}" STANDARD="$(STANDARD)" \
 		RIGOROUS="$(RIGOROUS)" WITH_FFI="$(WITH_FFI)" \
 		WITH_TCC="$(WITH_TCC)" STATIC="$(STATIC)" \
-		OPTIMIZE="$(OPTIMIZE)" TARGET=makefile CONFIG="$(CONFIG)" \
+		OPTIMIZE="$(OPTIMIZE)" TARGET=makefile \
 		ODBC_REQUIRES_LTDL="$(ODBC_REQUIRES_LTDL)"
 
 # Synonym for `make -f makefile.boot makefile` which can also be used in the

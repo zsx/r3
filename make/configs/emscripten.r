@@ -13,7 +13,7 @@ optimize: "z"
 
 main: %emscripten.html
 
-debug: true 
+if debug = _ [debug: true] ; defaults to true
 
 ldflags: reduce [
 	unspaced ["-O" optimize]
