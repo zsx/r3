@@ -38,7 +38,7 @@ if not (make-dir = output-dir) [try [
 ; COMMAND = WORD
 ; OPTION = 'NAME=VALUE' | 'NAME: VALUE'
 ; CONFIG = 'config=CONFIG-FILE' | 'config: CONFIG-FILE'
-args: parse-args/all system/options/args
+args: parse-args system/options/args
 ; now args are ordered and separated by bar:
 ; [NAME VALUE ... '| COMMAND ...]
 either commands: find args '| [

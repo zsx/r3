@@ -307,7 +307,6 @@ find-record-unique: function [
 
 parse-args: function [
     args
-    /all "Extended syntax: allows args without '=' (puts them after a '| ); allows set-words (name: value)"
 ][
     ret: make block! 4
     standalone: make block! 4
@@ -321,7 +320,7 @@ parse-args: function [
                 value: copy next idx
                 append ret reduce [name value]
             ]
-            all and (#":" = last a) [; name=value
+            #":" = last a [; name=value
                 name: to word! copy/part a (length-of a) - 1
                 args: next args
                 if empty? args [
@@ -330,12 +329,12 @@ parse-args: function [
                 value: args/1
                 append ret reduce [name value]
             ]
-            all [; standalone-arg
+            /else [; standalone-arg
                 append standalone a
             ]
         ]
     ]
-    if any [not all empty? standalone] [return ret]
+    if empty? standalone [return ret]
     append ret '|
     append ret standalone
 ]
