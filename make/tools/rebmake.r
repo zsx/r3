@@ -184,7 +184,7 @@ android: make linux [
 
 emscripten: make posix [
     name: 'Emscripten
-    exe-suffix: ".html" ; build js AND html file
+    exe-suffix: ".js"
     dll-suffix: ".js"
 ]
 

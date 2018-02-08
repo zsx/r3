@@ -11,8 +11,6 @@ toolset: [
 
 optimize: "z"
 
-main: %emscripten.html
-
 if debug = _ [debug: true] ; defaults to true
 
 ldflags: reduce [
@@ -20,7 +18,6 @@ ldflags: reduce [
 	unspaced [{-s 'ASSERTIONS=} either debug [1] [0] {'}]
 	{-s 'EXTRA_EXPORTED_RUNTIME_METHODS=["ccall", "cwrap"]'}
 	{--post-js prep/include/reb-lib.js}
-	spaced [{--shell-file} main]
 ]
 
 extensions: [
