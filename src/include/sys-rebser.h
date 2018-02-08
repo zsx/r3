@@ -490,7 +490,10 @@ struct Reb_Series_Dynamic {
     // the memory location that was returned from the allocator if it has
     // bias included in it.
     //
-    REBYTE *data;
+    // !!! We use `char*` here to ease debugging in systems that don't show
+    // ASCII by default for unsigned characters, for when it's UTF-8 data.
+    //
+    char *data;
 
     // `len` is one past end of useful data.
     //
@@ -542,7 +545,13 @@ union Reb_Series_Content {
     // operator is disabled in the C++ build.  But the value may be relative
     // or specific.
     //
-    struct Reb_Cell values[1];
+    // !!! This is made as a union in order to allow easier insights into the
+    // data content when it is UTF-8.
+    //
+    union {
+        struct Reb_Cell values[1];
+        char utf8[sizeof(struct Reb_Cell)];
+    } fixed;
 };
 
 

@@ -110,7 +110,7 @@ inline static RELVAL *ARR_LAST(REBARR *a)
 //
 inline static RELVAL *ARR_SINGLE(REBARR *a) {
     assert(NOT_SER_INFO(a, SERIES_INFO_HAS_DYNAMIC));
-    return cast(RELVAL*, &SER(a)->content.values[0]);
+    return cast(RELVAL*, &SER(a)->content.fixed.values[0]);
 }
 
 // It's possible to calculate the array from just a cell if you know it's a

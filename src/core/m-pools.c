@@ -600,7 +600,7 @@ static REBOOL Series_Data_Alloc(REBSER *s, REBCNT length) {
     REBCNT pool_num = FIND_POOL(length * wide);
     if (pool_num < SYSTEM_POOL) {
         // ...there is a pool designated for allocations of this size range
-        s->content.dynamic.data = cast(REBYTE*, Make_Node(pool_num));
+        s->content.dynamic.data = cast(char*, Make_Node(pool_num));
         if (s->content.dynamic.data == NULL)
             return FALSE;
 
@@ -632,7 +632,7 @@ static REBOOL Series_Data_Alloc(REBSER *s, REBCNT length) {
                 CLEAR_SER_FLAG(s, SERIES_FLAG_POWER_OF_2);
         }
 
-        s->content.dynamic.data = ALLOC_N(REBYTE, size);
+        s->content.dynamic.data = ALLOC_N(char, size);
         if (s->content.dynamic.data == NULL)
             return FALSE;
 
@@ -892,7 +892,7 @@ REBSER *Make_Series_Core(REBCNT capacity, REBYTE wide, REBUPT flags)
     // if the [1] slot was read.
     //
     Init_Endlike_Header(&s->info, 0); // acts as unwritable END marker
-    assert(IS_END(cast(RELVAL*, &s->content.values[1]))); // ^-- test that
+    assert(IS_END(cast(RELVAL*, &s->content.fixed.values[1]))); // ^-- test
 
     s->content.dynamic.data = NULL;
 
@@ -908,7 +908,7 @@ REBSER *Make_Series_Core(REBCNT capacity, REBYTE wide, REBUPT flags)
         // be less than a full cell's size.
         //
         assert(NOT_SER_INFO(s, SERIES_INFO_HAS_DYNAMIC));
-        Prep_Non_Stack_Cell(&s->content.values[0]);
+        Prep_Non_Stack_Cell(&s->content.fixed.values[0]);
     }
     else if (capacity * wide <= sizeof(s->content)) {
         assert(NOT_SER_INFO(s, SERIES_INFO_HAS_DYNAMIC));
@@ -1067,7 +1067,7 @@ void Free_Pairing(REBVAL *paired) {
 // ahead to account for unused capacity at the head of the
 // allocation.  They also must know the total allocation size.
 //
-static void Free_Unbiased_Series_Data(REBYTE *unbiased, REBCNT size_unpooled)
+static void Free_Unbiased_Series_Data(char *unbiased, REBCNT size_unpooled)
 {
     REBCNT pool_num = FIND_POOL(size_unpooled);
     REBPOL *pool;
@@ -1094,7 +1094,7 @@ static void Free_Unbiased_Series_Data(REBYTE *unbiased, REBCNT size_unpooled)
         alias->bits = FLAGBYTE_FIRST(FREED_SERIES_BYTE);
     }
     else {
-        FREE_N(REBYTE, size_unpooled, unbiased);
+        FREE_N(char, size_unpooled, unbiased);
         Mem_Pools[SYSTEM_POOL].has -= size_unpooled;
         Mem_Pools[SYSTEM_POOL].free++;
     }
@@ -1285,7 +1285,7 @@ void Expand_Series(REBSER *s, REBCNT index, REBCNT delta)
     union Reb_Series_Content content_old;
     REBINT bias_old;
     REBCNT size_old;
-    REBYTE *data_old;
+    char *data_old;
     if (was_dynamic) {
         data_old = s->content.dynamic.data;
         bias_old = SER_BIAS(s);
@@ -1293,7 +1293,7 @@ void Expand_Series(REBSER *s, REBCNT index, REBCNT delta)
     }
     else {
         content_old = s->content; // may be raw bits
-        data_old = cast(REBYTE*, &content_old);
+        data_old = cast(char*, &content_old);
     }
 
     // The new series will *always* be dynamic, because it would not be
@@ -1424,7 +1424,7 @@ void Remake_Series(REBSER *s, REBCNT units, REBYTE wide, REBUPT flags)
     // may have already been extracted if the caller is doing their own
     // updating preservation.)
 
-    REBYTE *data_old;
+    char *data_old;
     union Reb_Series_Content content_old;
     if (was_dynamic) {
         assert(s->content.dynamic.data != NULL);
@@ -1434,7 +1434,7 @@ void Remake_Series(REBSER *s, REBCNT units, REBYTE wide, REBUPT flags)
     }
     else {
         content_old = s->content;
-        data_old = cast(REBYTE*, &content_old);
+        data_old = cast(char*, &content_old);
     }
 
     // We don't want to update the header bits to reflect a new state of the
@@ -1452,7 +1452,7 @@ void Remake_Series(REBSER *s, REBCNT units, REBYTE wide, REBUPT flags)
 
     if (!Series_Data_Alloc(s, units + 1)) {
         // Put series back how it was (there may be extant references)
-        s->content.dynamic.data = data_old;
+        s->content.dynamic.data = cast(char*, data_old);
         fail (Error_No_Memory((units + 1) * wide));
     }
     assert(s->content.dynamic.data != NULL);
@@ -1658,7 +1658,7 @@ void Widen_String(REBSER *s, REBOOL preserve)
 
     REBCNT bias_old;
     REBCNT size_old;
-    REBYTE *data_old;
+    char *data_old;
     union Reb_Series_Content content_old;
     if (was_dynamic) {
         data_old = s->content.dynamic.data;
@@ -1667,7 +1667,7 @@ void Widen_String(REBSER *s, REBOOL preserve)
     }
     else {
         content_old = s->content;
-        data_old = cast(REBYTE*, &content_old);
+        data_old = cast(char*, &content_old);
     }
 
   #if !defined(NDEBUG)
@@ -1687,7 +1687,7 @@ void Widen_String(REBSER *s, REBOOL preserve)
     }
 
     if (preserve) {
-        REBYTE *bp = data_old;
+        char *bp = data_old;
         REBUNI *up = UNI_HEAD(s);
 
         REBCNT n;

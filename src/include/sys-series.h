@@ -292,8 +292,8 @@ inline static REBCNT SER_REST(REBSER *s) {
 inline static REBYTE *SER_DATA_RAW(REBSER *s) {
     // if updating, also update manual inlining in SER_AT_RAW
     return (s->info.bits & SERIES_INFO_HAS_DYNAMIC)
-        ? s->content.dynamic.data
-        : (REBYTE*)(&s->content);
+        ? cast(REBYTE*, s->content.dynamic.data)
+        : cast(REBYTE*, &s->content);
 }
 
 inline static REBYTE *SER_AT_RAW(REBYTE w, REBSER *s, REBCNT i) {
@@ -311,8 +311,8 @@ inline static REBYTE *SER_AT_RAW(REBYTE w, REBSER *s, REBCNT i) {
 
     return ((w) * (i)) + ( // v-- inlining of SER_DATA_RAW
         (s->info.bits & SERIES_INFO_HAS_DYNAMIC)
-            ? s->content.dynamic.data
-            : (REBYTE*)(&s->content)
+            ? cast(REBYTE*, s->content.dynamic.data)
+            : cast(REBYTE*, &s->content)
         );
 }
 

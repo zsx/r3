@@ -228,8 +228,8 @@ void Remove_Series(REBSER *s, REBCNT index, REBINT len)
             if (REB_U32_ADD_OF(SER_BIAS(s), len, &bias))
                 fail (Error_Overflow_Raw());
 
-            if (bias > 0xffff) { //bias is 16-bit, so a simple SER_ADD_BIAS could overflow it
-                REBYTE *data = s->content.dynamic.data;
+            if (bias > 0xffff) { // 16-bit, simple SER_ADD_BIAS could overflow
+                REBYTE *data = cast(REBYTE*, s->content.dynamic.data);
 
                 data += SER_WIDE(s) * len;
                 s->content.dynamic.data -= SER_WIDE(s) * SER_BIAS(s);
@@ -293,7 +293,7 @@ void Unbias_Series(REBSER *s, REBOOL keep)
     if (len == 0)
         return;
 
-    REBYTE *data = s->content.dynamic.data;
+    REBYTE *data = cast(REBYTE*, s->content.dynamic.data);
 
     SER_SET_BIAS(s, 0);
     s->content.dynamic.rest += len;
