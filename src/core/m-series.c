@@ -513,7 +513,7 @@ ATTRIBUTE_NO_RETURN void Panic_Series_Debug(REBSER *s)
         stderr, " during evaluator tick: %lu\n", cast(unsigned long, s->tick)
     );
   #else
-    fprintf(stderr, " has no tick tracking (see DEBUG_COUNT_TICKS)\n");  
+    fprintf(stderr, " has no tick tracking (see DEBUG_COUNT_TICKS)\n");
   #endif
 
     fflush(stderr);

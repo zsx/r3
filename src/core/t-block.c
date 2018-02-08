@@ -948,69 +948,6 @@ REBTYPE(Array)
 
     //-- Special actions:
 
-    case SYM_TRIM: {
-        INCLUDE_PARAMS_OF_TRIM;
-
-        UNUSED(PAR(series));
-
-        FAIL_IF_READ_ONLY_ARRAY(array);
-
-        if (REF(auto) || REF(all) || REF(lines))
-            fail (Error_Bad_Refines_Raw());
-
-        if (REF(with)) {
-            UNUSED(ARG(str));
-            fail (Error_Bad_Refines_Raw());
-        }
-
-        RELVAL *head = ARR_HEAD(array);
-        REBCNT out = index;
-        REBINT end = ARR_LEN(array);
-
-        if (REF(tail)) {
-            for (; end >= cast(REBINT, index + 1); end--) {
-                if (NOT(IS_BLANK(head + end - 1)))
-                    break;
-            }
-            Remove_Series(SER(array), end, ARR_LEN(array) - end);
-
-            // if (!(flags & AM_TRIM_HEAD) || index >= end) return;
-        }
-
-        if (REF(head)) {
-            for (; cast(REBINT, index) < end; index++) {
-                if (NOT(IS_BLANK((head + index))))
-                    break;
-            }
-            Remove_Series(SER(array), out, index - out);
-        }
-
-        if (NOT(REF(head) || REF(tail))) {
-            //
-            // Make the invariant for the next loop that we've passed all
-            // the non-blanks, to avoid blitting cells over themselves.
-            //
-            while (cast(REBINT, index) < end && NOT(IS_BLANK(head + index))) {
-                ++out;
-                ++index;
-            }
-            for (; cast(REBINT, index) < end; index++) {
-                if (NOT(IS_BLANK(head + index))) {
-                    //
-                    // Rare case of legal RELVAL bit copying... from one slot
-                    // in an array to another in that same array.
-                    //
-                    Blit_Cell(ARR_AT(array, out), &head[index]);
-                    out++;
-                }
-            }
-            Remove_Series(SER(array), out, end - out);
-        }
-
-        Move_Value(D_OUT, value);
-        return R_OUT;
-    }
-
     case SYM_SWAP: {
         if (NOT(ANY_ARRAY(arg)))
             fail (arg);

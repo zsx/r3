@@ -312,17 +312,6 @@ clear: action [
     series [any-series! port! map! gob! bitset! blank!] {At position (modified)}
 ]
 
-trim: action [
-    {Removes spaces from strings or blanks from blocks or objects.}
-    series [any-series! object! error! module!] {Series (modified) or object (made)}
-    /head {Removes only from the head}
-    /tail {Removes only from the tail}
-    /auto {Auto indents lines relative to first line}
-    /lines {Removes all line breaks and extra spaces}
-    /all  {Removes all whitespace}
-    /with str [char! string! binary! integer!] {Same as /all, but removes characters in 'str'}
-]
-
 swap: action [
     {Swaps elements between two series or the same series.}
     series1 [any-series! gob!] {At position (modified)}

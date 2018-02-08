@@ -164,3 +164,179 @@ append-of: redescribe [
         series: copy series
     ]
 )
+
+
+; TRIM is used by PORT! implementations, which currently rely on "Base" and
+; not "Mezzanine", so this can't be in %mezz-series at the moment.  Review.
+;
+trim: function [
+    {Removes spaces from strings or blanks from blocks or objects.}
+
+    series [any-string! any-array! binary! any-context!]
+        {Series (modified) or object (made)}
+    /head
+        {Removes only from the head}
+    /tail
+        {Removes only from the tail}
+    /auto
+        {Auto indents lines relative to first line}
+    /lines
+        {Removes all line breaks and extra spaces}
+    /all
+        {Removes all whitespace}
+    /with
+        {Same as /all, but removes characters in 'str'}
+    str [char! string! binary! integer!]
+][
+    tail_TRIM: :tail
+    tail: :lib/tail
+    head_TRIM: :head
+    head: :lib/head
+    all_TRIM: :all
+    all: :lib/all
+
+    ; FUNCTION!s in the new object will still refer to fields in the original
+    ; object.  That was true in R3-Alpha as well.  Fixing this would require
+    ; new kinds of binding overrides.  The feature itself is questionable.
+    ;
+    ; https://github.com/rebol/rebol-issues/issues/2288
+    ;
+    if any-context? series [
+        if any [head_TRIM tail_TRIM auto lines all_TRIM with] [
+            fail "Invalid refinements for TRIM of ANY-CONTEXT!"
+        ]
+        trimmed: make (type of series) collect [
+            for-each [key val] series [
+                if something? :val [keep key]
+            ]
+        ]
+        for-each [key val] series [
+            poke trimmed key :val
+        ]
+        return trimmed
+    ]
+
+    case [
+        any-array? series [
+            if any [auto lines with] [
+                ;
+                ; Note: /WITH might be able to work, e.g. if it were a MAP!
+                ; or BLOCK! of values to remove.
+                ;
+                fail "Invalid refinements for TRIM of ANY-ARRAY!"
+            ]
+            rule: blank!
+
+            if not any [head_TRIM tail_TRIM] [
+                head_TRIM: tail_TRIM: true ;-- plain TRIM => TRIM/HEAD/TAIL
+            ]
+        ]
+
+        any-string? series [
+            rule: make bitset! if with [str] else [reduce [space tab]]
+
+            if any [all_TRIM lines head_TRIM tail_TRIM] [append rule newline]
+        ]
+
+        binary? series [
+            if any [auto lines] [
+                fail "Invalid refinements for TRIM of BINARY!"
+            ]
+
+            rule: case [
+                with and (binary? str) [
+                    ;
+                    ; !!! MAKE BITSET! of a BINARY! doesn't treat it as a set
+                    ; of bytes, rather as the raw data underlying a bitset.
+                    ; Work around it by using MAKE BITSET! on an array of
+                    ; integer! values.
+                    ;
+                    ; !!! Can't use COLLECT because that's in "Mezzanine" and
+                    ; this is in "Base".  Review these locations.
+                    ;
+                    array: make block! length of str
+                    for-each b str [append array b]
+                    make bitset! array
+                ]
+                with [make bitset! str]
+            ] else [#{00}]
+
+            if not any [head_TRIM tail_TRIM] [
+                head_TRIM: tail_TRIM: true ;-- plain TRIM => TRIM/HEAD/TAIL
+            ]
+        ]
+    ] else [
+        fail "Unsupported type passed to TRIM"
+    ]
+
+    ; /ALL just removes all whitespace entirely.  No subtlety needed.
+    ;
+    if all_TRIM [
+        parse series [while [remove rule | skip | end break]]
+        return series
+    ]
+
+    case/all [
+        head_TRIM [
+            parse series [remove [any rule] to end]
+        ]
+
+        tail_TRIM [
+            parse series [while [remove [some rule end] | skip]] ;-- see #2289
+        ]
+    ] also [
+        return series
+    ]
+
+    assert [any-string? series]
+
+    ; /LINES collapses all runs of whitespace down to just one space character
+    ; with leading and trailing whitespace removed.
+    ;
+    if lines [
+        parse series [while [change [some rule] space skip | skip]]
+        if first series = space [take series]
+        if last series = space [take/last series]
+        return series
+    ]
+
+    ; TRIM/AUTO measures first line indentation and removes indentation on
+    ; later lines relative to that.  Only makes sense for ANY-STRING!, though
+    ; a concept like "lines" could apply to a BLOCK! of BLOCK!s.
+    ;
+    indent: _
+    if auto [
+        parse series [
+            (indent: 0)
+            s: rule e:
+            (indent: (index of e) - (index of s))
+        ]
+    ]
+
+    line-start-rule: compose/deep [
+        remove [(indent ?? [1 indent] !! 'any) rule]
+    ]
+
+    parse series [
+        line-start-rule
+        any [
+            while [
+                ahead [any rule [newline | end]]
+                remove [any rule]
+                [newline line-start-rule]
+                    |
+                skip
+            ]
+        ]
+    ]
+
+    ; While trimming with /TAIL takes out any number of newlines, plain TRIM
+    ; in R3-Alpha and Red leaves at most one newline at the end.
+    ;
+    parse series [
+        remove [any newline]
+        while [newline remove [some newline end] | skip]
+    ]
+
+    return series
+]

@@ -1474,40 +1474,6 @@ REBTYPE(String)
 
     //-- Special actions:
 
-    case SYM_TRIM: {
-        INCLUDE_PARAMS_OF_TRIM;
-        FAIL_IF_READ_ONLY_SERIES(VAL_SERIES(value));
-
-        UNUSED(PAR(series));
-
-        ser = VAL_SERIES(value);
-
-        if (REF(all) || REF(with)) {
-            if (REF(head) || REF(tail) || REF(lines) || REF(auto))
-                fail (Error_Bad_Refines_Raw());
-
-            Whitespace_Replace_With(ser, index, tail, ARG(str));
-        }
-        else if (REF(auto)) {
-            if (REF(head) || REF(tail) || REF(lines) || REF(all) || REF(with))
-                fail (Error_Bad_Refines_Raw());
-
-            Trim_String_Auto(ser, index, tail);
-        }
-        else if (REF(lines)) {
-            Trim_String_Lines(ser, index, tail);
-        }
-        else {
-            Trim_String_Head_Tail(
-                ser,
-                index,
-                tail,
-                REF(head),
-                REF(tail)
-            );
-        }
-        break; }
-
     case SYM_SWAP: {
         FAIL_IF_READ_ONLY_SERIES(VAL_SERIES(value));
 

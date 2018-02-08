@@ -376,13 +376,19 @@ span_bits:
                 else
                     fail (Error_Invalid_Arg_Core(item, VAL_SPECIFIER(val)));
             }
-            else Set_Bit(bset, c, set);
+            else
+                Set_Bit(bset, c, set);
             break;
 
         case REB_INTEGER:
             n = Int32s(KNOWN(item), 0);
-            if (n > MAX_BITSET) return FALSE;
-            if (IS_WORD(item + 1) && VAL_WORD_SYM(item + 1) == SYM_HYPHEN) {
+            if (n > MAX_BITSET)
+                return FALSE;
+            if (
+                NOT_END(item + 1)
+                && IS_WORD(item + 1)
+                && VAL_WORD_SYM(item + 1) == SYM_HYPHEN
+            ){
                 c = n;
                 item += 2;
                 if (IS_INTEGER(item)) {
@@ -392,7 +398,8 @@ span_bits:
                 else
                     fail (Error_Invalid_Arg_Core(item, VAL_SPECIFIER(val)));
             }
-            else Set_Bit(bset, n, set);
+            else
+                Set_Bit(bset, n, set);
             break;
 
         case REB_BINARY:

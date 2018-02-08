@@ -70,7 +70,7 @@
 //
 #ifdef REB_API  // Included by C command line
     REBOL_HOST_LIB *Host_Lib;
-	EXTERN_C REBOL_HOST_LIB Host_Lib_Init;
+    EXTERN_C REBOL_HOST_LIB Host_Lib_Init;
 #endif
 
 
@@ -334,7 +334,7 @@ void RL_rebStartup(void *lib)
 //
 void RL_rebInit(void)
 {
-	rebStartup(&Host_Lib_Init);
+    rebStartup(&Host_Lib_Init);
 }
 
 

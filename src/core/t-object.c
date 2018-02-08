@@ -241,60 +241,6 @@ collect_end:
 }
 
 
-static REBCTX *Trim_Context(REBCTX *context)
-{
-    REBVAL *key;
-    REBVAL *var;
-
-    REBCNT copy_count = 0;
-
-    // First pass: determine size of new context to create by subtracting out
-    // any void (unset fields), NONE!, or hidden fields
-    //
-    key = CTX_KEYS_HEAD(context);
-    var = CTX_VARS_HEAD(context);
-    for (; NOT_END(var); var++, key++) {
-        if (VAL_TYPE(var) == REB_BLANK)
-            continue;
-        if (GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN))
-            continue;
-
-        ++copy_count;
-    }
-
-    // Create new context based on the size found
-    //
-    REBCTX *trimmed = Alloc_Context(VAL_TYPE(CTX_VALUE(context)), copy_count);
-
-    // Second pass: copy the values that were not skipped in the first pass
-    //
-    key = CTX_KEYS_HEAD(context);
-    var = CTX_VARS_HEAD(context);
-
-    REBVAL *var_new = CTX_VARS_HEAD(trimmed);
-    REBVAL *key_new = CTX_KEYS_HEAD(trimmed);
-
-    for (; NOT_END(var); var++, key++) {
-        if (VAL_TYPE(var) == REB_BLANK)
-            continue;
-        if (GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN))
-            continue;
-
-        Move_Var(var_new, var);
-        ++var_new;
-        Move_Value(key_new, key);
-        ++key_new;
-    }
-
-    // Terminate the new context
-    //
-    TERM_ARRAY_LEN(CTX_VARLIST(trimmed), copy_count + 1);
-    TERM_ARRAY_LEN(CTX_KEYLIST(trimmed), copy_count + 1);
-
-    return trimmed;
-}
-
-
 //
 //  CT_Context: C
 //
@@ -941,26 +887,6 @@ REBTYPE(Context)
         Move_Value(D_OUT, CTX_VAR(c, n));
         return R_OUT;
     }
-
-    case SYM_TRIM: {
-        INCLUDE_PARAMS_OF_TRIM;
-
-        UNUSED(ARG(series));
-
-        if (
-            REF(head) || REF(tail)
-            || REF(auto) || REF(all) || REF(lines)
-        ){
-            fail (Error_Bad_Refines_Raw());
-        }
-
-        if (REF(with)) {
-            UNUSED(ARG(str));
-            fail (Error_Bad_Refines_Raw());
-        }
-
-        Init_Any_Context(D_OUT, VAL_TYPE(value), Trim_Context(c));
-        return R_OUT; }
 
     default:
         break;
