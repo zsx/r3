@@ -24,7 +24,7 @@ args: parse-args system/options/args
 output-dir: system/options/path/prep
 mkdir/deep output-dir/include
 
-extensions: either any-string? :args/EXTENSIONS [split args/EXTENSIONS #","][[]]
+extensions: either any-string? :args/EXTENSIONS [split args/EXTENSIONS #":"][[]]
 
 e-ext: (make-emitter
     "Boot Modules" output-dir/include/tmp-boot-extensions.h)

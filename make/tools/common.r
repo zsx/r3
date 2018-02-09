@@ -313,25 +313,30 @@ parse-args: function [
     args: any [args copy []]
     unless block? args [args: split args [some " "]]
     forall args [
-        a: args/1
+        name: _
+        value: args/1
         case [
-            idx: find a #"=" [; name=value
-                name: to word! copy/part a (index-of idx) - 1
+            idx: find value #"=" [; name=value
+                name: to word! copy/part value (index-of idx) - 1
                 value: copy next idx
-                append ret reduce [name value]
             ]
-            #":" = last a [; name=value
-                name: to word! copy/part a (length-of a) - 1
+            #":" = last value [; name=value
+                name: to word! copy/part value (length-of value) - 1
                 args: next args
                 if empty? args [
-                    fail ["Missing value after" a]
+                    fail ["Missing value after" value]
                 ]
                 value: args/1
-                append ret reduce [name value]
             ]
-            /else [; standalone-arg
-                append standalone a
-            ]
+        ]
+        if all [; value1,value2,...,valueN
+            not find value "["
+            find value ","
+        ][value: mold split value ","]
+        either name [
+            append ret reduce [name value]
+        ][; standalone-arg
+            append standalone value
         ]
     ]
     if empty? standalone [return ret]

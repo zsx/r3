@@ -1803,7 +1803,7 @@ prep: make rebmake/entry-class [
                 {$(REBOL) } tools-dir/make-boot-ext-header.r { EXTENSIONS=}
                 delimit map-each ext builtin-extensions [
                     to string! ext/name
-                ] #","
+                ] #":"
             ]
         )
         (
