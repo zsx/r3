@@ -11,13 +11,11 @@ toolset: [
 
 optimize: "z"
 
-if debug = _ [debug: true] ; defaults to true
-
 ldflags: reduce [
-	unspaced ["-O" optimize]
-	unspaced [{-s 'ASSERTIONS=} either debug [1] [0] {'}]
-	{-s 'EXTRA_EXPORTED_RUNTIME_METHODS=["ccall", "cwrap"]'}
-	{--post-js prep/include/reb-lib.js}
+    unspaced ["-O" optimize]
+    unspaced [{-s 'ASSERTIONS=} either debug [1] [0] {'}]
+    {-s 'EXTRA_EXPORTED_RUNTIME_METHODS=["ccall", "cwrap"]'}
+    {--post-js prep/include/reb-lib.js}
 ]
 
 extensions: [
