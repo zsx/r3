@@ -78,21 +78,20 @@
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// NOTE: Instead of Alloc_Mem, use the ALLOC and ALLOC_N wrapper macros to
-// ensure the memory block being freed matches the size for the type.
+// NOTE: Use the ALLOC and ALLOC_N macros instead of Alloc_Mem to ensure the
+// memory matches the size for the type, and that the code builds as C++.
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// Alloc_Mem is an interface for a basic memory allocator.  It is coupled with
-// a Free_Mem function that clients must call with the correct size of the
-// memory block to be freed.  It is thus lower-level than malloc()... whose
-// where clients do not need to remember the size of the allocation to pass
+// Alloc_Mem is a basic memory allocator, which clients must call with the
+// correct size of memory block to be freed.  This differs from malloc(),
+// whose clients do not need to remember the size of the allocation to pass
 // into free().
 //
 // One motivation behind using such an allocator in Rebol is to allow it to
 // keep knowledge of how much memory the system is using.  This means it can
-// decide when to trigger a garbage collection, or raise an out-of-memory error
-// before the operating system would, e.g. via 'ulimit':
+// decide when to trigger a garbage collection, or raise an out-of-memory
+// error before the operating system would, e.g. via 'ulimit':
 //
 //     http://stackoverflow.com/questions/1229241/
 //
@@ -108,26 +107,30 @@ void *Alloc_Mem(size_t size)
     if ((PG_Mem_Limit != 0) && (PG_Mem_Usage > PG_Mem_Limit))
         Check_Security(Canon(SYM_MEMORY), POL_EXEC, 0);
 
-    // While conceptually a simpler interface than malloc(), the
-    // current implementations on all C platforms just pass through to
-    // malloc and free.
+    // malloc() internally remembers the size of the allocation, and is hence
+    // "overkill" for this operation.  Yet the current implementations on all
+    // C platforms use malloc() and free() anyway.
 
   #ifdef NDEBUG
-    return malloc(size);
+    void *p = malloc(size);
   #else
-    // In debug builds we cache the size at the head of the allocation
-    // so we can check it.  This also allows us to catch cases when
-    // free() is paired with Alloc_Mem() instead of using Free_Mem()
+    // Cache size at the head of the allocation in debug builds for checking.
+    // Also catches free() use with Alloc_Mem() instead of Free_Mem().
     //
-    // Note that we use a 64-bit quantity, as we want the allocations
-    // to remain suitable in alignment for 64-bit values!
+    // Use a 64-bit quantity to preserve DEBUG_MEMORY_ALIGN invariant.
 
-    void *ptr = malloc(size + sizeof(REBI64));
-    if (ptr == NULL)
+    void *p_extra = malloc(size + sizeof(REBI64));
+    if (p_extra == NULL)
         return NULL;
-    *cast(REBI64 *, ptr) = size;
-    return cast(char *, ptr) + sizeof(REBI64);
+    *cast(REBI64 *, p_extra) = size;
+    void *p = cast(char*, p_extra) + sizeof(REBI64);
   #endif
+
+  #ifdef DEBUG_MEMORY_ALIGN
+    assert(cast(REBUPT, p) % sizeof(REBI64) == 0);
+  #endif
+
+    return p;
 }
 
 
@@ -146,16 +149,6 @@ void *Alloc_Mem(size_t size)
 // deciding when it is necessary to run a garbage collection, or when to
 // impose a quota.
 //
-// Release builds have no way to check that the correct size is passed in
-// for the allocated unit.  But in debug builds the size is stored with the
-// allocation and checked here.  Also, the pointer is skewed such that if
-// clients try to use a normal free() and bypass Free_Mem it will trigger
-// debug alerts from the C runtime of trying to free a non-head-of-malloc.
-//
-// We also know the host allocator (OS_Alloc_Mem) uses a similar trick.  But
-// since it doesn't require callers to remember the size, it puts a known
-// garbage value for this routine to check for--to give a useful message.
-//
 void Free_Mem(void *mem, size_t size)
 {
   #ifdef NDEBUG
@@ -164,11 +157,12 @@ void Free_Mem(void *mem, size_t size)
     assert(mem != NULL);
     char *ptr = cast(char *, mem) - sizeof(REBI64);
     if (*cast(REBI64 *, ptr) == cast(REBI64, -1020))
-        panic ("** FREE() used on OS_Alloc_Mem() memory instead of FREE()");
+        panic ("** FREE() used on OS_ALLOC() memory instead of OS_FREE()");
 
     assert(*cast(REBI64*, ptr) == cast(REBI64, size));
     free(ptr);
   #endif
+
     PG_Mem_Usage -= size;
 }
 
@@ -288,16 +282,13 @@ void Startup_Pools(REBINT scale)
         Mem_Pools[n].first = NULL;
         Mem_Pools[n].last = NULL;
 
-        // The current invariant is that allocations returned from Make_Node()
-        // should always come back as being at a legal 64-bit alignment point.
-        // Although it would be possible to round the allocations, turning it
-        // into an alert helps make sure available space isn't idly wasted.
-        //
         // A panic is used instead of an assert, since the debug sizes and
         // release sizes may be different...and both must be checked.
         //
+      #if defined(DEBUG_MEMORY_ALIGN) || 1
         if (Mem_Pool_Spec[n].wide % sizeof(REBI64) != 0)
             panic ("memory pool width is not 64-bit aligned");
+      #endif
 
         Mem_Pools[n].wide = Mem_Pool_Spec[n].wide;
 
@@ -518,9 +509,22 @@ void *Make_Node(REBCNT pool_id)
 
     pool->free--;
 
-    assert(cast(REBUPT, node) % sizeof(REBI64) == 0);
-    assert(IS_FREE_NODE(node)); // client needs to change to non-zero
+  #ifdef DEBUG_MEMORY_ALIGN
+    if (cast(REBUPT, node) % sizeof(REBI64) != 0) {
+        printf(
+            "Node address %p not aligned to %d bytes\n",
+            cast(void*, node),
+            cast(int, sizeof(REBI64))
+        );
+        printf("Pool address is %p and pool-first is %p\n",
+            cast(void*, pool),
+            cast(void*, pool->first)
+        );
+        panic (node);
+    }
+  #endif
 
+    assert(IS_FREE_NODE(node)); // client needs to change to non-zero
     return cast(void *, node);
 }
 
@@ -2036,7 +2040,7 @@ void Assert_Pointer_Detection_Working(void)
     assert(Detect_Rebol_Pointer(EMPTY_ARRAY) == DETECTED_AS_SERIES);
     assert(Detect_Rebol_Pointer(BLANK_VALUE) == DETECTED_AS_VALUE);
 
-  #if defined(DEBUG_TRASH_CELLS)
+  #if defined(DEBUG_TRASH_MEMORY)
     DECLARE_LOCAL (trash_cell);
     assert(IS_TRASH_DEBUG(trash_cell));
     assert(Detect_Rebol_Pointer(trash_cell) == DETECTED_AS_TRASH_CELL);

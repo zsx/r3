@@ -412,20 +412,24 @@
         const char *file,
         int line
     ){
-        // REBVALs should not be written at addresses that do not match the
-        // alignment of the processor.  Checks modulo the size of an unsigned
-        // integer the same size as a platform pointer (REBUPT => uintptr_t)
-        //
-        // This is pretty important, but usually only triggers on 0xDECAFBAD
-        //
-        if (cast(REBUPT, v) % sizeof(REBUPT) != 0) {
+      #ifdef DEBUG_MEMORY_ALIGN
+        if (cast(REBUPT, v) % sizeof(REBI64) != 0) {
+          
+          #ifdef DEBUG_TRASH_MEMORY
+            if (IS_POINTER_TRASH_DEBUG(v)) { // common case
+                printf("Trash pointer passed to Assert_Cell_Writable()\n");
+                panic_at(v, file, line);
+            }
+          #endif
+
             printf(
                 "Cell address %p not aligned to %d bytes\n",
                 cast(const void*, v),
-                cast(int, sizeof(REBUPT))
+                cast(int, sizeof(REBI64))
             );
             panic_at (v, file, line);
         }
+      #endif
 
         if (NOT(v->header.bits & NODE_FLAG_CELL)) {
             printf("Non-cell passed to writing routine\n");
@@ -464,7 +468,7 @@
 // so that is left as-is also.
 //
 
-#if defined(DEBUG_TRASH_CELLS)
+#if defined(DEBUG_TRASH_MEMORY)
     #define REB_MAX_PLUS_ONE_TRASH \
         (REB_MAX + 1) // used in the debug build to help identify trash nodes
 #else
@@ -619,7 +623,7 @@ inline static void VAL_SET_TYPE_BITS(RELVAL *v, enum Reb_Kind kind) {
 // The garbage collector is not tolerant of trash.
 //
 
-#if defined(DEBUG_TRASH_CELLS)
+#if defined(DEBUG_TRASH_MEMORY)
     inline static void Set_Trash_Debug(
         RELVAL *v
 
@@ -984,7 +988,7 @@ inline static void SET_END_Core(
         assert(IS_BLANK(v)) // would have to be a blank even if not unreadable
 
     #define ASSERT_READABLE_IF_DEBUG(v) \
-        ASSERT_NOT_TRASH_IF_DEBUG(v) // DEBUG_TRASH_CELLS might be set
+        ASSERT_NOT_TRASH_IF_DEBUG(v) // DEBUG_TRASH_MEMORY might be set
 
     #define SINK(v) \
         cast(REBVAL*, (v))

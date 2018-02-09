@@ -282,12 +282,19 @@ Special internal defines used by RT, not Host-Kit developers:
 
     #define DEBUG_HAS_PROBE
     #define DEBUG_COUNT_TICKS
-    #define DEBUG_CELL_WRITABILITY
     #define DEBUG_FRAME_LABELS
     #define DEBUG_UNREADABLE_BLANKS
-    #define DEBUG_TRASH_CELLS
+    #define DEBUG_TRASH_MEMORY
     #define DEBUG_TRACK_CELLS
     #define DEBUG_BALANCE_STATE
+
+    // !!! Checking the memory alignment is an important invariant but may be
+    // overkill to run on all platforms at all times.  It requires the
+    // DEBUG_CELL_WRITABILITY flag to be enabled, since it's the moment of
+    // writing that is when the check has an opportunity to run.
+    //
+    #define DEBUG_MEMORY_ALIGN
+    #define DEBUG_CELL_WRITABILITY
 
     // Cast checks in SER(), NOD(), ARR() are expensive--they make sure that
     // when you have a void pointer and cast it to a REBSER, that the header
@@ -313,4 +320,14 @@ Special internal defines used by RT, not Host-Kit developers:
     // particularly strong checks.
     //
     #define DEBUG_UTF8_EVERYWHERE
+#endif
+
+
+#ifdef DEBUG_MEMORY_ALIGN
+    #if !defined(DEBUG_CELL_WRITABILITY)
+        #error "DEBUG_MEMORY_ALIGN requires DEBUG_CELL_WRITABILITY"
+    #endif
+    #if !defined(DEBUG_STDIO_OK)
+        #error "DEBUG_MEMORY_ALIGN requires DEBUG_STDIO_OK"
+    #endif
 #endif
