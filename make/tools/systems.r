@@ -268,11 +268,10 @@ systems: [
 
     Emscripten: 16
     ;-------------------------------------------------------------------------
-    0.16.01 emscripten-node/emscripten "node"
+    0.16.01 emscripten-asm/emscripten "asm.js"
         #LEN
-
-    0.16.02 emscripten-web/emscripten "web"
-        #LEN
+    0.16.02 emscripten-wasm/emscripten "webassembly"
+        #LEN /WASM
 
     AIX: 17
     ;-------------------------------------------------------------------------
@@ -390,6 +389,7 @@ linker-flags: make object! [
 
     CON: [<gnu:-mconsole> <msc:/subsystem:console>]
     S4M: [<gnu:-Wl,--stack=4194300> <msc:/stack:4194300>]
+    WASM: "-s WASM=1" ; emscripten webassembly
 ]
 
 system-libraries: make object! [
