@@ -177,15 +177,6 @@ gen-obj: func [
     ]
 ]
 
-libuuid-objs: map-each s [
-    %uuid/libuuid/gen_uuid.c
-    %uuid/libuuid/unpack.c
-    %uuid/libuuid/pack.c
-    %uuid/libuuid/randutils.c
-][
-    gen-obj/dir s src-dir/extensions/%
-]
-
 module-class: make object! [
     class-name: 'module-class
     name: _
@@ -208,440 +199,68 @@ extension-class: make object! [
     modules: _
     source: _
     init: _ ;init-script
-]
+    requires: _ ; it might require other extensions
 
-;libffi
-cfg-ffi: make object! [
-    cflags:
-    includes:
-    definitions:
-    ldflags:
-    libraries:
+    includes: _
+    definitions: _
+    cflags: _
+
     searches: _
+    libraries: _
+    ldflags: _
+
+    ;internal
+    sequence: _ ; the sequence in which the extension should be loaded
+    visited: false
 ]
-either block? user-config/with-ffi [
-    cfg-ffi: make cfg-ffi user-config/with-ffi
-    cfg-ffi/libraries: map-each lib cfg-ffi/libraries [
-        case [
-            file? lib [
-                make rebmake/ext-dynamic-class [
-                    output: lib
-                ]
-            ]
-            all [
-                    object? lib
-                    find [ext-dynamic-class ext-static-class] lib/class-name
-            ][
-                lib
-            ]
-            true [
-                fail ["Libraries can only be file! or static/dynamic library object, not" lib]
-            ]
-        ]
-    ]
+
+available-modules: copy []
+
+available-extensions: copy []
+
+parse-ext-build-spec: function [
+    spec [block!]
 ][
-    switch/default user-config/with-ffi [
-        static dynamic [
-            for-each var [includes cflags searches ldflags][
-                x: rebmake/pkg-config
-                    any [user-config/pkg-config {pkg-config}]
-                    var
-                    %libffi
-                unless empty? x [
-                    set (in cfg-ffi var) x
+    ext-body: copy []
+    unless parse spec [
+        any [
+            quote options: into [
+                any [
+                    word! block! opt string! set config: group!
+                    | end
+                    | (print "wrong format for options") return false
                 ]
             ]
-
-            libs: rebmake/pkg-config
-                any [user-config/pkg-config {pkg-config}]
-                'libraries
-                %libffi
-
-            cfg-ffi/libraries: map-each lib libs [
-                make rebmake/ext-dynamic-class [
-                    output: lib
-                    flags: either user-config/with-ffi = 'static [[static]][_]
-                ]
-            ]
-        ]
-        _ no off false #[false] [
-            ;pass
+            | quote modules: set modules block!
+            | set n: set-word! set v: skip (append ext-body reduce [n v])
         ]
     ][
-        fail [
-            "WITH-FFI should be one of [dynamic static no]"
-            "not" (user-config/with-ffi)
+        print ["Failed to parse extension build spec" mold spec]
+        return _
+    ]
+
+    if set? 'config [do to block! config]
+
+    append ext-body compose/only [
+        modules: (map-each m modules [make module-class m])
+    ]
+
+    make extension-class ext-body
+]
+
+; Discover extensions:
+use [extension-dir entry][
+    extension-dir: %../src/extensions/
+    for-each entry read extension-dir [
+        ;print ["entry:" mold entry]
+        if all [
+            dir? entry
+            find read rejoin [extension-dir entry] %make-spec.r][
+            append available-extensions opt parse-ext-build-spec load rejoin [extension-dir entry/make-spec.r]
         ]
     ]
 ]
 
-available-modules: reduce [
-    ;name module-file other-files
-    mod-crypt: make module-class [
-        name: 'Crypt
-        source: %crypt/mod-crypt.c
-        includes: reduce [
-            ;
-            ; Added so `#include "bigint/bigint.h` can be found by %rsa.h
-            ; and `#include "rsa/rsa.h" can be found by %dh.c
-            ;
-            src-dir/extensions/crypt
-            %prep/extensions/crypt ;for %tmp-extensions-view-init.inc
-        ]
-        depends: [
-            %crypt/aes/aes.c
-            %crypt/bigint/bigint.c
-            %crypt/dh/dh.c
-            %crypt/rc4/rc4.c
-            %crypt/rsa/rsa.c
-            %crypt/sha256/sha256.c
-        ]
-    ]
-
-    mod-process: make module-class [
-        name: 'Process
-        source: %process/mod-process.c
-        includes: copy [
-            %prep/extensions/process ;for %tmp-extensions-process-init.inc
-        ]
-    ]
-
-    mod-view: make module-class [
-        name: 'View
-        source: %view/mod-view.c
-        includes: copy [
-            %prep/extensions/view ;for %tmp-extensions-view-init.inc
-        ]
-
-        ; The Windows REQUEST-FILE does not introduce any new dependencies.
-        ; REQUEST-DIR depends on OLE32 for CoInitialize() because it is done
-        ; with some weird COM shell API.  Linux of course introduces a GTK
-        ; dependency, so that is not included by default in the core.
-        ;
-        ; For now just enable REQUEST-FILE on Windows if the view module is
-        ; included, because it doesn't bring along any extra dependencies.
-        ;
-        libraries: (comment [to-value switch system-config/os-base [
-            Windows [
-                ; You would currently have to define USE_WINDOWS_DIRCHOOSER
-                ; to try out the REQUEST-DIR code.
-                ;
-                [%Ole32]
-            ]
-
-            ; Note: It seemed to help to put this at the beginning of the
-            ; compiler and linking command lines:
-            ;
-            ;     g++ `pkg-config --cflags --libs gtk+-3.0` ...
-            ;
-            ; You would currently have to define USE_GTK_FILECHOOSER to get
-            ; the common dialog code in REQUEST-FILE.
-            ;
-            Linux [
-                [%gtk-3 %gobject-2.0 %glib-2.0]
-            ]
-        ]] blank)
-    ]
-
-    mod-lodepng: make module-class [
-        name: 'LodePNG
-        source: %png/mod-lodepng.c
-        definitions: copy [
-            ;
-            ; Rebol already includes zlib, and LodePNG is hooked to that
-            ; copy of zlib exported as part of the internal API.
-            ;
-            "LODEPNG_NO_COMPILE_ZLIB"
-
-            ; LodePNG doesn't take a target buffer pointer to compress "into".
-            ; Instead, you hook it by giving it an allocator.  The one used
-            ; by Rebol backs the memory with a series, so that the image data
-            ; may be registered with the garbage collector.
-            ;
-            "LODEPNG_NO_COMPILE_ALLOCATORS"
-
-            ; With LodePNG, using C++ compilation creates a dependency on
-            ; std::vector.  This is conditional on __cplusplus, but there's
-            ; an #ifdef saying that even if you're compiling as C++ to not
-            ; do this.  It's not an interesting debug usage of C++, however,
-            ; so there's no reason to be doing it.
-            ;
-            "LODEPNG_NO_COMPILE_CPP"
-        ]
-        depends: [
-            [
-                %png/lodepng.c
-
-                ; The LodePNG module has local scopes with declarations that
-                ; alias declarations in outer scopes.  This can be confusing,
-                ; so it's avoided in the core, but LodePNG is maintained by
-                ; someone else with different standards.
-                ;
-                ;    declaration of 'identifier' hides previous
-                ;    local declaration
-                ;
-                <msc:/wd4456>
-
-                ; This line causes the warning "result of 32-bit shift
-                ; implicitly converted to 64-bits" in MSVC 64-bit builds:
-                ;
-                ;     size_t palsize = 1u << mode_out->bitdepth;
-                ;
-                ; It could be changed to `((size_t)1) << ...` and avoid it.
-                ;
-                <msc:/wd4334>
-
-                ; There is a casting away of const qualifiers, which is bad,
-                ; but the PR to fix it has not been merged to LodePNG master.
-                ;
-                <gnu:-Wno-cast-qual>
-            ]
-        ]
-    ]
-
-    mod-gif: make module-class [
-        name: 'GIF
-        source: %gif/mod-gif.c
-    ]
-
-    mod-bmp: make module-class [
-        name: 'BMP
-        source: %bmp/mod-bmp.c
-    ]
-
-    mod-locale: make module-class [
-        name: 'Locale
-        source: [
-            %locale/mod-locale.c
-
-            ; The locale module uses non-constant aggregate initialization,
-            ; e.g. LOCALE_WORD_ALL is defined as Ext_Canons_Locale[4], but
-            ; is assigned as `= {{LOCALE_WORD_ALL, LC_ALL}...}` to a struct.
-            ; For the moment, since it's just the locale module, disable the
-            ; warning, though we don't want to use nonstandard C as a general
-            ; rule in the core.
-            ;
-            ;    nonstandard extension used : non-constant aggregate
-            ;    initializer
-            ;
-            <msc:/wd4204>
-        ]
-        includes: copy [
-            %prep/extensions/locale ;for %tmp-extensions-locale-init.inc
-        ]
-    ]
-
-    mod-jpg: make module-class [
-        name: 'JPG
-        source: %jpg/mod-jpg.c
-        depends: [
-            ;
-            ; The JPG sources come from elsewhere; invasive maintenance for
-            ; compiler rigor is not worthwhile to be out of sync with original.
-            ;
-            [
-                %jpg/u-jpg.c
-
-                <gnu:-Wno-unused-parameter> <msc:/wd4100>
-
-                <gnu:-Wno-shift-negative-value>
-
-                ; "conditional expression is constant"
-                ;
-                <msc:/wd4127>
-            ]
-        ]
-    ]
-
-    mod-uuid: make module-class [
-        name: 'UUID
-        source: %uuid/mod-uuid.c
-        includes: reduce [
-            src-dir/extensions/uuid/libuuid
-            %prep/extensions/uuid ;for %tmp-extensions-uuid-init.inc
-        ]
-        depends: to-value switch system-config/os-base [
-            linux [
-                libuuid-objs
-            ]
-        ]
-
-        libraries: to-value switch system-config/os-base [
-            Windows [
-                [%rpcrt4]
-            ]
-        ]
-        ldflags: to-value switch system-config/os-base [
-            OSX [
-                ["-framework CoreFoundation"]
-            ]
-        ]
-    ]
-
-    mod-odbc: make module-class [
-        name: 'ODBC
-        source: [
-            %odbc/mod-odbc.c
-
-            ; The ODBC include uses nameless structs/unions, which are a
-            ; non-standard extension.
-            ;
-            ;     nonstandard extension used: nameless struct/union
-            ;
-            <msc:/wd4201>
-        ]
-        includes: [
-            %prep/extensions/odbc ;for %tmp-ext-odbc-init.inc
-        ]
-        libraries: to-value switch/default system-config/os-base [
-            Windows [
-                [%odbc32]
-            ]
-        ][
-            ; On some systems (32-bit Ubuntu 12.04), odbc requires ltdl
-            append-of [%odbc] unless find [no false off _ #[false]] user-config/odbc-requires-ltdl [%ltdl]
-        ]
-    ]
-
-    mod-ffi: make module-class [
-        name: 'FFI
-        source: %ffi/mod-ffi.c
-        depends: [
-            %ffi/t-struct.c
-            %ffi/t-routine.c
-        ]
-        includes: cfg-ffi/includes
-        definitions: cfg-ffi/definitions
-        cflags: cfg-ffi/cflags
-        searches: cfg-ffi/searches
-        ldflags: cfg-ffi/ldflags
-        libraries: cfg-ffi/libraries
-        ; Currently the libraries are specified by the USER-CONFIG/WITH-FFI
-        ; until that logic is moved to something here.  So if you are going
-        ; to build the FFI module, you need to also set WITH-FFI (though
-        ; setting WITH-FFI alone will not get you the module)
-    ]
-
-    mod-debugger: make module-class [
-        name: 'Debugger
-        source: %debugger/mod-debugger.c
-        includes: copy [
-            %prep/extensions/debugger ;for %tmp-extensions-debugger-init.inc
-        ]
-        depends: [
-        ]
-    ]
-]
-
-available-extensions: reduce [
-    ext-crypt: make extension-class [
-        name: 'Crypt
-        loadable: no ;tls depends on this, so it has to be builtin
-        modules: reduce [
-            mod-crypt
-        ]
-        source: %crypt/ext-crypt.c
-        init: %crypt/ext-crypt-init.reb
-    ]
-
-    ext-process: make extension-class [
-        name: 'Process
-        modules: reduce [
-            mod-process
-        ]
-        source: %process/ext-process.c
-        init: %process/ext-process-init.reb
-    ]
-
-    ext-view: make extension-class [
-        name: 'View
-        modules: reduce [
-            mod-view
-        ]
-        source: %view/ext-view.c
-        init: %view/ext-view-init.reb
-    ]
-
-    ext-png: make extension-class [
-        name: 'PNG
-        modules: reduce [
-            mod-lodepng
-        ]
-        source: %png/ext-png.c
-    ]
-
-    ext-gif: make extension-class [
-        name: 'GIF
-        modules: reduce [
-            mod-gif
-        ]
-        source: %gif/ext-gif.c
-    ]
-
-    ext-jpg: make extension-class [
-        name: 'JPG
-        modules: reduce [
-            mod-jpg
-        ]
-        source: %jpg/ext-jpg.c
-    ]
-
-    ext-bmp: make extension-class [
-        name: 'BMP
-        modules: reduce [
-            mod-bmp
-        ]
-        source: %bmp/ext-bmp.c
-    ]
-
-    ext-locale: make extension-class [
-        name: 'Locale
-        modules: reduce [
-            mod-locale
-        ]
-        source: %locale/ext-locale.c
-        init: %locale/ext-locale-init.reb
-    ]
-
-    ext-uuid: make extension-class [
-        name: 'UUID
-        modules: reduce [
-            mod-uuid
-        ]
-        source: %uuid/ext-uuid.c
-        init: %uuid/ext-uuid-init.reb
-    ]
-
-    ext-odbc: make extension-class [
-        name: 'ODBC
-        modules: reduce [
-            mod-odbc
-        ]
-        source: %odbc/ext-odbc.c
-        init: %odbc/ext-odbc-init.reb
-    ]
-
-    ext-ffi: make extension-class [
-        name: 'FFI
-        modules: reduce [
-            mod-ffi
-        ]
-        source: %ffi/ext-ffi.c
-        includes: cfg-ffi/includes
-        cflags: cfg-ffi/cflags
-        definitions: cfg-ffi/definitions
-        init: %ffi/ext-ffi-init.reb
-    ]
-
-    ext-debugger: make extension-class [
-        name: 'Debugger
-        modules: reduce [
-            mod-debugger
-        ]
-        source: %debugger/ext-debugger.c
-        init: %debugger/ext-debugger-init.reb
-    ]
-]
 extension-names: map-each x available-extensions [to-lit-word x/name]
 
 ;;;; TARGETS
@@ -1744,6 +1363,35 @@ for-each ext builtin-extensions [
             opt ext/cflags
     ]
 ]
+
+; Reorder builtin-extensions by their dependency
+calculate-sequence: function [
+    ext
+    <local> req b
+][
+    if integer? ext/sequence [return ext/sequence]
+    if ext/visited [fail ["circular dependency on" ext]]
+    if blank? ext/requires [ext/sequence: 0 return ext/sequence]
+    ext/visited: true
+    seq: 0
+    if word? ext/requires [ext/requires: reduce [ext/requires]]
+    for-each req ext/requires [
+        invalid?: true
+        for-each b builtin-extensions [
+            if b/name = req [
+                seq: seq + either integer? b/sequence [b/sequence][calculate-sequence b]
+                invalid?: false
+            ]
+        ]
+        if invalid? [
+            fail ["unrecoginized dependency" req "for" ext/name]
+        ]
+    ]
+    ext/sequence: seq + 1
+]
+
+for-each ext builtin-extensions [calculate-sequence ext]
+sort/compare builtin-extensions func [a b] [a/sequence < b/sequence]
 
 vars: reduce [
     reb-tool: make rebmake/var-class [
