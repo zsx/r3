@@ -271,21 +271,40 @@ e-cwrap: (make-emitter
     "C-Wraps" output-dir/reb-lib.js
 )
 
-for-each [result name args]  cwrap-items [
+for-each [result name args] cwrap-items [
 	args: split args ","
-	args: unspaced [
+	result: arg-to-js result
+	line: unspaced [
 		at name 4 " = Module.cwrap('"
 		name "', "
-		arg-to-js result ", ["
+		either result = "'string'" ["'number'"][result] ", ["
 		delimit
 			map-each x args [arg-to-js x]
 			", "
 		"]);"
 	]
 	e-cwrap/emit-line ;\
-	either find args "<"
-	[spaced ["// Unknown type: <...> --" args]]
-	[args]
+	either find line "<"
+	[spaced ["// Unknown type: <...> --" line]]
+	[line]
+	if result != "'string'" [continue]
+	;; emit *String variant
+	name2: copy name
+	either find name2 "Alloc" ;\
+	[ replace name2 "Alloc" "JString" ]
+	[ append name2 "JString" ]
+	for-next args [args/1: unspaced ["x" index-of args]]
+	args: delimit args ","
+	line: unspaced [
+		at name2 4 " = function(" args
+		") {var p = " at name 4 "(" args
+		"); var s = Pointer_stringify(p); rebFree(p); return s};"
+	]
+	e-cwrap/emit-line ;\
+	either find line "<"
+	[spaced ["// Unknown type: <...> --" line]]
+	[line]
+
 ]
 
 e-cwrap/write-emitted
