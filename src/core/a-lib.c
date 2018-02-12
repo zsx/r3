@@ -178,20 +178,19 @@ void Startup_Api(void)
     // less hassle to have them built on initialization.
 
     REBCNT n;
-    for (n = 0; n < REB_MAX; ++n) {
-        //
-        // Though statics are initialized to 0, this makes it more explicit,
-        // as well as deterministic if there's an Init/Shutdown/Init...
-        //
-        Reb_To_RXT[n] = 0; // default that some types have no exported RXT_
-    }
+    for (n = 0; n < REB_MAX; ++n)
+        Reb_To_RXT[n] = 0;
 
-    // REB_BAR unsupported?
-    // REB_LIT_BAR unsupported?
+    // The values are deliberately skewed from REB_XXX based on the idea that
+    // these values are not connected.  +10 from the Rebol counterparts at
+    // time of writing.
+    //
+    Reb_To_RXT[REB_0] = 255; // REB_0 is internal use only
+    Reb_To_RXT[REB_FUNCTION] = RXT_FUNCTION;
     Reb_To_RXT[REB_WORD] = RXT_WORD;
     Reb_To_RXT[REB_SET_WORD] = RXT_SET_WORD;
     Reb_To_RXT[REB_GET_WORD] = RXT_GET_WORD;
-    Reb_To_RXT[REB_LIT_WORD] = RXT_GET_WORD;
+    Reb_To_RXT[REB_LIT_WORD] = RXT_LIT_WORD;
     Reb_To_RXT[REB_REFINEMENT] = RXT_REFINEMENT;
     Reb_To_RXT[REB_ISSUE] = RXT_ISSUE;
     Reb_To_RXT[REB_PATH] = RXT_PATH;
@@ -205,36 +204,44 @@ void Startup_Api(void)
     Reb_To_RXT[REB_FILE] = RXT_FILE;
     Reb_To_RXT[REB_EMAIL] = RXT_EMAIL;
     Reb_To_RXT[REB_URL] = RXT_URL;
+    Reb_To_RXT[REB_TAG] = RXT_TAG;
     Reb_To_RXT[REB_BITSET] = RXT_BITSET;
     Reb_To_RXT[REB_IMAGE] = RXT_IMAGE;
     Reb_To_RXT[REB_VECTOR] = RXT_VECTOR;
+    Reb_To_RXT[REB_MAP] = RXT_MAP;
+    Reb_To_RXT[REB_VARARGS] = RXT_VARARGS;
+    Reb_To_RXT[REB_OBJECT] = RXT_OBJECT;
+    Reb_To_RXT[REB_FRAME] = RXT_FRAME;
+    Reb_To_RXT[REB_MODULE] = RXT_MODULE;
+    Reb_To_RXT[REB_ERROR] = RXT_ERROR;
+    Reb_To_RXT[REB_PORT] = RXT_PORT;
+    Reb_To_RXT[REB_BAR] = RXT_BAR;
+    Reb_To_RXT[REB_LIT_BAR] = RXT_LIT_BAR;
     Reb_To_RXT[REB_BLANK] = RXT_BLANK;
     Reb_To_RXT[REB_LOGIC] = RXT_LOGIC;
     Reb_To_RXT[REB_INTEGER] = RXT_INTEGER;
     Reb_To_RXT[REB_DECIMAL] = RXT_DECIMAL;
     Reb_To_RXT[REB_PERCENT] = RXT_PERCENT;
-    // REB_MONEY unsupported?
+    Reb_To_RXT[REB_MONEY] = RXT_MONEY;
     Reb_To_RXT[REB_CHAR] = RXT_CHAR;
     Reb_To_RXT[REB_PAIR] = RXT_PAIR;
     Reb_To_RXT[REB_TUPLE] = RXT_TUPLE;
     Reb_To_RXT[REB_TIME] = RXT_TIME;
     Reb_To_RXT[REB_DATE] = RXT_DATE;
-    // REB_MAP unsupported?
-    // REB_DATATYPE unsupported?
-    // REB_TYPESET unsupported?
-    // REB_VARARGS unsupported?
-    Reb_To_RXT[REB_OBJECT] = RXT_OBJECT;
-    // REB_FRAME unsupported?
-    Reb_To_RXT[REB_MODULE] = RXT_MODULE;
-    // REB_ERROR unsupported?
-    // REB_PORT unsupported?
+    Reb_To_RXT[REB_DATATYPE] = RXT_DATATYPE;
+    Reb_To_RXT[REB_TYPESET] = RXT_TYPESET;
     Reb_To_RXT[REB_GOB] = RXT_GOB;
-    // REB_EVENT unsupported?
+    Reb_To_RXT[REB_EVENT] = RXT_EVENT;
     Reb_To_RXT[REB_HANDLE] = RXT_HANDLE;
-    // REB_STRUCT unsupported?
-    // REB_LIBRARY unsupported?
+    Reb_To_RXT[REB_STRUCT] = RXT_STRUCT;
+    Reb_To_RXT[REB_LIBRARY] = RXT_LIBRARY;
 
-    for (n = 0; n < REB_MAX; ++n)
+  #if !defined(NDEBUG)
+    for (n = 1; n < REB_MAX; ++n)
+        assert(Reb_To_RXT[n] != 0); // make sure all have a value
+  #endif
+
+    for (n = 1; n < REB_MAX; ++n)
         RXT_To_Reb[Reb_To_RXT[n]] = cast(enum Reb_Kind, n); // reverse lookup
 }
 
@@ -926,9 +933,8 @@ REBVAL *RL_rebFrmArg(const REBVAL *frame, REBCNT n) {
 REBRXT RL_rebTypeOf(const REBVAL *v) {
     Enter_Api_Clear_Last_Error();
 
-    return IS_VOID(v)
-        ? 0
-        : Reb_To_RXT[VAL_TYPE(v)];
+    enum Reb_Kind kind = VAL_TYPE(v);
+    return IS_VOID(v) ? 0 : Reb_To_RXT[kind];
 }
 
 
