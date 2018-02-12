@@ -388,7 +388,7 @@ void RL_rebShutdown(REBOOL clean)
 //  rebBlock: RL_API
 //
 // !!! The variadic rebBlock() constructor is coming soon, but this is just
-// to create an API handle to use with rebFree() for a quick workaround to
+// to create an API handle to use with rebRelease() for a quick workaround to
 // get the one-entry-point idea in the console moving along.
 //
 REBVAL *RL_rebBlock(
@@ -1339,6 +1339,13 @@ void RL_rebRelease(REBVAL *v)
 
     Free_Pairing(v);
 }
+
+
+
+//
+//  rebFree: RL_API
+//
+void RL_rebFree(void *p) {OS_FREE(p);}
 
 
 //
