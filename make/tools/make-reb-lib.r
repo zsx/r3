@@ -271,40 +271,43 @@ e-cwrap: (make-emitter
     "C-Wraps" output-dir/reb-lib.js
 )
 
-for-each [result name args] cwrap-items [
+map-names: [
+	"rebMoldAlloc" "rebMold"
+	"rebSpellingOfAlloc" "rebSpellingOf"
+]
+
+for-each [result RL_name args] cwrap-items [
 	args: split args ","
 	result: arg-to-js result
+	rebName: at RL_name 4
+	if find/skip (next map-names) rebName 2 [
+		print ["Skipping" rebName] continue
+	]
 	line: unspaced [
-		at name 4 " = Module.cwrap('"
-		name "', "
+		rebName " = Module.cwrap('"
+		RL_name "', "
 		either result = "'string'" ["'number'"][result] ", ["
 		delimit
 			map-each x args [arg-to-js x]
 			", "
 		"]);"
 	]
-	e-cwrap/emit-line ;\
-	either find line "<"
-	[spaced ["// Unknown type: <...> --" line]]
-	[line]
-	if result != "'string'" [continue]
-	;; emit *String variant
-	name2: copy name
-	either find name2 "Alloc" ;\
-	[ replace name2 "Alloc" "JString" ]
-	[ append name2 "JString" ]
+	e-cwrap/emit-line either find line "<" ;\
+		[spaced ["// Unknown type: <...> --" line]]
+		[line]
+	if not (find/skip map-names rebName 2) [continue] 
+	;; emit JS variant
+	js-name: map-names/:rebName
 	for-next args [args/1: unspaced ["x" index-of args]]
 	args: delimit args ","
 	line: unspaced [
-		at name2 4 " = function(" args
-		") {var p = " at name 4 "(" args
+		js-name " = function(" args
+		") {var p = " rebName "(" args
 		"); var s = Pointer_stringify(p); rebFree(p); return s};"
 	]
-	e-cwrap/emit-line ;\
-	either find line "<"
-	[spaced ["// Unknown type: <...> --" line]]
-	[line]
-
+	e-cwrap/emit-line either find line "<"
+		[spaced ["// Unknown type: <...> --" line]]
+		[line]
 ]
 
 e-cwrap/write-emitted
