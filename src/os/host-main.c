@@ -423,7 +423,7 @@ int main(int argc, char **argv_ansi)
         panic ("Can't decompress %host-start.r linked into executable");
 
     REBARR *array = Scan_UTF8_Managed(
-        STR("host-start.r"), BIN_HEAD(startup), BIN_LEN(startup)
+        Intern("host-start.r"), BIN_HEAD(startup), BIN_LEN(startup)
     );
 
     // Bind the REPL and startup code into the lib context.

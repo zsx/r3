@@ -1669,7 +1669,7 @@ void Init_Va_Scan_State_Core(
 // Initialize a scanner state structure.  Set the standard
 // scan pointers and the limit pointer.
 //
-static void Init_Scan_State(
+void Init_Scan_State(
     SCAN_STATE *ss,
     REBSTR *file,
     REBUPT line,
@@ -1771,10 +1771,10 @@ static REBARR *Scan_Full_Array(SCAN_STATE *ss, REBYTE mode_char);
 static REBARR *Scan_Child_Array(SCAN_STATE *ss, REBYTE mode_char);
 
 //
-//  Scan_Array: C
+//  Scan_To_Stack: C
 //
-// Scans an array of values, based on a mode_char.  This character can be
-// '[', '(', or '/' to indicate the processing type.  Always returns array.
+// Scans values to the data stack, based on a mode_char.  This mode can be
+// '[', '(', or '/' to indicate the processing type.
 //
 // If the source bytes are "1" then it will be the array [1]
 // If the source bytes are "[1]" then it will be the array [[1]]
@@ -1784,16 +1784,7 @@ static REBARR *Scan_Child_Array(SCAN_STATE *ss, REBYTE mode_char);
 // transformation (e.g. if the first element was a GET-WORD!, change it to
 // an ordinary WORD! and make it a GET-PATH!)  The caller does this.
 //
-REBARR *Scan_Array(
-    SCAN_STATE *ss,
-    REBYTE mode_char
-){
-    // The way that path scanning works is that after one item has been
-    // scanned it is *retroactively* decided to begin picking up more items
-    // in the path.  Hence, we take over one pushed item from the caller.
-    //
-    const REBDSP dsp_orig = (mode_char == '/') ? DSP - 1 : DSP;
-
+void Scan_To_Stack(SCAN_STATE *ss, REBYTE mode_char) {
     // just_once for load/next see Load_Script for more info.
     const REBOOL just_once = LOGICAL(ss->opts & SCAN_NEXT);
 
@@ -2300,32 +2291,6 @@ array_done_relax:
     //
     if (ss->newline_pending)
         ss->newline_pending = FALSE;
-
-    // !!! Because a variadic rebDo() can have rebEval() entries, when it
-    // delegates to the scanner that may mean it sees those entries.  This
-    // should not be legal in constructors like rebBlock() since rebEval()
-    // is not exposed there, so review how to prohibit it.  (See also
-    // Pop_Stack_Values_Keep_Eval_Flip(), which we don't want to use here
-    // since we're setting the file and line information from scan state.)
-    //
-    // All scanned code is expected to be managed by the GC (because walking
-    // the tree after constructing it to add the "manage GC" bit would be
-    // expensive, and we don't load source and free it manually anyway)
-    //
-    REBARR *result = Pop_Stack_Values_Core(
-        dsp_orig,
-        ARRAY_FLAG_VOIDS_LEGAL | NODE_FLAG_MANAGED
-    );
-
-    // Current thinking is that only arrays will preserve file and line info,
-    // as the UTF-8 Everywhere change will likely need to use the ->misc and
-    // ->link fields for caching purposes in strings.
-    //
-    MISC(result).line = ss->line;
-    LINK(result).file = ss->file;
-    SET_SER_FLAG(result, SERIES_FLAG_FILE_LINE);
-
-    return result;
 }
 
 
@@ -2348,7 +2313,23 @@ static REBARR *Scan_Child_Array(SCAN_STATE *ss, REBYTE mode_char)
     child.start_line_head = ss->line_head;
     child.newline_pending = FALSE;
 
-    REBARR *result = Scan_Array(&child, mode_char);
+    // The way that path scanning works is that after one item has been
+    // scanned it is *retroactively* decided to begin picking up more items
+    // in the path.  Hence, we take over one pushed item from the caller.
+    //
+    REBDSP dsp_orig;
+    if (mode_char == '/') {
+        assert(DSP > 0);
+        dsp_orig = DSP - 1;
+    } else
+        dsp_orig = DSP;
+
+    Scan_To_Stack(&child, mode_char);
+
+    REBARR *a = Pop_Stack_Values_Core(dsp_orig, NODE_FLAG_MANAGED);
+    MISC(a).line = ss->line;
+    LINK(a).file = ss->file;
+    SET_SER_FLAG(a, SERIES_FLAG_FILE_LINE);
 
     // The only variables that should actually be written back into the
     // parent ss are those reflecting an update in the "feed" of
@@ -2366,7 +2347,7 @@ static REBARR *Scan_Child_Array(SCAN_STATE *ss, REBYTE mode_char)
     ss->token = token;
     ss->newline_pending = newline_pending;
 
-    return result;
+    return a;
 }
 
 
@@ -2419,15 +2400,33 @@ REBARR *Scan_Va_Managed(
     REBSTR *filename, // NOTE: va_start must get last parameter before ...
     ...
 ){
-    SCAN_STATE ss;
+    REBDSP dsp_orig = DSP;
+
     const REBUPT start_line = 1;
 
     va_list va;
     va_start(va, filename);
 
+    SCAN_STATE ss;
     Init_Va_Scan_State_Core(&ss, filename, start_line, NULL, &va);
+    Scan_To_Stack(&ss, '\0');
 
-    REBARR *array = Scan_Array(&ss, 0);
+    // Because a variadic rebDo() can have rebEval() entries, when it
+    // delegates to the scanner that may mean it sees those entries.  This
+    // should not be legal in constructors like rebBlock() since rebEval()
+    // is not exposed there.
+    //
+    // (See also Pop_Stack_Values_Keep_Eval_Flip(), which we don't want to use
+    // since we're setting the file and line information from scan state.)
+    //
+    REBARR *a = Pop_Stack_Values_Core(
+        dsp_orig,
+        ARRAY_FLAG_VOIDS_LEGAL | NODE_FLAG_MANAGED
+    );
+
+    MISC(a).line = ss.line;
+    LINK(a).file = ss.file;
+    SET_SER_FLAG(a, SERIES_FLAG_FILE_LINE);
 
     // !!! While in practice every system has va_end() as a no-op, it's not
     // necessarily true from a standards point of view:
@@ -2441,7 +2440,7 @@ REBARR *Scan_Va_Managed(
     //
     va_end(va);
 
-    return array;
+    return a;
 }
 
 
@@ -2450,12 +2449,21 @@ REBARR *Scan_Va_Managed(
 //
 // Scan source code. Scan state initialized. No header required.
 //
-REBARR *Scan_UTF8_Managed(REBSTR *filename, const REBYTE *utf8, REBCNT len)
+REBARR *Scan_UTF8_Managed(REBSTR *filename, const REBYTE *utf8, REBCNT size)
 {
     SCAN_STATE ss;
     const REBUPT start_line = 1;
-    Init_Scan_State(&ss, filename, start_line, utf8, len);
-    return Scan_Array(&ss, 0);
+    Init_Scan_State(&ss, filename, start_line, utf8, size);
+
+    REBDSP dsp_orig = DSP;
+    Scan_To_Stack(&ss, 0);
+
+    REBARR *a = Pop_Stack_Values_Core(dsp_orig, NODE_FLAG_MANAGED);
+    MISC(a).line = ss.line;
+    LINK(a).file = ss.file;
+    SET_SER_FLAG(a, SERIES_FLAG_FILE_LINE);
+
+    return a;
 }
 
 
@@ -2538,7 +2546,7 @@ REBNATIVE(transcode)
     // !!! Should the base name and extension be stored, or whole path?
     //
     REBSTR *filename = REF(file)
-        ? STR(ARG(file_name))
+        ? Intern(ARG(file_name))
         : Canon(SYM___ANONYMOUS__);
 
     REBUPT start_line = 1;
@@ -2566,13 +2574,20 @@ REBNATIVE(transcode)
     if (REF(relax))
         ss.opts |= SCAN_RELAX;
 
-    // The scanner always returns an "array" series.  So set the result
-    // to a BLOCK! of the results.
+    // If the source data bytes are "1" then the scanner will push INTEGER! 1
+    // if the source data is "[1]" then the scanner will push BLOCK! [1]
     //
-    // If the source data bytes are "1" then it will be the block [1]
-    // if the source data is "[1]" then it will be the block [[1]]
+    // Return a block of the results, so [1] and [[1]] in those cases.
+    //
+    REBDSP dsp_orig = DSP;
+    Scan_To_Stack(&ss, 0);
 
-    Init_Block(D_OUT, Scan_Array(&ss, 0));
+    REBARR *a = Pop_Stack_Values_Core(dsp_orig, NODE_FLAG_MANAGED);
+    MISC(a).line = ss.line;
+    LINK(a).file = ss.file;
+    SET_SER_FLAG(a, SERIES_FLAG_FILE_LINE);
+
+    Init_Block(D_OUT, a);
 
     // Add a value to the tail of the result, representing the input
     // with position advanced past the content consumed by the scan.

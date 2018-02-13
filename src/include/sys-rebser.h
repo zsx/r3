@@ -142,6 +142,9 @@
 // regular source series, they can be used to store the filename and line
 // number, if applicable.
 //
+// Only arrays preserve file and line info, as UTF-8 strings need to use the
+// ->misc and ->link fields for caching purposes in strings.
+//
 #define SERIES_FLAG_FILE_LINE \
     FLAGIT_LEFT(GENERAL_SERIES_BIT + 1)
 

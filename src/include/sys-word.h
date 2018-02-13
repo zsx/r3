@@ -207,7 +207,7 @@ inline static void Canonize_Any_Word(REBVAL *any_word) {
 //
 #ifdef CPLUSPLUS_11
 template<typename T>
-inline static REBSTR* STR(const T *p)
+inline static REBSTR* Intern(const T *p)
 {
     static_assert(
         std::is_same<T, REBVAL>::value
@@ -216,7 +216,7 @@ inline static REBSTR* STR(const T *p)
         "STR works on: char*, REBVAL*, REBSTR*"
     );
 #else
-inline static REBSTR* STR(const void *p)
+inline static REBSTR* Intern(const void *p)
 {
 #endif
     switch (Detect_Rebol_Pointer(p)) {
@@ -256,6 +256,6 @@ inline static REBSTR* STR(const void *p)
         return Intern_UTF8_Managed(BIN_AT(temp, index), len); }
 
     default:
-        panic ("Bad pointer type passed to STR()");
+        panic ("Bad pointer type passed to Intern()");
     }
 }

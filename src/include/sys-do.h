@@ -379,7 +379,7 @@ detect_again:
         const REBUPT start_line = 1;
         Init_Va_Scan_State_Core(
             &ss,
-            STR("sys-do.h"),
+            Intern("sys-do.h"),
             start_line,
             cast(const REBYTE*, p),
             f->source.vaptr
@@ -400,7 +400,10 @@ detect_again:
         // well.  This is an area to be investigated, and tight integration
         // between this code and the scanner may be needed.
         //
-        f->source.array = Scan_Array(&ss, 0);
+        REBDSP dsp_orig = DSP;
+        Scan_To_Stack(&ss, '\0');
+
+        f->source.array = Pop_Stack_Values_Keep_Eval_Flip(dsp_orig);
 
         if (IS_END(ARR_HEAD(f->source.array))) {
             //

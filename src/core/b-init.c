@@ -1196,7 +1196,7 @@ void Startup_Core(void)
     // notice when things are defined and not used).
     //
     REBARR *boot_array = Scan_Va_Managed(
-        STR("tmp-boot.r"), BIN_HEAD(utf8), END
+        Intern("tmp-boot.r"), BIN_HEAD(utf8), END
     );
     PUSH_GUARD_ARRAY(boot_array); // managed, so must be guarded
 

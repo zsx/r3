@@ -91,16 +91,16 @@ static enum Reb_Kind RXT_To_Reb[RXT_MAX];
 // notes on Windows GetLastError() about how the APIs document whether they
 // manipulate the error or not--not all of them clear it rotely.
 //
+// !!! `set_api_error` is a fairly lame way of setting the error, but
+// shows the concept of what needs to be done to obey the convention.  How
+// could it return an "errant" result of an unboxing, for instance, if the
+// type cannot be unboxed as asked?
+//
 // !!! A better way of doing this kind of thing would probably be to have
 // the code generator for the RL_API notice attributes on the APIs in the
 // comment blocks, e.g. `// rebBlock: RL_API [#clears-error]` or similar.
 // Then the first line of the API would be `ENTER_API(rebBlock)` which
 // would run theappropriate code for what was described in the API header.
-//
-// !!! `return_api_error` is a fairly lame way of setting the error, but
-// shows the concept of what needs to be done to obey the convention.  How
-// could it return an "errant" result of an unboxing, for instance, if the
-// type cannot be unboxed as asked?
 //
 inline static void Enter_Api_Cant_Error(void) {
     if (PG_last_error == NULL)
@@ -110,12 +110,9 @@ inline static void Enter_Api_Clear_Last_Error(void) {
     Enter_Api_Cant_Error();
     SET_END(PG_last_error);
 }
-#define return_api_error(msg) \
-    do { \
-        assert(IS_END(PG_last_error)); \
-        Init_Error(PG_last_error, Error_User(msg)); \
-        return NULL; \
-    } while (0)
+#define set_api_error(msg) \
+    assert(IS_END(PG_last_error)); \
+    Init_Error(PG_last_error, Error_User(msg));
 
 
 // !!! The return cell from this allocation is a trash cell which has had some
@@ -466,7 +463,7 @@ inline static REBOOL Reb_Do_Api_Core_Fails(
 
         const REBYTE *utf8 = cast(const REBYTE*, p);
         REBARR *array = Scan_UTF8_Managed(
-            STR("rebDo()"), utf8, LEN_BYTES(utf8)
+            Intern("rebDo()"), utf8, LEN_BYTES(utf8)
         );
 
         // Note this loads things into the user context, so we can't at the
@@ -612,6 +609,102 @@ REBVAL *RL_rebDoValue(const REBVAL *v)
 REBVAL *RL_rebDoString(const char *v)
 {
     return rebDo(v, END);
+}
+
+
+//
+//  rebPrint: RL_API
+//
+// Call through to the Rebol PRINT logic.
+//
+REBOOL RL_rebPrint(const void *p, ...)
+{
+    Enter_Api_Clear_Last_Error();
+    REBVAL *print = CTX_VAR(
+        Lib_Context,
+        Find_Canon_In_Context(Lib_Context, STR_CANON(Intern("print")), TRUE)
+    );
+
+    va_list va;
+    va_start(va, p);
+
+    REBDSP dsp_orig = DSP;
+
+    enum Reb_Pointer_Detect detect;
+
+    while ((detect = Detect_Rebol_Pointer(p)) != DETECTED_AS_END) {
+        if (p == NULL) {
+            set_api_error("use END to terminate rebPrint(), not NULL");
+            DS_DROP_TO(dsp_orig);
+            return FALSE;
+        }
+
+        switch (detect) {
+        case DETECTED_AS_UTF8: {
+            const REBYTE *utf8 = cast(const REBYTE*, p);
+            const REBUPT start_line = 1;
+            REBCNT size = LEN_BYTES(utf8);
+
+            SCAN_STATE ss;
+            Init_Scan_State(&ss, Intern("rebPrint()"), start_line, utf8, size);
+            Scan_To_Stack(&ss, 0);
+            break; }
+
+        case DETECTED_AS_SERIES:
+            set_api_error("no complex instructions in rebPrint() yet\n");
+            DS_DROP_TO(dsp_orig);
+            return FALSE;
+
+        case DETECTED_AS_FREED_SERIES:
+            panic (p);
+
+        case DETECTED_AS_VALUE: {
+            //
+            // !!! By convention, these are supposed to be "spliced", and
+            // not evaluated.  Unfortunately, we aren't really using the
+            // variadic machinery here yet, and it's illegal to put
+            // VALUE_FLAG_EVAL_FLIP in a block.  Cheat by putting in UNEVAL.
+
+            DS_PUSH_TRASH;
+            Init_Word(DS_TOP, Intern("uneval"));
+
+            DS_PUSH(cast(const REBVAL*, p)); 
+
+            break; }
+
+        case DETECTED_AS_END:
+            assert(FALSE); // checked by while loop
+            break;
+
+        case DETECTED_AS_TRASH_CELL:
+            panic (p);
+        }
+
+        p = va_arg(va, const void*);
+    }
+
+    REBARR *a = Pop_Stack_Values_Core(dsp_orig, NODE_FLAG_MANAGED);
+
+    // !!! See notes in rebDo() on this particular choice of binding.  For
+    // internal usage of PRINT (e.g. calls from PARSE) it really should not
+    // be binding into user!
+    //
+    REBCTX *user_context = VAL_CONTEXT(
+        Get_System(SYS_CONTEXTS, CTX_USER)
+    );
+    Bind_Values_Set_Midstream_Shallow(ARR_HEAD(a), user_context);
+    Bind_Values_Deep(ARR_HEAD(a), Lib_Context);
+    Deep_Freeze_Array(a);
+
+    DECLARE_LOCAL (block);
+    Init_Block(block, a);
+
+    REBVAL *result = rebDo(rebEval(print), block, END);
+    if (result == NULL)
+        return FALSE;
+
+    rebRelease(result);
+    return TRUE;
 }
 
 
@@ -795,10 +888,14 @@ REBVAL *RL_rebDateTime(const REBVAL *date, const REBVAL *time)
 {
     Enter_Api_Clear_Last_Error();
 
-    if (NOT(IS_DATE(date)))
-        return_api_error("rebDateTime() date parameter must be DATE!");
-    if (NOT(IS_TIME(time)))
-        return_api_error("rebDateTime() time parameter must be TIME!");
+    if (NOT(IS_DATE(date))) {
+        set_api_error("rebDateTime() date parameter must be DATE!");
+        return NULL;
+    }
+    if (NOT(IS_TIME(time))) {
+        set_api_error("rebDateTime() time parameter must be TIME!");
+        return NULL;
+    }
 
     // if we had a timezone, we'd need to set DATE_FLAG_HAS_ZONE and
     // then INIT_VAL_ZONE().  But since DATE_FLAG_HAS_ZONE is not set,

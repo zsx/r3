@@ -162,6 +162,11 @@ enum Reb_Pointer_Detect {
 // out manually managed, and then must either become managed or be freed
 // before the evaluation that created it ends).
 //
+// Note that all scanned code is expected to be managed by the GC (because
+// walking the tree after constructing it to add the "manage GC" bit would be
+// expensive, and we don't load source and free it manually anyway...how
+// would you know after running it that pointers inside weren't stored?)
+//
 #define NODE_FLAG_MANAGED \
     FLAGIT_LEFT(2)
 

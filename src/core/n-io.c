@@ -68,6 +68,9 @@ REBNATIVE(form)
 //          "Use construction syntax"
 //      /flat
 //          "No indentation"
+//      /limit
+//          "Limit to a certain length"
+//      amount [integer!]
 //  ]
 //
 REBNATIVE(mold)
@@ -79,6 +82,10 @@ REBNATIVE(mold)
         SET_MOLD_FLAG(mo, MOLD_FLAG_ALL);
     if (REF(flat))
         SET_MOLD_FLAG(mo, MOLD_FLAG_INDENT);
+    if (REF(limit)) {
+        SET_MOLD_FLAG(mo, MOLD_FLAG_LIMIT);
+        mo->limit = Int32(ARG(amount));
+    }
 
     Push_Mold(mo);
 
