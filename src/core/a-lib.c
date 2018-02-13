@@ -381,34 +381,114 @@ void RL_rebShutdown(REBOOL clean)
 }
 
 
+// !!! This is a helper routine for producing arrays from a va_list.  It has
+// a test of putting "UNEVAL" instructions before each spliced item, in order
+// to prevent automatic evaluation.  This can be used by routines like print
+// so that this would not try to run LABEL:
+//
+//     REBVAL *label = rebWord("label");
+//     rebPrint("{The label is}", label, END);
+//
+// Inserting extra words is not how this would be done long term.  But the
+// concept being reviewed is that top-level entities to some functions passed
+// to va_list be "inert" by default.  It's difficult to implement in a
+// consistent fashion because the moment one crosses into a nested BLOCK!,
+// there is nowhere to store the "unevaluated" bit--since it is not a generic
+// value flag that should be leaked.  For now, it's a test of the question of
+// if some routines...like rebDo() and rebPrint()...would not handle splices
+// as evaluative:
+//
+// https://forum.rebol.info/t/should-word-path-function-be-live-by-default-in-rebdo/371
+//
+static REBARR* Array_From_Vaptr_Maybe_Null(
+    const void *p,
+    va_list* vaptr,
+    REBOOL uneval_hack
+){
+    REBDSP dsp_orig = DSP;
+
+    enum Reb_Pointer_Detect detect;
+
+    while ((detect = Detect_Rebol_Pointer(p)) != DETECTED_AS_END) {
+        if (p == NULL) {
+            set_api_error("use END to terminate rebPrint(), not NULL");
+            DS_DROP_TO(dsp_orig);
+            return NULL;
+        }
+
+        switch (detect) {
+        case DETECTED_AS_UTF8: {
+            const REBYTE *utf8 = cast(const REBYTE*, p);
+            const REBUPT start_line = 1;
+            REBCNT size = LEN_BYTES(utf8);
+
+            SCAN_STATE ss;
+            Init_Scan_State(&ss, Intern("rebPrint()"), start_line, utf8, size);
+            Scan_To_Stack(&ss, 0);
+            break; }
+
+        case DETECTED_AS_SERIES:
+            set_api_error("no complex instructions in rebPrint() yet\n");
+            DS_DROP_TO(dsp_orig);
+            return NULL;
+
+        case DETECTED_AS_FREED_SERIES:
+            panic (p);
+
+        case DETECTED_AS_VALUE: {
+            if (uneval_hack) {
+                //
+                // !!! By convention, these are supposed to be "spliced", and
+                // not evaluated.  Unfortunately, we aren't really using the
+                // variadic machinery here yet, and it's illegal to put
+                // VALUE_FLAG_EVAL_FLIP in blocks.  Cheat by inserting UNEVAL.
+                //
+                DS_PUSH_TRASH;
+                Init_Word(DS_TOP, Intern("uneval"));
+            }
+
+            DS_PUSH(cast(const REBVAL*, p)); 
+
+            break; }
+
+        case DETECTED_AS_END:
+            assert(FALSE); // checked by while loop
+            break;
+
+        case DETECTED_AS_TRASH_CELL:
+            panic (p);
+        }
+
+        p = va_arg(*vaptr, const void*);
+    }
+
+    REBARR *a = Pop_Stack_Values_Core(dsp_orig, NODE_FLAG_MANAGED);
+    return a;
+}
+
+
 //
 //  rebBlock: RL_API
 //
-// !!! The variadic rebBlock() constructor is coming soon, but this is just
-// to create an API handle to use with rebRelease() for a quick workaround to
-// get the one-entry-point idea in the console moving along.
+// This constructs a block variadically from its arguments, which can be runs
+// of UTF-8 data or REBVAL*.
 //
-REBVAL *RL_rebBlock(
-    const void *p1,
-    const void *p2,
-    const void *p3,
-    const void *p4
-){
-    Enter_Api_Clear_Last_Error();
+// !!! Currently this does no binding of the data; hence any UTF-8 parts will
+// be completely unbound, and any spliced values will keep their bindings.
+//
+REBVAL *RL_rebBlock(const void *p, ...) {
+    va_list va;
+    va_start(va, p);
 
-    assert(Detect_Rebol_Pointer(p1) == DETECTED_AS_VALUE);
-    assert(Detect_Rebol_Pointer(p2) == DETECTED_AS_VALUE);
-    assert(Detect_Rebol_Pointer(p3) == DETECTED_AS_VALUE);
-    assert(Detect_Rebol_Pointer(p4) == DETECTED_AS_END);
+    const REBOOL uneval_hack = FALSE;
+    REBARR *a = Array_From_Vaptr_Maybe_Null(p, &va, uneval_hack);
+    
+    va_end(va);
 
-    REBARR *array = Make_Array(3);
-    Append_Value(array, cast(const REBVAL*, p1));
-    Append_Value(array, cast(const REBVAL*, p2));
-    Append_Value(array, cast(const REBVAL*, p3));
-    UNUSED(p4);
-    TERM_ARRAY_LEN(array, 3);
+    if (a == NULL)
+        return NULL;
 
-    return Init_Block(Alloc_Value(), array);;
+    return Init_Block(Alloc_Value(), a);
 }
 
 
@@ -439,75 +519,15 @@ inline static REBOOL Reb_Do_Api_Core_Fails(
         return TRUE;
     }
 
-    REBIXO indexor; // goto would cross initialization
-
-    // !!! The goal of rebDo() is to be able to support complex mixtures of
-    // UTF-8 string runs, Rebol values, and other instructions.  This involves
-    // some complicated decisions about binding, and modifying the scanner to
-    // be able to accept spliced content.  The variadic mechanics were set up
-    // initially to handle REBVAL* but not these string loading/binding
-    // mechanics, so for now do something akin to how Rebol has historically
-    // loaded and run code from %host-main.c.
-    //
-    if (Detect_Rebol_Pointer(p) == DETECTED_AS_UTF8) {
-        //
-        // The C standard requires that we call va_end, and as we have not
-        // passed this to a frame which knows about it, fail() can't clean it
-        // up for us.  Call va_end explicitly.
-        //
-        const void *second = va_arg(*vaptr, const void*);
-        va_end(*vaptr);
-
-        if (Detect_Rebol_Pointer(second) != DETECTED_AS_END)
-            fail ("rebDo(utf8, END) is the only string DO supported ATM.");
-
-        const REBYTE *utf8 = cast(const REBYTE*, p);
-        REBARR *array = Scan_UTF8_Managed(
-            Intern("rebDo()"), utf8, LEN_BYTES(utf8)
-        );
-
-        // Note this loads things into the user context, so we can't at the
-        // moment use it for loading the console in %host-main.c; binding
-        // will have to be generalized somehow.
-        //
-        REBCTX *user_context = VAL_CONTEXT(
-            Get_System(SYS_CONTEXTS, CTX_USER)
-        );
-        Bind_Values_Set_Midstream_Shallow(ARR_HEAD(array), user_context);
-
-        // Bind all words to the `lib' context, but not adding any new words
-        Bind_Values_Deep(ARR_HEAD(array), Lib_Context);
-
-        // The new policy for source code in Ren-C is that it loads read only.
-        // This didn't go through the LOAD Rebol function (should it?  it
-        // never did before.)  For now, use simple binding but lock it.
-        //
-        Deep_Freeze_Array(array);
-
-        if (Do_At_Throws(
-            out,
-            array,
-            0,
-            SPECIFIED
-        )){
-            goto handle_thrown;
-        }
-
-        DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
-        return FALSE;
-    }
-
 
     // Note: It's not possible to make C variadics that can take 0 arguments;
     // there always has to be one real argument to find the varargs.  Luckily
     // the design of REBFRM* allows us to pre-load one argument outside of the
     // REBARR* or va_list is being passed in.  Pass `p` as opt_first argument.
     //
-    // !!! Loading of UTF-8 strings is not supported yet, cast to REBVAL
-    //
-    indexor = Do_Va_Core(
+    REBIXO indexor = Do_Va_Core(
         out,
-        cast(const REBVAL*, p), // opt_first (see note above)
+        p, // opt_first (see note above)
         vaptr,
         DO_FLAG_EXPLICIT_EVALUATE | DO_FLAG_TO_END
     );
@@ -515,7 +535,6 @@ inline static REBOOL Reb_Do_Api_Core_Fails(
     DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 
     if (indexor == THROWN_FLAG) {
-    handle_thrown:
         if (IS_FUNCTION(out) && VAL_FUNC_DISPATCHER(out) == &N_quit) {
             //
             // Command issued a purposeful QUIT or EXIT.  Convert the
@@ -628,62 +647,14 @@ REBOOL RL_rebPrint(const void *p, ...)
     va_list va;
     va_start(va, p);
 
-    REBDSP dsp_orig = DSP;
+    const REBOOL uneval_hack = TRUE; // !!! see notes in Array_From_Vaptr
+    REBARR *a = Array_From_Vaptr_Maybe_Null(p, &va, uneval_hack);
+    va_end(va);
 
-    enum Reb_Pointer_Detect detect;
+    if (a == NULL)
+        return FALSE;
 
-    while ((detect = Detect_Rebol_Pointer(p)) != DETECTED_AS_END) {
-        if (p == NULL) {
-            set_api_error("use END to terminate rebPrint(), not NULL");
-            DS_DROP_TO(dsp_orig);
-            return FALSE;
-        }
-
-        switch (detect) {
-        case DETECTED_AS_UTF8: {
-            const REBYTE *utf8 = cast(const REBYTE*, p);
-            const REBUPT start_line = 1;
-            REBCNT size = LEN_BYTES(utf8);
-
-            SCAN_STATE ss;
-            Init_Scan_State(&ss, Intern("rebPrint()"), start_line, utf8, size);
-            Scan_To_Stack(&ss, 0);
-            break; }
-
-        case DETECTED_AS_SERIES:
-            set_api_error("no complex instructions in rebPrint() yet\n");
-            DS_DROP_TO(dsp_orig);
-            return FALSE;
-
-        case DETECTED_AS_FREED_SERIES:
-            panic (p);
-
-        case DETECTED_AS_VALUE: {
-            //
-            // !!! By convention, these are supposed to be "spliced", and
-            // not evaluated.  Unfortunately, we aren't really using the
-            // variadic machinery here yet, and it's illegal to put
-            // VALUE_FLAG_EVAL_FLIP in a block.  Cheat by putting in UNEVAL.
-
-            DS_PUSH_TRASH;
-            Init_Word(DS_TOP, Intern("uneval"));
-
-            DS_PUSH(cast(const REBVAL*, p)); 
-
-            break; }
-
-        case DETECTED_AS_END:
-            assert(FALSE); // checked by while loop
-            break;
-
-        case DETECTED_AS_TRASH_CELL:
-            panic (p);
-        }
-
-        p = va_arg(va, const void*);
-    }
-
-    REBARR *a = Pop_Stack_Values_Core(dsp_orig, NODE_FLAG_MANAGED);
+    Deep_Freeze_Array(a);
 
     // !!! See notes in rebDo() on this particular choice of binding.  For
     // internal usage of PRINT (e.g. calls from PARSE) it really should not
@@ -694,7 +665,6 @@ REBOOL RL_rebPrint(const void *p, ...)
     );
     Bind_Values_Set_Midstream_Shallow(ARR_HEAD(a), user_context);
     Bind_Values_Deep(ARR_HEAD(a), Lib_Context);
-    Deep_Freeze_Array(a);
 
     DECLARE_LOCAL (block);
     Init_Block(block, a);
@@ -749,6 +719,11 @@ REBVAL *RL_rebLastError(void)
 void *RL_rebEval(const REBVAL *v)
 {
     Enter_Api_Clear_Last_Error();
+
+    if (IS_VOID(v)) {
+        set_api_error ("Cannot pass voids to rebEval()");
+        return NULL;
+    }
 
     // !!! The presence of the VALUE_FLAG_EVAL_FLIP is a pretty good
     // indication that it's an eval instruction.  So it's not necessary to

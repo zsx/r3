@@ -945,6 +945,9 @@ acquisition_loop:
 
         case DETECTED_AS_VALUE: {
             const REBVAL *splice = cast(const REBVAL*, p);
+            if (IS_VOID(splice) && NOT(ss->opts & SCAN_FLAG_VOIDS_LEGAL))
+                fail ("voids cannot be directly spliced into ANY-ARRAY!s");
+
             DS_PUSH_TRASH;
             Move_Value(DS_TOP, splice);
 
@@ -1786,7 +1789,7 @@ static REBARR *Scan_Child_Array(SCAN_STATE *ss, REBYTE mode_char);
 //
 void Scan_To_Stack(SCAN_STATE *ss, REBYTE mode_char) {
     // just_once for load/next see Load_Script for more info.
-    const REBOOL just_once = LOGICAL(ss->opts & SCAN_NEXT);
+    const REBOOL just_once = LOGICAL(ss->opts & SCAN_FLAG_NEXT);
 
     struct Reb_State state;
     REBCTX *error;
@@ -1794,7 +1797,7 @@ void Scan_To_Stack(SCAN_STATE *ss, REBYTE mode_char) {
     if (C_STACK_OVERFLOWING(&state))
         Fail_Stack_Overflow();
 
-    if (ss->opts & SCAN_RELAX) {
+    if (ss->opts & SCAN_FLAG_RELAX) {
         PUSH_TRAP(&error, &state);
         if (error != NULL) {
             ss->begin = ss->end; // skip malformed token
@@ -1813,7 +1816,7 @@ void Scan_To_Stack(SCAN_STATE *ss, REBYTE mode_char) {
     CLEARS(&mo);
 
     if (just_once)
-        ss->opts &= ~SCAN_NEXT; // no deeper
+        ss->opts &= ~SCAN_FLAG_NEXT; // no deeper
 
     while (
         Drop_Mold_If_Pushed(&mo),
@@ -2234,14 +2237,14 @@ void Scan_To_Stack(SCAN_STATE *ss, REBYTE mode_char) {
 
             if (ss->token == TOKEN_LIT) {
                 VAL_RESET_HEADER(DS_TOP, REB_LIT_PATH);
-                VAL_RESET_HEADER(ARR_HEAD(array), REB_WORD);
+                VAL_SET_TYPE_BITS(ARR_HEAD(array), REB_WORD);
                 assert(IS_WORD_UNBOUND(ARR_HEAD(array)));
             }
             else if (IS_GET_WORD(ARR_HEAD(array))) {
                 if (*ss->end == ':')
                     fail (Error_Syntax(ss));
                 VAL_RESET_HEADER(DS_TOP, REB_GET_PATH);
-                VAL_RESET_HEADER(ARR_HEAD(array), REB_WORD);
+                VAL_SET_TYPE_BITS(ARR_HEAD(array), REB_WORD);
                 assert(IS_WORD_UNBOUND(ARR_HEAD(array)));
             }
             else {
@@ -2257,8 +2260,20 @@ void Scan_To_Stack(SCAN_STATE *ss, REBYTE mode_char) {
             ss->token = TOKEN_PATH;
         }
 
+        // If we get to this point, it means that the value came from UTF-8
+        // source data--it was not "spliced" out of the variadic as a plain
+        // value.  From the API's point of view, such runs of UTF-8 are
+        // considered "evaluator active", vs. the inert default.  (A spliced
+        // value would have to use `rebEval()` to become active.)  To signal
+        // the active state, add a special flag which only the API heeds.
+        // (Ordinary Pop_Stack_Values() will not copy out this bit, as it is
+        // not legal in ordinary user arrays--just as voids aren't--only in
+        // arrays which are internally held by the evaluator)
+        //
+        SET_VAL_FLAG(DS_TOP, VALUE_FLAG_EVAL_FLIP);
+
         // Added for load/next
-        if (LOGICAL(ss->opts & SCAN_ONLY) || just_once)
+        if (LOGICAL(ss->opts & SCAN_FLAG_ONLY) || just_once)
             goto array_done;
     }
 
@@ -2269,7 +2284,7 @@ void Scan_To_Stack(SCAN_STATE *ss, REBYTE mode_char) {
         fail (Error_Missing(ss, mode_char));
 
 array_done:
-    if (ss->opts & SCAN_RELAX)
+    if (ss->opts & SCAN_FLAG_RELAX)
         DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 
 array_done_relax:
@@ -2312,6 +2327,7 @@ static REBARR *Scan_Child_Array(SCAN_STATE *ss, REBYTE mode_char)
     child.start_line = ss->line;
     child.start_line_head = ss->line_head;
     child.newline_pending = FALSE;
+    child.opts &= ~(SCAN_FLAG_VOIDS_LEGAL | SCAN_FLAG_NEXT);
 
     // The way that path scanning works is that after one item has been
     // scanned it is *retroactively* decided to begin picking up more items
@@ -2359,13 +2375,13 @@ static REBARR *Scan_Child_Array(SCAN_STATE *ss, REBYTE mode_char)
 //
 static REBARR *Scan_Full_Array(SCAN_STATE *ss, REBYTE mode_char)
 {
-    REBOOL saved_only = LOGICAL(ss->opts & SCAN_ONLY);
-    ss->opts &= ~SCAN_ONLY;
+    REBOOL saved_only = LOGICAL(ss->opts & SCAN_FLAG_ONLY);
+    ss->opts &= ~SCAN_FLAG_ONLY;
 
     REBARR *array = Scan_Child_Array(ss, mode_char);
 
     if (saved_only)
-        ss->opts |= SCAN_ONLY;
+        ss->opts |= SCAN_FLAG_ONLY;
     return array;
 }
 
@@ -2568,11 +2584,11 @@ REBNATIVE(transcode)
     );
 
     if (REF(next))
-        ss.opts |= SCAN_NEXT;
+        ss.opts |= SCAN_FLAG_NEXT;
     if (REF(only))
-        ss.opts |= SCAN_ONLY;
+        ss.opts |= SCAN_FLAG_ONLY;
     if (REF(relax))
-        ss.opts |= SCAN_RELAX;
+        ss.opts |= SCAN_FLAG_RELAX;
 
     // If the source data bytes are "1" then the scanner will push INTEGER! 1
     // if the source data is "[1]" then the scanner will push BLOCK! [1]

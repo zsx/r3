@@ -160,9 +160,9 @@ REBNATIVE(recycle)
     REBCNT count;
 
     if (REF(verbose)) {
-    #if defined(NDEBUG)
+      #if defined(NDEBUG)
         fail (Error_Debug_Only_Raw());
-    #else
+      #else
         REBSER *sweeplist = Make_Series(100, sizeof(REBNOD*));
         count = Recycle_Core(FALSE, sweeplist);
         assert(count == SER_LEN(sweeplist));
@@ -178,22 +178,22 @@ REBNATIVE(recycle)
 
         REBCNT recount = Recycle_Core(FALSE, NULL);
         assert(recount == count);
-    #endif
+      #endif
     }
     else {
         count = Recycle();
     }
 
     if (REF(watch)) {
-    #if defined(NDEBUG)
+      #if defined(NDEBUG)
         fail (Error_Debug_Only_Raw());
-    #else
+      #else
         // There might should be some kind of generic way to set these kinds
         // of flags individually, perhaps having them live in SYSTEM/...
         //
         Reb_Opts->watch_recycle = NOT(Reb_Opts->watch_recycle);
         Reb_Opts->watch_expand = NOT(Reb_Opts->watch_expand);
-    #endif
+      #endif
     }
 
     Init_Integer(D_OUT, count);
@@ -330,7 +330,7 @@ REBNATIVE(c_debug_break_at)
 {
     INCLUDE_PARAMS_OF_C_DEBUG_BREAK_AT;
 
-#if !defined(NDEBUG) && defined(DEBUG_COUNT_TICKS)
+  #if !defined(NDEBUG) && defined(DEBUG_COUNT_TICKS)
     if (REF(compensate)) {
         //
         // Imagine two runs of Rebol console initialization.  In the first,
@@ -372,13 +372,13 @@ REBNATIVE(c_debug_break_at)
     else
         TG_Break_At_Tick = VAL_INT64(ARG(tick));
     return R_VOID;
-#else
+  #else
     UNUSED(ARG(tick));
     UNUSED(ARG(relative));
     UNUSED(REF(compensate));
 
     fail (Error_Debug_Only_Raw());
-#endif
+  #endif
 }
 
 
@@ -397,7 +397,7 @@ REBNATIVE(c_debug_break)
 {
     INCLUDE_PARAMS_OF_C_DEBUG_BREAK;
 
-#if !defined(NDEBUG) && defined(DEBUG_COUNT_TICKS)
+  #if !defined(NDEBUG) && defined(DEBUG_COUNT_TICKS)
     TG_Break_At_Tick = frame_->tick + 1;
 
     // C-DEBUG-BREAK wants to appear invisible to the evaluator, so you can
@@ -420,9 +420,45 @@ REBNATIVE(c_debug_break)
 
     return R_REEVALUATE_CELL;
 
-#else
+  #else
     UNUSED(ARG(value));
 
     fail (Error_Debug_Only_Raw());
-#endif
+  #endif
+}
+
+
+//
+//  test: native [
+//
+//  "This is a place to put test code in debug builds."
+//
+//      return: [<opt> any-value!]
+//          {For maximum freedom, can be anything}
+//      :value [<opt> <end> any-value!]
+//          {An argument (which test code may or may not use)}
+//  ]
+//
+REBNATIVE(test)
+{
+    INCLUDE_PARAMS_OF_TEST;
+
+    REBVAL *ten = rebInteger(10);
+
+    rebPrint("{We are reducing the sum of}", ten, "{and}", ARG(value), END);
+
+    REBVAL *temp = rebDo("reduce [", ten, "+", ARG(value), "]", END);
+    rebRelease(ten);
+
+    if (temp == NULL) { // bounce the error back
+        REBVAL *last = rebLastError();
+        REBCTX *error = VAL_CONTEXT(last);
+        rebRelease(last);
+        fail (error);
+    }
+
+    Move_Value(D_OUT, temp);
+    rebRelease(temp);
+
+    return R_OUT;
 }

@@ -375,6 +375,8 @@ detect_again:
 
     switch (Detect_Rebol_Pointer(p)) {
     case DETECTED_AS_UTF8: {
+        REBDSP dsp_orig = DSP;
+
         SCAN_STATE ss;
         const REBUPT start_line = 1;
         Init_Va_Scan_State_Core(
@@ -384,6 +386,7 @@ detect_again:
             cast(const REBYTE*, p),
             f->source.vaptr
         );
+        ss.opts |= SCAN_FLAG_VOIDS_LEGAL; // only true for topmost level
 
         // This scan may advance the va_list across several units,
         // incorporating REBVALs into the scanned array as it goes.  It could
@@ -400,12 +403,10 @@ detect_again:
         // well.  This is an area to be investigated, and tight integration
         // between this code and the scanner may be needed.
         //
-        REBDSP dsp_orig = DSP;
         Scan_To_Stack(&ss, '\0');
+        f->source.vaptr = NULL; // !!! for now, assume scan went to the end
 
-        f->source.array = Pop_Stack_Values_Keep_Eval_Flip(dsp_orig);
-
-        if (IS_END(ARR_HEAD(f->source.array))) {
+        if (DSP == dsp_orig) {
             //
             // This happens when somone says rebDo(..., "", ...) or similar,
             // and gets an empty array from a string scan.  It's not legal
@@ -417,12 +418,42 @@ detect_again:
             goto detect_again;
         }
 
-        f->value = ARR_HEAD(f->source.array);
+        REBARR *a = Pop_Stack_Values_Keep_Eval_Flip(dsp_orig);
+
+        // !!! Binding for rebDo() is a very complex thing.  One question is
+        // how the string runs are bound.  Another is how to deal with values
+        // spliced into string runs...how do they signal to keep their
+        // binding?  With the scanner being a black box here as it is, there's
+        // no way to discern spliced in values from those created from
+        // string runs.  As proof of concept for the moment, run everything
+        // through a user context binding...which is *not* a solution.
+
+        REBCTX *user_context = VAL_CONTEXT(
+            Get_System(SYS_CONTEXTS, CTX_USER)
+        );
+        Bind_Values_Set_Midstream_Shallow(ARR_HEAD(a), user_context);
+        Bind_Values_Deep(ARR_HEAD(a), Lib_Context);
+        Deep_Freeze_Array(a);
+
+        // !!! We really should be able to free this array without managing it
+        // when we're done with it, though that can get a bit complicated if
+        // there's an error or need to reify into a value.  For now, do the
+        // inefficient thing and manage it.
+        //
+        MANAGE_ARRAY(a);
+
+        f->value = ARR_HEAD(a);
         f->source.pending = f->value + 1; // may be END
+        f->source.array = a;
         f->source.index = 1;
 
-        panic ("String-based rebDo() not actually ready yet.");
-    }
+        assert(GET_SER_FLAG(f->source.array, ARRAY_FLAG_VOIDS_LEGAL));
+
+      #if !defined(NDEBUG)
+        f->kind = VAL_TYPE(f->value);
+      #endif
+
+        break; }
 
     case DETECTED_AS_SERIES: {
         //
@@ -454,9 +485,9 @@ detect_again:
         assert(GET_VAL_FLAG(f->value, VALUE_FLAG_EVAL_FLIP));
         f->flags.bits |= DO_FLAG_VALUE_IS_INSTRUCTION;
  
-    #if !defined(NDEBUG)
+      #if !defined(NDEBUG)
         f->kind = VAL_TYPE(f->value);
-    #endif
+      #endif
         break; }
 
     case DETECTED_AS_FREED_SERIES:
@@ -465,9 +496,9 @@ detect_again:
     case DETECTED_AS_VALUE:
         f->source.array = NULL;
         f->value = cast(const RELVAL*, p); // not END, detected separately
-    #if !defined(NDEBUG)
+      #if !defined(NDEBUG)
         f->kind = VAL_TYPE(f->value);
-    #endif
+      #endif
         assert(
             (
                 IS_VOID(f->value)
@@ -482,10 +513,10 @@ detect_again:
         // the line.  va_end() is taken care of by Drop_Frame_Core()
         //
         f->value = NULL;
-    #if !defined(NDEBUG)
+      #if !defined(NDEBUG)
         f->kind = REB_0;
         TRASH_POINTER_IF_DEBUG(f->source.pending);
-    #endif
+      #endif
         break; }
 
     case DETECTED_AS_TRASH_CELL:
@@ -514,8 +545,8 @@ inline static const RELVAL *Fetch_Next_In_Frame(REBFRM *f) {
     assert(FRM_HAS_MORE(f)); // caller should test this first
 
   #ifdef STRESS_EXPIRED_FETCH
-     TRASH_CELL_IF_DEBUG(f->stress);
-     free(f->stress);
+    TRASH_CELL_IF_DEBUG(f->stress);
+    free(f->stress);
   #endif
 
     const RELVAL *lookback;
@@ -534,9 +565,9 @@ inline static const RELVAL *Fetch_Next_In_Frame(REBFRM *f) {
 
         lookback = f->value;
         f->value = f->source.pending;
-    #if !defined(NDEBUG)
+      #if !defined(NDEBUG)
         f->kind = VAL_TYPE(f->value);
-    #endif
+      #endif
 
         ++f->source.pending; // might be becoming an END marker, here
         ++f->source.index;
@@ -548,10 +579,10 @@ inline static const RELVAL *Fetch_Next_In_Frame(REBFRM *f) {
         //
         lookback = f->value;
         f->value = NULL;
-    #if !defined(NDEBUG)
+      #if !defined(NDEBUG)
         f->kind = REB_0;
         TRASH_POINTER_IF_DEBUG(f->source.pending);
-    #endif
+      #endif
     }
     else {
         // A variadic can source arbitrary pointers, which can be detected
@@ -560,9 +591,9 @@ inline static const RELVAL *Fetch_Next_In_Frame(REBFRM *f) {
         //
         const void *p = va_arg(*f->source.vaptr, const void*);
 
-    #if !defined(NDEBUG)
+      #if !defined(NDEBUG)
         f->source.index = TRASHED_INDEX;
-    #endif
+      #endif
 
         lookback = Set_Frame_Detected_Fetch(f, p);
     }
@@ -672,9 +703,9 @@ inline static REBOOL Do_Next_In_Subframe_Throws(
     child->source = parent->source;
 
     child->value = parent->value;
-#if !defined(NDEBUG)
+  #if !defined(NDEBUG)
     child->kind = parent->kind;
-#endif
+  #endif
 
     child->specifier = parent->specifier;
     Init_Endlike_Header(&child->flags, flags);
@@ -694,9 +725,9 @@ inline static REBOOL Do_Next_In_Subframe_Throws(
     parent->source = child->source;
 
     parent->value = child->value;
-#if !defined(NDEBUG)
+  #if !defined(NDEBUG)
     parent->kind = child->kind;
-#endif
+  #endif
 
     parent->gotten = child->gotten;
 
@@ -968,7 +999,7 @@ inline static void Reify_Va_To_Array_In_Frame(
 //
 inline static REBIXO Do_Va_Core(
     REBVAL *out,
-    const REBVAL *opt_first,
+    const void *opt_first,
     va_list *vaptr,
     REBFLGS flags
 ){
@@ -977,16 +1008,16 @@ inline static REBIXO Do_Va_Core(
 
     f->gotten = END; // so REB_WORD and REB_GET_WORD do their own Get_Var
 
-#if !defined(NDEBUG)
+  #if !defined(NDEBUG)
     f->source.index = TRASHED_INDEX;
-#endif
+  #endif
     f->source.array = NULL;
     f->source.vaptr = vaptr;
     f->source.pending = END; // signal next fetch should come from va_list
     if (opt_first != NULL)
         Set_Frame_Detected_Fetch(f, opt_first);
     else {
-    #if !defined(NDEBUG)
+      #if !defined(NDEBUG)
         //
         // We need to reuse the logic from Fetch_Next_In_Frame here, but it
         // requires the prior-fetched f->value to be non-NULL in the debug
@@ -996,7 +1027,7 @@ inline static REBIXO Do_Va_Core(
         DECLARE_LOCAL (junk);
         Init_Unreadable_Blank(junk);
         f->value = junk;
-    #endif
+      #endif
         Fetch_Next_In_Frame(f);
     }
 
@@ -1182,7 +1213,7 @@ inline static REBOOL Eval_Value_Core_Throws(
 // refinement is used.  This is the process by which a void-producing branch
 // is forced to be a BLANK! instead, allowing void to be reserved for the
 // result when no branch ran.  This gives a uniform way of determining
-// whether a branch ran or not (utilized by ELSE, THEN, etc.)
+// whether a branch ran or not (utilized by ELSE, ALSO, etc.)
 //
 // Note: Tolerance of non-BLOCK! and non-FUNCTION! branches to act as literal
 // values was proven to cause more harm than good.

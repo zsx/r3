@@ -2356,13 +2356,12 @@ reevaluate:;
 //==//////////////////////////////////////////////////////////////////////==//
 
     case REB_MAX_VOID:
-        if (NOT(evaluating)) {
-            Init_Void(f->out);
+        if (NOT(evaluating) == NOT_VAL_FLAG(current, VALUE_FLAG_EVAL_FLIP)) {
+            Init_Void(f->out); // it's inert, treat as okay
         }
         else {
             // must be EVAL, so the value must be living in the frame cell
             //
-            assert(current == &f->cell);
             fail (Error_Evaluate_Void_Raw());
         }
         break;
