@@ -267,26 +267,28 @@ elf-format: context [
         <in> self
     ][
         assert [e_phoff < offset] ;-- program headers are before any changes
-        unless parse skip executable e_phoff [
+        
+        parse skip executable e_phoff [
             e_phnum [
                 (mode: 'read) pos: program-header-rule
                 (if p_offset >= offset [p_offset: p_offset + delta])
                 (mode: 'write) :pos program-header-rule
             ]
             to end
-        ][
+        ] or [
             fail "Error updating offsets in program headers"
         ]
 
         assert [e_shoff >= offset] ;-- section headers are after any changes
-        unless parse skip executable e_shoff [
+        
+        parse skip executable e_shoff [
             e_shnum [
                 (mode: 'read) pos: section-header-rule
                 (if sh_offset >= offset [sh_offset: sh_offset + delta])
                 (mode: 'write) :pos section-header-rule
             ]
             to end
-        ][
+        ] or [
             fail "Error updating offsets in section headers"
         ]
     ]
@@ -314,18 +316,18 @@ elf-format: context [
                     "bytes of extra data past the formal ELF image size"
                 ]
             ]
-            true [
-                fail "Section header table in ELF binary is corrupt"
-            ]
+        ] else [
+            fail "Section header table in ELF binary is corrupt"
         ]
 
         ; The string names of the sections are themselves stored in a section,
         ; (at index `e_shstrndx`)
         ;
         string-header-offset: e_shoff + (e_shstrndx * e_shentsize)
-        unless parse skip executable string-header-offset [
+        
+        parse skip executable string-header-offset [
             (mode: 'read) section-header-rule to end
-        ][
+        ] or [
             fail "Error finding string section in ELF binary"
         ]
 
@@ -342,7 +344,7 @@ elf-format: context [
                 skip executable string-section-offset ; section offset
         )
 
-        either section-index [
+        if section-index [
             ;
             ; There's already an embedded section, and we're either going to
             ; grow it or shrink it.  We don't have to touch the string table,
@@ -387,7 +389,7 @@ elf-format: context [
             ; pointed to by the main ELF header.  Updated after branch.
             ;
             e_shoff: e_shoff + delta
-        ][
+        ] else [
             print "No existing embedded section was found, adding one."
 
             ; ADD STRING TABLE ENTRY
@@ -406,7 +408,7 @@ elf-format: context [
 
             ; Update string table size in its corresponding header.
             ;
-            unless parse skip executable string-header-offset [
+            parse skip executable string-header-offset [
                 (mode: 'read) pos: section-header-rule
                 (
                     assert [sh_offset = string-section-offset]
@@ -414,7 +416,7 @@ elf-format: context [
                 )
                 (mode: 'write) :pos section-header-rule
                 to end
-            ][
+            ] or [
                 fail "Error updating string table size in string header"
             ]
 
@@ -430,7 +432,7 @@ elf-format: context [
             ; miscellaneous program-specific purposes, and hence not touched
             ; by strip...it is also not mapped into memory.
             ;
-            unless parse new-section-header [
+            parse new-section-header [
                 (
                     sh_name: string-section-size ; w.r.t string-section-offset
                     sh_type: 7 ; SHT_NOTE
@@ -440,7 +442,7 @@ elf-format: context [
                 )
                 (mode: 'write) section-header-rule
                 to end
-            ][
+            ] or [
                 fail "Error creating new section for the embedded data"
             ]
 
@@ -480,9 +482,9 @@ elf-format: context [
             ; (main header write is done after the branch.)
         ]
 
-        unless parse executable [
+        parse executable [
             (mode: 'write) header-rule to end
-        ][
+        ] or [
             fail "Error updating the ELF header"
         ]
     ]
@@ -505,9 +507,9 @@ elf-format: context [
         ; The string names of the sections are themselves stored in a section,
         ; (at index `e_shstrndx`)
         ;
-        unless parse skip section-headers-data (e_shstrndx * e_shentsize) [
+        parse skip section-headers-data (e_shstrndx * e_shentsize) [
             (mode: 'read) section-header-rule to end
-        ][
+        ] or [
             fail "Error finding string section in ELF binary"
         ]
 
@@ -1021,11 +1023,10 @@ pe-format: context [
             data [
                 copy/part (skip exe-data target-sec/physical-offset) target-sec/physical-size
             ]
-            'else [
-                reduce [
-                    target-sec
-                    copy/part (skip exe-data target-sec/physical-offset) target-sec/physical-size
-                ]
+        ] else [
+            reduce [
+                target-sec
+                copy/part (skip exe-data target-sec/physical-offset) target-sec/physical-size
             ]
         ]
     ]
@@ -1117,9 +1118,8 @@ pe-format: context [
                     update-section-header pos sec
                     pos: skip pos size-of-section-header
                 ]
-                'else [;unchanged
-                    pos: skip pos size-of-section-header
-                ]
+            ] else [ ;unchanged
+                pos: skip pos size-of-section-header
             ]
         ]
 
@@ -1181,9 +1181,8 @@ generic-format: context [
 
                 print ["Trimmed executable size is" length of executable]
             ]
-            true [
-                print "Binary contains no pre-existing encap data block"
-            ]
+        ] else [
+            print "Binary contains no pre-existing encap data block"
         ]
 
         while [0 != modulo (length of executable) 4096] [
@@ -1293,11 +1292,10 @@ encap: function [
             print "PE format found"
             pe-format/update-embedding executable compressed
         ]
-        true [
-            print "Unidentified executable format, using naive concatenation."
+    ] else [
+        print "Unidentified executable format, using naive concatenation."
 
-            generic-format/update-embedding executable compressed
-        ]
+        generic-format/update-embedding executable compressed
     ]
 
     print ["Writing executable with encap, size, signature to" out-rebol-path]
@@ -1308,7 +1306,7 @@ encap: function [
 
     ; !!! Currently only test the extraction for single-file, easier.
     ;
-    if all [single-script | embed != extracted: get-encap out-rebol-path] [
+    if single-script and (embed != extracted: get-encap out-rebol-path) [
         print ["Test extraction size:" length of extracted]
         print ["Embedded bytes" mold embed]
         print ["Extracted bytes" mold extracted]

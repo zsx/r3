@@ -83,7 +83,9 @@ rebsource: context [
         ][
             collect [
                 for-each source list/source-files [
-                    find whitelisted source or (keep opt analyse/file source)
+                    unless find whitelisted source [
+                        keep opt analyse/file source
+                    ]
                 ]
             ]
         ]

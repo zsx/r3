@@ -53,8 +53,9 @@
 [error? try [arccosine -1.1]]
 
 
-; If LOGIC! on the left, enfixed AND returns LOGIC!.  Otherwise, it returns
-; the last truthy value it evaluated if test passes, else blank.
+; If BLOCK! is used for the right clause, the result is forced to either a
+; BLANK! or the last evaluated truthy ANY-VALUE!.  If a GROUP! is used for
+; the right clause, the result is forced to LOGIC!
 ;
 [false and (false) = false]
 [false and (true) = false]
@@ -75,20 +76,21 @@
 ][
     x: 1020
     did all [
-        <truthy> and (x: 304) = 304
+        <truthy> and [x: 304] = 304
         x = 304
     ]
 ][
     x: 1020
     did all [
-        <truthy> and (x: _) = _
+        <truthy> and [x: _] = _
         x = _
     ]
 ]
 
 
-; If LOGIC! on the left, enfixed OR returns LOGIC!.  Otherwise, it returns
-; the last truthy value it evaluated if test passes, else blank.
+; If BLOCK! is used for the right clause, the result is forced to either a
+; BLANK! or the last evaluated truthy ANY-VALUE!.  If a GROUP! is used for
+; the right clause, the result is forced to LOGIC!
 ;
 [false or (false) = false]
 [false or (true) = true]
@@ -97,7 +99,7 @@
 [
     x: 1020
     did all [
-        false or (x: _) = false
+        false or [x: _] = _
         x = _
     ]
 ][
@@ -109,7 +111,7 @@
 ][
     x: 1020
     did all [
-        _ or (x: 304) = 304
+        _ or [x: 304] = 304
         x = 304
     ]
 ][

@@ -432,7 +432,7 @@ host-start: function [
         option [string!] {Command-line option (switch) used}
     ][
         take argv
-        return first argv or (die [option {parameter missing}])
+        return first argv or [die [option {parameter missing}]]
     ]
 
     ; As we process command line arguments, we build up an "instruction" block

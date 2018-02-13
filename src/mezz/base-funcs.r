@@ -871,20 +871,20 @@ once-bar: func [
     {Expression barrier that's willing to only run one expression after it}
 
     return: [<opt> any-value!]
-    right [<opt> any-value! <...>]
+    right [<opt> <end> any-value! <...>]
     :lookahead [any-value! <...>]
     look:
 ][
-    take right ;-- returned value
+    take* right ;-- returned value
 
     elide unless any [
         tail? right
             |
         '|| = look: take lookahead ;-- hack...recognize selfs
     ][
-        fail [
+        fail/where [
             "|| expected single expression, found residual of" :look
-        ]
+        ] 'right
     ]
 ]
 

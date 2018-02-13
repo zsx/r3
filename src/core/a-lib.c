@@ -447,7 +447,7 @@ static REBARR* Array_From_Vaptr_Maybe_Null(
                 Init_Word(DS_TOP, Intern("uneval"));
             }
 
-            DS_PUSH(cast(const REBVAL*, p)); 
+            DS_PUSH(cast(const REBVAL*, p));
 
             break; }
 
@@ -482,7 +482,7 @@ REBVAL *RL_rebBlock(const void *p, ...) {
 
     const REBOOL uneval_hack = FALSE;
     REBARR *a = Array_From_Vaptr_Maybe_Null(p, &va, uneval_hack);
-    
+
     va_end(va);
 
     if (a == NULL)

@@ -190,7 +190,12 @@ for-each [comparison-op function-name] [
     either-test-value/only :left [:right]
 ]
 
-!?: enfix func [
+; !!! By naming this ?! it somewhat suggests `?? () !!`, e.g. a shortening and
+; skipping over of a truthy clause.  If it were !? it might suggest a "not"
+; of the test.  For now we'll enable both and just see if people wind up
+; favoring one over the other enough to make it canon.
+;
+!?: ?!: enfix func [
     {If left is conditionally false, return value on the right (as-is)}
 
     return: [<opt> any-value!]
@@ -209,6 +214,11 @@ for-each [comparison-op function-name] [
 ;    if (some long) and (complicated expression) [a + b] else [c + d]
 ;
 ;    (some long) and (complicated expression) then [a + b] else [c + d]
+;
+; It's also rather similar to when AND is used with a BLOCK! on its right
+; hand side, but it doesn't quote its right argument...which makes it more
+; flexible when you wish to run a block of code from a variable.  (It also
+; looks like less an odd name when paired with ELSE.)
 ;
 ; NAY is the somewhat weird name for enfixed UNLESS, until someone thinks of
 ; a better name for it.  (ELSE is not an option)
@@ -294,54 +304,59 @@ and: enfix func [
     {Short-circuit boolean AND, which can also pass thru non-LOGIC! values}
 
     return: [any-value!]
-        {LOGIC! if left arg is LOGIC!, else right arg or blank}
+        {LOGIC! if right arg is GROUP!, else right arg or blank}
     left [any-value!]
         {Expression which will always be evaluated}
-    :right [group!]
+    :right [group! block!]
         {Quoted expression, evaluated unless left is blank or FALSE}
 ][
-    case [
-        :left = blank [blank]
-        :left = false [false]
-        :left = true [did to-value do right]
-    ] else [do right]
+    either group? right [
+        did all [:left | do right]
+    ][
+        all [:left | do right]
+    ]
 ]
 
 or: enfix func [
     {Short-circuit boolean OR, which can also pass thru non-LOGIC! values}
 
     return: [any-value!]
-        {LOGIC! if left arg is LOGIC!, else left or right value or blank}
+        {LOGIC! if right arg is GROUP!, else left or right value or blank}
     left [any-value!]
         {Expression which will always be evaluated}
-    :right [group!]
+    :right [group! block!]
         {Quoted expression, evaluated only if left is blank or FALSE}
 ][
-    case [
-        :left = blank [do right]
-        :left = false [did to-value do right]
-        :left = true [true]
-    ] else [:left]
+    either group? right [
+        did any [:left | do right]
+    ][
+        any [:left | do right]
+    ]
 ]
 
 xor: enfix func [
     {Boolean XOR which can also pass thru non-LOGIC! values}
 
     return: [any-value!]
-        {LOGIC! if left arg is LOGIC!, else left or right value or blank}
+        {LOGIC! if right arg is GROUP!, else left or right value or blank}
     left [any-value!]
         {Expression which will always be evaluated, guides result value}
-    :right [group!]
+    :right [group! block!]
         {Quoted expression, must be always evaluated as well}
 ][
-    case [
-        :left = blank [do right]
-        :left = false [did to-value do right]
-        :left = true [not to-value do right]
-    ] else [
-        unless to-value do right [:left]
+    either group? right [
+        did either not :left [
+            do right
+        ][
+            all [not do right | :left]
+        ]
+    ][
+        either not :left [
+            do right
+        ][
+            all [not do right | :left]
+        ]
     ]
-
 ]
 
 
@@ -389,4 +404,4 @@ set/enfix (r3-alpha-quote "<-") (specialize :lambda [only: true])
 
 set (r3-alpha-quote "<|") :invisible-eval-all
 set (r3-alpha-quote "|>") :right-bar
-||: enfix :once-bar
+||: :once-bar
