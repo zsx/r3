@@ -300,7 +300,7 @@ static REBOOL Has_Valid_BITMAPFILEHEADER(const REBYTE *data, REBCNT len) {
 //
 REBNATIVE(identify_bmp_q)
 {
-    INCLUDE_PARAMS_OF_IDENTIFY_BMP_Q;
+    BMP_INCLUDE_PARAMS_OF_IDENTIFY_BMP_Q;
 
     const REBYTE *data = VAL_BIN_AT(ARG(data));
     REBCNT len = VAL_LEN_AT(ARG(data));
@@ -323,7 +323,7 @@ REBNATIVE(identify_bmp_q)
 //
 REBNATIVE(decode_bmp)
 {
-    INCLUDE_PARAMS_OF_DECODE_BMP;
+    BMP_INCLUDE_PARAMS_OF_DECODE_BMP;
 
     const REBYTE *data = VAL_BIN_AT(ARG(data));
     REBCNT len = VAL_LEN_AT(ARG(data));
@@ -565,7 +565,7 @@ bad_table_error:
 //
 REBNATIVE(encode_bmp)
 {
-    INCLUDE_PARAMS_OF_ENCODE_BMP;
+    BMP_INCLUDE_PARAMS_OF_ENCODE_BMP;
 
     REBINT i, y;
     REBYTE *cp, *v;

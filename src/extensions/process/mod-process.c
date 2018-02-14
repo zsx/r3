@@ -232,7 +232,7 @@ int OS_Create_Process(
     char **err,
     u32 *err_len
 ) {
-    INCLUDE_PARAMS_OF_CALL;
+    PROCESS_INCLUDE_PARAMS_OF_CALL;
 
     UNUSED(ARG(command)); // turned into `call` and `argv/argc` by CALL
     UNUSED(REF(wait)); // covered by flag_wait
@@ -870,7 +870,7 @@ int OS_Create_Process(
     char **err,
     u32 *err_len
 ) {
-    INCLUDE_PARAMS_OF_CALL;
+    PROCESS_INCLUDE_PARAMS_OF_CALL;
 
     UNUSED(ARG(command)); // translated into call and argc/argv
     UNUSED(REF(wait)); // flag_wait controls this
@@ -1501,7 +1501,7 @@ REBNATIVE(call)
 // !!! Parameter usage may require WAIT mode even if not explicitly requested.
 // /WAIT should be default, with /ASYNC (or otherwise) as exception!
 {
-    INCLUDE_PARAMS_OF_CALL;
+    PROCESS_INCLUDE_PARAMS_OF_CALL;
 
     UNUSED(REF(shell)); // looked at via frame_ by OS_Create_Process
     UNUSED(REF(console)); // same
@@ -1813,7 +1813,7 @@ REBNATIVE(get_os_browsers)
 // of more "structural" result, it was just easy because it's how the string
 // comes back from the Windows registry.  Review.
 {
-    INCLUDE_PARAMS_OF_GET_OS_BROWSERS;
+    PROCESS_INCLUDE_PARAMS_OF_GET_OS_BROWSERS;
 
     REBDSP dsp_orig = DSP;
 
@@ -1919,7 +1919,7 @@ REBNATIVE(sleep)
 // on Sleep() vs. usleep()...and all the relevant includes have been
 // established here.
 {
-    INCLUDE_PARAMS_OF_SLEEP;
+    PROCESS_INCLUDE_PARAMS_OF_SLEEP;
 
     REBCNT msec = Milliseconds_From_Value(ARG(duration));
 
@@ -1953,7 +1953,7 @@ static void kill_process(REBINT pid, REBINT signal);
 //
 static REBNATIVE(terminate)
 {
-    INCLUDE_PARAMS_OF_TERMINATE;
+    PROCESS_INCLUDE_PARAMS_OF_TERMINATE;
 
 #ifdef TO_WINDOWS
     if (GetCurrentProcessId() == cast(DWORD, VAL_INT32(ARG(pid))))
@@ -2020,7 +2020,7 @@ static REBNATIVE(terminate)
 //
 static REBNATIVE(get_env)
 {
-    INCLUDE_PARAMS_OF_GET_ENV;
+    PROCESS_INCLUDE_PARAMS_OF_GET_ENV;
 
     REBVAL *variable = ARG(variable);
 
@@ -2099,7 +2099,7 @@ static REBNATIVE(get_env)
 //
 static REBNATIVE(set_env)
 {
-    INCLUDE_PARAMS_OF_SET_ENV;
+    PROCESS_INCLUDE_PARAMS_OF_SET_ENV;
 
     REBVAL *variable = ARG(variable);
     REBVAL *value = ARG(value);
@@ -2343,7 +2343,7 @@ static REBNATIVE(list_env)
 //
 static REBNATIVE(get_pid)
 {
-    INCLUDE_PARAMS_OF_GET_PID;
+    PROCESS_INCLUDE_PARAMS_OF_GET_PID;
 
     Init_Integer(D_OUT, getpid());
 
@@ -2364,7 +2364,7 @@ static REBNATIVE(get_pid)
 //
 static REBNATIVE(get_uid)
 {
-    INCLUDE_PARAMS_OF_GET_UID;
+    PROCESS_INCLUDE_PARAMS_OF_GET_UID;
 
     Init_Integer(D_OUT, getuid());
 
@@ -2385,7 +2385,7 @@ static REBNATIVE(get_uid)
 //
 static REBNATIVE(get_euid)
 {
-    INCLUDE_PARAMS_OF_GET_EUID;
+    PROCESS_INCLUDE_PARAMS_OF_GET_EUID;
 
     Init_Integer(D_OUT, geteuid());
 
@@ -2404,7 +2404,7 @@ static REBNATIVE(get_euid)
 //
 static REBNATIVE(get_gid)
 {
-    INCLUDE_PARAMS_OF_GET_UID;
+    PROCESS_INCLUDE_PARAMS_OF_GET_UID;
 
     Init_Integer(D_OUT, getgid());
 
@@ -2425,7 +2425,7 @@ static REBNATIVE(get_gid)
 //
 static REBNATIVE(get_egid)
 {
-    INCLUDE_PARAMS_OF_GET_EUID;
+    PROCESS_INCLUDE_PARAMS_OF_GET_EUID;
 
     Init_Integer(D_OUT, getegid());
 
@@ -2451,7 +2451,7 @@ static REBNATIVE(get_egid)
 //
 static REBNATIVE(set_uid)
 {
-    INCLUDE_PARAMS_OF_SET_UID;
+    PROCESS_INCLUDE_PARAMS_OF_SET_UID;
 
     if (setuid(VAL_INT32(ARG(uid))) < 0) {
         switch (errno) {
@@ -2489,7 +2489,7 @@ static REBNATIVE(set_uid)
 //
 static REBNATIVE(set_euid)
 {
-    INCLUDE_PARAMS_OF_SET_EUID;
+    PROCESS_INCLUDE_PARAMS_OF_SET_EUID;
 
     if (seteuid(VAL_INT32(ARG(euid))) < 0) {
         switch (errno) {
@@ -2527,7 +2527,7 @@ static REBNATIVE(set_euid)
 //
 static REBNATIVE(set_gid)
 {
-    INCLUDE_PARAMS_OF_SET_GID;
+    PROCESS_INCLUDE_PARAMS_OF_SET_GID;
 
     if (setgid(VAL_INT32(ARG(gid))) < 0) {
         switch (errno) {
@@ -2565,7 +2565,7 @@ static REBNATIVE(set_gid)
 //
 static REBNATIVE(set_egid)
 {
-    INCLUDE_PARAMS_OF_SET_EGID;
+    PROCESS_INCLUDE_PARAMS_OF_SET_EGID;
 
     if (setegid(VAL_INT32(ARG(egid))) < 0) {
         switch (errno) {
@@ -2626,7 +2626,7 @@ static void kill_process(REBINT pid, REBINT signal)
 //
 static REBNATIVE(send_signal)
 {
-    INCLUDE_PARAMS_OF_SEND_SIGNAL;
+    PROCESS_INCLUDE_PARAMS_OF_SEND_SIGNAL;
 
     kill_process(VAL_INT32(ARG(pid)), VAL_INT32(ARG(signal)));
 

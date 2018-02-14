@@ -262,7 +262,7 @@ either num-native > 0 [
     ]
     for-each item native-list [
         if set-word? item [
-            e-last/emit-item ["N_" to word! item]
+            e-last/emit-item ["N_" u-m-name "_" to word! item]
         ]
     ]
     e-last/emit-end
@@ -321,11 +321,22 @@ for-next native-list [
         all [path? native-list/2 | 'native = first native-list/2]
     ][
         assert [set-word? native-list/1]
-        (emit-include-params-macro e-first
-            (to-word native-list/1) (native-list/3))
+        (emit-include-params-macro/ext e-first
+            (to-word native-list/1) (native-list/3)
+            u-m-name)
         e-first/emit newline
     ]
 ]
+
+;-------------------------------------------------------------
+;
+e-first/emit-lines [
+    ["// redefine REBNATIVE to avoid name conflict"]
+    ["#undef REBNATIVE"]
+    ["#define REBNATIVE(n) \"]
+]
+e-first/emit-line/indent
+    ["REB_R N_" u-m-name "_ ##n(REBFRM *frame_)"]
 
 ;--------------------------------------------------------------
 ; words

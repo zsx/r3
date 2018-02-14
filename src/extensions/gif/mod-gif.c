@@ -230,7 +230,7 @@ static REBOOL Has_Valid_GIF_Header(REBYTE *data, REBCNT len) {
 //
 REBNATIVE(identify_gif_q)
 {
-    INCLUDE_PARAMS_OF_IDENTIFY_GIF_Q;
+    GIF_INCLUDE_PARAMS_OF_IDENTIFY_GIF_Q;
 
     REBYTE *data = VAL_BIN_AT(ARG(data));
     REBCNT len = VAL_LEN_AT(ARG(data));
@@ -254,7 +254,7 @@ REBNATIVE(identify_gif_q)
 //
 REBNATIVE(decode_gif)
 {
-    INCLUDE_PARAMS_OF_DECODE_GIF;
+    GIF_INCLUDE_PARAMS_OF_DECODE_GIF;
 
     REBYTE *data = VAL_BIN_AT(ARG(data));
     REBCNT len = VAL_LEN_AT(ARG(data));

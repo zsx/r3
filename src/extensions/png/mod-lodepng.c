@@ -173,7 +173,7 @@ static unsigned rebol_zlib_compress(
 //
 REBNATIVE(identify_png_q)
 {
-    INCLUDE_PARAMS_OF_IDENTIFY_PNG_Q;
+    LODEPNG_INCLUDE_PARAMS_OF_IDENTIFY_PNG_Q;
 
     LodePNGState state;
     lodepng_state_init(&state);
@@ -226,7 +226,7 @@ REBNATIVE(identify_png_q)
 //
 REBNATIVE(decode_png)
 {
-    INCLUDE_PARAMS_OF_DECODE_PNG;
+    LODEPNG_INCLUDE_PARAMS_OF_DECODE_PNG;
 
     LodePNGState state;
     lodepng_state_init(&state);
@@ -315,7 +315,7 @@ REBNATIVE(decode_png)
 //
 REBNATIVE(encode_png)
 {
-    INCLUDE_PARAMS_OF_ENCODE_PNG;
+    LODEPNG_INCLUDE_PARAMS_OF_ENCODE_PNG;
 
     REBVAL *image = ARG(image);
 

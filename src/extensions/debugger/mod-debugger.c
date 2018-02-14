@@ -87,7 +87,7 @@ const REBVAL *HG_Host_Repl = NULL; // needs to be a GC-protecting reference
 //
 static REBNATIVE(init_debugger)
 {
-    INCLUDE_PARAMS_OF_INIT_DEBUGGER;
+    DEBUGGER_INCLUDE_PARAMS_OF_INIT_DEBUGGER;
 
     HG_Host_Repl = FUNC_VALUE(VAL_FUNC(ARG(console)));
     return R_VOID;
@@ -115,7 +115,7 @@ REBOOL Do_Breakpoint_Throws(
 //
 static REBNATIVE(breakpoint)
 //
-// !!! Need definition to test for N_breakpoint function
+// !!! Need definition to test for N_DEBUGGER_breakpoint function
 {
     if (Do_Breakpoint_Throws(
         D_OUT,
@@ -151,9 +151,9 @@ static REBNATIVE(breakpoint)
 //
 static REBNATIVE(pause)
 //
-// !!! Need definition to test for N_pause function
+// !!! Need definition to test for N_DEBUGGER_pause function
 {
-    INCLUDE_PARAMS_OF_PAUSE;
+    DEBUGGER_INCLUDE_PARAMS_OF_PAUSE;
 
     if (Do_Breakpoint_Throws(
         D_OUT,
@@ -235,8 +235,8 @@ REBFRM *Frame_For_Stack_Level(
         if (NOT(pending)) {
             if (first) {
                 if (
-                    FUNC_DISPATCHER(frame->phase) == &N_pause
-                    || FUNC_DISPATCHER(frame->phase) == N_breakpoint
+                    FUNC_DISPATCHER(frame->phase) == &N_DEBUGGER_pause
+                    || FUNC_DISPATCHER(frame->phase) == N_DEBUGGER_breakpoint
                 ) {
                     // this is considered the "0".  Return it only if 0
                     // requested specifically (you don't "count down to it")
@@ -326,7 +326,7 @@ static REBNATIVE(resume)
 // each host doesn't have to rewrite interpretation in the hook--they only
 // need to recognize a RESUME throw and pass the argument back.
 {
-    INCLUDE_PARAMS_OF_RESUME;
+    DEBUGGER_INCLUDE_PARAMS_OF_RESUME;
 
     if (REF(with) && REF(do)) {
         //
@@ -400,8 +400,8 @@ static REBNATIVE(resume)
                 continue;
 
             if (
-                FUNC_DISPATCHER(frame->phase) == &N_pause
-                || FUNC_DISPATCHER(frame->phase) == &N_breakpoint
+                FUNC_DISPATCHER(frame->phase) == &N_DEBUGGER_pause
+                || FUNC_DISPATCHER(frame->phase) == &N_DEBUGGER_breakpoint
             ) {
                 break;
             }
@@ -582,7 +582,7 @@ REBOOL Host_Breakpoint_Quitting_Hook(
         if (Do_Any_Array_At_Throws(instruction_out, code)) {
             if (
                 IS_FUNCTION(instruction_out)
-                && VAL_FUNC_DISPATCHER(instruction_out) == &N_resume
+                && VAL_FUNC_DISPATCHER(instruction_out) == &N_DEBUGGER_resume
             ){
                 // This means we're done with the embedded REPL.  We want
                 // to resume and may be returning a piece of code that
@@ -787,8 +787,8 @@ REBOOL Do_Breakpoint_Throws(
             if (
                 frame != FS_TOP
                 && (
-                    FUNC_DISPATCHER(frame->phase) == &N_pause
-                    || FUNC_DISPATCHER(frame->phase) == &N_breakpoint
+                    FUNC_DISPATCHER(frame->phase) == &N_DEBUGGER_pause
+                    || FUNC_DISPATCHER(frame->phase) == &N_DEBUGGER_breakpoint
                 )
             ) {
                 // We hit a breakpoint (that wasn't this call to
@@ -910,7 +910,7 @@ return_temp:
 //
 static REBNATIVE(backtrace_index)
 {
-    INCLUDE_PARAMS_OF_BACKTRACE_INDEX;
+    DEBUGGER_INCLUDE_PARAMS_OF_BACKTRACE_INDEX;
 
     REBCNT number;
 
@@ -962,7 +962,7 @@ void Shutdown_Debugger(void)
 //
 static REBNATIVE(backtrace)
 {
-    INCLUDE_PARAMS_OF_BACKTRACE;
+    DEBUGGER_INCLUDE_PARAMS_OF_BACKTRACE;
 
     Check_Security(Canon(SYM_DEBUG), POL_READ, 0);
 
@@ -1025,8 +1025,8 @@ static REBNATIVE(backtrace)
             if (
                 first
                 && (
-                    FUNC_DISPATCHER(f->phase) == &N_pause
-                    || FUNC_DISPATCHER(f->phase) == &N_breakpoint
+                    FUNC_DISPATCHER(f->phase) == &N_DEBUGGER_pause
+                    || FUNC_DISPATCHER(f->phase) == &N_DEBUGGER_breakpoint
                 )
             ) {
                 // Omitting breakpoints from the list entirely presents a
@@ -1202,7 +1202,7 @@ static REBNATIVE(debug)
 // stack level is being inspected in the REPL.
 //
 {
-    INCLUDE_PARAMS_OF_DEBUG;
+    DEBUGGER_INCLUDE_PARAMS_OF_DEBUG;
 
     REBVAL *value = ARG(value);
 

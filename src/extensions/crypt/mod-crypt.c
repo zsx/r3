@@ -125,7 +125,7 @@ static void cleanup_rc4_ctx(const REBVAL *v)
 //
 static REBNATIVE(rc4)
 {
-    INCLUDE_PARAMS_OF_RC4;
+    CRYPT_INCLUDE_PARAMS_OF_RC4;
 
     if (REF(stream)) {
         REBVAL *data = ARG(data);
@@ -192,7 +192,7 @@ static REBNATIVE(rc4)
 //
 static REBNATIVE(rsa)
 {
-    INCLUDE_PARAMS_OF_RSA;
+    CRYPT_INCLUDE_PARAMS_OF_RSA;
 
     REBOOL padding;
     if (REF(padding))
@@ -359,7 +359,7 @@ static REBNATIVE(rsa)
 //
 static REBNATIVE(dh_generate_key)
 {
-    INCLUDE_PARAMS_OF_DH_GENERATE_KEY;
+    CRYPT_INCLUDE_PARAMS_OF_DH_GENERATE_KEY;
 
     DH_CTX dh_ctx;
     memset(&dh_ctx, 0, sizeof(dh_ctx));
@@ -443,7 +443,7 @@ static REBNATIVE(dh_generate_key)
 //
 static REBNATIVE(dh_compute_key)
 {
-    INCLUDE_PARAMS_OF_DH_COMPUTE_KEY;
+    CRYPT_INCLUDE_PARAMS_OF_DH_COMPUTE_KEY;
 
     DH_CTX dh_ctx;
     memset(&dh_ctx, 0, sizeof(dh_ctx));
@@ -535,7 +535,7 @@ static void cleanup_aes_ctx(const REBVAL *v)
 //
 static REBNATIVE(aes)
 {
-    INCLUDE_PARAMS_OF_AES;
+    CRYPT_INCLUDE_PARAMS_OF_AES;
 
     if (REF(stream)) {
         if (VAL_HANDLE_CLEANER(ARG(ctx)) != cleanup_aes_ctx)
@@ -646,7 +646,7 @@ static REBNATIVE(aes)
 //
 REBNATIVE(sha256)
 {
-    INCLUDE_PARAMS_OF_SHA256;
+    CRYPT_INCLUDE_PARAMS_OF_SHA256;
 
     REBCNT index;
     REBCNT len;
@@ -784,7 +784,7 @@ static REBOOL Cloak(
 //
 static REBNATIVE(decloak)
 {
-    INCLUDE_PARAMS_OF_DECLOAK;
+    CRYPT_INCLUDE_PARAMS_OF_DECLOAK;
 
     if (NOT(Cloak(
         TRUE,
@@ -817,7 +817,7 @@ static REBNATIVE(decloak)
 //
 static REBNATIVE(encloak)
 {
-    INCLUDE_PARAMS_OF_ENCLOAK;
+    CRYPT_INCLUDE_PARAMS_OF_ENCLOAK;
 
     if (NOT(Cloak(
         FALSE,

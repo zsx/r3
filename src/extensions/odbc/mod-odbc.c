@@ -261,7 +261,7 @@ REBNATIVE(open_connection)
 // making new objects from inside the native code and naming the fields was
 // too hard and/or undocumented.  It shouldn't be difficult to change.
 {
-    INCLUDE_PARAMS_OF_OPEN_CONNECTION;
+    ODBC_INCLUDE_PARAMS_OF_OPEN_CONNECTION;
 
     SQLRETURN rc;
 
@@ -359,7 +359,7 @@ REBNATIVE(open_statement)
 // !!! Similar to previous routines, this takes an empty statement object in
 // to initialize.
 {
-    INCLUDE_PARAMS_OF_OPEN_STATEMENT;
+    ODBC_INCLUDE_PARAMS_OF_OPEN_STATEMENT;
 
     REBCTX *connection = VAL_CONTEXT(ARG(connection));
     SQLHDBC hdbc = cast(SQLHDBC, VAL_HANDLE_VOID_POINTER(
@@ -896,7 +896,7 @@ SQLRETURN ODBC_BindColumns(
 //
 REBNATIVE(insert_odbc)
 {
-    INCLUDE_PARAMS_OF_INSERT_ODBC;
+    ODBC_INCLUDE_PARAMS_OF_INSERT_ODBC;
 
     REBCTX *statement = VAL_CONTEXT(ARG(statement));
     SQLHSTMT hstmt = VAL_HANDLE_POINTER(
@@ -1277,7 +1277,7 @@ void ODBC_Column_To_Rebol_Value(
 //
 REBNATIVE(copy_odbc)
 {
-    INCLUDE_PARAMS_OF_COPY_ODBC;
+    ODBC_INCLUDE_PARAMS_OF_COPY_ODBC;
 
     REBCTX *statement = VAL_CONTEXT(ARG(statement));
 
@@ -1343,7 +1343,7 @@ REBNATIVE(copy_odbc)
 //
 REBNATIVE(update_odbc)
 {
-    INCLUDE_PARAMS_OF_UPDATE_ODBC;
+    ODBC_INCLUDE_PARAMS_OF_UPDATE_ODBC;
 
     REBCTX *connection = VAL_CONTEXT(ARG(connection));
 
@@ -1397,7 +1397,7 @@ REBNATIVE(update_odbc)
 //
 REBNATIVE(close_statement)
 {
-    INCLUDE_PARAMS_OF_CLOSE_STATEMENT;
+    ODBC_INCLUDE_PARAMS_OF_CLOSE_STATEMENT;
 
     REBCTX *statement = VAL_CONTEXT(ARG(statement));
 
@@ -1438,7 +1438,7 @@ REBNATIVE(close_statement)
 //
 REBNATIVE(close_connection)
 {
-    INCLUDE_PARAMS_OF_CLOSE_CONNECTION;
+    ODBC_INCLUDE_PARAMS_OF_CLOSE_CONNECTION;
 
     REBCTX *connection = VAL_CONTEXT(ARG(connection));
 

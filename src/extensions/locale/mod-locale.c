@@ -61,7 +61,7 @@ REBNATIVE(locale)
 //
 {
 #ifdef TO_WINDOWS
-    INCLUDE_PARAMS_OF_LOCALE;
+    LOCALE_INCLUDE_PARAMS_OF_LOCALE;
     REBSTR *cat = VAL_WORD_CANON(ARG(category));
     LCTYPE type;
     if (cat == LOCALE_WORD_LANGUAGE) {
@@ -119,7 +119,7 @@ REBNATIVE(locale)
 //
 REBNATIVE(setlocale)
 {
-    INCLUDE_PARAMS_OF_SETLOCALE;
+    LOCALE_INCLUDE_PARAMS_OF_SETLOCALE;
 
     struct cat_pair {
         REBSTR *word;
