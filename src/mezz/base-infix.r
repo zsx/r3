@@ -280,22 +280,26 @@ else*: enfix redescribe [
 ;
 ; https://github.com/rebol/rebol-issues/issues/1879
 ;
-; To achieve short-circuiting, the right hand side is a quoted GROUP!.  If
-; if it were a BLOCK! passed normally it would confuse people who wrote
-; `block1 or block2` and had the first tested for logic and the second run
-; as code.  It would have to be quoted, and quoting a group makes more sense.
+; To achieve short-circuiting, the right hand side must be in an ANY-ARRAY!,
+; so the proper amount of code can be skipped.  This array is *quoted*, to
+; prevent accidents like:
 ;
-; For predictability when dealing with LOGIC!, input of a LOGIC! type to the
-; left will always give a LOGIC! result...whether the short circuit branch
-; runs or not.  More flexibility is offered when the left hand value is not
-; a LOGIC!, so the operation can return arbitrary values, more like ANY []
-; or ALL [].  This makes them useful as variants of ELSE and ALSO which do
-; conditional logic on their left (vs. testing for void).
+;     var1: false
+;     var2: [format hard drive]
 ;
-; XOR is a little weirder since it can't short-circuit (always evaluates both
-; of the branches) but it is able to chain, and it kind of makes since that it
-; would differentiate its syntax on the left and the right, both for a
-; consistent look as well as to signal the left argument cues the return type.
+;     if var1 or var2 [...would execute var2 as code...] 
+;
+; To allow one to indicate a pure LOGIC! result is desired, the right hand
+; side being a GROUP! signals forcing the result to a LOGIC!--as well as not
+; accepting voids as the evaluative result of the right hand side.  But if a
+; BLOCK! is given on the right, it will return arbitrary values or BLANK!,
+; thus acting more like ANY [] or ALL [].  This makes OR and AND useful as
+; variants of ELSE and ALSO which are triggered by conditional logic on their
+; left (vs. testing for void).
+;
+; XOR follows the convention as well, even though it can't short circuit
+; (right must always be evaluated).  It still gets benefit from cueing the
+; LOGIC! vs ANY-VALUE! distinction in its results.
 ;
 ; !!! NAND and NOR don't look very good because `if foo nor (bar)` seems to
 ; need a "neither" in front of it.  Review if these should exist or not.
@@ -311,7 +315,7 @@ and: enfix func [
         {Quoted expression, evaluated unless left is blank or FALSE}
 ][
     either group? right [
-        did all [:left | do right]
+        did all [:left | really* do right]
     ][
         all [:left | do right]
     ]
@@ -328,7 +332,7 @@ or: enfix func [
         {Quoted expression, evaluated only if left is blank or FALSE}
 ][
     either group? right [
-        did any [:left | do right]
+        did any [:left | really* do right]
     ][
         any [:left | do right]
     ]
@@ -346,15 +350,15 @@ xor: enfix func [
 ][
     either group? right [
         did either not :left [
-            do right
+            really do right
         ][
-            all [not do right | :left]
+            all [not really* do right | :left]
         ]
     ][
         either not :left [
             do right
         ][
-            all [not do right | :left]
+            all [not really* do right | :left]
         ]
     ]
 ]
