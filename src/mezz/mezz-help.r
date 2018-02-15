@@ -463,7 +463,7 @@ help: procedure [
     ]
 
     unless function? :value [
-        print collect [
+        print spaced collect [
             keep [
                 (uppercase mold topic) "is" (type-name :value) "of value:"
             ]
