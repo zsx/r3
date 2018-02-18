@@ -442,13 +442,9 @@ REBNATIVE(c_debug_break)
 REBNATIVE(test)
 {
     INCLUDE_PARAMS_OF_TEST;
+    UNUSED(ARG(value));
 
-    REBVAL *ten = rebInteger(10);
-
-    rebPrint("{We are reducing the sum of}", ten, "{and}", ARG(value), END);
-
-    REBVAL *temp = rebDo("reduce [", ten, "+", ARG(value), "]", END);
-    rebRelease(ten);
+    REBVAL *temp = rebDo("trap [x: 10]", END);
 
     if (temp == NULL) { // bounce the error back
         REBVAL *last = rebLastError();

@@ -426,13 +426,19 @@ detect_again:
         // binding?  With the scanner being a black box here as it is, there's
         // no way to discern spliced in values from those created from
         // string runs.  As proof of concept for the moment, run everything
-        // through a user context binding...which is *not* a solution.
-
+        // through a console-like binding...which is *not* a solution.
+        //
+        // https://forum.rebol.info/t/how-r3-alpha-console-binding-worked/534
+        //
         REBCTX *user_context = VAL_CONTEXT(
             Get_System(SYS_CONTEXTS, CTX_USER)
         );
-        Bind_Values_Set_Midstream_Shallow(ARR_HEAD(a), user_context);
-        Bind_Values_Deep(ARR_HEAD(a), Lib_Context);
+        DECLARE_LOCAL (vali);
+        Init_Integer(vali, CTX_LEN(user_context) + 1);
+        Bind_Values_All_Deep(ARR_HEAD(a), user_context);
+        const REBOOL all = FALSE;
+        const REBOOL expand = FALSE;
+        Resolve_Context(user_context, Lib_Context, vali, all, expand); 
         Deep_Freeze_Array(a);
 
         // !!! We really should be able to free this array without managing it

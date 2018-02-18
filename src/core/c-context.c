@@ -218,6 +218,11 @@ REBVAL *Append_Context(
 
     // Add the key to key list
     //
+    // !!! This doesn't seem to consider the shared flag of the keylist (?)
+    // though the callsites seem to pre-expand with consideration for that.
+    // Review why this is expanding when the callers are expanding.  Should
+    // also check that redundant keys aren't getting added here.
+    //
     EXPAND_SERIES_TAIL(SER(keylist), 1);
     REBVAL *key = SINK(ARR_LAST(keylist));
     Init_Typeset(

@@ -90,23 +90,6 @@ static void Bind_Values_Inner_Loop(
                 flags
             );
         }
-        else if (
-            IS_FUNCTION(v)
-            && IS_FUNCTION_INTERPRETED(v)
-            && (flags & BIND_FUNC)
-        ) {
-            // !!! Likely-to-be deprecated functionality--rebinding inside the
-            // content of an already formed function.  :-/
-            //
-            Bind_Values_Inner_Loop(
-                binder,
-                VAL_FUNC_BODY(v),
-                context,
-                bind_types,
-                add_midstream_types,
-                flags
-            );
-        }
     }
 }
 

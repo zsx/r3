@@ -133,8 +133,7 @@ inline static REBOOL Is_Overriding_Context(REBCTX *stored, REBCTX *override)
 // Modes allowed by Bind related functions:
 enum {
     BIND_0 = 0, // Only bind the words found in the context.
-    BIND_DEEP = 1 << 1, // Recurse into sub-blocks.
-    BIND_FUNC = 1 << 2 // Recurse into functions.
+    BIND_DEEP = 1 << 1 // Recurse into sub-blocks.
 };
 
 
