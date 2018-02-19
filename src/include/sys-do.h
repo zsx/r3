@@ -438,8 +438,23 @@ detect_again:
         Bind_Values_All_Deep(ARR_HEAD(a), user_context);
         const REBOOL all = FALSE;
         const REBOOL expand = FALSE;
-        Resolve_Context(user_context, Lib_Context, vali, all, expand); 
-        Deep_Freeze_Array(a);
+        Resolve_Context(user_context, Lib_Context, vali, all, expand);
+
+        // Lock any series which were source-level and came from text runs
+        //
+        // !!! We hackily determine this with VALUE_FLAG_EVAL_FLIP since we
+        // know all text runs had them, but it could also come from rebEval()
+        //
+        RELVAL *item = ARR_HEAD(a);
+        for (; NOT_END(item); ++item) {
+            if (NOT_VAL_FLAG(item, VALUE_FLAG_EVAL_FLIP))
+                continue;
+
+            if (ANY_ARRAY(item))
+                Deep_Freeze_Array(VAL_ARRAY(item));
+            else if (ANY_SERIES(item))
+                Freeze_Sequence(VAL_SERIES(item));
+        }
 
         // !!! We really should be able to free this array without managing it
         // when we're done with it, though that can get a bit complicated if

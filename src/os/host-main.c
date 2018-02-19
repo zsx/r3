@@ -38,18 +38,6 @@
 //
 // https://msdn.microsoft.com/en-us/library/ms682087.aspx
 //
-// !!! Originally %host-main.c was a client of the %reb-host.h (RL_Api).  It
-// did not have access to things like the definition of a REBVAL or a REBSER.
-// The sparse and convoluted nature of the RL_Api presented an awkward
-// barrier, and the "sample console" stagnated as a result.
-//
-// In lieu of a suitable "abstracted" variant of the core services--be that
-// an evolution of RL_Api or otherwise--the console now links directly
-// against the Ren-C core.  This provides full access to the routines and
-// hooks necessary to evolve the console if one were interested.  (The GUI
-// inteface Ren Garden is the flagship console for Ren-C, so that is where
-// most investment will be made.)
-//
 
 #include <stdlib.h>
 #include <string.h>
@@ -315,7 +303,7 @@ int main(int argc, char **argv_ansi)
     // That way the command line argument processing can be taken care of by
     // PARSE instead of C code!
     //
-    REBARR *argv = Make_Array(argc);
+    REBVAL *argv_block = rebBlock(END);
 
 #ifdef TO_WINDOWS
     UNUSED(argv_ansi);
@@ -325,47 +313,30 @@ int main(int argc, char **argv_ansi)
     // since we're using an ordinary main() we do not.  However, this call
     // lets us slip out and pick up the arguments in Unicode form.
     //
-    wchar_t **argv_utf16 = cast(
-        wchar_t**, CommandLineToArgvW(GetCommandLineW(), &argc)
-    );
-    int i = 0;
-    for (; i < argc; ++i) {
+    WCHAR **argv_utf16 = CommandLineToArgvW(GetCommandLineW(), &argc);
+    
+    int i;
+    for (i = 0; i < argc; ++i) {
         if (argv_utf16[i] == NULL)
-            continue; // shell bug
+            continue; // !!! Comment here said "shell bug" (?)
 
-        static_assert_c(sizeof(REBUNI) == sizeof(wchar_t));
-
-        Init_String(
-            Alloc_Tail_Array(argv),
-            Make_UTF16_May_Fail(cast(REBUNI*, argv_utf16[i]))
-        );
+        REBVAL *arg = rebStringW(argv_utf16[i]);
+        rebRelease(rebDo("append", argv_block, arg, END));
+        rebRelease(arg);
     }
 #else
-    // Assume no wide character support, and just take the ANSI C args, which
-    // should ideally be in UTF8
+    // Just take the ANSI C "char*" args...which should ideally be in UTF8.
     //
     int i = 0;
     for (; i < argc; ++i) {
         if (argv_ansi[i] == NULL)
-            continue; // shell bug
+            continue; // !!! Comment here said "shell bug" (?)
 
-        Init_String(
-            Alloc_Tail_Array(argv), Make_UTF8_May_Fail(cb_cast(argv_ansi[i]))
-        );
+        REBVAL *arg = rebString(argv_ansi[i]);
+        rebRelease(rebDo("append", argv_block, arg, END));
+        rebRelease(arg);
     }
 #endif
-
-    // !!! Note that the first element of the argv_value block is used to
-    // initialize system/options/boot by the startup code.  The real way to
-    // get the path to the executable varies by OS, and should either be
-    // passed in independently (with no argv[0]) or substituted in the first
-    // element of the array:
-    //
-    // http://stackoverflow.com/a/933996/211160
-    //
-    DECLARE_LOCAL (argv_value);
-    Init_Block(argv_value, argv);
-    PUSH_GUARD_VALUE(argv_value);
 
 #ifdef TO_WINDOWS
     // no console, we must be the child process
@@ -496,7 +467,7 @@ int main(int argc, char **argv_ansi)
     //
     // Note that `result`, `code`, and status have to be freed each loop ATM.
     //
-    REBVAL *result = rebBlock(exec_path, argv_value, ext_value, END);
+    REBVAL *result = rebBlock(exec_path, argv_block, ext_value, END);
     REBVAL *code = rebVoid();
     REBVAL *status = rebVoid();
 
@@ -526,7 +497,6 @@ int main(int argc, char **argv_ansi)
         // does not come back NULL indicating a failure).
         //
         REBVAL *new_code = rebDo(
-            BLANK_VALUE, // hack around rebEval() not allowed yet in first slot
             rebEval(host_console), // HOST-CONSOLE function (run it)
             code, // GROUP! or BLOCK! that was executed prior below (or void)
             result, // result of evaluating previous code (void if error)
@@ -621,7 +591,7 @@ int main(int argc, char **argv_ansi)
     rebRelease(code);
     rebRelease(result);
 
-    DROP_GUARD_VALUE(argv_value);
+    rebRelease(argv_block);
 
     SHUTDOWN_BOOT_EXTENSIONS();
 
