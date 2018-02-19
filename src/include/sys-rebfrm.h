@@ -702,12 +702,6 @@ struct Reb_Frame {
     //
     const char *file; // is REBYTE (UTF-8), but char* for debug watch
     int line;
-
-    // `kind` [DEBUG]
-    //
-    // The fetching mechanics cache the type of f->value
-    //
-    enum Reb_Kind kind;
   #endif
 
   #if defined(DEBUG_BALANCE_STATE)

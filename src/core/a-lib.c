@@ -398,7 +398,7 @@ void RL_rebShutdown(REBOOL clean)
 // if some routines...like rebDo() and rebPrint()...would not handle splices
 // as evaluative:
 //
-// https://forum.rebol.info/t/should-word-path-function-be-live-by-default-in-rebdo/371
+// https://forum.rebol.info/t/371
 //
 static REBARR* Array_From_Vaptr_Maybe_Null(
     const void *p,

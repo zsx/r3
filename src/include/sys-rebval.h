@@ -89,12 +89,9 @@
 // up makes it easy for recipients to decide if they are interested in throws
 // of that type or not--after which they can request the thrown value.
 //
-// R3-Alpha code would frequently forget to check for thrown values, and
-// wind up acting as if they did not happen.  In addition to enforcing that
-// all thrown values are handled by entering a "thrown state" for the
-// interpreter, all routines that can potentially return thrown values
-// have been adapted to return a boolean and adopt the XXX_Throws()
-// naming convention:
+// Routines that can potentially return thrown values hint this by returning a
+// boolean and adopting the XXX_Throws() naming convention, making it harder
+// to forget to check for the condition, e.g.:
 //
 //     if (XXX_Throws()) {
 //        /* handling code */
@@ -111,8 +108,9 @@
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // This flag is used as a quick cache on BLANK! or LOGIC! false values.
-// These are the only two values that return true from the FALSE? native
-// (a.k.a. "conditionally false").  All other types are TRUE?.
+// These are the only two values that return true from the NOT native
+// (a.k.a. "conditionally false").  All other types return true from TO-LOGIC
+// or its synonym, "DID".
 //
 // Because of this cached bit, LOGIC! does not need to store any data in its
 // payload... its data of being true or false is already covered by this
@@ -536,13 +534,6 @@ struct Reb_Any_Context {
 };
 
 
-// The order in which refinements are defined in a function spec may not match
-// the order in which they are mentioned on a path.  As an efficiency trick,
-// a word on the data stack representing a refinement usage request can be
-// mutated to store the pointer to its `param` and `arg` positions, so that
-// they may be returned to after the later-defined refinement has had its
-// chance to take the earlier fulfillments.
-//
 struct Reb_Varargs {
     //
     // If the extra->binding of the varargs is not UNBOUND, it represents the
@@ -823,7 +814,7 @@ struct Reb_Cell
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // A RELVAL is an equivalent struct layout to to REBVAL, but is allowed to
-// have the relative bit set.  Hence a relative value pointer can point to a
+// have a REBFUN* as its binding.  A relative value pointer can point to a
 // specific value, but a relative word or array cannot be pointed to by a
 // plain REBVAL*.  The RELVAL-vs-REBVAL distinction is purely commentary
 // in the C build, but the C++ build makes REBVAL a type derived from RELVAL.

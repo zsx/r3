@@ -454,11 +454,6 @@ detect_again:
         f->source.index = 1;
 
         assert(GET_SER_FLAG(f->source.array, ARRAY_FLAG_VOIDS_LEGAL));
-
-      #if !defined(NDEBUG)
-        f->kind = VAL_TYPE(f->value);
-      #endif
-
         break; }
 
     case DETECTED_AS_SERIES: {
@@ -490,10 +485,6 @@ detect_again:
         f->value = ARR_SINGLE(eval);
         assert(GET_VAL_FLAG(f->value, VALUE_FLAG_EVAL_FLIP));
         f->flags.bits |= DO_FLAG_VALUE_IS_INSTRUCTION;
- 
-      #if !defined(NDEBUG)
-        f->kind = VAL_TYPE(f->value);
-      #endif
         break; }
 
     case DETECTED_AS_FREED_SERIES:
@@ -502,9 +493,6 @@ detect_again:
     case DETECTED_AS_VALUE:
         f->source.array = NULL;
         f->value = cast(const RELVAL*, p); // not END, detected separately
-      #if !defined(NDEBUG)
-        f->kind = VAL_TYPE(f->value);
-      #endif
         assert(
             (
                 IS_VOID(f->value)
@@ -519,10 +507,7 @@ detect_again:
         // the line.  va_end() is taken care of by Drop_Frame_Core()
         //
         f->value = NULL;
-      #if !defined(NDEBUG)
-        f->kind = REB_0;
         TRASH_POINTER_IF_DEBUG(f->source.pending);
-      #endif
         break; }
 
     case DETECTED_AS_TRASH_CELL:
@@ -571,9 +556,6 @@ inline static const RELVAL *Fetch_Next_In_Frame(REBFRM *f) {
 
         lookback = f->value;
         f->value = f->source.pending;
-      #if !defined(NDEBUG)
-        f->kind = VAL_TYPE(f->value);
-      #endif
 
         ++f->source.pending; // might be becoming an END marker, here
         ++f->source.index;
@@ -585,10 +567,7 @@ inline static const RELVAL *Fetch_Next_In_Frame(REBFRM *f) {
         //
         lookback = f->value;
         f->value = NULL;
-      #if !defined(NDEBUG)
-        f->kind = REB_0;
         TRASH_POINTER_IF_DEBUG(f->source.pending);
-      #endif
     }
     else {
         // A variadic can source arbitrary pointers, which can be detected
@@ -701,19 +680,15 @@ inline static REBOOL Do_Next_In_Subframe_Throws(
 
     DECLARE_FRAME (child);
 
-    child->gotten = parent->gotten;
-
     child->out = out;
 
     // !!! Should they share a source instead of updating?
+    //
     child->source = parent->source;
-
     child->value = parent->value;
-  #if !defined(NDEBUG)
-    child->kind = parent->kind;
-  #endif
-
+    child->gotten = parent->gotten;
     child->specifier = parent->specifier;
+
     Init_Endlike_Header(&child->flags, flags);
 
     Push_Frame_Core(child);
@@ -728,14 +703,11 @@ inline static REBOOL Do_Next_In_Subframe_Throws(
     );
 
     // !!! Should they share a source instead of updating?
+    //
     parent->source = child->source;
-
     parent->value = child->value;
-  #if !defined(NDEBUG)
-    parent->kind = child->kind;
-  #endif
-
     parent->gotten = child->gotten;
+    assert(parent->specifier == child->specifier); // !!! can't change?
 
     return THROWN(out);
 }

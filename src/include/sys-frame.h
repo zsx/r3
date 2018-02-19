@@ -273,13 +273,6 @@ inline static const REBYTE* Frame_Label_Or_Anonymous_UTF8(REBFRM *f) {
 inline static void SET_FRAME_VALUE(REBFRM *f, const RELVAL* value) {
     assert(f->gotten == END); // is fetched f->value, we'd be invalidating it!
 
-#if !defined(NDEBUG)
-    if (IS_END(value))
-        f->kind = REB_0;
-    else
-        f->kind = VAL_TYPE(value);
-#endif
-
     if (IS_END(value))
         f->value = NULL;
     else

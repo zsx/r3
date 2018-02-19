@@ -161,8 +161,6 @@ static void Do_Core_Shared_Checks_Debug(REBFRM *f) {
     if (NOT_END(f->out) && THROWN(f->out))
         return;
 
-    assert(f->kind == VAL_TYPE(f->value));
-
     //=//// v-- BELOW CHECKS ONLY APPLY IN EXITS CASE WITH MORE CODE //////=//
 
     // The eval_type is expected to be calculated already.  Should match
