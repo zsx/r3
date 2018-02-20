@@ -62,12 +62,13 @@ emit-include-params-macro: procedure [
     e [object!] "where to emit (see %common-emitters.r)"
     word [word!] "name of the native"
     paramlist [block!] "paramlist of the native"
+    /ext ext-name
 ][
     ; start emitting what will be a multi line macro (backslash as last
     ; character on line is how macros span multiple lines in C).
     ;
     e/emit-line [
-        {#define} space "INCLUDE_PARAMS_OF_" (uppercase to-c-name word)
+        {#define} space either ext [unspaced [ext-name "_"]][""] "INCLUDE_PARAMS_OF_" (uppercase to-c-name word)
         space "\"
     ]
 

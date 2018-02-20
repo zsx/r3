@@ -55,7 +55,7 @@ extern void jpeg_load(char *buffer, int nbytes, char *output);
 //
 REBNATIVE(identify_jpeg_q)
 {
-    INCLUDE_PARAMS_OF_IDENTIFY_JPEG_Q;
+    JPG_INCLUDE_PARAMS_OF_IDENTIFY_JPEG_Q;
 
     // Handle JPEG error throw:
     if (setjmp(jpeg_state)) {
@@ -82,7 +82,7 @@ REBNATIVE(identify_jpeg_q)
 //
 REBNATIVE(decode_jpeg)
 {
-    INCLUDE_PARAMS_OF_DECODE_JPEG;
+    JPG_INCLUDE_PARAMS_OF_DECODE_JPEG;
 
     // Handle JPEG error throw:
     if (setjmp(jpeg_state)) {

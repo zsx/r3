@@ -126,7 +126,7 @@ REBNATIVE(make_routine)
 // !!! Would be nice if this could just take a filename and the lib management
 // was automatic, e.g. no LIBRARY! type.
 {
-    INCLUDE_PARAMS_OF_MAKE_ROUTINE;
+    FFI_INCLUDE_PARAMS_OF_MAKE_ROUTINE;
 
     ffi_abi abi;
     if (REF(abi))
@@ -193,7 +193,7 @@ REBNATIVE(make_routine_raw)
 // !!! Would be nice if this could just take a filename and the lib management
 // was automatic, e.g. no LIBRARY! type.
 {
-    INCLUDE_PARAMS_OF_MAKE_ROUTINE_RAW;
+    FFI_INCLUDE_PARAMS_OF_MAKE_ROUTINE_RAW;
 
     ffi_abi abi;
     if (REF(abi))
@@ -237,7 +237,7 @@ REBNATIVE(make_routine_raw)
 //
 REBNATIVE(wrap_callback)
 {
-    INCLUDE_PARAMS_OF_WRAP_CALLBACK;
+    FFI_INCLUDE_PARAMS_OF_WRAP_CALLBACK;
 
     ffi_abi abi;
     if (REF(abi))
@@ -303,7 +303,7 @@ REBNATIVE(wrap_callback)
 //  ]
 //
 REBNATIVE(addr_of) {
-    INCLUDE_PARAMS_OF_ADDR_OF;
+    FFI_INCLUDE_PARAMS_OF_ADDR_OF;
 
     REBVAL *v = ARG(value);
 
@@ -356,7 +356,7 @@ REBNATIVE(make_similar_struct)
 // re-use of the structure's field definitions, so it is a means of saving on
 // memory (?)  Code retained for examination.
 {
-    INCLUDE_PARAMS_OF_MAKE_SIMILAR_STRUCT;
+    FFI_INCLUDE_PARAMS_OF_MAKE_SIMILAR_STRUCT;
 
     REBVAL *spec = ARG(spec);
     REBVAL *body = ARG(body);
@@ -385,7 +385,7 @@ REBNATIVE(make_similar_struct)
 //
 REBNATIVE(destroy_struct_storage)
 {
-    INCLUDE_PARAMS_OF_DESTROY_STRUCT_STORAGE;
+    FFI_INCLUDE_PARAMS_OF_DESTROY_STRUCT_STORAGE;
 
     REBSER *data = ARG(struct)->payload.structure.data;
     if (NOT_SER_FLAG(data, SERIES_FLAG_ARRAY))
@@ -430,7 +430,7 @@ REBNATIVE(alloc_value_pointer)
 // !!! Would it be better to not bother with the initial value parameter and
 // just start the cell out void?
 {
-    INCLUDE_PARAMS_OF_ALLOC_VALUE_POINTER;
+    FFI_INCLUDE_PARAMS_OF_ALLOC_VALUE_POINTER;
 
     REBVAL *paired = Alloc_Pairing(NULL); // no owning frame
     Move_Value(paired, ARG(value));
@@ -463,7 +463,7 @@ REBNATIVE(alloc_value_pointer)
 //
 REBNATIVE(free_value_pointer)
 {
-    INCLUDE_PARAMS_OF_FREE_VALUE_POINTER;
+    FFI_INCLUDE_PARAMS_OF_FREE_VALUE_POINTER;
 
     REBVAL *paired = cast(REBVAL*, cast(REBUPT, VAL_INT64(ARG(pointer))));
 
@@ -517,7 +517,7 @@ REBNATIVE(get_at_pointer)
 // such mechanisms have been designed yet.  In the meantime, the interface
 // for GET-AT-POINTER should not deviate too far from GET.
 {
-    INCLUDE_PARAMS_OF_GET_AT_POINTER;
+    FFI_INCLUDE_PARAMS_OF_GET_AT_POINTER;
 
     REBVAL *paired = cast(REBVAL*, cast(REBUPT, VAL_INT64(ARG(source))));
     if (IS_VOID(paired) && NOT(REF(only)))
@@ -549,7 +549,7 @@ REBNATIVE(set_at_pointer)
 // !!! See notes on GET-AT-POINTER about keeping interface roughly compatible
 // with the SET native.
 {
-    INCLUDE_PARAMS_OF_SET_AT_POINTER;
+    FFI_INCLUDE_PARAMS_OF_SET_AT_POINTER;
 
     if (IS_VOID(ARG(value)) && NOT(REF(only)))
         fail (Error_No_Value(ARG(value)));

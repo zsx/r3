@@ -59,7 +59,7 @@
 //
 static REBNATIVE(generate)
 {
-    INCLUDE_PARAMS_OF_GENERATE;
+    UUID_INCLUDE_PARAMS_OF_GENERATE;
 
 #ifdef TO_WINDOWS
     UUID uuid;

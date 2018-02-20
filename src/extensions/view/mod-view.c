@@ -126,7 +126,7 @@ REBOOL osDialogOpen = FALSE;
 //
 REBNATIVE(request_file_p)
 {
-    INCLUDE_PARAMS_OF_REQUEST_FILE_P;
+    VIEW_INCLUDE_PARAMS_OF_REQUEST_FILE_P;
 
     // Files to return will be collected and returned on the stack
     //
@@ -565,7 +565,7 @@ REBNATIVE(request_dir_p)
 // The code that was there has been resurrected well enough to run, but is
 // currently disabled to avoid the OLE32 dependency.
 {
-    INCLUDE_PARAMS_OF_REQUEST_DIR_P;
+    VIEW_INCLUDE_PARAMS_OF_REQUEST_DIR_P;
 
     REBCTX *error = NULL;
 
