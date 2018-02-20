@@ -89,7 +89,7 @@ emit-proto: proc [proto] [
     fn.name: copy/part pos.id pos.lparen
     fn.name.upper: uppercase copy fn.name
     fn.name.lower: lowercase copy find/tail fn.name "RL_"
-	fn.args: copy/part next pos.lparen back tail proto
+    fn.args: copy/part next pos.lparen back tail proto
 
     append lib-struct-fields unspaced [
         fn.declarations "(*" fn.name.lower ")" pos.lparen ";"
@@ -112,10 +112,10 @@ emit-proto: proc [proto] [
     ]
 
     append cwrap-items reduce [
-		fn.declarations
-		fn.name
-		fn.args
-	]
+        fn.declarations
+        fn.name
+        fn.args
+    ]
 ]
 
 process: func [file] [
@@ -250,21 +250,21 @@ e-table/emit-line "};"
 e-table/write-emitted
 
 arg-to-js: func [s [string!]][
-	return case [
-		parse s [thru "char" some space "*" to end] ["'string'"]
-		find s "*" ["'number'"]
-		find s "[" ["'array'"]
-		parse/case s [
-			any space opt ["const" some space]
-			[ "REBCNT" | "REBOOL" | "REBDEC"
-			| "REBI64" | "REBRXT" | "REBUNI"
-			| "int" | "long" |"unsigned"
-			]
-			to END
-		] ["'number'"]
-		parse s ["void" any space] ["null"]
-		/else [to-tag s]
-	]
+    return case [
+        parse s [thru "char" some space "*" to end] ["'string'"]
+        find s "*" ["'number'"]
+        find s "[" ["'array'"]
+        parse/case s [
+            any space opt ["const" some space]
+            [ "REBCNT" | "REBOOL" | "REBDEC"
+            | "REBI64" | "REBRXT" | "REBUNI"
+            | "int" | "long" |"unsigned"
+            ]
+            to END
+        ] ["'number'"]
+        parse s ["void" any space] ["null"]
+        /else [to-tag s]
+    ]
 ]
 
 e-cwrap: (make-emitter
@@ -272,42 +272,77 @@ e-cwrap: (make-emitter
 )
 
 map-names: [
-	"rebMoldAlloc" "rebMold"
-	"rebSpellingOfAlloc" "rebSpellingOf"
+    "rebMoldAlloc" "rebMold"
+    "rebSpellingOfAlloc" "rebSpellingOf"
+    _ "rebDo" ;skip rebDo
 ]
 
 for-each [result RL_name args] cwrap-items [
-	args: split args ","
-	result: arg-to-js result
-	rebName: at RL_name 4
-	if find/skip (next map-names) rebName 2 [
-		print ["Skipping" rebName] continue
-	]
-	line: unspaced [
-		rebName " = Module.cwrap('"
-		RL_name "', "
-		either result = "'string'" ["'number'"][result] ", ["
-		delimit
-			map-each x args [arg-to-js x]
-			", "
-		"]);"
-	]
-	e-cwrap/emit-line either find line "<" ;\
-		[spaced ["// Unknown type: <...> --" line]]
-		[line]
-	if not (find/skip map-names rebName 2) [continue] 
-	;; emit JS variant
-	js-name: map-names/:rebName
-	for-next args [args/1: unspaced ["x" index-of args]]
-	args: delimit args ","
-	line: unspaced [
-		js-name " = function(" args
-		") {var p = " rebName "(" args
-		"); var s = Pointer_stringify(p); rebFree(p); return s};"
-	]
-	e-cwrap/emit-line either find line "<"
-		[spaced ["// Unknown type: <...> --" line]]
-		[line]
+    args: split args ","
+    result: arg-to-js result
+    rebName: at RL_name 4
+    if find/skip (next map-names) rebName 2 [
+        print ["Skipping" rebName] continue
+    ]
+    line: unspaced [
+        rebName " = Module.cwrap('"
+        RL_name "', "
+        either result = "'string'" ["'number'"][result] ", ["
+        delimit
+            map-each x args [arg-to-js x]
+            ", "
+        "]);"
+    ]
+    e-cwrap/emit-line either find line "<" ;\
+        [spaced ["// Unknown type: <...> --" line]]
+        [line]
+    if not (find/skip map-names rebName 2) [continue] 
+    ;; emit JS variant
+    js-name: map-names/:rebName
+    for-next args [args/1: unspaced ["x" index-of args]]
+    args: delimit args ","
+    line: unspaced [
+        js-name " = function(" args
+        ") {var p = " rebName "(" args
+        "); var s = Pointer_stringify(p); rebFree(p); return s};"
+    ]
+    e-cwrap/emit-line either find line "<"
+        [spaced ["// Unknown type: <...> --" line]]
+        [line]
+]
+
+extra-js-defs: {
+rebDo = function() {
+    var argc = arguments.length;
+    var va = allocate(4 * (argc+1), '', ALLOC_STACK);
+    var a, i, l, p;
+    for (i=0; i<argc; i++) {
+        a = arguments[i];
+        switch (typeof a) {
+        case 'string':
+            l = lengthBytesUTF8(a) + 4;
+            l = l&~3
+            p = allocate(l, '', ALLOC_STACK);
+            stringToUTF8(a, p, l);
+            break;
+        case 'number':
+            p = a;
+            break;
+        default:
+            throw new Error("Invalid type!");
+        }
+        HEAP32[(va>>2)+i] = p;
+    }
+    HEAP32[(va>>2)+argc] = _RL_rebEnd();
+    return _RL_rebDo(HEAP32[va>>2], va+4);
+}
+
+rebForm = function(s) {
+    return rebSpellingOf(0, rebDo('form', s));
+}}
+
+for-each l split extra-js-defs newline [
+    e-cwrap/emit-line l
 ]
 
 e-cwrap/write-emitted
