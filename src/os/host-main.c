@@ -314,7 +314,7 @@ int main(int argc, char **argv_ansi)
     // lets us slip out and pick up the arguments in Unicode form.
     //
     WCHAR **argv_utf16 = CommandLineToArgvW(GetCommandLineW(), &argc);
-    
+
     int i;
     for (i = 0; i < argc; ++i) {
         if (argv_utf16[i] == NULL)

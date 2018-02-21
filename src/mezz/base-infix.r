@@ -287,7 +287,7 @@ else*: enfix redescribe [
 ;     var1: false
 ;     var2: [format hard drive]
 ;
-;     if var1 or var2 [...would execute var2 as code...] 
+;     if var1 or var2 [...would execute var2 as code...]
 ;
 ; To allow one to indicate a pure LOGIC! result is desired, the right hand
 ; side being a GROUP! signals forcing the result to a LOGIC!--as well as not

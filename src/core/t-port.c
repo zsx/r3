@@ -190,6 +190,19 @@ REBTYPE(Port)
         break;
     }
 
+    // !!! The ability to transform some BLOCK!s into PORT!s for some actions
+    // was hardcoded in a fairly ad-hoc way in R3-Alpha, which was based on
+    // an integer range of action numbers.  Ren-C turned these numbers into
+    // symbols, where order no longer applied.  The mechanism needs to be
+    // rethought, see:
+    //
+    // https://github.com/metaeducation/ren-c/issues/311
+    //
+    // This prevents a crash but doesn't address the design issue.
+    //
+    if (NOT(IS_PORT(D_ARG(1))))
+        fail (Error_Illegal_Action(VAL_TYPE(D_ARG(1)), action));
+
     REB_R r = Context_Common_Action_Maybe_Unhandled(frame_, action);
     if (r != R_UNHANDLED)
         return r;

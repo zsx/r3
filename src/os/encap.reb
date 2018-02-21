@@ -267,7 +267,7 @@ elf-format: context [
         <in> self
     ][
         assert [e_phoff < offset] ;-- program headers are before any changes
-        
+
         parse skip executable e_phoff [
             e_phnum [
                 (mode: 'read) pos: program-header-rule
@@ -280,7 +280,7 @@ elf-format: context [
         ]
 
         assert [e_shoff >= offset] ;-- section headers are after any changes
-        
+
         parse skip executable e_shoff [
             e_shnum [
                 (mode: 'read) pos: section-header-rule
@@ -324,7 +324,7 @@ elf-format: context [
         ; (at index `e_shstrndx`)
         ;
         string-header-offset: e_shoff + (e_shstrndx * e_shentsize)
-        
+
         parse skip executable string-header-offset [
             (mode: 'read) section-header-rule to end
         ] or [
