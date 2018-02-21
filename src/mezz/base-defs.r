@@ -75,6 +75,16 @@ elide: func [
     ; no body
 ]
 
+end: func [
+    {Inertly consumes all subsequent data, evaluating to previous result.}
+
+    return: []
+    :omit [<opt> any-value! <...>]
+][
+    until [tail? omit] [take omit]
+]
+
+
 ; Despite being very "noun-like", HEAD and TAIL have classically been "verbs"
 ; in Rebol.  Ren-C builds on the concept of REFLECT, so that REFLECT STR 'HEAD
 ; will get the head of a string.  An enfix left-soft-quoting operation is

@@ -776,7 +776,7 @@ inline static REBIXO DO_NEXT_MAY_THROW(
     SET_FRAME_VALUE(f, ARR_AT(array, index));
 
     if (FRM_AT_END(f)) {
-        Init_Void(out);
+        Init_Endish_Void(out);
         return END_FLAG;
     }
 
@@ -798,8 +798,12 @@ inline static REBIXO DO_NEXT_MAY_THROW(
     if (THROWN(out))
         return THROWN_FLAG;
 
-    if (FRM_AT_END(f))
+    if (FRM_AT_END(f)) {
+        if (IS_END(out))
+            Init_Endish_Void(out);
+
         return END_FLAG;
+    }
 
     assert(f->source.index > 1);
     return f->source.index - 1;
@@ -837,7 +841,7 @@ inline static REBIXO Do_Array_At_Core(
     }
 
     if (FRM_AT_END(f)) {
-        Init_Void(out);
+        Init_Endish_Void(out);
         return END_FLAG;
     }
 
@@ -854,7 +858,14 @@ inline static REBIXO Do_Array_At_Core(
     if (THROWN(f->out))
         return THROWN_FLAG;
 
-    return FRM_AT_END(f) ? END_FLAG : f->source.index;
+    if (FRM_AT_END(f)) {
+        if (IS_END(f->out))
+            Init_Endish_Void(f->out);
+
+        return END_FLAG;
+    }
+
+    return f->source.index;
 }
 
 

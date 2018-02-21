@@ -1025,7 +1025,7 @@ reevaluate:;
                     if (NOT_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
                         fail (Error_No_Arg(f, f->param));
 
-                    Init_Void(f->arg);
+                    Init_Endish_Void(f->arg);
                     goto continue_arg_loop;
                 }
 
@@ -1187,7 +1187,7 @@ reevaluate:;
                     fail (Error_No_Arg(f, f->param));
 
                 Prep_Stack_Cell(f->arg);
-                Init_Void(f->arg);
+                Init_Endish_Void(f->arg);
                 goto continue_arg_loop;
             }
 
@@ -1217,7 +1217,7 @@ reevaluate:;
                     fail (Error_Expression_Barrier_Raw());
 
                 Prep_Stack_Cell(f->arg);
-                Init_Void(f->arg);
+                Init_Endish_Void(f->arg);
                 goto continue_arg_loop;
             }
 
@@ -1300,6 +1300,19 @@ reevaluate:;
             // a void arg signals the revocation of a refinement usage.
 
         check_arg:;
+            if (IS_END(f->arg)) {
+                //
+                // This can happen, e.g. with `do [1 + comment "foo"]`.  The
+                // theory being that it should behave no differently than
+                // `do [1 +]`, so Do_Core() has to be able to return END.
+                //
+                if (NOT_VAL_FLAG(f->param, TYPESET_FLAG_ENDABLE))
+                    fail (Error_No_Arg(f, f->param));
+
+                Init_Endish_Void(f->arg);
+                goto continue_arg_loop;
+            }
+
             ASSERT_VALUE_MANAGED(f->arg);
             assert(pclass != PARAM_CLASS_REFINEMENT);
             assert(pclass != PARAM_CLASS_LOCAL);
@@ -1654,46 +1667,30 @@ reevaluate:;
             // no output in the cell yet (e.g. `do [comment "hi" ...]`) so it
             // would still be END after the fact.
             //
+            // !!! Ideally we would check that f->out hadn't changed, but
+            // that would require saving the old value somewhere...
+            //
           #if defined(DEBUG_UNREADABLE_BLANKS)
             assert(IS_END(f->out) || NOT(IS_UNREADABLE_DEBUG(f->out)));
           #endif
 
-            // If we hit the frame end, there are two different behaviors:
+            // If an invisible is at the start of a frame and there's nothing
+            // after it, it has to retrigger until it finds something (or
+            // until it hits the end of the frame).
             //
-            //     do [2 comment "should evaluate to 2"]
-            //     do [print comment "acts like an <end>"]
+            //     do [comment "a" 1] => 1
             //
-            if (FRM_AT_END(f)) {
-                if (IS_END(f->out)) {
-                    Init_Void(f->out);
+            // Use same mechanic as EVAL by loading next item.
+            //
+            if (IS_END(f->out) && NOT(FRM_AT_END(f))) {
+                Derelativize(&f->cell, f->value, f->specifier);
+                Fetch_Next_In_Frame(f);
 
-                    // !!! A theory was that the "evaluated" flag would help a
-                    // function that took an <opt> <end> distinguish which kind
-                    // of void it was.  This may or may not be a good idea, but
-                    // unevaluating it here just to make a note of the concept.
-                    //
-                    SET_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED);
-                }
-            }
-            else {
-                // We need to continue the post-switch processing, e.g. we want
-                // `do [1 comment "a" comment "b" + 2]` to give 3.  But we can
-                // only do that if there is a starter value in the output cell.
-                // otherwise we can't satisfy an argument request.
-                //
-                // Use same mechanic as EVAL, but retrigger whatever is next in
-                // the frame (`f->value` is our current pending value)
-                //
-                if (IS_END(f->out)) {
-                    Derelativize(&f->cell, f->value, f->specifier);
-                    Fetch_Next_In_Frame(f);
-
-                    evaluating = TRUE; // unnecessary?
-                    goto prep_for_reevaluate;
-                }
+                evaluating = TRUE; // unnecessary?
+                goto prep_for_reevaluate;
             }
 
-            break; } // do normal fallthrough
+            goto skip_output_check; }
 
         prep_for_reevaluate: {
             current = &f->cell;
@@ -1736,7 +1733,7 @@ reevaluate:;
     // double checks any function marked with RETURN in the debug build,
     // so native return types are checked instead of just trusting the C.
 
-    #if !defined(NDEBUG)
+      #if !defined(NDEBUG)
         assert(f->eval_type == REB_FUNCTION); // shouldn't have changed
 
         assert(NOT_END(f->out)); // should have overwritten
@@ -1744,23 +1741,13 @@ reevaluate:;
         if (Is_Bindable(f->out))
             assert(f->out->extra.binding != NULL);
 
-        if (GET_FUN_FLAG(f->phase, FUNC_FLAG_INVISIBLE)) {
-            //
-            // Invisible functions do not have their return types checked,
-            // because all they're doing is leaving behind whatever was there
-            // before (if it was an END, they'd have had to reevaluate above).
-            //
-            // !!! As written, you can't even *use* the definitional RETURN as
-            // it accepts no types...should probably have a LEAVE.  Review.
-            //
-        }
-        else if (GET_FUN_FLAG(f->phase, FUNC_FLAG_RETURN)) {
+        if (GET_FUN_FLAG(f->phase, FUNC_FLAG_RETURN)) {
             REBVAL *typeset = FUNC_PARAM(f->phase, FUNC_NUM_PARAMS(f->phase));
             assert(VAL_PARAM_SYM(typeset) == SYM_RETURN);
             if (!TYPE_CHECK(typeset, VAL_TYPE(f->out)))
                 fail (Error_Bad_Return_Type(f, VAL_TYPE(f->out)));
         }
-    #endif
+      #endif
 
     //==////////////////////////////////////////////////////////////////==//
     //
@@ -1768,6 +1755,8 @@ reevaluate:;
     //
     //==////////////////////////////////////////////////////////////////==//
 
+    skip_output_check:
+        //
         // If we have functions pending to run on the outputs, then do so.
         //
         while (DSP != f->dsp_orig) {

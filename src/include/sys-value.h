@@ -837,6 +837,14 @@ inline static void SET_END_Core(
 #define Init_Void(v) \
     VAL_RESET((v), REB_MAX_VOID, VALUE_FLAG_FALSEY) // see note above!
 
+// !!! A theory was that the "evaluated" flag would help a function that took
+// both <opt> and <end>, which are converted to voids, distinguish what kind
+// of void it is.  This may or may not be a good idea, but unevaluating it
+// here just to make a note of the concept, and tag it via the callsites.
+//
+#define Init_Endish_Void(v) \
+    VAL_RESET((v), REB_MAX_VOID, VALUE_FLAG_FALSEY | VALUE_FLAG_UNEVALUATED)
+
 #define IS_VOID_OR_FALSEY(v) \
     GET_VAL_FLAG((v), VALUE_FLAG_FALSEY)
 

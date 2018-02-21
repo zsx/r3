@@ -275,13 +275,17 @@ void Do_Core_Exit_Checks_Debug(REBFRM *f) {
     if (f->flags.bits & DO_FLAG_TO_END)
         assert(THROWN(f->out) || FRM_AT_END(f));
 
-    // Function execution should have written *some* actual output value.
-    // checking the VAL_TYPE() is enough to make sure it's not END or trash
+    // We'd like `do [1 + comment "foo"]` to act identically to `do [1 +]`
+    // (as opposed to `do [1 + ()]`).  Hence Do_Core() offers the distinction
+    // of END for a fully "invisible" evaluation, as opposed to void.  This
+    // distinction is only offered internally, at the moment.
     //
-    assert(VAL_TYPE(f->out) <= REB_MAX_VOID);
+    if (NOT_END(f->out)) {
+        assert(VAL_TYPE(f->out) <= REB_MAX_VOID);
 
-    if (NOT(THROWN(f->out)))
-        ASSERT_VALUE_MANAGED(f->out);
+        if (NOT(THROWN(f->out)))
+            ASSERT_VALUE_MANAGED(f->out);
+    }
 }
 
 #endif
