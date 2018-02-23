@@ -69,3 +69,5 @@ definitions: _
 cflags: _
 libraries: _
 ldflags: _
+
+main: _

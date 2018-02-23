@@ -101,6 +101,7 @@ gen-obj: func [
     /D definitions [block!]
     /I includes [block!]
     /F cflags [block!]
+    /main ; for main object
     <local>
     flags
 ][
@@ -169,8 +170,15 @@ gen-obj: func [
     if F [append flags :cflags]
 
     make rebmake/object-file-class compose/only [
-        source: to-file join-of either dir [directory][src-dir] s
-        output: to-obj-path to string! s
+        source: to-file case [
+            dir [join-of directory s]
+            main [s]
+            /else [join-of src-dir s]
+        ]
+        output: to-obj-path to string! ;\
+            either main [
+                join-of %main/ last s
+            ] [s]
         cflags: either empty? flags [_] [flags]
         definitions: (to-value :definitions)
         includes: (to-value :includes)
@@ -1116,7 +1124,9 @@ main: make libr3-os [
     name: 'main
 
     depends: reduce [
-        gen-obj/dir file-base/main src-dir/os/%
+        either user-config/main
+        [gen-obj/main user-config/main]
+        [gen-obj/dir file-base/main src-dir/os/%]
     ]
 ]
 
@@ -1524,7 +1534,7 @@ add-new-obj-folders: procedure [
     ]
 ]
 
-folders: copy [%objs/]
+folders: copy [%objs/ %objs/main/]
 for-each file os-file-block [
     ;
     ; For better or worse, original R3-Alpha didn't use FILE! in %file-base.r
