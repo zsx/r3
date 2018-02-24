@@ -66,7 +66,7 @@ env:
 # variables which can guide that script to behave differently.
 #
 matrix:
-  include: 
+  include:
     # OSX x64, debug, clang++
     #
     # !!! Can't do all warnings as errors, because in clang the switch for
@@ -349,7 +349,7 @@ matrix:
     # Emscripten, Node, debug
     #
     - os: osx
-      osx_image: xcode9.1
+      osx_image: xcode9.3beta
       language: c
       env:
         - CONFIG=emscripten.r
@@ -408,11 +408,10 @@ install:
       tar xf emsdk-portable.tar.gz 
       cd emsdk-portable
       ./emsdk update
-      ./emsdk install latest 2> emsdk.err > emsdk.log
+      ./emsdk install latest
       ./emsdk activate latest
-      . emsdk_env.sh
+      source emsdk_env.sh
       cd ..
-      echo pwd
     fi
 
 script:
