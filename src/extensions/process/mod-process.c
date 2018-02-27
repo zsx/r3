@@ -1646,7 +1646,7 @@ REBNATIVE(call)
                 SER_HEAD(REBSER*, argv_saved_sers)[i] = path;
             }
             else
-                fail (Error_Invalid_Arg_Core(param, VAL_SPECIFIER(block)));
+                fail (Error_Invalid_Core(param, VAL_SPECIFIER(block)));
         }
         argv[argc] = NULL;
     }
@@ -1671,7 +1671,7 @@ REBNATIVE(call)
         argv[argc] = NULL;
     }
     else
-        fail (ARG(command));
+        fail (Error_Invalid(ARG(command)));
 
     REBU64 pid;
     int exit_code;
@@ -2455,15 +2455,16 @@ static REBNATIVE(set_uid)
 
     if (setuid(VAL_INT32(ARG(uid))) < 0) {
         switch (errno) {
-            case EINVAL:
-                fail (Error(RE_EXT_PROCESS_INVALID_UID, ARG(uid), END));
-            case EPERM:
-                fail (Error(RE_EXT_PROCESS_PERMISSION_DENIED, END));
-            default: {
-                DECLARE_LOCAL(err);
-                Init_Integer(err, errno);
-                fail (Error(RE_EXT_PROCESS_SET_UID_FAILED, err, END));
-             }
+        case EINVAL:
+            fail (Error(RE_EXT_PROCESS_INVALID_UID, ARG(uid), END));
+
+        case EPERM:
+            fail (Error(RE_EXT_PROCESS_PERMISSION_DENIED, END));
+
+        default: {
+            DECLARE_LOCAL(err);
+            Init_Integer(err, errno);
+            fail (Error(RE_EXT_PROCESS_SET_UID_FAILED, err, END)); }
         }
     }
 
@@ -2493,15 +2494,16 @@ static REBNATIVE(set_euid)
 
     if (seteuid(VAL_INT32(ARG(euid))) < 0) {
         switch (errno) {
-            case EINVAL:
-                fail (Error(RE_EXT_PROCESS_INVALID_EUID, ARG(euid), END));
-            case EPERM:
-                fail (Error(RE_EXT_PROCESS_PERMISSION_DENIED, END));
-            default: {
-                DECLARE_LOCAL(err);
-                Init_Integer(err, errno);
-                fail (Error(RE_EXT_PROCESS_SET_EUID_FAILED, err, END));
-             }
+        case EINVAL:
+            fail (Error(RE_EXT_PROCESS_INVALID_EUID, ARG(euid), END));
+
+        case EPERM:
+            fail (Error(RE_EXT_PROCESS_PERMISSION_DENIED, END));
+
+        default: {
+            DECLARE_LOCAL(err);
+            Init_Integer(err, errno);
+            fail (Error(RE_EXT_PROCESS_SET_EUID_FAILED, err, END)); }
         }
     }
 
@@ -2531,15 +2533,16 @@ static REBNATIVE(set_gid)
 
     if (setgid(VAL_INT32(ARG(gid))) < 0) {
         switch (errno) {
-            case EINVAL:
-                fail (Error(RE_EXT_PROCESS_INVALID_GID, ARG(gid), END));
-            case EPERM:
-                fail (Error(RE_EXT_PROCESS_PERMISSION_DENIED, END));
-            default: {
-                DECLARE_LOCAL(err);
-                Init_Integer(err, errno);
-                fail (Error(RE_EXT_PROCESS_SET_GID_FAILED, err, END));
-             }
+        case EINVAL:
+            fail (Error(RE_EXT_PROCESS_INVALID_GID, ARG(gid), END));
+
+        case EPERM:
+            fail (Error(RE_EXT_PROCESS_PERMISSION_DENIED, END));
+
+        default: {
+            DECLARE_LOCAL(err);
+            Init_Integer(err, errno);
+            fail (Error(RE_EXT_PROCESS_SET_GID_FAILED, err, END)); }
         }
     }
 
@@ -2569,15 +2572,16 @@ static REBNATIVE(set_egid)
 
     if (setegid(VAL_INT32(ARG(egid))) < 0) {
         switch (errno) {
-            case EINVAL:
-                fail (Error(RE_EXT_PROCESS_INVALID_EGID, ARG(egid), END));
-            case EPERM:
-                fail (Error(RE_EXT_PROCESS_PERMISSION_DENIED, END));
-            default: {
-                DECLARE_LOCAL(err);
-                Init_Integer(err, errno);
-                fail (Error(RE_EXT_PROCESS_SET_EGID_FAILED, err, END));
-             }
+        case EINVAL:
+            fail (Error(RE_EXT_PROCESS_INVALID_EGID, ARG(egid), END));
+
+        case EPERM:
+            fail (Error(RE_EXT_PROCESS_PERMISSION_DENIED, END));
+
+        default: {
+            DECLARE_LOCAL(err);
+            Init_Integer(err, errno);
+            fail (Error(RE_EXT_PROCESS_SET_EGID_FAILED, err, END)); }
         }
     }
 
@@ -2590,18 +2594,22 @@ static void kill_process(REBINT pid, REBINT signal)
 {
     if (kill(pid, signal) < 0) {
         DECLARE_LOCAL(arg1);
+
         switch (errno) {
-            case EINVAL:
-                Init_Integer(arg1, signal);
-                fail (Error(RE_EXT_PROCESS_INVALID_SIGNAL, arg1, END));
-            case EPERM:
-                fail (Error(RE_EXT_PROCESS_PERMISSION_DENIED, END));
-            case ESRCH:
-                Init_Integer(arg1, pid);
-                fail (Error(RE_EXT_PROCESS_NO_PROCESS, arg1, END));
-            default:
-                Init_Integer(arg1, errno);
-                fail (Error(RE_EXT_PROCESS_SEND_SIGNAL_FAILED, arg1, END));
+        case EINVAL:
+            Init_Integer(arg1, signal);
+            fail (Error(RE_EXT_PROCESS_INVALID_SIGNAL, arg1, END));
+
+        case EPERM:
+            fail (Error(RE_EXT_PROCESS_PERMISSION_DENIED, END));
+
+        case ESRCH:
+            Init_Integer(arg1, pid);
+            fail (Error(RE_EXT_PROCESS_NO_PROCESS, arg1, END));
+
+        default:
+            Init_Integer(arg1, errno);
+            fail (Error(RE_EXT_PROCESS_SEND_SIGNAL_FAILED, arg1, END));
         }
     }
 }

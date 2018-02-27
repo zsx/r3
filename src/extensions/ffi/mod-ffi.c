@@ -99,7 +99,7 @@ static ffi_abi Abi_From_Word(const REBVAL *word) {
         break;
     }
 
-    fail (word);
+    fail (Error_Invalid(word));
 }
 
 
@@ -138,7 +138,7 @@ REBNATIVE(make_routine)
     //
     REBLIB *lib = VAL_LIBRARY(ARG(lib));
     if (lib == NULL)
-        fail (ARG(lib));
+        fail (Error_Invalid(ARG(lib)));
 
     // Try to find the C function pointer in the DLL, if it's there.
     // OS_FIND_FUNCTION takes a char* on both Windows and Posix.  The

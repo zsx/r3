@@ -237,7 +237,7 @@ static REB_R Loop_Number_Common(
     else if (IS_DECIMAL(start) || IS_PERCENT(start))
         s = VAL_DECIMAL(start);
     else
-        fail (start);
+        fail (Error_Invalid(start));
 
     REBDEC e;
     if (IS_INTEGER(end))
@@ -245,7 +245,7 @@ static REB_R Loop_Number_Common(
     else if (IS_DECIMAL(end) || IS_PERCENT(end))
         e = VAL_DECIMAL(end);
     else
-        fail (end);
+        fail (Error_Invalid(end));
 
     REBDEC i;
     if (IS_INTEGER(incr))
@@ -253,7 +253,7 @@ static REB_R Loop_Number_Common(
     else if (IS_DECIMAL(incr) || IS_PERCENT(incr))
         i = VAL_DECIMAL(incr);
     else
-        fail (incr);
+        fail (Error_Invalid(incr));
 
     VAL_RESET_HEADER(var, REB_DECIMAL);
 
@@ -445,7 +445,7 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
                     DECLARE_LOCAL (key_name);
                     Init_Word(key_name, VAL_KEY_SPELLING(key));
 
-                    fail (key_name);
+                    fail (Error_Invalid(key_name));
                 }
                 j++;
             }
@@ -479,7 +479,7 @@ static REB_R Loop_Each(REBFRM *frame_, LOOP_MODE mode)
                         DECLARE_LOCAL (key_name);
                         Init_Word(key_name, VAL_KEY_SPELLING(key));
 
-                        fail (key_name);
+                        fail (Error_Invalid(key_name));
                     }
                     j++;
                 }
@@ -725,7 +725,7 @@ REBNATIVE(for_skip)
         fail (Error_No_Value(word));
 
     if (NOT(ANY_SERIES(var)))
-        fail (var);
+        fail (Error_Invalid(var));
 
     REBINT skip = Int32(ARG(skip));
 
@@ -773,7 +773,7 @@ REBNATIVE(for_skip)
             return R_OUT;
 
         if (NOT(ANY_SERIES(var)))
-            fail (var);
+            fail (Error_Invalid(var));
 
         VAL_INDEX(var) += skip;
     }
@@ -1109,7 +1109,7 @@ REBNATIVE(remove_each)
     if (NOT(
         ANY_ARRAY(res.data) || ANY_STRING(res.data) || IS_BINARY(res.data)
     )){
-        fail (res.data); // invalid arg
+        fail (Error_Invalid(res.data));
     }
 
     // Check the series for whether it is read only, in which case we should

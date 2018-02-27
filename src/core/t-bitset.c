@@ -118,7 +118,7 @@ void MAKE_Bitset(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
     // path used 0x0FFFFFFF.  Assume A_MAKE was more likely right.
     //
     if (len < 0 || len > 0x0FFFFFFF)
-        fail (arg);
+        fail (Error_Invalid(arg));
 
     REBSER *ser = Make_Bitset(len);
     Init_Bitset(out, ser);
@@ -374,7 +374,7 @@ span_bits:
                     for (; c <= n; c++) Set_Bit(bset, c, set);
                 }
                 else
-                    fail (Error_Invalid_Arg_Core(item, VAL_SPECIFIER(val)));
+                    fail (Error_Invalid_Core(item, VAL_SPECIFIER(val)));
             }
             else
                 Set_Bit(bset, c, set);
@@ -396,7 +396,7 @@ span_bits:
                     goto span_bits;
                 }
                 else
-                    fail (Error_Invalid_Arg_Core(item, VAL_SPECIFIER(val)));
+                    fail (Error_Invalid_Core(item, VAL_SPECIFIER(val)));
             }
             else
                 Set_Bit(bset, n, set);
@@ -477,7 +477,7 @@ scan_bits:
                         if (Check_Bit(bset, c, uncased)) goto found;
                 }
                 else
-                    fail (Error_Invalid_Arg_Core(item, VAL_SPECIFIER(val)));
+                    fail (Error_Invalid_Core(item, VAL_SPECIFIER(val)));
             }
             else
                 if (Check_Bit(bset, c, uncased)) goto found;
@@ -494,7 +494,7 @@ scan_bits:
                     goto scan_bits;
                 }
                 else
-                    fail (Error_Invalid_Arg_Core(item, VAL_SPECIFIER(val)));
+                    fail (Error_Invalid_Core(item, VAL_SPECIFIER(val)));
             }
             else
                 if (Check_Bit(bset, n, uncased)) goto found;
@@ -654,7 +654,7 @@ REBTYPE(Bitset)
             diff = TRUE;
 
         if (NOT(Set_Bits(VAL_SERIES(value), arg, diff)))
-            fail (arg);
+            fail (Error_Invalid(arg));
         goto return_bitset; }
 
     case SYM_REMOVE: {

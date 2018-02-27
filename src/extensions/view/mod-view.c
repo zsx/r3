@@ -582,9 +582,8 @@ REBNATIVE(request_dir_p)
     else if (hresult == S_FALSE) {
         // Already initialized on this thread
     }
-    else {
+    else
         fail ("Failure during CoInitializeEx()");
-    }
 
     BROWSEINFO bi;
     bi.hwndOwner = NULL;

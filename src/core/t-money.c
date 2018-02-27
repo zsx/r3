@@ -135,17 +135,15 @@ void MF_Money(REB_MOLD *mo, const RELVAL *v, REBOOL form)
 //
 void Bin_To_Money_May_Fail(REBVAL *result, const REBVAL *val)
 {
-    REBCNT len;
+    if (NOT(IS_BINARY(val)))
+        fail (Error_Invalid(val));
+
+    REBCNT len = VAL_LEN_AT(val);
+    if (len > 12)
+        len = 12;
+
     REBYTE buf[MAX_HEX_LEN+4] = {0}; // binary to convert
-
-    if (IS_BINARY(val)) {
-        len = VAL_LEN_AT(val);
-        if (len > 12) len = 12;
-        memcpy(buf, VAL_BIN_AT(val), len);
-    }
-    else
-        fail (val);
-
+    memcpy(buf, VAL_BIN_AT(val), len);
     memcpy(buf + 12 - len, buf, len); // shift to right side
     memset(buf, 0, 12 - len);
     Init_Money(result, binary_to_deci(buf));
@@ -251,7 +249,7 @@ REBTYPE(Money)
             else if (IS_MONEY(scale))
                 Move_Value(temp, scale);
             else
-                fail (scale);
+                fail (Error_Invalid(scale));
         }
         else
             Init_Money(temp, int_to_deci(0));

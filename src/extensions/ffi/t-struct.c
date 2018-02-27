@@ -372,10 +372,10 @@ static REBOOL assign_scalar_core(
             fail (Error_Invalid_Type(VAL_TYPE(val)));
 
         if (FLD_WIDE(field) != VAL_STRUCT_SIZE(val))
-            fail (val);
+            fail (Error_Invalid(val));
 
         if (!same_fields(FLD_FIELDLIST(field), VAL_STRUCT_FIELDLIST(val)))
-            fail (val);
+            fail (Error_Invalid(val));
 
         memcpy(data, VAL_STRUCT_DATA_AT(val), FLD_WIDE(field));
 
@@ -568,35 +568,29 @@ static void parse_attr (REBVAL *blk, REBINT *raw_size, REBUPT *raw_addr)
 
     while (NOT_END(attr)) {
         if (NOT(IS_SET_WORD(attr)))
-            fail (attr);
+            fail (Error_Invalid(attr));
 
         switch (VAL_WORD_SYM(attr)) {
         case SYM_RAW_SIZE:
             ++ attr;
-            if (NOT_END(attr) && IS_INTEGER(attr)) {
-                if (*raw_size > 0)
-                    fail ("FFI: duplicate raw size");
-
-                *raw_size = VAL_INT64(attr);
-                if (*raw_size <= 0)
-                    fail ("FFI: raw size cannot be zero");
-            }
-            else
-                fail (attr);
+            if (IS_END(attr) || NOT(IS_INTEGER(attr)))
+                fail (Error_Invalid(attr));
+            if (*raw_size > 0)
+                fail ("FFI: duplicate raw size");
+            *raw_size = VAL_INT64(attr);
+            if (*raw_size <= 0)
+                fail ("FFI: raw size cannot be zero");
             break;
 
         case SYM_RAW_MEMORY:
             ++ attr;
-            if (NOT_END(attr) && IS_INTEGER(attr)) {
-                if (*raw_addr != 0)
-                    fail ("FFI: duplicate raw memory");
-
-                *raw_addr = cast(REBU64, VAL_INT64(attr));
-                if (*raw_addr == 0)
-                    fail ("FFI: void pointer illegal for raw memory");
-            }
-            else
-                fail (attr);
+            if (IS_END(attr) || NOT(IS_INTEGER(attr)))
+                fail (Error_Invalid(attr));
+            if (*raw_addr != 0)
+                fail ("FFI: duplicate raw memory");
+            *raw_addr = cast(REBU64, VAL_INT64(attr));
+            if (*raw_addr == 0)
+                fail ("FFI: void pointer illegal for raw memory");
             break;
 
         case SYM_EXTERN: {
@@ -606,17 +600,17 @@ static void parse_attr (REBVAL *blk, REBINT *raw_size, REBUPT *raw_addr)
                 fail ("FFI: raw memory is exclusive with extern");
 
             if (IS_END(attr) || NOT(IS_BLOCK(attr)) || VAL_LEN_AT(attr) != 2)
-                fail (attr);
+                fail (Error_Invalid(attr));
 
             REBVAL *lib = KNOWN(VAL_ARRAY_AT_HEAD(attr, 0));
             if (NOT(IS_LIBRARY(lib)))
-                fail (attr);
+                fail (Error_Invalid(attr));
             if (IS_LIB_CLOSED(VAL_LIBRARY(lib)))
                 fail (Error_Bad_Library_Raw());
 
             REBVAL *sym = KNOWN(VAL_ARRAY_AT_HEAD(attr, 1));
             if (NOT(ANY_BINSTR(sym)))
-                fail (sym);
+                fail (Error_Invalid(sym));
 
             CFUNC *addr = OS_FIND_FUNCTION(
                 VAL_LIBRARY_FD(lib),
@@ -633,14 +627,14 @@ static void parse_attr (REBVAL *blk, REBINT *raw_size, REBUPT *raw_addr)
         case SYM_ALIGNMENT:
             ++ attr;
             if (!IS_INTEGER(attr))
-                fail (attr);
+                fail (Error_Invalid(attr));
 
             alignment = VAL_INT64(attr);
             break;
         */
 
         default:
-            fail (attr);
+            fail (Error_Invalid(attr));
         }
 
         ++ attr;
@@ -995,7 +989,7 @@ void Init_Struct_Fields(REBVAL *ret, REBVAL *spec)
 
             // make sure no other field initialization
             if (VAL_LEN_HEAD(spec) != 1)
-                fail (spec);
+                fail (Error_Invalid(spec));
 
             parse_attr(spec_item, &raw_size, &raw_addr);
             ret->payload.structure.data
@@ -1006,7 +1000,7 @@ void Init_Struct_Fields(REBVAL *ret, REBVAL *spec)
         else {
             word = spec_item;
             if (NOT(IS_SET_WORD(word)))
-                fail (word);
+                fail (Error_Invalid(word));
         }
 
         REBVAL *fld_val = spec_item + 1;
@@ -1027,7 +1021,7 @@ void Init_Struct_Fields(REBVAL *ret, REBVAL *spec)
                     REBCNT dimension = FLD_DIMENSION(field);
 
                     if (VAL_LEN_AT(fld_val) != dimension)
-                        fail (fld_val);
+                        fail (Error_Invalid(fld_val));
 
                     REBCNT n = 0;
                     for (n = 0; n < dimension; ++n) {
@@ -1036,8 +1030,8 @@ void Init_Struct_Fields(REBVAL *ret, REBVAL *spec)
                             field,
                             n,
                             KNOWN(VAL_ARRAY_AT_HEAD(fld_val, n))
-                        ))) {
-                            fail (fld_val);
+                        ))){
+                            fail (Error_Invalid(fld_val));
                         }
                     }
                 }
@@ -1054,11 +1048,11 @@ void Init_Struct_Fields(REBVAL *ret, REBVAL *spec)
                     );
                 }
                 else
-                    fail (fld_val);
+                    fail (Error_Invalid(fld_val));
             }
             else {
                 if (NOT(assign_scalar(VAL_STRUCT(ret), field, 0, fld_val)))
-                    fail (fld_val);
+                    fail (Error_Invalid(fld_val));
             }
             goto next_spec_pair;
         }
@@ -1088,7 +1082,7 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
     UNUSED(kind);
 
     if (NOT(IS_BLOCK(arg)))
-        fail (arg);
+        fail (Error_Invalid(arg));
 
     REBINT max_fields = 16;
 
@@ -1166,7 +1160,7 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
             expect_init = TRUE;
             if (raw_addr) {
                 // initialization is not allowed for raw memory struct
-                fail (Error_Invalid_Arg_Core(item, VAL_SPECIFIER(arg)));
+                fail (Error_Invalid_Core(item, VAL_SPECIFIER(arg)));
             }
         }
         else if (IS_WORD(item))
@@ -1178,7 +1172,7 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
 
         ++item;
         if (IS_END(item) || !IS_BLOCK(item))
-            fail (Error_Invalid_Arg_Core(item, VAL_SPECIFIER(arg)));
+            fail (Error_Invalid_Core(item, VAL_SPECIFIER(arg)));
 
         Derelativize(spec, item, VAL_SPECIFIER(arg));
 
@@ -1206,7 +1200,7 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
 
         if (expect_init) {
             if (IS_END(item))
-               fail (arg);
+               fail (Error_Invalid(arg));
 
             if (IS_BLOCK(item)) {
                 Derelativize(specified, item, VAL_SPECIFIER(arg));
@@ -1250,7 +1244,7 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
                     REBCNT n = 0;
 
                     if (VAL_LEN_AT(init) != FLD_DIMENSION(field))
-                        fail (init);
+                        fail (Error_Invalid(init));
 
                     // assign
                     for (n = 0; n < FLD_DIMENSION(field); n ++) {
@@ -1260,7 +1254,7 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
                             field,
                             n,
                             KNOWN(VAL_ARRAY_AT_HEAD(init, n))
-                        )) {
+                        )){
                             fail ("FFI: Failed to assign element value");
                         }
                     }
@@ -1551,7 +1545,7 @@ REBTYPE(Struct)
             fail (Error_Unexpected_Type(REB_BINARY, VAL_TYPE(arg)));
 
         if (VAL_LEN_AT(arg) != VAL_STRUCT_DATA_LEN(val))
-            fail (arg);
+            fail (Error_Invalid(arg));
 
         memcpy(
             VAL_STRUCT_DATA_HEAD(val),

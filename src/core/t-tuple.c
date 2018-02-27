@@ -76,7 +76,7 @@ void MAKE_Tuple(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
         REBYTE *ap = Temp_Byte_Chars_May_Fail(arg, MAX_SCAN_TUPLE, &len, FALSE);
         if (Scan_Tuple(out, ap, len) != NULL)
             return;
-        fail (arg);
+        fail (Error_Invalid(arg));
     }
 
     if (ANY_ARRAY(arg)) {
@@ -123,7 +123,7 @@ void MAKE_Tuple(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
         for (alen = 0; alen < len; alen++) {
             const REBOOL unicode = FALSE;
             if (!Scan_Hex2(ap, &c, unicode))
-                fail (arg);
+                fail (Error_Invalid(arg));
             *vp++ = cast(REBYTE, c);
             ap += 2;
         }
@@ -136,7 +136,7 @@ void MAKE_Tuple(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
         for (alen = 0; alen < len; alen++) *vp++ = *ap++;
     }
     else
-        fail (arg);
+        fail (Error_Invalid(arg));
 
     for (; alen < MAX_TUPLE; alen++) *vp++ = 0;
     return;
@@ -229,7 +229,7 @@ void Poke_Tuple_Immediate(
         return;
     }
     else
-        fail (poke);
+        fail (Error_Invalid(poke));
 
     if (i < 0)
         i = 0;
@@ -491,7 +491,7 @@ REBTYPE(Tuple)
         }
         // Poke:
         if (NOT(IS_INTEGER(D_ARG(3))))
-            fail (D_ARG(3));
+            fail (Error_Invalid(D_ARG(3)));
         v = VAL_INT32(D_ARG(3));
         if (v < 0)
             v = 0;

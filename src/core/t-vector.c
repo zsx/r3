@@ -178,8 +178,11 @@ void Set_Vector_Row(REBSER *ser, const REBVAL *blk)
                 f = VAL_DECIMAL(val);
                 if (bits <= VTUI64) i = (REBINT)(f);
             }
-            else fail (Error_Invalid_Arg_Core(val, VAL_SPECIFIER(blk)));
+            else
+                fail (Error_Invalid_Core(val, VAL_SPECIFIER(blk)));
+
             //if (n >= ser->tail) Expand_Vector(ser);
+
             set_vect(bits, SER_DATA_RAW(ser), n++, i, f);
         }
     }
@@ -203,7 +206,7 @@ REBARR *Vector_To_Array(const REBVAL *vect)
 {
     REBCNT len = VAL_LEN_AT(vect);
     if (len <= 0)
-        fail (vect);
+        fail (Error_Invalid(vect));
 
     REBARR *array = Make_Array(len);
 
@@ -526,7 +529,7 @@ void Pick_Vector(REBVAL *out, const REBVAL *value, const REBVAL *picker) {
     if (IS_INTEGER(picker) || IS_DECIMAL(picker))
         n = Int32(picker);
     else
-        fail (picker);
+        fail (Error_Invalid(picker));
 
     n += VAL_INDEX(value);
 
@@ -563,7 +566,7 @@ void Poke_Vector_Fail_If_Read_Only(
     if (IS_INTEGER(picker) || IS_DECIMAL(picker))
         n = Int32(picker);
     else
-        fail (picker);
+        fail (Error_Invalid(picker));
 
     n += VAL_INDEX(value);
 
@@ -594,7 +597,7 @@ void Poke_Vector_Fail_If_Read_Only(
             i = 0xDECAFBAD; // not used, but avoid maybe uninitalized warning
     }
     else
-        fail (poke);
+        fail (Error_Invalid(poke));
 
     set_vect(bits, vp, n - 1, i, f);
 }

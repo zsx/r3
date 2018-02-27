@@ -228,7 +228,7 @@ REBNATIVE(limit_usage)
             PG_Mem_Limit = Int64(ARG(limit));
     }
     else
-        fail (ARG(field));
+        fail (Error_Invalid(ARG(field)));
 
     return R_VOID;
 }

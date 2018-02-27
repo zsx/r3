@@ -230,14 +230,14 @@ REBNATIVE(unload_extension_helper)
             != CTX_KEY_CANON(std, STD_EXTENSION_LIB_BASE)
         )
     ){
-        fail (ARG(ext));
+        fail (Error_Invalid(ARG(ext)));
     }
 
     int ret;
     if (!REF(cleanup)) {
         REBVAL *lib = CTX_VAR(context, STD_EXTENSION_LIB_BASE);
         if (!IS_LIBRARY(lib))
-            fail (ARG(ext));
+            fail (Error_Invalid(ARG(ext)));
 
         if (IS_LIB_CLOSED(VAL_LIBRARY(lib)))
             fail (Error_Bad_Library_Raw());
@@ -255,7 +255,7 @@ REBNATIVE(unload_extension_helper)
     }
     else {
         if (VAL_HANDLE_CLEANER(ARG(cleaner)) != cleanup_extension_quit_handler)
-            fail (ARG(cleaner));
+            fail (Error_Invalid(ARG(cleaner)));
 
         QUIT_FUNC quitter = cast(QUIT_FUNC, VAL_HANDLE_CFUNC(ARG(cleaner)));
         assert(quitter != NULL);

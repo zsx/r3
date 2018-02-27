@@ -86,7 +86,7 @@ static REBOOL Set_Event_Var(REBVAL *event, const REBVAL *word, const REBVAL *val
                     return TRUE;
                 }
             }
-            fail (val);
+            fail (Error_Invalid(val));
         }
         return FALSE;
 
@@ -180,7 +180,7 @@ static REBOOL Set_Event_Var(REBVAL *event, const REBVAL *word, const REBVAL *val
                 break;
 
             default:
-                fail (Error_Invalid_Arg_Core(item, VAL_SPECIFIER(val)));
+                fail (Error_Invalid_Core(item, VAL_SPECIFIER(val)));
             }
         }
         break; }
@@ -397,7 +397,7 @@ void TO_Event(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
     UNUSED(kind);
 
     UNUSED(out);
-    fail (arg);
+    fail (Error_Invalid(arg));
 }
 
 

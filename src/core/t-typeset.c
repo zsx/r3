@@ -215,7 +215,7 @@ REBOOL Update_Typeset_Bits_Core(
             VAL_TYPESET_BITS(typeset) |= VAL_TYPESET_BITS(var);
         }
         else
-            fail (Error_Invalid_Arg_Core(item, specifier));
+            fail (Error_Invalid_Core(item, specifier));
     }
 
     return TRUE;
@@ -376,7 +376,7 @@ REBTYPE(Typeset)
         if (IS_DATATYPE(arg))
             return R_FROM_BOOL(TYPE_CHECK(val, VAL_TYPE_KIND(arg)));
 
-        fail (arg);
+        fail (Error_Invalid(arg));
 
     case SYM_INTERSECT:
     case SYM_UNION:
@@ -385,7 +385,7 @@ REBTYPE(Typeset)
             VAL_TYPESET_BITS(arg) = FLAGIT_KIND(VAL_TYPE(arg));
         }
         else if (NOT(IS_TYPESET(arg)))
-            fail (arg);
+            fail (Error_Invalid(arg));
 
         if (action == SYM_UNION)
             VAL_TYPESET_BITS(val) |= VAL_TYPESET_BITS(arg);

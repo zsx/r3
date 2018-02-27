@@ -118,7 +118,7 @@ REB_R Retrigger_Append_As_Write(REBFRM *frame_) {
         || IS_STRING(ARG(value))
         || IS_BLOCK(ARG(value)))
     ){
-        fail (ARG(value));
+        fail (Error_Invalid(ARG(value)));
     }
 
     if (REF(part)) {

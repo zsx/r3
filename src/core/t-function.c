@@ -125,7 +125,7 @@ void TO_Function(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 
     UNUSED(out);
 
-    fail (arg);
+    fail (Error_Invalid(arg));
 }
 
 

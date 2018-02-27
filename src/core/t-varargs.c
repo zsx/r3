@@ -411,7 +411,7 @@ void TO_Varargs(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 
     UNUSED(out);
 
-    fail (arg);
+    fail (Error_Invalid(arg));
 }
 
 
@@ -425,7 +425,7 @@ REB_R PD_Varargs(REBPVS *pvs, const REBVAL *picker, const REBVAL *opt_setval)
     UNUSED(opt_setval);
 
     if (NOT(IS_INTEGER(picker)))
-        fail (picker);
+        fail (Error_Invalid(picker));
 
     if (VAL_INT32(picker) != 1)
         fail (Error_Varargs_No_Look_Raw());
@@ -502,7 +502,7 @@ REBTYPE(Varargs)
             limit = 0; // not used, but avoid maybe uninitalized warning
         }
         else
-            fail (ARG(limit));
+            fail (Error_Invalid(ARG(limit)));
 
         while (limit-- > 0) {
             REB_R r = Do_Vararg_Op_May_Throw(D_OUT, value, VARARG_OP_TAKE);

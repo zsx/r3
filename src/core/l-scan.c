@@ -2569,7 +2569,7 @@ REBNATIVE(transcode)
     if (REF(line)) {
         start_line = VAL_INT32(ARG(line_number));
         if (start_line <= 0)
-            fail (ARG(line_number));
+            fail (Error_Invalid(ARG(line_number)));
     }
     else
         start_line = 1;

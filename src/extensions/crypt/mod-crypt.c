@@ -131,7 +131,7 @@ static REBNATIVE(rc4)
         REBVAL *data = ARG(data);
 
         if (VAL_HANDLE_CLEANER(ARG(ctx)) != cleanup_rc4_ctx)
-            fail (Error(RE_EXT_CRYPT_INVALID_RC4_CONTEXT, ARG(ctx)));
+            fail (Error(RE_EXT_CRYPT_INVALID_RC4_CONTEXT, ARG(ctx), END));
 
         RC4_CTX *rc4_ctx = VAL_HANDLE_POINTER(RC4_CTX, ARG(ctx));
 
@@ -161,7 +161,7 @@ static REBNATIVE(rc4)
         return R_OUT;
     }
 
-    fail (Error(RE_EXT_CRYPT_KEY_OR_STREAM_REQUIRED));
+    fail (Error(RE_EXT_CRYPT_KEY_OR_STREAM_REQUIRED, END));
 }
 
 
@@ -230,7 +230,7 @@ static REBNATIVE(rsa)
             continue;
 
         if (!IS_BINARY(var))
-            fail (Error(RE_EXT_CRYPT_INVALID_KEY_DATA, var, key));
+            fail (Error(RE_EXT_CRYPT_INVALID_KEY_DATA, var, key, END));
 
         REBSTR* word = VAL_KEY_CANON(key);
         if (word == CRYPT_WORD_N) {
@@ -266,13 +266,12 @@ static REBNATIVE(rsa)
             qinv = VAL_BIN_AT(var);
             qinv_len = VAL_LEN_AT(var);
         }
-        else {
-            fail (Error(RE_EXT_CRYPT_INVALID_KEY_FIELD, key));
-        }
+        else
+            fail (Error(RE_EXT_CRYPT_INVALID_KEY_FIELD, key, END));
     }
 
     if (!n || !e)
-        fail (Error(RE_EXT_CRYPT_INVALID_KEY, ARG(key_object)));
+        fail (Error(RE_EXT_CRYPT_INVALID_KEY, ARG(key_object), END));
 
     RSA_CTX *rsa_ctx = NULL;
 
@@ -314,7 +313,7 @@ static REBNATIVE(rsa)
             RSA_free(rsa_ctx);
 
             Free_Series(binary);
-            fail (Error(RE_EXT_CRYPT_DECRYPTION_FAILURE, ARG(data)));
+            fail (Error(RE_EXT_CRYPT_DECRYPTION_FAILURE, ARG(data), END));
         }
     }
     else {
@@ -332,7 +331,7 @@ static REBNATIVE(rsa)
             RSA_free(rsa_ctx);
 
             Free_Series(binary);
-            fail (Error(RE_EXT_CRYPT_ENCRYPTION_FAILURE, ARG(data)));
+            fail (Error(RE_EXT_CRYPT_ENCRYPTION_FAILURE, ARG(data), END));
         }
     }
 
@@ -376,7 +375,7 @@ static REBNATIVE(dh_generate_key)
             continue;
 
         if (!IS_BINARY(var))
-            fail (Error(RE_EXT_CRYPT_INVALID_KEY_DATA, var, key));
+            fail (Error(RE_EXT_CRYPT_INVALID_KEY_DATA, var, key, END));
 
         REBSTR* word = VAL_KEY_CANON(key);
         if (word == CRYPT_WORD_P) {
@@ -389,7 +388,7 @@ static REBNATIVE(dh_generate_key)
             dh_ctx.glen = VAL_LEN_AT(var);
         }
         else {
-            fail (Error(RE_EXT_CRYPT_INVALID_KEY_FIELD, key));
+            fail (Error(RE_EXT_CRYPT_INVALID_KEY_FIELD, key, END));
         }
     }
 
@@ -461,14 +460,14 @@ static REBNATIVE(dh_compute_key)
         }
         else if (canon == CRYPT_WORD_P) {
             if (NOT(IS_BINARY(var)))
-                fail (Error(RE_EXT_CRYPT_INVALID_KEY, var));
+                fail (Error(RE_EXT_CRYPT_INVALID_KEY, var, END));
 
             dh_ctx.p = VAL_BIN_AT(var);
             dh_ctx.len = VAL_LEN_AT(var);
         }
         else if (canon == CRYPT_WORD_PRIV_KEY) {
             if (NOT(IS_BINARY(var)))
-                fail (Error(RE_EXT_CRYPT_INVALID_KEY, var));
+                fail (Error(RE_EXT_CRYPT_INVALID_KEY, var, END));
 
             dh_ctx.x = VAL_BIN_AT(var);
         }
@@ -479,13 +478,13 @@ static REBNATIVE(dh_compute_key)
             NOOP;
         }
         else
-            fail (Error(RE_EXT_CRYPT_INVALID_KEY_FIELD, key));
+            fail (Error(RE_EXT_CRYPT_INVALID_KEY_FIELD, key, END));
     }
 
     dh_ctx.gy = VAL_BIN_AT(ARG(public_key));
 
     if (!dh_ctx.p || !dh_ctx.x || !dh_ctx.gy)
-        fail (Error(RE_EXT_CRYPT_INVALID_KEY, ARG(obj)));
+        fail (Error(RE_EXT_CRYPT_INVALID_KEY, ARG(obj), END));
 
     REBSER *binary = Make_Binary(dh_ctx.len);
     memset(BIN_HEAD(binary), 0, dh_ctx.len);
@@ -539,7 +538,7 @@ static REBNATIVE(aes)
 
     if (REF(stream)) {
         if (VAL_HANDLE_CLEANER(ARG(ctx)) != cleanup_aes_ctx)
-            fail (Error(RE_EXT_CRYPT_INVALID_AES_CONTEXT, ARG(ctx)));
+            fail (Error(RE_EXT_CRYPT_INVALID_AES_CONTEXT, ARG(ctx), END));
 
         AES_CTX *aes_ctx = VAL_HANDLE_POINTER(AES_CTX, ARG(ctx));
 
@@ -610,7 +609,7 @@ static REBNATIVE(aes)
         if (len != 128 && len != 256) {
             DECLARE_LOCAL (i);
             Init_Integer(i, len);
-            fail (Error(RE_EXT_CRYPT_INVALID_AES_KEY_LENGTH, i));
+            fail (Error(RE_EXT_CRYPT_INVALID_AES_KEY_LENGTH, i, END));
         }
 
         AES_CTX *aes_ctx = ALLOC_ZEROFILL(AES_CTX);
@@ -629,7 +628,7 @@ static REBNATIVE(aes)
         return R_OUT;
     }
 
-    fail (Error(RE_EXT_CRYPT_KEY_OR_STREAM_REQUIRED));
+    fail (Error(RE_EXT_CRYPT_KEY_OR_STREAM_REQUIRED, END));
 }
 
 

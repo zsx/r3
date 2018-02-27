@@ -698,7 +698,7 @@ REBNATIVE(in)
             return R_BLANK;
         }
 
-        fail (word);
+        fail (Error_Invalid(word));
     }
 
     REBCTX *context = VAL_CONTEXT(val);
@@ -909,7 +909,7 @@ REBNATIVE(set)
             Set_Path_Core(target, target_specifier, specific, REF(enfix));
         }
         else
-            fail (Error_Invalid_Arg_Core(target, target_specifier));
+            fail (Error_Invalid_Core(target, target_specifier));
     }
 
     Move_Value(D_OUT, ARG(value));
@@ -944,7 +944,7 @@ REBNATIVE(unset)
     RELVAL *word;
     for (word = VAL_ARRAY_AT(target); NOT_END(word); ++word) {
         if (!ANY_WORD(word))
-            fail (Error_Invalid_Arg_Core(word, VAL_SPECIFIER(target)));
+            fail (Error_Invalid_Core(word, VAL_SPECIFIER(target)));
 
         REBVAL *var = Sink_Var_May_Fail(word, VAL_SPECIFIER(target));
         Init_Void(var);

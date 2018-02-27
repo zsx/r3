@@ -896,7 +896,7 @@ REBNATIVE(catch)
                     // !!! Should we test a typeset for illegal name types?
                     //
                     if (IS_BLOCK(candidate))
-                        fail (ARG(names));
+                        fail (Error_Invalid(ARG(names)));
 
                     Derelativize(temp1, candidate, VAL_SPECIFIER(ARG(names)));
                     Move_Value(temp2, D_OUT);

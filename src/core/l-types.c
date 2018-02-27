@@ -262,7 +262,7 @@ REBNATIVE(to)
 
     TO_FUNC dispatcher = To_Dispatch[kind];
     if (dispatcher == NULL)
-        fail (arg);
+        fail (Error_Invalid(arg));
 
     dispatcher(D_OUT, kind, arg); // may fail();
     return R_OUT;

@@ -160,7 +160,7 @@ void Min_Max_Pair(REBVAL *out, const REBVAL *a, const REBVAL *b, REBOOL maxed)
     else if (IS_INTEGER(a))
         ax = ay = cast(REBDEC, VAL_INT64(a));
     else
-        fail (a);
+        fail (Error_Invalid(a));
 
     float bx;
     float by;
@@ -171,7 +171,7 @@ void Min_Max_Pair(REBVAL *out, const REBVAL *a, const REBVAL *b, REBOOL maxed)
     else if (IS_INTEGER(b))
         bx = by = cast(REBDEC, VAL_INT64(b));
     else
-        fail (b);
+        fail (Error_Invalid(b));
 
     if (maxed)
         SET_PAIR(out, MAX(ax, bx), MAX(ay, by));

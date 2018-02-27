@@ -56,7 +56,7 @@ REBINT Get_Num_From_Arg(const REBVAL *val)
     else if (IS_LOGIC(val))
         n = (VAL_LOGIC(val) ? 1 : 2);
     else
-        fail (val);
+        fail (Error_Invalid(val));
 
     return n;
 }
@@ -157,7 +157,7 @@ REBI64 Int64(const REBVAL *val)
     if (IS_MONEY(val))
         return deci_to_int(VAL_MONEY_AMOUNT(val));
 
-    fail (val);
+    fail (Error_Invalid(val));
 }
 
 
@@ -173,7 +173,7 @@ REBDEC Dec64(const REBVAL *val)
     if (IS_MONEY(val))
         return deci_to_decimal(VAL_MONEY_AMOUNT(val));
 
-    fail (val);
+    fail (Error_Invalid(val));
 }
 
 

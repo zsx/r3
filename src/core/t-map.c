@@ -512,7 +512,7 @@ void TO_Map(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
         Init_Map(out, Copy_Map(VAL_MAP(arg), types));
     }
     else
-        fail (arg);
+        fail (Error_Invalid(arg));
 }
 
 
@@ -788,7 +788,7 @@ REBTYPE(Map)
             fail (Error_Bad_Refines_Raw());
 
         if (!IS_BLOCK(arg))
-            fail (val);
+            fail (Error_Invalid(val));
         Move_Value(D_OUT, val);
         if (REF(dup)) {
             if (Int32(ARG(count)) <= 0) break;

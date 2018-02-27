@@ -375,8 +375,8 @@ REBNATIVE(specialize)
     REBSTR *opt_name;
     Get_If_Word_Or_Path_Arg(D_OUT, &opt_name, specializee);
     if (!IS_FUNCTION(D_OUT))
-        fail (specializee);
-    Move_Value(specializee, D_OUT);
+        fail (Error_Invalid(specializee));
+    Move_Value(specializee, D_OUT); // Frees D_OUT, and GC safe (in ARG slot)
 
     if (Specialize_Function_Throws(D_OUT, specializee, opt_name, ARG(def)))
         return R_OUT_IS_THROWN;
@@ -424,8 +424,8 @@ REBNATIVE(chain)
     //
     REBVAL *check = first;
     while (NOT_END(check)) {
-        if (!IS_FUNCTION(check))
-            fail (check);
+        if (NOT(IS_FUNCTION(check)))
+            fail (Error_Invalid(check));
         ++check;
     }
 
@@ -497,9 +497,9 @@ REBNATIVE(adapt)
 
     REBSTR *opt_adaptee_name;
     Get_If_Word_Or_Path_Arg(D_OUT, &opt_adaptee_name, adaptee);
-    if (!IS_FUNCTION(D_OUT))
-        fail (adaptee);
-    Move_Value(adaptee, D_OUT);
+    if (NOT(IS_FUNCTION(D_OUT)))
+        fail (Error_Invalid(adaptee));
+    Move_Value(adaptee, D_OUT); // Frees D_OUT, and GC safe (in ARG slot)
 
     // For the binding to be correct, the indices that the words use must be
     // the right ones for the frame pushed.  So if you adapt a specialization
@@ -604,19 +604,18 @@ REBNATIVE(enclose)
     INCLUDE_PARAMS_OF_ENCLOSE;
 
     REBVAL *inner = ARG(inner);
-    REBVAL *outer = ARG(outer);
-
     REBSTR *opt_inner_name;
     Get_If_Word_Or_Path_Arg(D_OUT, &opt_inner_name, inner);
-    if (!IS_FUNCTION(D_OUT))
-        fail (inner);
-    Move_Value(inner, D_OUT);
+    if (NOT(IS_FUNCTION(D_OUT)))
+        fail (Error_Invalid(inner));
+    Move_Value(inner, D_OUT); // Frees D_OUT, and GC safe (in ARG slot)
 
+    REBVAL *outer = ARG(outer);
     REBSTR *opt_outer_name;
     Get_If_Word_Or_Path_Arg(D_OUT, &opt_outer_name, outer);
-    if (!IS_FUNCTION(D_OUT))
-        fail (outer);
-    Move_Value(outer, D_OUT);
+    if (NOT(IS_FUNCTION(D_OUT)))
+        fail (Error_Invalid(outer));
+    Move_Value(outer, D_OUT); // Frees D_OUT, and GC safe (in ARG slot)
 
     // The paramlist needs to be unique to designate this function, but
     // will be identical typesets to the inner.  It's [0] element must
@@ -708,17 +707,19 @@ REBNATIVE(hijack)
 {
     INCLUDE_PARAMS_OF_HIJACK;
 
-    DECLARE_LOCAL (victim);
+    REBVAL *victim = ARG(victim);
     REBSTR *opt_victim_name;
-    Get_If_Word_Or_Path_Arg(victim, &opt_victim_name, ARG(victim));
-    if (!IS_FUNCTION(victim))
+    Get_If_Word_Or_Path_Arg(D_OUT, &opt_victim_name, victim);
+    if (!IS_FUNCTION(D_OUT))
         fail ("Victim of HIJACK must be a FUNCTION!");
+    Move_Value(victim, D_OUT); // Frees D_OUT, and GC safe (in ARG slot)
 
-    DECLARE_LOCAL (hijacker);
+    REBVAL *hijacker = ARG(hijacker);
     REBSTR *opt_hijacker_name;
-    Get_If_Word_Or_Path_Arg(hijacker, &opt_hijacker_name, ARG(hijacker));
-    if (!IS_FUNCTION(hijacker))
+    Get_If_Word_Or_Path_Arg(D_OUT, &opt_hijacker_name, hijacker);
+    if (!IS_FUNCTION(D_OUT))
         fail ("Hijacker in HIJACK must be a FUNCTION!");
+    Move_Value(hijacker, D_OUT); // Frees D_OUT, and GC safe (in ARG slot)
 
     if (VAL_FUNC(victim) == VAL_FUNC(hijacker)) {
         //

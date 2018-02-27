@@ -379,7 +379,7 @@ static REBNATIVE(resume)
         // handle (integers, functions for most recent call, literal FRAME!)
 
         if (!(frame = Frame_For_Stack_Level(NULL, ARG(level), TRUE)))
-            fail (ARG(level));
+            fail (Error_Invalid(ARG(level)));
 
         // !!! It's possible to specify a context to return at which is
         // "underneath" a breakpoint.  So being at a breakpoint and doing
@@ -984,7 +984,7 @@ static REBNATIVE(backtrace)
         // See notes on handling of breakpoint below for why 0 is accepted.
         //
         if (IS_INTEGER(level) && VAL_INT32(level) < 0)
-            fail (level);
+            fail (Error_Invalid(level));
     }
 
     REBCNT max_rows; // The "frames" from /LIMIT, plus one (for ellipsis)
@@ -993,7 +993,7 @@ static REBNATIVE(backtrace)
             max_rows = MAX_U32; // NONE is no limit--as many frames as possible
         else {
             if (VAL_INT32(ARG(frames)) < 0)
-                fail (ARG(frames));
+                fail (Error_Invalid(ARG(frames)));
             max_rows = VAL_INT32(ARG(frames)) + 1; // + 1 for ellipsis
         }
     }
@@ -1224,7 +1224,7 @@ static REBNATIVE(debug)
         // added by DEBUG itself, which presumably should not count.
         //
         if (!(frame = Frame_For_Stack_Level(&HG_Stack_Level, value, TRUE)))
-            fail (value);
+            fail (Error_Invalid(value));
 
         Init_Near_For_Frame(D_OUT, frame);
         return R_OUT;

@@ -46,7 +46,7 @@ static void Schema_From_Block_May_Fail(
 
     assert(IS_BLOCK(blk));
     if (VAL_LEN_AT(blk) == 0)
-        fail (blk);
+        fail (Error_Invalid(blk));
 
     RELVAL *item = VAL_ARRAY_AT(blk);
 
@@ -59,7 +59,7 @@ static void Schema_From_Block_May_Fail(
 
         ++item;
         if (IS_END(item) || !IS_BLOCK(item))
-            fail (blk);
+            fail (Error_Invalid(blk));
 
         // Use the block spec to build a temporary structure through the same
         // machinery that implements `make struct! [...]`
@@ -92,7 +92,7 @@ static void Schema_From_Block_May_Fail(
     }
 
     if (VAL_LEN_AT(blk) != 1)
-        fail (blk);
+        fail (Error_Invalid(blk));
 
     if (IS_WORD(item)) {
         //
@@ -168,7 +168,7 @@ static void Schema_From_Block_May_Fail(
         return;
     }
 
-    fail (blk);
+    fail (Error_Invalid(blk));
 }
 
 
@@ -481,7 +481,7 @@ static REBUPT arg_to_ffi(
         //
         assert(FALSE);
     default:
-        fail (arg);
+        fail (Error_Invalid(arg));
     }
 
     return offset;
@@ -1112,12 +1112,12 @@ REBFUN *Alloc_Ffi_Function_For_Spec(REBVAL *ffi_spec, ffi_abi abi) {
                 break;}
 
             default:
-                fail (KNOWN(item));
+                fail (Error_Invalid(KNOWN(item)));
             }
             break;
 
         default:
-            fail (KNOWN(item));
+            fail (Error_Invalid(KNOWN(item)));
         }
     }
 

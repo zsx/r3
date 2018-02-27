@@ -684,11 +684,8 @@ REBARR *Collect_Unique_Words_Managed(
 
     RELVAL *check = VAL_ARRAY_AT(ignore);
     for (; NOT_END(check); ++check) {
-        if (NOT(ANY_WORD(check))) {
-            DECLARE_LOCAL (non_word);
-            Derelativize(non_word, check, VAL_SPECIFIER(ignore));
-            fail (non_word);
-        }
+        if (NOT(ANY_WORD(check)))
+            fail (Error_Invalid_Core(check, VAL_SPECIFIER(ignore)));
     }
 
     struct Reb_Collector collector;

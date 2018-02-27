@@ -667,8 +667,8 @@ REBNATIVE(poke)
         fail (Error_Bad_Path_Poke_Raw(ARG(picker)));
 
     default:
-        assert(FALSE);
-        fail (ARG(picker)); // Invalid argument
+        assert(FALSE); // shouldn't happen, complain in the debug build
+        fail (Error_Invalid(ARG(picker))); // raise error in release build
     }
 
     Move_Value(D_OUT, ARG(value)); // return the value we got in

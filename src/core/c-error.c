@@ -237,9 +237,13 @@ REBOOL Trapped_Helper_Halted(struct Reb_State *s)
 // D_OUT (used to implement BREAK, CONTINUE, RETURN, LEAVE...)
 //
 // The function will auto-detect if the pointer it is given is an ERROR!'s
-// REBCTX*, a REBVAL*, or a UTF-8 string.  If it's a string, an error will be
-// created from it automatically.  If it's a value, then it is turned into
-// the ubiquitous (and kind of lame) "Invalid Arg" error.
+// REBCTX* or a UTF-8 string.  If it's a string, an error will be created from
+// it automatically.
+//
+// !!! Previously, detecting a value would use that value as the ubiquitous
+// (but vague) "Invalid Arg" error.  However, since this is called by fail(),
+// that is misleading as rebFail() takes ERROR! values, STRING!s, or BLOCK!s
+// so those cases were changed to `fail (Invalid_Arg(v))` instead.
 //
 // Note: Over the long term, one does not want to hard-code error strings in
 // the executable.  That makes them more difficult to hook with translations,
@@ -286,11 +290,6 @@ ATTRIBUTE_NO_RETURN void Fail_Core(const void *p)
         if (NOT_SER_FLAG(s, ARRAY_FLAG_VARLIST))
             panic (s);
         error = CTX(s);
-        break; }
-
-    case DETECTED_AS_VALUE: {
-        const REBVAL *v = cast(const REBVAL*, p);
-        error = Error_Invalid_Arg_Raw(v);
         break; }
 
     default:
@@ -1198,17 +1197,30 @@ REBCTX *Error_Not_Varargs(
 
 
 //
-//  Error_Invalid_Arg_Core: C
+//  Error_Invalid: C
 //
-// This error is pretty vague...it's just "invalid argument"
-// and the value with no further commentary or context.  It
-// becomes a catch all for "unexpected input" when a more
-// specific error would be more useful.
+// This is the very vague and generic "invalid argument" error with no further
+// commentary or context.  It becomes a catch all for "unexpected input" when
+// a more specific error would often be more useful.
 //
-// Note that just `fail (value)` on REBVAL* will generate this error, this
-// variant is used on RELVAL*.
+// It is given a short function name as it is--unfortunately--used very often.
 //
-REBCTX *Error_Invalid_Arg_Core(const RELVAL *value, REBSPC *specifier)
+// Note: Historically the behavior of `fail (some_value)` would generate this
+// error, as it could be distinguished from `fail (some_context)` meaning that
+// the context was for an actual intended error.  However, this created a bad
+// incompatibility with rebFail(), where the non-exposure of raw context
+// pointers meant passing REBVAL* was literally failing on an error value.
+//
+REBCTX *Error_Invalid(const REBVAL *value)
+{
+    return Error_Invalid_Arg_Raw(value);
+}
+
+
+//
+//  Error_Invalid_Core: C
+//
+REBCTX *Error_Invalid_Core(const RELVAL *value, REBSPC *specifier)
 {
     DECLARE_LOCAL (specific);
     Derelativize(specific, value, specifier);

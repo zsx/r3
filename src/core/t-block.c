@@ -950,7 +950,7 @@ REBTYPE(Array)
 
     case SYM_SWAP: {
         if (NOT(ANY_ARRAY(arg)))
-            fail (arg);
+            fail (Error_Invalid(arg));
 
         FAIL_IF_READ_ONLY_ARRAY(array);
         FAIL_IF_READ_ONLY_ARRAY(VAL_ARRAY(arg));

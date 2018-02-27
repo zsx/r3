@@ -209,7 +209,7 @@ REBNATIVE(checksum)
     if (REF(method)) {
         sym = VAL_WORD_SYM(ARG(word));
         if (sym == SYM_0) // not in %words.r, no SYM_XXX constant
-            fail (ARG(word));
+            fail (Error_Invalid(ARG(word)));
     }
     else
         sym = SYM_SHA1;
@@ -319,7 +319,7 @@ REBNATIVE(checksum)
             return R_OUT;
         }
 
-        fail (ARG(word));
+        fail (Error_Invalid(ARG(word)));
     }
     else if (REF(tcp)) {
         REBINT ipc = Compute_IPC(data, len);
@@ -530,7 +530,7 @@ REBNATIVE(enbase)
         break;
 
     default:
-        fail (ARG(base_value));
+        fail (Error_Invalid(ARG(base_value)));
     }
 
     Init_String(D_OUT, ser);
@@ -828,7 +828,7 @@ REBNATIVE(to_hex)
     if (REF(size)) {
         len = cast(REBINT, VAL_INT64(ARG(len)));
         if (len < 0)
-            fail (ARG(len));
+            fail (Error_Invalid(ARG(len)));
     }
     else
         len = -1;
@@ -855,10 +855,10 @@ REBNATIVE(to_hex)
         *buf = 0;
     }
     else
-        fail (arg);
+        fail (Error_Invalid(arg));
 
     if (NULL == Scan_Issue(D_OUT, &buffer[0], len))
-        fail (arg);
+        fail (Error_Invalid(arg));
 
     return R_OUT;
 }

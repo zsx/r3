@@ -173,7 +173,7 @@ void MAKE_Image(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
             REBCNT bad_index;
             if (Array_Has_Non_Tuple(&bad_index, item)) {
                 REBSPC *derived = Derive_Specifier(VAL_SPECIFIER(arg), item);
-                fail (Error_Invalid_Arg_Core(
+                fail (Error_Invalid_Core(
                     VAL_ARRAY_AT_HEAD(item, bad_index),
                     derived
                 ));
@@ -645,7 +645,7 @@ REBVAL *Modify_Image(REBFRM *frame_, REBCNT action)
 
     // Validate that block arg is all tuple values:
     if (IS_BLOCK(arg) && Array_Has_Non_Tuple(&n, arg))
-        fail (Error_Invalid_Arg_Core(
+        fail (Error_Invalid_Core(
             VAL_ARRAY_AT_HEAD(arg, n), VAL_SPECIFIER(arg)
         ));
 
@@ -678,7 +678,7 @@ REBVAL *Modify_Image(REBFRM *frame_, REBCNT action)
             } else if (IS_BINARY(len)) {
                 part = (VAL_INDEX(len) - VAL_INDEX(arg)) / 4;
             } else
-                fail (len);
+                fail (Error_Invalid(len));
             part = MAX(part, 0);
         }
         else if (IS_IMAGE(arg)) {
@@ -688,7 +688,7 @@ REBVAL *Modify_Image(REBFRM *frame_, REBCNT action)
             }
             else if (IS_IMAGE(len)) {
                 if (VAL_IMAGE_WIDE(len) == 0)
-                    fail (len);
+                    fail (Error_Invalid(len));
 
                 partx = VAL_INDEX(len) - VAL_INDEX(arg);
                 party = partx / VAL_IMAGE_WIDE(len);
@@ -713,7 +713,7 @@ REBVAL *Modify_Image(REBFRM *frame_, REBCNT action)
                 fail (Error_Invalid_Type(VAL_TYPE(len)));
         }
         else
-            fail (arg); // /part not allowed
+            fail (Error_Invalid(arg)); // /part not allowed
     }
     else {
         if (IS_IMAGE(arg)) { // Use image for /part sizes
@@ -1097,7 +1097,7 @@ REBTYPE(Image)
             }
             else if (IS_IMAGE(val)) {
                 if (!VAL_IMAGE_WIDE(val))
-                    fail (val);
+                    fail (Error_Invalid(val));
                 len = VAL_INDEX(val) - VAL_INDEX(value); // not same is ok
             }
             else
@@ -1144,7 +1144,7 @@ REBTYPE(Image)
         arg = ARG(limit); // can be image, integer, pair.
         if (IS_IMAGE(arg)) {
             if (VAL_SERIES(arg) != VAL_SERIES(value))
-                fail (arg);
+                fail (Error_Invalid(arg));
             len = VAL_INDEX(arg) - VAL_INDEX(value);
             arg = value;
             goto makeCopy2;
@@ -1210,7 +1210,7 @@ inline static REBOOL Adjust_Image_Pick_Index_Is_Valid(
     else if (IS_LOGIC(picker))
         n = VAL_LOGIC(picker) ? 1 : 2;
     else
-        fail (picker);
+        fail (Error_Invalid(picker));
 
     *index += n;
     if (n > 0)
@@ -1261,7 +1261,7 @@ void Pick_Image(REBVAL *out, const REBVAL *value, const REBVAL *picker)
             break; }
 
         default:
-            fail (picker);
+            fail (Error_Invalid(picker));
         }
         return;
     }
@@ -1294,7 +1294,7 @@ void Poke_Image_Fail_If_Read_Only(
         switch (VAL_WORD_SYM(picker)) {
         case SYM_SIZE:
             if (!IS_PAIR(poke) || !VAL_PAIR_X(poke))
-                fail (poke);
+                fail (Error_Invalid(poke));
 
             VAL_IMAGE_WIDE(value) = VAL_PAIR_X_INT(poke);
             VAL_IMAGE_HIGH(value) = MIN(
@@ -1329,7 +1329,7 @@ void Poke_Image_Fail_If_Read_Only(
                 );
             }
             else
-                fail (poke);
+                fail (Error_Invalid(poke));
             break;
 
         case SYM_ALPHA:
@@ -1349,11 +1349,11 @@ void Poke_Image_Fail_If_Read_Only(
                 );
             }
             else
-                fail (poke);
+                fail (Error_Invalid(poke));
             break;
 
         default:
-            fail (picker);
+            fail (Error_Invalid(picker));
         }
         return;
     }

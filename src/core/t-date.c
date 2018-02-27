@@ -545,10 +545,11 @@ void TO_Date(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
 static REBINT Int_From_Date_Arg(const REBVAL *opt_poke) {
     if (IS_INTEGER(opt_poke) || IS_DECIMAL(opt_poke))
         return Int32s(opt_poke, 0);
-    else if (IS_BLANK(opt_poke))
+
+    if (IS_BLANK(opt_poke))
         return 0;
-    else
-        fail (opt_poke);
+
+    fail (Error_Invalid(opt_poke));
 }
 
 
@@ -580,11 +581,11 @@ void Pick_Or_Poke_Date(
         case 11: sym = SYM_MINUTE; break;
         case 12: sym = SYM_SECOND; break;
         default:
-            fail (picker);
+            fail (Error_Invalid(picker));
         }
     }
     else
-        fail (picker);
+        fail (Error_Invalid(picker));
 
     if (opt_poke == NULL) {
         assert(opt_out != NULL);
@@ -738,7 +739,7 @@ void Pick_Or_Poke_Date(
             else if (IS_DECIMAL(opt_poke))
                 secs = DEC_TO_SECS(VAL_DECIMAL(opt_poke));
             else
-                fail (opt_poke);
+                fail (Error_Invalid(opt_poke));
             break;
 
         case SYM_ZONE:
@@ -763,11 +764,11 @@ void Pick_Or_Poke_Date(
         case SYM_JULIAN:
         case SYM_WEEKDAY:
         case SYM_UTC:
-            fail (picker);
+            fail (Error_Invalid(picker));
 
         case SYM_DATE:
             if (!IS_DATE(opt_poke))
-                fail (opt_poke);
+                fail (Error_Invalid(opt_poke));
             VAL_DATE(v) = VAL_DATE(opt_poke);
 
             // If the poked date's time zone bitfield is not in effect, that
@@ -825,7 +826,7 @@ void Pick_Or_Poke_Date(
             break; }
 
         default:
-            fail (picker);
+            fail (Error_Invalid(picker));
         }
 
         // !!! We've gone through and updated the date or time, but we could
