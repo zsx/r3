@@ -463,7 +463,7 @@
 // use for 256 types (although type bitsets are only 64-bits at the moment)
 //
 // The value is expected to already be "pre-formatted" with the NODE_FLAG_CELL
-// bit, so that is left as-is.  It is also expected that VALUE_FLAG_STACK has
+// bit, so that is left as-is.  It is also expected that CELL_FLAG_STACK has
 // been set if the value is stack-based (e.g. on the C stack or in a frame),
 // so that is left as-is also.
 //
@@ -584,7 +584,7 @@ inline static void Prep_Stack_Cell_Core(
         | NODE_FLAG_FREE
         | NODE_FLAG_CELL
         | HEADERIZE_KIND(REB_MAX_PLUS_ONE_TRASH)
-        | VALUE_FLAG_STACK;
+        | CELL_FLAG_STACK;
 
     TRACK_CELL_IF_DEBUG(cast(RELVAL*, c), file, line);
 }
@@ -1703,23 +1703,25 @@ inline static void INIT_BINDING(RELVAL *v, void *p) {
 
     REBNOD *binding = NOD(p);
 
-#if !defined(NDEBUG)
     if (IS_CELL(binding)) {
         //
-        // !!! This is a good assert but it is limiting the applications of
-        // trying to do evaluations into API cells.  Review.
+        // This should be sensitive to whether or not the target cell has a
+        // stack lifetime of longer or shorter than the binding, so testing
+        // the things that Derelativize() and Move_Value() do w.r.t. to
+        // CELL_FLAG_STACK.
         //
-        /* assert(v->header.bits & VALUE_FLAG_STACK); */
+        v->extra.binding = NOD(
+            Context_For_Frame_May_Reify_Managed(cast(REBFRM*, binding))
+        );
     }
-    else if (NOT(v->header.bits & VALUE_FLAG_STACK)) {
-        assert(binding->header.bits & NODE_FLAG_MANAGED);
+    else {
+      #if !defined(NDEBUG)
+        if (NOT(v->header.bits & CELL_FLAG_STACK))
+            assert(binding->header.bits & NODE_FLAG_MANAGED);
+      #endif
+
+     v->extra.binding = binding;
     }
-#endif
-
-    // !!! might be nice to do more checks here, may have to break this out
-    // into a _Debug function in %c-value.c
-
-    v->extra.binding = binding;
 }
 
 inline static void Move_Value_Header(RELVAL *out, const RELVAL *v)
@@ -1744,7 +1746,7 @@ inline static void Move_Value_Header(RELVAL *out, const RELVAL *v)
 //
 // That advanced purpose has not yet been implemented, because it requires
 // being able to "sniff" a cell for its lifetime.  For now it only preserves
-// the VALUE_FLAG_STACK bit, without actually doing anything with it.
+// the CELL_FLAG_STACK bit, without actually doing anything with it.
 //
 // Interface designed to line up with Derelativize()
 //
@@ -1755,7 +1757,7 @@ inline static REBVAL *Move_Value(RELVAL *out, const REBVAL *v)
     out->payload = v->payload; // payloads cannot hold references to stackvars
 
     if (
-        NOT(v->header.bits & VALUE_FLAG_STACK)
+        NOT(v->header.bits & CELL_FLAG_STACK)
         || NOT(Is_Bindable(v))
         || (v->extra.binding->header.bits & NODE_FLAG_MANAGED)
     ) {
@@ -1771,12 +1773,12 @@ inline static REBVAL *Move_Value(RELVAL *out, const REBVAL *v)
         // binding but it's managed, then that's also fine.
         //
         //    
-    #if !defined(NDEBUG)
+      #if !defined(NDEBUG)
         if (Is_Bindable(v)) {
-            if (NOT(v->header.bits & VALUE_FLAG_STACK))
+            if (NOT(v->header.bits & CELL_FLAG_STACK))
                 assert(NOT_CELL(v->extra.binding));
         }
-    #endif
+      #endif
         out->extra = v->extra;
         return KNOWN(out);
     }
@@ -1790,7 +1792,7 @@ inline static REBVAL *Move_Value(RELVAL *out, const REBVAL *v)
 
     REBCNT bind_depth = 1; // !!! need to determine v's binding stack level
     REBCNT out_depth;
-    if (NOT(out->header.bits & VALUE_FLAG_STACK))
+    if (NOT(out->header.bits & CELL_FLAG_STACK))
         out_depth = 0;
     else
         out_depth = 1; // !!! need to determine out's stack level
@@ -1829,7 +1831,7 @@ inline static REBVAL *Move_Var(RELVAL *out, const REBVAL *v)
     // but it should never be relative.  If it's stack, we have to go through
     // the whole potential reification process...double-set header for now.)
     //
-    if (v->header.bits & VALUE_FLAG_STACK) {
+    if (v->header.bits & CELL_FLAG_STACK) {
         Move_Value(out, v);
         if (GET_VAL_FLAG(v, VALUE_FLAG_ENFIXED))
             SET_VAL_FLAG(out, VALUE_FLAG_ENFIXED); // !!! refactor better!
@@ -1844,7 +1846,7 @@ inline static REBVAL *Move_Var(RELVAL *out, const REBVAL *v)
 
     ASSERT_CELL_WRITABLE(out, __FILE__, __LINE__);
 
-    assert(NOT(out->header.bits & VALUE_FLAG_STACK));
+    assert(NOT(out->header.bits & CELL_FLAG_STACK));
 
     // !!! We preserve VALUE_FLAG_ENFIXED, but should we preserve protection
     // status as well?
@@ -1893,7 +1895,7 @@ inline static void Blit_Cell(RELVAL *out, const RELVAL *v)
 //
 // Rather than allow a REBVAL to be declared plainly as a local variable in
 // a C function, this macro provides a generic "constructor-like" hook.
-// See VALUE_FLAG_STACK for the experimental motivation.  However, even if
+// See CELL_FLAG_STACK for the experimental motivation.  However, even if
 // this were merely a synonym for a plain REBVAL declaration in the release
 // build, it provides a useful generic hook into the point of declaration
 // of a stack value.

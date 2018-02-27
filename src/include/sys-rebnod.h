@@ -184,6 +184,11 @@ enum Reb_Pointer_Detect {
 // that wish to have an arbitrary marker on series (for things like
 // recursion avoidance in algorithms).
 //
+// Because "pairings" can wind up marking what looks like both a value cell
+// and a series, it's a bit dangerous to try exploiting this bit on a generic
+// REBVAL.  If one is *certain* that a value is not "paired" (for instance,
+// not an API REBVAL) then values can use it for other things.
+//
 #define NODE_FLAG_MARKED \
     FLAGIT_LEFT(3)
 
@@ -260,16 +265,13 @@ enum Reb_Pointer_Detect {
 // If this bit is set in the header, it indicates the slot the header is for
 // is `sizeof(REBVAL)`.
 //
-// Originally it was just for the debug build, to make it safer to use the
-// implementation trick of "implicit END markers".  Checking NODE_FLAG_CELL
-// before allowing an operation like Init_Word() to write a location
-// avoided clobbering NODE_FLAG_END signals that were backed by only
-// `sizeof(struct Reb_Header)`.
+// In the debug build, it provides safety for all value writing routines,
+// including avoiding writing over "implicit END markers" (which have
+// NODE_FLAG_END set, but are backed only by `sizeof(struct Reb_Header)`.
 //
-// However, in the release build it became used to distinguish "pairing"
-// nodes (holders for two REBVALs in the same pool as ordinary REBSERs)
-// from an ordinary REBSER node.  Plain REBSERs have the cell mask clear,
-// while paring values have it set.
+// In the release build, it distinguishes "pairing" nodes (holders for two
+// REBVALs in the same pool as ordinary REBSERs) from an ordinary REBSER node.
+// Plain REBSERs have the cell mask clear, while pairing values have it set.
 //
 // The position chosen is not random.  It is picked as the 8th bit from the
 // left so that freed nodes can still express a distinction between
@@ -281,9 +283,9 @@ enum Reb_Pointer_Detect {
     FLAGIT_LEFT(7)
 
 
-// v-- BEGIN GENERAL VALUE AND SERIES BITS WITH THIS INDEX
+// v-- BEGIN GENERAL CELL AND SERIES BITS WITH THIS INDEX
 
-#define GENERAL_VALUE_BIT 8
+#define GENERAL_CELL_BIT 8
 #define GENERAL_SERIES_BIT 8
 
 

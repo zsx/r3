@@ -26,11 +26,7 @@
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// A "paired" series hands out its handle as the REBVAL that does *not* have
-// REBSER header bits scanned on it.  This value is always mutable.  The
-// key, on the other hand, will only allow modifications if it is unmanaged
-// (this stops inadvertent writes for other purposes from clearing the managed
-// bit).
+// A "pairing" fits in a REBSER node, but actually holds two distinct REBVALs.
 //
 // !!! There is consideration of whether series payloads of length 2 might
 // be directly allocated as paireds.  This would require positioning such
@@ -42,8 +38,8 @@
 // two numbers.
 //
 
-inline static REBVAL *PAIRING_KEY(REBVAL *pairing) {
-    return pairing - 1;
+inline static REBVAL *PAIRING_KEY(REBVAL *paired) {
+    return paired + 1;
 }
 
 
@@ -65,7 +61,7 @@ inline static REBVAL *PAIRING_KEY(REBVAL *pairing) {
 
 inline static void SET_PAIR(RELVAL *v, float x, float y) {
     VAL_RESET_HEADER(v, REB_PAIR);
-    v->payload.pair = Alloc_Pairing(NULL);
+    v->payload.pair = Alloc_Pairing();
     Init_Decimal(PAIRING_KEY((v)->payload.pair), x);
     Init_Decimal((v)->payload.pair, y);
     Manage_Pairing((v)->payload.pair);

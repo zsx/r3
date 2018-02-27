@@ -262,9 +262,9 @@ inline static void Queue_Mark_Binding_Deep(const RELVAL *v) {
 
     REBNOD *binding = v->extra.binding;
 
-#if !defined(NDEBUG)
+  #if !defined(NDEBUG)
     if (IS_CELL(binding)) {
-        // assert(GET_VAL_FLAG(v, VALUE_FLAG_STACK));
+        assert(v->header.bits & CELL_FLAG_STACK);
 
         REBFRM *f = cast(REBFRM*, binding);
         assert(f->eval_type == REB_FUNCTION);
@@ -295,7 +295,7 @@ inline static void Queue_Mark_Binding_Deep(const RELVAL *v) {
         } else
             assert(binding == UNBOUND);
     }
-#endif
+  #endif
 
     if (NOT_CELL(binding))
         Queue_Mark_Array_Subclass_Deep(ARR(binding));
@@ -946,50 +946,68 @@ static void Mark_Root_Series(void)
                 continue;
             if (NOT(s->header.bits & NODE_FLAG_ROOT))
                 continue;
-            if (s->header.bits & NODE_FLAG_MARKED)
-                continue; // this can happen if a previous root marked it
-
-            // If something is marked as a root, then it has its contents
-            // GC managed...even if it is not itself a candidate for GC.
 
             if (s->header.bits & NODE_FLAG_CELL) {
                 //
-                // There is a special feature of root paired series, which
-                // is that if the "key" is a frame marked in a certain way,
-                // it will tie its lifetime to that of the execution of that
-                // frame.  When the frame is done executing, it will no
-                // longer preserve the paired.
+                // Root cells are API pairings (not series), and don't use the
+                // NODE_FLAG_MANAGED/NODE_FLAG_MARKED...because they are
+                // referenced from C code pointers directly, never from any
+                // other cells in the transitive closure.  (OTOH, a pairing
+                // used by PAIR! will be referred to by its value cell -but-
+                // it will not be a root.)
                 //
-                // (Note: This does not have anything to do with the lifetime
-                // of the FRAME! value itself, which could be indefinite.)
+                assert(NOT_SER_FLAG(s, NODE_FLAG_MANAGED));
+                assert(NOT_SER_FLAG(s, NODE_FLAG_MARKED));
+                REBVAL *paired = cast(REBVAL*, s);
+                REBVAL *key = PAIRING_KEY(paired);
+
+                // If an API cell is marked CELL_FLAG_STACK, that means its
+                // lifetime is tied to the execution of a stack frame.  When
+                // the frame is done executing, it will no longer preserve
+                // that API handle.
                 //
-                // !!! Does it need to check for pending?  Could it be set
-                // up such that you can't make an owning frame that's in
-                // a pending state?
-                //
-                REBVAL *key = cast(REBVAL*, s);
-                REBVAL *paired = key + 1;
-                if (
-                    IS_FRAME(key)
-                    && GET_VAL_FLAG(key, ANY_CONTEXT_FLAG_OWNS_PAIRED)
-                    && !Is_Context_Running_Or_Pending(VAL_CONTEXT(key))
-                ){
-                    Free_Pairing(paired); // don't consider a root
-                    continue;
+                if (paired->header.bits & CELL_FLAG_STACK) {
+                    assert(IS_FRAME(key));
+
+                    if (Is_Context_Running_Or_Pending(VAL_CONTEXT(key))) {
+                        //
+                        // !!! Does it actually need to check for pending?
+                        // Could it be set up such that you can't make an
+                        // owning frame that's in a pending state?
+                    }
+                    else {
+                        Free_Pairing(paired);
+                        continue;
+                    }
                 }
 
-                // It's alive and a root.  Pick up its dependencies deeply.
-                // Note that ENDs are allowed because for instance, a DO
-                // might be executed with the pairing as the OUT slot (since
-                // it is memory guaranteed not to relocate)
+                // Pick up its dependencies deeply.  Note that ENDs are
+                // allowed because for instance, a DO might be executed with
+                // the pairing as the OUT slot (since it is memory guaranteed
+                // not to relocate)
                 //
-                if (GET_SER_FLAG(s, NODE_FLAG_MANAGED))
-                    Mark_Rebser_Only(s); // mark node only if managed
-                Queue_Mark_Value_Deep(key);
-                if (NOT_END(paired))
-                    Queue_Mark_Value_Deep(paired);
+                if (NOT_END(key)) {
+                  #ifdef DEBUG_UNREADABLE_BLANKS
+                    if (NOT(IS_UNREADABLE_DEBUG(key)))
+                  #endif
+                        if (NOT(IS_VOID(key)))
+                            Queue_Mark_Value_Deep(key);
+                }
+                if (NOT_END(paired)) {
+                  #ifdef DEBUG_UNREADABLE_BLANKS
+                    if (NOT(IS_UNREADABLE_DEBUG(paired)))
+                  #endif
+                        if (NOT(IS_VOID(paired)))
+                            Queue_Mark_Value_Deep(paired);
+                }
             }
             else {
+                // All root *series* must be managed
+                //
+                assert(GET_SER_FLAG(s, NODE_FLAG_MANAGED));
+                if (s->header.bits & NODE_FLAG_MARKED)
+                    continue; // this can happen if a previous root marked it
+
                 // We have to do the queueing based on whatever type of series
                 // this is.  So if it's a context, we have to get the
                 // keylist...etc.
@@ -1250,7 +1268,7 @@ static void Mark_Frame_Stack_Deep(void)
             // At time of writing, all frame storage is in stack cells...not
             // varlists.
             //
-            assert(arg->header.bits & VALUE_FLAG_STACK);
+            assert(arg->header.bits & CELL_FLAG_STACK);
 
             if (param == f->param) {
                 //
@@ -1347,6 +1365,12 @@ static REBCNT Sweep_Series(void)
                 // with Make_Series() and hasn't been managed.  It doesn't
                 // participate in the GC.  Leave it as is.
                 //
+                // !!! Are there actually legitimate reasons to do this with
+                // arrays, where the creator knows the cells do not need
+                // GC protection?  Should finding an array in this state be
+                // considered a problem (e.g. the GC ran when you thought it
+                // couldn't run yet, hence would be able to free the array?)
+                //
                 break;
 
             case 9:
@@ -1362,8 +1386,10 @@ static REBCNT Sweep_Series(void)
                 // as part of the switch, but see its definition for why it
                 // is at position 8 from left and not an earlier bit.
                 //
-                if (s->header.bits & NODE_FLAG_CELL)
+                if (s->header.bits & NODE_FLAG_CELL) {
+                    assert(NOT(s->header.bits & NODE_FLAG_ROOT));
                     Free_Node(SER_POOL, s); // Free_Pairing is for manuals
+                }
                 else
                     GC_Kill_Series(s);
                 ++count;
@@ -1440,7 +1466,7 @@ REBCNT Fill_Sweeplist(REBSER *sweeplist)
 
             case 11: // 0x8 + 0x2 + 0x1
                 //
-                // It's a cell which is managed where the key is not an END.
+                // It's a cell which is managed where the value is not an END.
                 // This is a managed pairing, so mark bit should be heeded.
                 //
                 // !!! It is a REBNOD, but *not* a "series".

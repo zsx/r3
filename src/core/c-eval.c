@@ -203,7 +203,12 @@ static inline void Link_Vararg_Param_To_Frame(REBFRM *f, REBOOL make) {
     //
     if (make) {
         VAL_RESET_HEADER(f->arg, REB_VARARGS);
-        INIT_BINDING(f->arg, f); // may reify later
+
+        // !!! Doesn't use INIT_BINDING() because that conservatively reifies,
+        // and not only do we know we don't have to here, it would assert
+        // trying to reify a fulfilling frame.
+        //
+        f->arg->extra.binding = NOD(f);
     }
     else
         assert(VAL_TYPE(f->arg) == REB_VARARGS);
@@ -897,7 +902,11 @@ reevaluate:;
                 Prep_Stack_Cell(f->arg);
                 Move_Value(f->arg, NAT_VALUE(return));
 
-                INIT_BINDING(f->arg, f); // may reify later
+                // !!! Doesn't use INIT_BINDING() because at this point, that
+                // always reifies for safety (we don't need to, and in fact it
+                // would assert trying to reify a fulfilling frame).
+                //
+                f->arg->extra.binding = NOD(f);
 
                 if (f->special != NULL)
                     ++f->special; // specialization being overwritten is right
@@ -915,7 +924,9 @@ reevaluate:;
                 Prep_Stack_Cell(f->arg);
                 Move_Value(f->arg, NAT_VALUE(leave));
 
-                INIT_BINDING(f->arg, f); // may reify later
+                // !!! See note above on why INIT_BINDING() is not used.
+                //
+                f->arg->extra.binding = NOD(f);
 
                 if (f->special != NULL)
                     ++f->special; // specialization being overwritten is right
@@ -1468,13 +1479,18 @@ reevaluate:;
             IS_END(f->out) || GET_FUN_FLAG(f->phase, FUNC_FLAG_INVISIBLE)
         );
 
-        // !!! In theory an assert can be developed here, but we need to allow
-        // API handles which may have non-stack lifetimes here.  This could
-        // get complicated if a manual lifetime is used and freed during eval
-        // so rethink what the assert should be and if perhaps the API handle
-        // should get a hold taken on it.
+        // While you can't evaluate into an array cell (because it may move)
+        // an evaluation is allowed to be performed into stable cells on the
+        // stack -or- API handles.
         //
-        /* assert(f->out->header.bits & VALUE_FLAG_STACK); */
+        // !!! Could get complicated if a manual lifetime is used and freed
+        // during an evaluation.  Not currently possible since there's nothing
+        // like a rebDo() which targets a cell passed in by the user.  But if
+        // such a thing ever existed it would have that problem...and would
+        // need to take a "hold" on the cell to prevent a rebFree() while the
+        // evaluation was in progress.
+        //
+        assert(f->out->header.bits & (CELL_FLAG_STACK | NODE_FLAG_ROOT));
 
         // Running arbitrary native code can manipulate the bindings or cache
         // of a variable.  It's very conservative to say this, but any word

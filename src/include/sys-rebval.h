@@ -124,7 +124,7 @@
 // reclaim the bit for a "higher purpose".
 //
 #define VALUE_FLAG_FALSEY \
-    FLAGIT_LEFT(GENERAL_VALUE_BIT + 0)
+    FLAGIT_LEFT(GENERAL_CELL_BIT + 0)
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -144,7 +144,7 @@
 // name considering its similarity to `newline` the line feed char.
 //
 #define VALUE_FLAG_LINE \
-    FLAGIT_LEFT(GENERAL_VALUE_BIT + 1)
+    FLAGIT_LEFT(GENERAL_CELL_BIT + 1)
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -170,12 +170,12 @@
 // That has a lot of impact for the new user experience.
 //
 #define VALUE_FLAG_UNEVALUATED \
-    FLAGIT_LEFT(GENERAL_VALUE_BIT + 2)
+    FLAGIT_LEFT(GENERAL_CELL_BIT + 2)
 
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  VALUE_FLAG_STACK
+//  CELL_FLAG_STACK
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
@@ -184,19 +184,19 @@
 // transient structure in the source cell, which would need to be converted
 // into something longer-lived if the destination cell will outlive it.
 //
-// Hence cells must be formatted to say whether they are VALUE_FLAG_STACK or
+// Hence cells must be formatted to say whether they are CELL_FLAG_STACK or
 // not, before any writing can be done to them.  If they are not then they
 // are presumed to be indefinite lifetime (e.g. cells resident inside of an
 // array managed by the garbage collector).
 //
-// But if a cell is marked with VALUE_FLAG_STACK, that means it is expected
+// But if a cell is marked with CELL_FLAG_STACK, that means it is expected
 // that scanning *backwards* in memory will find a specially marked REB_FRAME
 // cell, which will lead to the frame to whose lifetime the cell is bound.
 //
 // !!! This feature is a work in progress.
 //
-#define VALUE_FLAG_STACK \
-    FLAGIT_LEFT(GENERAL_VALUE_BIT + 3)
+#define CELL_FLAG_STACK \
+    FLAGIT_LEFT(GENERAL_CELL_BIT + 3)
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -225,7 +225,7 @@
 //
 
 #define VALUE_FLAG_ENFIXED \
-    FLAGIT_LEFT(GENERAL_VALUE_BIT + 4)
+    FLAGIT_LEFT(GENERAL_CELL_BIT + 4)
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -247,7 +247,7 @@
 // shared NODE_FLAG_PROTECTED in common.)
 
 #define CELL_FLAG_PROTECTED \
-    FLAGIT_LEFT(GENERAL_VALUE_BIT + 5)
+    FLAGIT_LEFT(GENERAL_CELL_BIT + 5)
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -265,7 +265,7 @@
 //
 
 #define VALUE_FLAG_EVAL_FLIP \
-    FLAGIT_LEFT(GENERAL_VALUE_BIT + 6)
+    FLAGIT_LEFT(GENERAL_CELL_BIT + 6)
 
 
 
@@ -273,7 +273,7 @@
 
 
 #define TYPE_SPECIFIC_BIT \
-    (GENERAL_VALUE_BIT + 7)
+    (GENERAL_CELL_BIT + 7)
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -309,7 +309,7 @@
 
 #define CELL_MASK_RESET \
     (NODE_FLAG_NODE | NODE_FLAG_CELL \
-        | NODE_FLAG_MANAGED | VALUE_FLAG_STACK)
+        | NODE_FLAG_MANAGED | NODE_FLAG_ROOT | CELL_FLAG_STACK)
 
 #define CELL_MASK_COPY \
     ~(CELL_MASK_RESET | NODE_FLAG_MARKED | CELL_FLAG_PROTECTED \

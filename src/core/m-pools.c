@@ -989,41 +989,25 @@ REBSER *Make_Series_Core(REBCNT capacity, REBYTE wide, REBUPT flags)
 // This provides an alternate mechanism for plain C code to do cleanup besides
 // handlers based on PUSH_TRAP().
 //
-REBVAL *Alloc_Pairing(REBFRM *opt_owning_frame) {
+REBVAL *Alloc_Pairing(void) {
     REBSER *s = cast(REBSER*, Make_Node(SER_POOL)); // 2x REBVAL size
 
-    REBVAL *key = cast(REBVAL*, s);
-    REBVAL *paired = key + 1;
-
-    Prep_Non_Stack_Cell(key);
-    if (opt_owning_frame != NULL) {
-        //
-        // !!! Currently this reifies the frame... but it would not have to do
-        // so if FRAME! could hold a non-reified REBFRM* and if Move_Value()
-        // and Derelativize() were sensitive to reifying those frames on
-        // demand.  This general concept could be used for transient contexts
-        // as well--consider it
-        //
-        Init_Any_Context(
-            key,
-            REB_FRAME,
-            Context_For_Frame_May_Reify_Managed(opt_owning_frame)
-        );
-        SET_VAL_FLAGS(
-            key, ANY_CONTEXT_FLAG_OWNS_PAIRED | NODE_FLAG_ROOT
-        );
-    }
-    else {
-        // Client will need to put *something* in the key slot (accessed with
-        // PAIRING_KEY).  Whatever they end up writing should be acceptable
-        // to avoid a GC, since the header is not purely 0...and it works out
-        // that all "ordinary" values will just act as unmanaged metadata.
-        //
-        TRASH_CELL_IF_DEBUG(key);
-    }
+    REBVAL *paired = cast(REBVAL*, s);
+    REBVAL *key = PAIRING_KEY(paired);
 
     Prep_Non_Stack_Cell(paired);
     TRASH_CELL_IF_DEBUG(paired);
+
+    // Client will need to put *something* in the key slot (accessed with
+    // PAIRING_KEY).  Whatever they end up writing should be acceptable
+    // to avoid a GC, since the header is not purely 0...and it works out
+    // that all "ordinary" values will just act as unmanaged metadata.
+    //
+    // Init_Pairing_Key_Owner is one option.
+    //
+    Prep_Non_Stack_Cell(key);
+    TRASH_CELL_IF_DEBUG(key);
+
 
     TOUCH_SERIES_IF_DEBUG(s); // pinpoints parent call stack on `panic (s);`
 
@@ -1034,12 +1018,11 @@ REBVAL *Alloc_Pairing(REBFRM *opt_owning_frame) {
 //
 //  Manage_Pairing: C
 //
-// The paired management status is handled by bits directly in the first (or
-// key's) REBVAL header.
+// The paired management status is handled by bits directly in the first (the
+// paired value) REBVAL header.  API handle REBVALs are all managed.
 //
 void Manage_Pairing(REBVAL *paired) {
-    REBVAL *key = PAIRING_KEY(paired);
-    SET_VAL_FLAG(key, NODE_FLAG_MANAGED);
+    SET_VAL_FLAG(paired, NODE_FLAG_MANAGED);
 }
 
 
@@ -1053,9 +1036,8 @@ void Manage_Pairing(REBVAL *paired) {
 // their lifetime.
 //
 void Unmanage_Pairing(REBVAL *paired) {
-    REBVAL *key = PAIRING_KEY(paired);
-    assert(GET_VAL_FLAG(key, NODE_FLAG_MANAGED));
-    CLEAR_VAL_FLAG(key, NODE_FLAG_MANAGED);
+    assert(GET_VAL_FLAG(paired, NODE_FLAG_MANAGED));
+    CLEAR_VAL_FLAG(paired, NODE_FLAG_MANAGED);
 }
 
 
@@ -1063,15 +1045,13 @@ void Unmanage_Pairing(REBVAL *paired) {
 //  Free_Pairing: C
 //
 void Free_Pairing(REBVAL *paired) {
-    REBVAL *key = PAIRING_KEY(paired);
-    assert(NOT_VAL_FLAG(key, NODE_FLAG_MANAGED));
-    REBSER *series = cast(REBSER*, key);
-    TRASH_CELL_IF_DEBUG(paired);
-    Free_Node(SER_POOL, series);
+    assert(NOT_VAL_FLAG(paired, NODE_FLAG_MANAGED));
+    REBSER *s = cast(REBSER*, paired);
+    Free_Node(SER_POOL, s);
 
   #if !defined(NDEBUG)
     #if defined(DEBUG_COUNT_TICKS)
-        series->tick = TG_Tick; // update to be tick on which node was freed
+        s->tick = TG_Tick; // update to be tick on which node was freed
     #endif
   #endif
 }

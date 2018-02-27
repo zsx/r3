@@ -271,14 +271,6 @@ inline static REBOOL CTX_VARS_UNAVAILABLE(REBCTX *c) {
         (FLAGIT_LEFT(TYPE_SPECIFIC_BIT + (n)) | HEADERIZE_KIND(REB_OBJECT))
 #endif
 
-// `ANY_CONTEXT_FLAG_OWNS_PAIRED` is particular to the idea of a "Paired"
-// REBSER, which is actually just two REBVALs.  For purposes of the API,
-// it is possible for one of those values to be used to manage the
-// lifetime of the pair.  One technique is to tie the value's lifetime
-// to that of a particular FRAME!
-//
-#define ANY_CONTEXT_FLAG_OWNS_PAIRED ANY_CONTEXT_FLAG(0)
-
 
 inline static REBCTX *VAL_CONTEXT(const RELVAL *v) {
     assert(ANY_CONTEXT(v));

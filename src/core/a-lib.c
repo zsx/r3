@@ -115,6 +115,23 @@ inline static void Enter_Api_Clear_Last_Error(void) {
     Init_Error(PG_last_error, Error_User(msg));
 
 
+// API REBVALs live in "pairings", but aren't kept alive by references from
+// other values (the way that a pairing used by a PAIR! is kept alive by its
+// references in any array elements or other cells referring to that pairing).
+// This means their concept of being "managed" comes from other conditions
+// besides the NODE_FLAG_MANAGED bit.
+//
+// However, what distinguishes them as API values is that they have both the
+// NODE_FLAG_CELL and NODE_FLAG_ROOT bits set.
+//
+inline static REBOOL Is_Api_Value(const RELVAL *v) {
+    return LOGICAL(
+        (v->header.bits & (NODE_FLAG_CELL | NODE_FLAG_ROOT))
+        == (NODE_FLAG_CELL | NODE_FLAG_ROOT)
+    );
+}
+
+
 // !!! The return cell from this allocation is a trash cell which has had some
 // additional bits set.  This means it is not "canonized" trash that can be
 // detected as distinct from UTF-8 strings, so don't call IS_TRASH_DEBUG() or
@@ -122,13 +139,12 @@ inline static void Enter_Api_Clear_Last_Error(void) {
 //
 inline static REBVAL *Alloc_Value(void)
 {
-    REBVAL *paired = Alloc_Pairing(NULL);
+    REBVAL *paired = Alloc_Pairing();
 
     // Note the cell is trash (we're only allocating) so we can't use the
     // SET_VAL_FLAGS macro.
     //
-    /*paired->header.bits |=
-        (NODE_FLAG_MANAGED | NODE_FLAG_ROOT | VALUE_FLAG_STACK);*/
+    paired->header.bits |= NODE_FLAG_ROOT;
 
     // The long term goal is to have diverse and sophisticated memory
     // management options for API handles...where there is some automatic
@@ -149,6 +165,12 @@ inline static REBVAL *Alloc_Value(void)
     Init_Blank(PAIRING_KEY(paired)); // the meta-value of the API handle
 
     return paired;
+}
+
+inline static void Free_Value(REBVAL *v)
+{
+    assert(Is_Api_Value(v));
+    Free_Pairing(v);
 }
 
 
@@ -252,7 +274,7 @@ void Startup_Api(void)
 void Shutdown_Api(void)
 {
     assert(PG_last_error != NULL);
-    Free_Pairing(PG_last_error);
+    Free_Value(PG_last_error);
 }
 
 
@@ -583,7 +605,7 @@ REBVAL *RL_rebDo(const void *p, ...)
     // should obey the conventions.
     //
     if (Reb_Do_Api_Core_Fails(result, p, &va)) {
-        Free_Pairing(result);
+        Free_Value(result);
         va_end(va);
         return NULL;
     }
@@ -1383,17 +1405,64 @@ REBVAL *RL_rebFileW(const wchar_t *wstr)
 
 
 //
+//  rebManage: RL_API
+//
+// The "friendliest" default for the API is to assume you want handles to be
+// tied to the lifetime of the frame they're in.  Long-running top-level
+// processes like the C code running the console would eventually exhaust
+// memory if that were the case...so there should be some options for metrics
+// as a form of "leak detection" even so.
+//
+// While the API is being developed and used in core code, the default is to
+// be "unfriendly"...and you have to explicitly ask for management.
+//
+REBVAL *RL_rebManage(REBVAL *v)
+{
+    Enter_Api_Clear_Last_Error();
+
+    assert(Is_Api_Value(v));
+    assert(NOT(v->header.bits & CELL_FLAG_STACK));
+
+    if (FS_TOP == NULL)
+        fail ("rebManage() temporarily disallowed in top level C for safety");
+
+    REBVAL *key = PAIRING_KEY(v);
+
+    v->header.bits |= CELL_FLAG_STACK;
+
+    // For this situation, the context must be reified.  This is because the
+    // way in which lifetime is expected to be managed is that though the
+    // frame is alive right now as a REBFRM*, it eventually will not be...and
+    // a GC sweep at that time will need something that isn't an invalid
+    // pointer to examine.
+    //
+    Init_Any_Context(
+        key,
+        REB_FRAME,
+        Context_For_Frame_May_Reify_Managed(FS_TOP)
+    );
+
+    return v;
+
+}
+
+
+//
 //  rebUnmanage: RL_API
+//
+// This "unmanages" an API handle.  It doesn't actually make the node flag
+// unmanaged (the managed bit on a value is how we discern API handles from
+// non-API handles, managed or not).  We just set the meta information
+// for the handle to blank.
 //
 REBVAL *RL_rebUnmanage(REBVAL *v)
 {
     Enter_Api_Clear_Last_Error();
 
     REBVAL *key = PAIRING_KEY(v);
-    assert(key->header.bits & NODE_FLAG_MANAGED);
-    UNUSED(key);
+    assert(IS_FRAME(key));
 
-    Unmanage_Pairing(v);
+    Init_Blank(key);
     return v;
 }
 
@@ -1405,11 +1474,10 @@ void RL_rebRelease(REBVAL *v)
 {
     Enter_Api_Cant_Error();
 
-    REBVAL *key = PAIRING_KEY(v);
-    assert(NOT(key->header.bits & NODE_FLAG_MANAGED));
-    UNUSED(key);
+    if (NOT(Is_Api_Value(v)))
+        panic("Attempt to rebRelease() a non-API handle");
 
-    Free_Pairing(v);
+    Free_Value(v);
 }
 
 
