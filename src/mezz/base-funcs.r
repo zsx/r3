@@ -1080,10 +1080,9 @@ cause-error: func [
         ]
     ]
 
-    ; Build and raise the error:
-    do make error! [
+    fail make error! [
         type: err-type
-        id:   err-id
+        id: err-id
         arg1: first args
         arg2: second args
         arg3: third args

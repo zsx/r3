@@ -268,9 +268,6 @@ inline static void DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(struct Reb_State *s) {
 //            longjmp'd up the stack where execution continues */
 //     }
 //
-// In debug builds, the macro will capture the file and line numbers, and
-// add it to the error object itself.
-//
 // Errors that originate from C code are created via Make_Error, and are
 // defined in %errors.r.  These definitions contain a formatted message
 // template, showing how the arguments will be displayed in FORMing.

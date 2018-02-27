@@ -699,38 +699,38 @@ comment [
     ; start-up scripts, o/loaded tracks which ones are loaded (with full path)
     ;
 
-    ;-- Evaluate rebol.reb script:
-    unless find o/suppress %rebol.reb [
-        loud-print ["Checking for rebol.reb file in" o/bin]
-        if exists? o/bin/rebol.reb [ ; bug#706 ??
-            trap/with [
-                do o/bin/rebol.reb
-                append o/loaded o/bin/rebol.reb
-                loud-print ["Finished evaluating script:" o/bin/rebol.reb]
-            ] func [error] [
-                die/error "Error found in rebol.reb script" error
-            ]
+    ; Evaluate rebol.reb script:
+    ; !!! see https://github.com/rebol/rebol-issues/issues/706
+    ;
+    all [
+        not find o/suppress %rebol.reb
+        (| loud-print ["Checking for rebol.reb file in" o/bin] |)
+        exists? o/bin/rebol.reb
+    ] then [
+        trap/with [
+            do o/bin/rebol.reb
+            append o/loaded o/bin/rebol.reb
+            loud-print ["Finished evaluating script:" o/bin/rebol.reb]
+        ] func [error] [
+            die/error "Error found in rebol.reb script" error
         ]
     ]
 
-    ;-- Evaluate user.reb script:
+    ; Evaluate user.reb script:
+    ; !!! Should it query permissions to ensure RESOURCES is owner writable?
+    ;
     all [
         o/resources
         not find o/suppress %user.reb
+        (| loud-print ["Checking for user.reb file in" o/resources] |)
+        exists? o/resources/user.reb
     ] then [
-        loud-print ["Checking for user.reb file in" o/resources]
-        if exists? o/resources/user.reb [
-            trap/with [
-                ;
-                ; ideally this would query permissions to make sure RESOURCES
-                ; is owner writable only
-                ;
-                do o/resources/user.reb
-                append o/loaded o/resources/user.reb
-                loud-print ["Finished evaluating script:" o/resources/user.reb]
-            ] func [error] [
-                die/error "Error found in user.reb script" error
-            ]
+        trap/with [
+            do o/resources/user.reb
+            append o/loaded o/resources/user.reb
+            loud-print ["Finished evaluating script:" o/resources/user.reb]
+        ] func [error] [
+            die/error "Error found in user.reb script" error
         ]
     ]
 

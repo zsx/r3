@@ -1432,7 +1432,9 @@ REBVAL *RL_rebError(const char *msg)
 
 
 //
-//  rebFail: RL_API
+//  rebFail: RL_API [
+//      #noreturn
+//  ]
 //
 void RL_rebFail(const void *p)
 {
@@ -1443,7 +1445,9 @@ void RL_rebFail(const void *p)
 
 
 //
-//  rebPanic: RL_API
+//  rebPanic: RL_API [
+//      #noreturn
+//  ]
 //
 // panic() and panic_at() are used internally to the interpreter for
 // situations which are so corrupt that the interpreter cannot safely run

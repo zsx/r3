@@ -178,7 +178,9 @@ notable?: function [
         ]
 
         ;; so must be block?
-        unless block? cherry-value [do make error! {Invalid rule in cherry-pick-map.reb}]
+        unless block? cherry-value [
+            fail {Invalid rule in cherry-pick-map.reb}
+        ]
 
         ;; record related commits to force to be not notable later
         if iggy: select cherry-value 'related [append related iggy]

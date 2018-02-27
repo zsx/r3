@@ -148,7 +148,7 @@ make-diff: function [
         if next-old-log [
             if old-test == pick old-log-contents 1 [
                 print old-test
-                do make error! {duplicate test in old-log}
+                fail {duplicate test in old-log}
             ]
             set [old-test old-result] old-log-contents
             old-log-contents: skip old-log-contents 2
@@ -156,7 +156,7 @@ make-diff: function [
         if next-new-log [
             if new-test == pick new-log-contents 1 [
                 print new-test
-                do make error! {duplicate test in new-log}
+                fail {duplicate test in new-log}
             ]
             set [new-test new-result] new-log-contents
             new-log-contents: skip new-log-contents 2

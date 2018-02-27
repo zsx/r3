@@ -95,16 +95,78 @@ emit-proto: proc [proto] [
         fn.declarations "(*" fn.name.lower ")" pos.lparen ";"
     ]
 
-    append struct-call-macros unspaced [
-        "#define" space api-name args space "RL->" fn.name.lower args
-    ]
-
     append undecorated-prototypes unspaced [
         "RL_API" space proto ";"
     ]
 
-    append direct-call-macros unspaced [
-        "#define" space api-name args space proto-parser/proto.id
+    ; It's not possible to make a function pointer in a struct carry the no
+    ; return attribute.  So we have to go through an inline function.
+    ;
+    either all [block? :header/3 | find header/3 #noreturn] [
+        inline-proto: copy proto
+        replace inline-proto "RL_API" {}
+        replace inline-proto "RL_" {}
+
+        inline-args: unspaced collect [
+            keep "("
+            if not parse inline-proto [
+                thru "("
+                any [
+                    [copy param thru "," | copy param to ")" to end] (
+                        ;
+                        ; We have the type and pointer decorations, basically
+                        ; just step backwards until we find something that's
+                        ; not a C identifier letter/digit/underscore
+                        ;
+                        identifier-chars: charset [
+                            #"A" - #"Z" #"a" - #"z" #"0" - #"9" #"_"
+                        ]
+                        pos: back tail param
+                        while [find identifier-chars pos/1] [
+                            pos: back pos
+                        ]
+                        keep next pos
+                    )
+                ]
+            ][
+                fail ["Couldn't extract args from prototype:" inline-proto]
+            ]
+            keep ")"
+        ]
+
+        append direct-call-macros unspaced [
+            "ATTRIBUTE_NO_RETURN inline static" space inline-proto space "{"
+        ]
+        append direct-call-macros unspaced [
+            "    " proto-parser/proto.id inline-args ";"
+        ]
+        append direct-call-macros unspaced [
+            "    DEAD_END;" ;-- suppress "function does return" warning
+        ]
+        append direct-call-macros unspaced [
+            "}"
+        ]
+
+        append struct-call-macros unspaced [
+            "ATTRIBUTE_NO_RETURN inline static" space inline-proto space "{"
+        ]
+        append struct-call-macros unspaced [
+            "    " "RL->" fn.name.lower inline-args ";"
+        ]
+        append struct-call-macros unspaced [
+            "    DEAD_END;" ;-- suppress "function does return" warning
+        ]
+        append struct-call-macros unspaced [
+            "}"
+        ]
+    ][
+        append direct-call-macros unspaced [
+            "#define" space api-name space proto-parser/proto.id
+        ]
+
+        append struct-call-macros unspaced [
+            "#define" space api-name space "RL->" fn.name.lower
+        ]
     ]
 
     append table-init-items unspaced [

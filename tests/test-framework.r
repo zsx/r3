@@ -185,7 +185,7 @@ make object! compose [
                                         "skipped"
                                         (skipped: skipped + 1)
                                             |
-                                        (do make error! "invalid test result")
+                                        (fail "invalid test result")
                                     ]
                                 )
                             ]
