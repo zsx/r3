@@ -1414,19 +1414,9 @@ static REBCNT Sweep_Series(void)
                 break;
 
             case 13:
-                // 0x8 + 0x4 + 0x1: "free unmanaged marked node" (?!)
-                //
-                panic (s);
-
             case 14:
-                // 0x8 + 0x4 + 0x2: "free managed unmarked node" (?!)
-                //
-                panic (s);
-
             case 15:
-                // 0x8 + 0x4 + 0x2 + 0x1: "free managed marked node" (?!)
-                //
-                panic (s);
+                panic (s); // 0x8 + 0x4 + ... reserved for UTF-8
             }
         }
     }

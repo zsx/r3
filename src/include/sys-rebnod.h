@@ -95,17 +95,6 @@ struct Reb_Header {
     REBUPT bits;
 };
 
-enum Reb_Pointer_Detect {
-    DETECTED_AS_UTF8 = 0,
-    
-    DETECTED_AS_SERIES = 1,
-    DETECTED_AS_FREED_SERIES = 2,
-
-    DETECTED_AS_VALUE = 3,
-    DETECTED_AS_END = 4, // may be a cell, or made with Init_Endlike_Header()
-    DETECTED_AS_TRASH_CELL = 5
-};
-
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
