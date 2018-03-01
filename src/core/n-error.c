@@ -37,92 +37,94 @@
 #include "sys-core.h"
 
 
+// This is the code which is protected by the exception mechanism.  See the
+// rebRescue() API for more information.
+//
+static void Trap_Native_Core(REBFRM *frame_) {
+    INCLUDE_PARAMS_OF_TRAP;
+
+    UNUSED(REF(with));
+    UNUSED(ARG(handler));
+    UNUSED(REF(q));
+
+    const REBVAL *condition = END; // only allow 0-arity functions
+    const REBOOL only = REF(with); // voids verbatim only if handler given
+    if (Run_Branch_Throws(D_OUT, condition, ARG(code), only)) {
+        //
+        // returned value is tested for THROWN() status by caller
+    }
+}
+
+
 //
 //  trap: native [
 //
 //  {Tries to DO a block, trapping error as return value (if one is raised).}
 //
 //      return: [<opt> any-value!]
-//      block [block!]
+//          {If ERROR!, error was raised (void if non-raised ERROR! result)}
+//      code [block! function!]
+//          {Block or zero-arity function to execute}
 //      /with
-//          "Handle error case with code"
+//          "Handle error case with more code (overrides voiding behavior)"
 //      handler [block! function!]
 //          "If FUNCTION!, spec allows [error [error!]]"
 //      /?
-//         "Instead of result or error, return LOGIC! of if a trap occurred"
+//          "Instead of result or error, return LOGIC! of if a trap occurred"
 //  ]
 //
 REBNATIVE(trap)
 {
     INCLUDE_PARAMS_OF_TRAP; // ? is renamed as "q"
 
-    struct Reb_State state;
-    REBCTX *error;
+    REBVAL *error = rebRescue(cast(REBDNG*, &Trap_Native_Core), frame_);
+    UNUSED(ARG(code)); // gets used by the above call, via the frame_ pointer
 
-    PUSH_TRAP(&error, &state);
+    if (error == NULL) {
+        //
+        // Even if the protected execution in Trap_Core didn't have an error,
+        // it might have thrown.
+        //
+        if (THROWN(D_OUT))
+            return R_OUT_IS_THROWN;
 
-    // The first time through the following code 'error' will be NULL, but...
-    // `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
+        if (REF(q))
+            return R_FALSE;
 
-    if (error) {
-        if (REF(with)) {
-            REBVAL *handler = ARG(handler);
+        // If there is no handler for errors, then "voidify" a non-raised
+        // error so that ERROR! always means *raised* error.
+        //
+        if (NOT(REF(with)) && IS_ERROR(D_OUT))
+            return R_VOID;
 
-            if (IS_BLOCK(handler)) {
-                // There's no way to pass 'error' to a block (so just DO it)
-                if (Do_Any_Array_At_Throws(D_OUT, ARG(handler)))
-                    return R_OUT_IS_THROWN;
-
-                if (REF(q))
-                    return R_TRUE;
-
-                return R_OUT;
-            }
-            else {
-                assert (IS_FUNCTION(handler));
-
-                DECLARE_LOCAL (arg);
-                Init_Error(arg, error);
-
-                // Try passing the handler the ERROR! we trapped.  Passing
-                // FALSE for `fully` means it will not raise an error if
-                // the handler happens to be arity 0.
-                //
-                if (Apply_Only_Throws(D_OUT, FALSE, handler, arg, END))
-                    return R_OUT_IS_THROWN;
-
-                if (REF(q))
-                    return R_TRUE;
-
-                return R_OUT;
-            }
-        }
-
-        if (REF(q)) return R_TRUE;
-
-        Init_Error(D_OUT, error);
         return R_OUT;
     }
 
-    if (Do_Any_Array_At_Throws(D_OUT, ARG(block))) {
-        // Note that we are interested in when errors are raised, which
-        // causes a tricky C longjmp() to the code above.  Yet a THROW
-        // is different from that, and offers an opportunity to each
-        // DO'ing stack level along the way to CATCH the thrown value
-        // (with no need for something like the PUSH_TRAP above).
-        //
-        // We're being given that opportunity here, but doing nothing
-        // and just returning the THROWN thing for other stack levels
-        // to look at.  For the construct which does let you catch a
-        // throw, see REBNATIVE(catch), which has code for this case.
+    assert(IS_ERROR(error));
 
-        DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
-        return R_OUT_IS_THROWN;
+    if (REF(with)) {
+        //
+        // The handler may fail() which would leak the error.  We could
+        // rebManage() it so it would be freed in that case, but probably
+        // just as cheap to copy it and release it.
+        //
+        // !!! The BLOCK! case doesn't even use the `condition` parameter,
+        // so it could release it without moving.
+        //
+        Move_Value(D_CELL, error);
+        rebRelease(error);
+
+        const REBOOL only = TRUE; // return voids as-is
+        if (Run_Branch_Throws(D_OUT, D_CELL, ARG(handler), only))
+            return R_OUT_IS_THROWN;
+    }
+    else {
+        Move_Value(D_OUT, error);
+        rebRelease(error);
     }
 
-    DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
-
-    if (REF(q)) return R_FALSE;
+    if (REF(q))
+        return R_TRUE;
 
     return R_OUT;
 }
@@ -154,42 +156,4 @@ REBNATIVE(set_location_of_error)
     Set_Location_Of_Error(error, where);
 
     return R_VOID;
-}
-
-
-//
-//  attempt: native [
-//
-//  {Tries to evaluate a block and returns result or NONE on error.}
-//
-//      return: [<opt> any-value!]
-//      block [block!]
-//  ]
-//
-REBNATIVE(attempt)
-{
-    INCLUDE_PARAMS_OF_ATTEMPT;
-
-    REBVAL *block = ARG(block);
-
-    struct Reb_State state;
-    REBCTX *error;
-
-    PUSH_TRAP(&error, &state);
-
-    // The first time through the following code 'error' will be NULL, but...
-    // `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
-
-    if (error) return R_BLANK;
-
-    if (Do_Any_Array_At_Throws(D_OUT, block)) {
-        DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
-
-        // Throw name is in D_OUT, thrown value is held task local
-        return R_OUT_IS_THROWN;
-    }
-
-    DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
-
-    return R_OUT;
 }

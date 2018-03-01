@@ -721,6 +721,9 @@ REBNATIVE(for_skip)
 
     REBVAL *var = Get_Mutable_Var_May_Fail(word, SPECIFIED);
 
+    if (IS_VOID(var))
+        fail (Error_No_Value(word));
+
     if (NOT(ANY_SERIES(var)))
         fail (var);
 
@@ -833,15 +836,6 @@ REBNATIVE(for_each)
 }
 
 
-struct Remove_Each_State {
-    REBVAL *data;
-    REBSER *series;
-    const REBVAL *body;
-    REBCTX *context;
-    REBCNT start;
-    REB_MOLD *mo;
-};
-
 // For important reasons of semantics and performance, the REMOVE-EACH native
 // does not actually perform removals "as it goes".  It could run afoul of
 // any number of problems, including the mutable series becoming locked during
@@ -855,6 +849,22 @@ struct Remove_Each_State {
 // forms of exit, including raising an error, would like to apply any
 // removals indicated thus far.)
 //
+// Because it's necessary to intercept, finalize, and then re-throw any
+// fail() exceptions, rebRescue() must be used with a state structure.
+//
+struct Remove_Each_State {
+    REBVAL *out;
+    REBVAL *data;
+    REBSER *series;
+    const REBVAL *body;
+    REBCTX *context;
+    REBCNT start;
+    REB_MOLD *mo;
+};
+
+
+// See notes on Remove_Each_State
+//
 static inline REBCNT Finalize_Remove_Each(struct Remove_Each_State *res)
 {
     assert(GET_SER_INFO(res->series, SERIES_INFO_HOLD));
@@ -867,15 +877,15 @@ static inline REBCNT Finalize_Remove_Each(struct Remove_Each_State *res)
         RELVAL *dest = VAL_ARRAY_AT(res->data);
         RELVAL *src = dest;
 
-        // avoid blitting cells onto themselves by making the first thing we do
-        // to pass up all the unmarked (kept) cells.
+        // avoid blitting cells onto themselves by making the first thing we
+        // do is to pass up all the unmarked (kept) cells.
         //
         while (NOT_END(src) && NOT(src->header.bits & NODE_FLAG_MARKED)) {
             ++src;
             ++dest;
         }
 
-        // If we get here, then we're either at the end or all the cells from here
+        // If we get here, we're either at the end, or all the cells from here
         // on are going to be moving to somewhere besides the original spot
         //
         for (; NOT_END(dest); ++dest, ++src) {
@@ -958,33 +968,10 @@ static inline REBCNT Finalize_Remove_Each(struct Remove_Each_State *res)
 }
 
 
-// For unfortunate reasons, any automatic (local) variables which change
-// state after a setjmp may be clobbered by a longjmp.  This is because they
-// might get stored in registers, and that applies to struct fields too.
-// The general way to get around this is to wrap your setjmp code in a
-// function which takes the mutated variables as a parameter set up in the
-// calling function's address space.
+// See notes on Remove_Each_State
 //
-static REB_R Remove_Each_Core(REBFRM *frame_, struct Remove_Each_State *res)
+static void Remove_Each_Core(struct Remove_Each_State *res)
 {
-    struct Reb_State state;
-    REBCTX *error;
-
-    PUSH_TRAP(&error, &state);
-
-    // The first time through the following code 'error' will be NULL, but...
-    // `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
-
-    if (error != NULL) {
-        //
-        // Currently, if a fail() happens during the iteration, any removals
-        // which were indicated will be enacted before propagating failure.
-        //
-        Finalize_Remove_Each(res);
-
-        fail (error); // Trap happened, so no trap in effect; this propagates
-    }
-
     // Set a bit saying we are iterating the series, which will disallow
     // mutations (including a nested REMOVE-EACH) until completion or failure.
     // This flag will be cleaned up by Finalize_Remove_Each(), which is run
@@ -1027,28 +1014,27 @@ static REB_R Remove_Each_Core(REBFRM *frame_, struct Remove_Each_State *res)
             ++index;
         }
 
-        if (Do_Any_Array_At_Throws(D_CELL, res->body)) {
-            if (!Catching_Break_Or_Continue(D_CELL, &stop)) {
+        if (Do_Any_Array_At_Throws(res->out, res->body)) {
+            if (!Catching_Break_Or_Continue(res->out, &stop)) {
                 //
-                // A non-loop throw, we should be bubbling up.
+                // A non-loop throw, we should be bubbling up, but will be
+                // finalized anyway.
                 //
-                DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
-                Finalize_Remove_Each(res);
-                Move_Value(D_OUT, D_CELL);
-                return R_OUT_IS_THROWN;
+                assert(THROWN(res->out)); // how caller knows it threw
+                return;
             }
 
             if (stop) {
                 //
-                // BREAK - D_CELL may not be void if /WITH refinement used
+                // BREAK - res->out may not be void if /WITH refinement used
             }
             else {
-                // CONTINUE - D_CELL may not be void if /WITH refinement used
+                // CONTINUE - res->out may not be void if /WITH refinement used
             }
         }
 
         if (ANY_ARRAY(res->data)) {
-            if (IS_VOID(D_CELL) || IS_FALSEY(D_CELL)) {
+            if (IS_VOID(res->out) || IS_FALSEY(res->out)) {
                 res->start = index;
                 continue; // keep requested, don't mark for culling
             }
@@ -1061,7 +1047,7 @@ static REB_R Remove_Each_Core(REBFRM *frame_, struct Remove_Each_State *res)
             } while (res->start != index);
         }
         else {
-            if (NOT(IS_VOID(D_CELL)) && IS_TRUTHY(D_CELL)) {
+            if (NOT(IS_VOID(res->out)) && IS_TRUTHY(res->out)) {
                 res->start = index;
                 continue; // remove requested, don't save to buffer
             }
@@ -1080,24 +1066,18 @@ static REB_R Remove_Each_Core(REBFRM *frame_, struct Remove_Each_State *res)
     }
 
     // We get here on normal completion or a BREAK
-    // THROW will return above, fail() takes the `error != NULL` branch
-
-    DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
+    // THROW will return above
 
     // Finalize may need to process residual data in the case of BREAK
     // It knows this based on res.start < len
     //
     assert((stop && res->start <= len) || (!stop && res->start == len));
-    REBCNT removals = Finalize_Remove_Each(res);
 
     if (stop) {
         //
         // !!! Should the return conventions of REMOVE-EACH honor the
         // "loop protocol" where a broken loop returns BLANK!?
     }
-
-    Init_Integer(D_OUT, removals);
-    return R_OUT;
 }
 
 
@@ -1198,9 +1178,24 @@ REBNATIVE(remove_each)
         Push_Mold(res.mo);
     }
 
-    // See remarks on longjmp clobbering for why another function is needed.
+    assert(IS_END(D_OUT)); // tested for THROWN() to signal a throw happened
+    res.out = D_OUT;
+
+    REBVAL *error = rebRescue(cast(REBDNG*, &Remove_Each_Core), &res);
+
+    // Currently, if a fail() happens during the iteration, any removals
+    // which were indicated will be enacted before propagating failure.
     //
-    return Remove_Each_Core(frame_, &res);
+    REBCNT removals = Finalize_Remove_Each(&res);
+
+    if (error != NULL)
+        rebFail(error, END);
+
+    if (THROWN(res.out))
+        return R_OUT_IS_THROWN;
+
+    Init_Integer(D_OUT, removals);
+    return R_OUT;
 }
 
 

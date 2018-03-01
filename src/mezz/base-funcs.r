@@ -459,14 +459,13 @@ redescribe: function [
             ;
             opt [[set note: string!] (
                 on-demand-meta
-                either all [set-word? param | equal? param quote return:] [
-                    meta/return-note: either equal? note {} [
-                        _
-                    ][
+                either equal? param (quote return:) [
+                    meta/return-note: all [
+                        not equal? note {}
                         copy note
                     ]
                 ][
-                    if (not equal? note {}) or notes [
+                    if any [notes | not equal? note {}] [
                         on-demand-notes
 
                         unless find notes to word! param [
@@ -725,6 +724,12 @@ take: redescribe [
             ]
         ]
     ]
+)
+
+attempt: redescribe [
+    {Tries to evaluate a block and returns result or NONE on error.}
+](
+    specialize 'trap [with: true | handler: [_]]
 )
 
 for-next: redescribe [
@@ -1100,10 +1105,6 @@ fail: function [
     location [frame! any-word!]
         "Frame or parameter at which to indicate the error originated"
 ][
-    ; By default, make the originating frame the FAIL's frame
-    ;
-    unless where [location: context of 'reason]
-
     ; Ultimately we might like FAIL to use some clever error-creating dialect
     ; when passed a block, maybe something like:
     ;
@@ -1116,23 +1117,25 @@ fail: function [
     ;
     ;     fail/with [{The key} :key-name {is invalid}] [key-name: key]
     ;
-    case [
-        error? reason [
-            error: reason
-        ]
-        string? reason [
-            error: make error! reason
-        ]
-        block? reason [
-            error: make error! spaced reason
-        ]
+    error: case [
+        error? reason [reason]
+        string? reason [make error! reason]
+        block? reason [make error! spaced reason]
     ]
 
-    ; !!! Does SET-LOCATION-OF-ERROR need to be a native?
-    ;
-    set-location-of-error error location
+    if not all [error? reason | pick reason 'where] [
+        ;
+        ; If no specific location specified, and error doesn't already have a
+        ; location, make it appear to originate from the frame calling FAIL.
+        ;
+        unless where [location: context of 'reason]
+
+        ; !!! Does SET-LOCATION-OF-ERROR need to be a native?
+        ;
+        set-location-of-error error location
+    ]
 
     ; Raise error to the nearest TRAP up the stack (if any)
     ;
-    do error
+    do ensure error! error
 ]

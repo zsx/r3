@@ -56,15 +56,15 @@
 //
 static void Assert_Basics(void)
 {
-#if !defined(NDEBUG) && defined(SHOW_SIZEOFS)
+  #if !defined(NDEBUG) && defined(SHOW_SIZEOFS)
     //
     // For debugging ports to some systems
     //
-#if defined(__LP64__) || defined(__LLP64__)
+  #if defined(__LP64__) || defined(__LLP64__)
     const char *fmt = "%lu %s\n";
-#else
+  #else
     const char *fmt = "%u %s\n";
-#endif
+  #endif
 
     union Reb_Value_Payload *dummy_payload;
 
@@ -88,9 +88,9 @@ static void Assert_Basics(void)
     printf(fmt, sizeof(dummy_payload->handle), "handle");
     printf(fmt, sizeof(dummy_payload->all), "all");
     fflush(stdout);
-#endif
+  #endif
 
-#if !defined(NDEBUG)
+  #if !defined(NDEBUG)
     //
     // Sanity check the platform byte-ordering sensitive flag macros
     //
@@ -111,7 +111,7 @@ static void Assert_Basics(void)
         printf("Expected 6 and 5, got %u and %u\n", left, right);
         panic ("Bad composed integer assignment for byte-ordering macro.");
     }
-#endif
+  #endif
 
     // Although the system is designed to be able to function with REBVAL at
     // any size, the optimization of it being 4x(32-bit) on 32-bit platforms
@@ -780,9 +780,9 @@ static void Init_Root_Vars(void)
     // END (you always use SET_END), so we can make it unwritable.
     //
     Init_Endlike_Header(&PG_End_Node.header, 0); // mutate to read-only end
-#if defined(DEBUG_TRACK_CELLS)
+  #if defined(DEBUG_TRACK_CELLS)
     Set_Track_Payload_Debug(&PG_End_Node, __FILE__, __LINE__);
-#endif
+  #endif
     assert(IS_END(END)); // sanity check that it took
     assert(VAL_TYPE_RAW(END) == REB_0); // this implicit END marker has this
 
@@ -1035,12 +1035,14 @@ void Set_Stack_Limit(void *base) {
     if (bounds == 0)
         bounds = cast(REBUPT, STACK_BOUNDS);
 
-#ifdef OS_STACK_GROWS_UP
+  #ifdef OS_STACK_GROWS_UP
     Stack_Limit = cast(REBUPT, base) + bounds;
-#else
+  #else
     Stack_Limit = cast(REBUPT, base) - bounds;
-#endif
+  #endif
 }
+
+static void Startup_Mezzanine(BOOT_BLK *boot);
 
 
 //
@@ -1097,11 +1099,11 @@ void Startup_Core(void)
     // uses error objects which require the system to be initialized, so it
     // should fall back to being a panic at early boot phases.
 
-#if defined(TEST_EARLY_BOOT_PANIC)
+  #if defined(TEST_EARLY_BOOT_PANIC)
     panic ("early panic test");
-#elif defined(TEST_EARLY_BOOT_FAIL)
+  #elif defined(TEST_EARLY_BOOT_FAIL)
     fail (Error_No_Value_Raw(BLANK_VALUE));
-#endif
+  #endif
 
 //==//////////////////////////////////////////////////////////////////////==//
 //
@@ -1109,13 +1111,13 @@ void Startup_Core(void)
 //
 //==//////////////////////////////////////////////////////////////////////==//
 
-#ifndef NDEBUG
+  #ifndef NDEBUG
     PG_Always_Malloc = FALSE;
-#endif
+  #endif
 
-#ifdef DEBUG_HAS_PROBE
+  #ifdef DEBUG_HAS_PROBE
     PG_Probe_Failures = FALSE;
-#endif
+  #endif
 
     // Globals
     PG_Boot_Phase = BOOT_START;
@@ -1304,19 +1306,19 @@ void Startup_Core(void)
 
     PG_Boot_Phase = BOOT_ERRORS;
 
-#if defined(TEST_MID_BOOT_PANIC)
+  #if defined(TEST_MID_BOOT_PANIC)
     //
     // At this point panics should be able to do a reasonable job of giving
     // details on Rebol types.
     //
     panic (EMPTY_ARRAY);
-#elif defined(TEST_MID_BOOT_FAIL)
+  #elif defined(TEST_MID_BOOT_FAIL)
     //
     // With no PUSH_TRAP yet, fail should give a localized assert in a debug
     // build, and panic the release build.
     //
     fail (Error_No_Value_Raw(BLANK_VALUE));
-#endif
+  #endif
 
     // Special pre-made errors:
     Init_Error(TASK_STACK_ERROR, Error_Stack_Overflow_Raw());
@@ -1333,7 +1335,7 @@ void Startup_Core(void)
 
     assert(DSP == 0 && FS_TOP == NULL);
 
-    REBCTX *error = Startup_Mezzanine(&boot->base, &boot->sys, &boot->mezz);
+    REBVAL *error = rebRescue(cast(REBDNG*, &Startup_Mezzanine), boot);
     if (error != NULL) {
         //
         // There is theoretically some level of error recovery that could
@@ -1351,13 +1353,13 @@ void Startup_Core(void)
         // that the user isn't even *able* to request a halt at this boot
         // phase.
 
-    #ifdef RETURN_ERRORS_FROM_INIT_CORE
-        REBCNT err_num = ERR_NUM(error);
+      #ifdef RETURN_ERRORS_FROM_INIT_CORE
+        REBCNT err_num = VAL_ERR_NUM(error);
         Shutdown_Core(); // In good enough state to shutdown cleanly by now
         return err_num;
-    #endif
+      #endif
 
-        assert(ERR_NUM(error) != RE_HALT);
+        assert(VAL_ERR_NUM(error) != RE_HALT);
 
         panic (error);
     }
@@ -1368,7 +1370,7 @@ void Startup_Core(void)
 
     PG_Boot_Phase = BOOT_DONE;
 
-#if !defined(NDEBUG)
+  #if !defined(NDEBUG)
     //
     // This memory check from R3-Alpha is somewhat superfluous, but include a
     // call to it during Init in the debug build, because otherwise no one
@@ -1380,44 +1382,21 @@ void Startup_Core(void)
     // system is somewhat initialized.
     //
     Assert_Pointer_Detection_Working();
-#endif
+  #endif
 
     Recycle(); // necessary?
 }
 
 
+// By this point in the boot, it's possible to trap failures and exit in
+// a graceful fashion.  This is the routine protected by rebRescue() so that
+// initialization can handle exceptions.
 //
-//  Startup_Mezzanine: C
-//
-// For boring technical reasons, the `boot` variable might be "clobbered"
-// by a longjmp in Startup_Core().  The easiest way to work around this is
-// by taking the code that setjmp/longjmps (e.g. PUSH_TRAP, fail()) and
-// putting it into a separate function.
-//
-// http://stackoverflow.com/a/2105840/211160
-//
-// Returns error from finalizing or NULL.
-//
-REBCTX *Startup_Mezzanine(
-    RELVAL *base_block,
-    RELVAL *sys_block,
-    RELVAL *mezz_block
-) {
-    REBCTX *error;
-    struct Reb_State state;
+static void Startup_Mezzanine(BOOT_BLK *boot)
+{
+    Startup_Base(VAL_ARRAY(&boot->base));
 
-    // With error trapping enabled, set up to catch them if they happen.
-    PUSH_UNHALTABLE_TRAP(&error, &state);
-
-// The first time through the following code 'error' will be NULL, but...
-// `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
-
-    if (error)
-        return error;
-
-    Startup_Base(VAL_ARRAY(base_block));
-
-    Startup_Sys(VAL_ARRAY(sys_block));
+    Startup_Sys(VAL_ARRAY(&boot->sys));
 
     // The FINISH-INIT-CORE function should likely do very little.  But right
     // now it is where the user context is created from the lib context (a
@@ -1430,10 +1409,10 @@ REBCTX *Startup_Mezzanine(
         result,
         fully,
         Sys_Func(SYS_CTX_FINISH_INIT_CORE), // %sys-start.r function to call
-        KNOWN(mezz_block), // boot-mezz argument
+        KNOWN(&boot->mezz), // boot-mezz argument
         END
-    )) {
-        return Error_No_Catch_For_Throw(result);
+    )){
+        fail (Error_No_Catch_For_Throw(result));
     }
 
     if (!IS_VOID(result)) {
@@ -1446,10 +1425,6 @@ REBCTX *Startup_Mezzanine(
         //
         panic (result);
     }
-
-    DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
-
-    return NULL;
 }
 
 
@@ -1472,14 +1447,14 @@ REBCTX *Startup_Mezzanine(
 //
 void Shutdown_Core(void)
 {
-#if !defined(NDEBUG)
+  #if !defined(NDEBUG)
     //
     // This memory check from R3-Alpha is somewhat superfluous, but include a
     // call to it during Shutdown in the debug build, because otherwise no one
     // will think to keep it up to date and working.
     //
     Check_Memory_Debug();
-#endif
+  #endif
 
     assert(!Saved_State);
 

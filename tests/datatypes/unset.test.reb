@@ -3,7 +3,7 @@
 [blank? type of ()]
 [not void? 1]
 
-[#68 | void? try [a: ()]]
+[#68 | void? trap/with [a: ()] [_]]
 
-[error? try [a: () a]]
-[not error? try [set/only 'a ()]]
+[error? trap [a: () a]]
+[not error? trap [set/only 'a ()]]

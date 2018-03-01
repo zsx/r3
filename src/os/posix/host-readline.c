@@ -776,16 +776,16 @@ restart:;
 
             switch (*cp) {
             case 'H':   // !!! "home" (in what standard??)
-            #if !defined(NDEBUG)
-                rebFail ("ESC 'H' - please report your system info");
-            #endif
+              #if !defined(NDEBUG)
+                rebFail ("{ESC H: please report your system info}", rebEnd());
+              #endif
                 Home_Line(term);
                 break;
 
             case 'F':   // !!! "end" (in what standard??)
-            #if !defined(NDEBUG)
-                rebFail ("ESC 'F' - please report your system info");
-            #endif
+              #if !defined(NDEBUG)
+                rebFail ("{ESC F: please report your system info}", rebEnd());
+              #endif
                 End_Line(term);
                 break;
 
@@ -837,7 +837,7 @@ restart:;
             // involved at that level.  Using sigaction() on SIGINT and
             // causing EINTR is how we would like to be triggering HALT.
             //
-            rebFail ("console got literal Ctrl-C, but didn't request it");
+            rebFail ("{Unexpected literal Ctrl-C in console}", rebEnd());
 
         case 4: // CTRL-D, Synonym for Cancel Input (Windows Terminal Garbage)
             //

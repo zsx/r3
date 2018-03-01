@@ -881,6 +881,51 @@ static void cleanup_args_fftypes(const REBVAL *v) {
 }
 
 
+struct Reb_Callback_Invocation {
+    ffi_cif *cif;
+    void *ret;
+    void **args;
+    REBRIN *rin;
+};
+
+static void callback_dispatcher_core(struct Reb_Callback_Invocation *inv)
+{
+    // Build an array of code to run which represents the call.  The first
+    // item in that array will be the callback function value, and then
+    // the arguments will be the remaining values.
+    //
+    REBARR *code = Make_Array(1 + inv->cif->nargs);
+    RELVAL *elem = ARR_HEAD(code);
+    Move_Value(elem, FUNC_VALUE(RIN_CALLBACK_FUNC(inv->rin)));
+    ++elem;
+
+    REBCNT i;
+    for (i = 0; i < inv->cif->nargs; ++i, ++elem)
+        ffi_to_rebol(SINK(elem), RIN_ARG_SCHEMA(inv->rin, i), args[i]);
+
+    TERM_ARRAY_LEN(code, 1 + inv->cif->nargs);
+    MANAGE_ARRAY(code); // DO requires managed arrays (guarded while running)
+
+    DECLARE_LOCAL (result);
+    if (Do_At_Throws(result, code, 0, SPECIFIED))
+        fail (Error_No_Catch_For_Throw(result));
+
+    if (inv->cif->rtype->type == FFI_TYPE_VOID)
+        assert(IS_BLANK(RIN_RET_SCHEMA(inv->rin)));
+    else {
+        DECLARE_LOCAL (param);
+        Init_Typeset(param, 0, Canon(SYM_RETURN));
+        arg_to_ffi(
+            NULL, // store must be NULL if dest is non-NULL,
+            inv->ret, // destination pointer
+            result,
+            RIN_RET_SCHEMA(inv->rin),
+            param // parameter used for symbol in error only
+        );
+    }
+}
+
+
 //
 // callback_dispatcher: C
 //
@@ -899,65 +944,28 @@ void callback_dispatcher(
     void **args,
     void *user_data
 ){
-    REBRIN *rin = cast(REBRIN*, user_data);
-    assert(!RIN_IS_VARIADIC(rin));
-    assert(cif->nargs == RIN_NUM_FIXED_ARGS(rin));
+    struct Reb_Callback_Invocation inv;
+    inv.cif = cif;
+    inv.ret = ret;
+    inv.args = args;
+    inv.rin = cast(REBRIN*, user_data);
 
-    // We do not want to longjmp() out of the callback if there is an error.
-    // It needs to allow the FFI processing to unwind the stack normally so
-    // that it's in a good state.  Therefore this must trap any fail()s.
-    //
-    struct Reb_State state;
-    REBCTX *error;
+    assert(!RIN_IS_VARIADIC(inv.rin));
+    assert(cif->nargs == RIN_NUM_FIXED_ARGS(inv.rin));
 
-    PUSH_TRAP(&error, &state);
-
-// The first time through the following code 'error' will be NULL, but...
-// `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
-
-    if (error) {
+    REBVAL *error = rebRescue(cast(REBDNG*, callback_dispatcher_core), &inv);
+    if (error != NULL) {
         //
-        // If a callback encounters an error in mid-run, there's nothing that
-        // can be done
+        // If a callback encounters an un-trapped error in mid-run, there's
+        // nothing we can do here to "guess" what its C contract return
+        // value should be.  And we can't just jump up to the next trap point,
+        // because that would cross unknown FFI code (if it were C++, the
+        // destructors might not run, etc.)
+        //
+        // See MAKE-CALLBACK/FALLBACK for the usermode workaround.
         //
         panic (error);
     }
-
-    // Build an array of code to run which represents the call.  The first
-    // item in that array will be the callback function value, and then
-    // the arguments will be the remaining values.
-    //
-    REBARR *code = Make_Array(1 + cif->nargs);
-    RELVAL *elem = ARR_HEAD(code);
-    Move_Value(elem, FUNC_VALUE(RIN_CALLBACK_FUNC(rin)));
-    ++elem;
-
-    REBCNT i;
-    for (i = 0; i < cif->nargs; ++i, ++elem)
-        ffi_to_rebol(SINK(elem), RIN_ARG_SCHEMA(rin, i), args[i]);
-
-    TERM_ARRAY_LEN(code, 1 + cif->nargs);
-    MANAGE_ARRAY(code); // DO requires managed arrays (guarded while running)
-
-    DECLARE_LOCAL (result);
-    if (Do_At_Throws(result, code, 0, SPECIFIED))
-        fail (Error_No_Catch_For_Throw(result)); // !!! Tunnel throws out?
-
-    if (cif->rtype->type == FFI_TYPE_VOID)
-        assert(IS_BLANK(RIN_RET_SCHEMA(rin)));
-    else {
-        DECLARE_LOCAL (param);
-        Init_Typeset(param, 0, Canon(SYM_RETURN));
-        arg_to_ffi(
-            NULL, // store must be NULL if dest is non-NULL,
-            ret, // destination pointer
-            result,
-            RIN_RET_SCHEMA(rin),
-            param // parameter used for symbol in error only
-        );
-    }
-
-    DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 }
 
 

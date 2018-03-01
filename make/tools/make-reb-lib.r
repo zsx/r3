@@ -108,11 +108,10 @@ emit-proto: proc [proto] [
         replace inline-proto "RL_" {}
 
         inline-args: unspaced collect [
-            keep "("
             if not parse inline-proto [
-                thru "("
+                thru "(" (keep "(")
                 any [
-                    [copy param thru "," | copy param to ")" to end] (
+                    [copy param thru "," | copy param thru ")" to end] (
                         ;
                         ; We have the type and pointer decorations, basically
                         ; just step backwards until we find something that's
@@ -121,7 +120,7 @@ emit-proto: proc [proto] [
                         identifier-chars: charset [
                             #"A" - #"Z" #"a" - #"z" #"0" - #"9" #"_"
                         ]
-                        pos: back tail param
+                        pos: back back tail param
                         while [find identifier-chars pos/1] [
                             pos: back pos
                         ]
@@ -131,7 +130,6 @@ emit-proto: proc [proto] [
             ][
                 fail ["Couldn't extract args from prototype:" inline-proto]
             ]
-            keep ")"
         ]
 
         append direct-call-macros unspaced [

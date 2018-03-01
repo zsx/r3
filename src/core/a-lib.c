@@ -619,11 +619,6 @@ REBVAL *RL_rebRun(const void *p, ...)
 // Variant of rebRun() which assumes you don't need the result.  This saves on
 // allocating an API handle, or the caller needing to manage its lifetime.
 //
-// !!! Error handling in the API is being overhauled to use rebTrap() for
-// trapping Rebol code, -or- rebRescue() for trapping a function that makes
-// several API calls -or- the throw/catch mechanism of the underlying language
-// (if compiled with support for that language, C *must* use rebRescue())
-//
 void RL_rebElide(const void *p, ...)
 {
     Enter_Api_Clear_Last_Error();
@@ -979,6 +974,72 @@ int RL_rebEvent(REBEVT *evt)
     }
 
     return 0;
+}
+
+
+//
+//  rebRescue: RL_API
+//
+// This API abstracts the mechanics by which exception-handling is done.
+// While code that knows specifically which form is used can take advantage of
+// that knowledge and use the appropriate mechanism without this API, any
+// code (such as core code) that wants to be agnostic to mechanism should
+// use rebRescue() instead.
+//
+// There are three current mechanisms which can be built with.  One is to
+// use setjmp()/longjmp(), which is extremely dodgy.  But it's what R3-Alpha
+// used, and it's the only choice if one is sticking to ANSI C89-99:
+//
+// https://en.wikipedia.org/wiki/Setjmp.h#Exception_handling
+//
+// If one is willing to compile as C++ -and- link in the necessary support
+// for exception handling, there are benefits to doing exception handling
+// with throw/catch.  One advantage is performance: most compilers can avoid
+// paying for catch blocks unless a throw occurs ("zero-cost exceptions"):
+//
+// https://stackoverflow.com/q/15464891/ (description of the phenomenon)
+// https://stackoverflow.com/q/38878999/ (note that it needs linker support)
+//
+// It also means that C++ API clients can use try/catch blocks without needing
+// the rebRescue() abstraction, as well as have destructors run safely.
+// (longjmp pulls the rug out from under execution, and doesn't stack unwind).
+//
+// The other abstraction is for JavaScript, where an emscripten build would
+// have to painstakingly emulate setjmp/longjmp.  Using inline JavaScript to
+// catch and throw is more efficient, and also provides the benefit of API
+// clients being able to use normal try/catch of a RebolError instead of
+// having to go through rebRescue().
+//
+// But using rebRescue() internally allows the core to be compiled and run
+// compatibly across all these scenarios.  It is named after Ruby's "rescue2"
+// operation, which deals with the identical problem:
+//
+// http://silverhammermba.github.io/emberb/c/#rescue
+//
+// !!! As a first step, this only implements the setjmp/longjmp logic.
+//
+REBVAL *RL_rebRescue(
+    REBDNG *dangerous, // !!! pure C function only if not using throw/catch!
+    void *opaque
+){
+    struct Reb_State state;
+    REBCTX *error;
+
+    if (Saved_State == NULL)
+        PUSH_UNHALTABLE_TRAP(&error, &state);
+    else
+        PUSH_TRAP(&error, &state);
+
+    // The first time through the following code 'error' will be NULL, but...
+    // `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
+    //
+    if (error != NULL)
+        return Init_Error(Alloc_Value(), error);
+
+    (*dangerous)(opaque);
+
+    DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
+    return NULL; // no ERROR! raised
 }
 
 
@@ -1512,11 +1573,45 @@ REBVAL *RL_rebError(const char *msg)
 //      #noreturn
 //  ]
 //
-void RL_rebFail(const void *p)
+// rebFail() is a distinct entry point (vs. just using rebElide("fail"))
+// because it needs to have the noreturn attribute, so that compiler warnings
+// can be enabled and checked.
+//
+// !!! Would calling it rebFAIL (...) make it stand out more?
+//
+// Note: Over the long term, one does not want to hard-code error strings in
+// the executable.  That makes them more difficult to hook with translations,
+// or to identify systemically with some kind of "error code".  However,
+// it's a realistic quick-and-dirty way of delivering a more meaningful
+// error than just using a RE_MISC error code, and can be found just as easily
+// to clean up later.
+//
+// !!! Should there be a way for the caller to slip their C file and line
+// information through as the source of the FAIL?
+//
+void RL_rebFail(const void *p, const void *p2)
 {
-    Enter_Api_Cant_Error();
+    assert(Detect_Rebol_Pointer(p2) == DETECTED_AS_END);
 
-    Fail_Core(p);
+    // !!! There needs to be some sort of story on unmanaged API handles in
+    // terms of how they get cleaned up w.r.t. errors.  For now, this is one
+    // case where we know we need to make sure the value gets cleaned up
+    // when this stack level goes away...so tie the value's lifetime to the
+    // topmost frame in effect.
+    //
+    if (Detect_Rebol_Pointer(p) == DETECTED_AS_VALUE) {
+        const REBVAL *v = cast(const REBVAL*, p);
+        if (
+            (v->header.bits & (NODE_FLAG_ROOT | CELL_FLAG_STACK))
+            == NODE_FLAG_ROOT
+        ){
+            rebManage(m_cast(REBVAL*, v));
+        }
+    }
+
+    rebElide("fail", p, p2); // should not return...should DO an ERROR!
+
+    panic ("FAIL was called, but continued running!");
 }
 
 

@@ -130,3 +130,5 @@ enum REBOL_Ext_Types
 };
 
 typedef unsigned char REBRXT;
+
+typedef void (REBDNG)(void *);
