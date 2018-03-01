@@ -374,7 +374,7 @@ for-each [result RL_name args] cwrap-items [
 ]
 
 extra-js-defs: {
-rebDo = function() {
+rebRun = function() {
     var argc = arguments.length;
     var va = allocate(4 * (argc+1), '', ALLOC_STACK);
     var a, i, l, p;
@@ -396,11 +396,11 @@ rebDo = function() {
         HEAP32[(va>>2)+i] = p;
     }
     HEAP32[(va>>2)+argc] = _RL_rebEnd();
-    return _RL_rebDo(HEAP32[va>>2], va+4);
+    return _RL_rebRun(HEAP32[va>>2], va+4);
 }
 
 rebForm = function(s) {
-    return rebSpellingOf(0, rebDo('form', s));
+    return rebSpellingOf(0, rebRun('form', s));
 }}
 
 for-each l split extra-js-defs newline [

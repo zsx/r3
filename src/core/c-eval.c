@@ -1485,7 +1485,7 @@ reevaluate:;
         //
         // !!! Could get complicated if a manual lifetime is used and freed
         // during an evaluation.  Not currently possible since there's nothing
-        // like a rebDo() which targets a cell passed in by the user.  But if
+        // like a rebRun() which targets a cell passed in by the user.  But if
         // such a thing ever existed it would have that problem...and would
         // need to take a "hold" on the cell to prevent a rebFree() while the
         // evaluation was in progress.

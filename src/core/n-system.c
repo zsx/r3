@@ -444,7 +444,7 @@ REBNATIVE(test)
     INCLUDE_PARAMS_OF_TEST;
     UNUSED(ARG(value));
 
-    REBVAL *temp = rebDo("trap [x: 10]", END);
+    REBVAL *temp = rebRun("trap [x: 10]", END);
 
     if (temp == NULL) { // bounce the error back
         REBVAL *last = rebLastError();

@@ -321,7 +321,7 @@ int main(int argc, char **argv_ansi)
             continue; // !!! Comment here said "shell bug" (?)
 
         REBVAL *arg = rebStringW(argv_utf16[i]);
-        rebRelease(rebDo("append", argv_block, arg, END));
+        rebElide("append", argv_block, arg, END);
         rebRelease(arg);
     }
 #else
@@ -333,7 +333,7 @@ int main(int argc, char **argv_ansi)
             continue; // !!! Comment here said "shell bug" (?)
 
         REBVAL *arg = rebString(argv_ansi[i]);
-        rebRelease(rebDo("append", argv_block, arg, END));
+        rebElide("append", argv_block, arg, END);
         rebRelease(arg);
     }
 #endif
@@ -496,7 +496,7 @@ int main(int argc, char **argv_ansi)
         // this code is responsible for freeing the result `code` (if it
         // does not come back NULL indicating a failure).
         //
-        REBVAL *new_code = rebDo(
+        REBVAL *new_code = rebRun(
             rebEval(host_console), // HOST-CONSOLE function (run it)
             code, // GROUP! or BLOCK! that was executed prior below (or void)
             result, // result of evaluating previous code (void if error)

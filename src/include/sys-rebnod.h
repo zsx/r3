@@ -44,10 +44,10 @@
 //     const char *utf8 = ...;
 //     panic (utf8); // can tell this is UTF-8 data (not a series or value)
 //
-// But a more compelling case is the planned usage through the API, so that
-// variadic combinations of strings and values can be intermixed, as in:
+// But a more compelling case is the usage through the API, so variadic
+// combinations of strings and values can be intermixed, as in:
 //
-//     rebDo("[", "poke", series, "1", value, "]") 
+//     rebRun("poke", series, "1", value, END) 
 //
 // Internally, the ability to discern these types helps certain structures or
 // arrangements from having to find a place to store a kind of "flavor" bit
@@ -213,14 +213,12 @@ struct Reb_Header {
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// This indicates the node should be treated as a root for GC purposes.  It
-// only means anything on a REBVAL if that REBVAL happens to live in the key
-// slot of a paired REBSER--it should not generally be set otherwise.
+// Means the node should be treated as a root for GC purposes.  If the node
+// also has NODE_FLAG_CELL, that means the cell must live in a "pairing"
+// REBSER-sized structure for two cells.  This indicates it is an API handle.
 //
-// !!! Review the implications of this flag "leaking" if a key is ever bit
-// copied out of a pairing that uses it.  It might not be a problem so long
-// as the key is ensured read-only, so that the bit is just noise on any
-// non-key that has it...but the consequences may be more sinister.
+// This flag is masked out by CELL_MASK_COPIED, so that when values are moved
+// into or out of API handle cells the flag is left untouched.
 //
 #define NODE_FLAG_ROOT \
     FLAGIT_LEFT(5)

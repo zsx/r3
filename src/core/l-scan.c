@@ -951,7 +951,7 @@ acquisition_loop:
             DS_PUSH_TRASH;
             Move_Value(DS_TOP, splice);
 
-            // !!! The needs of rebDo() are such that it wants to preserve
+            // !!! The needs of rebRun() are such that it wants to preserve
             // the non-user-visible EVAL_FLIP bit, which is usually not copied
             // by Move_Value.  This should not be allowed by rebBlock(),
             // however...so find a way to disable that in case someone puts
@@ -2427,7 +2427,7 @@ REBARR *Scan_Va_Managed(
     Init_Va_Scan_State_Core(&ss, filename, start_line, NULL, &va);
     Scan_To_Stack(&ss, '\0');
 
-    // Because a variadic rebDo() can have rebEval() entries, when it
+    // Because a variadic rebRun() can have rebEval() entries, when it
     // delegates to the scanner that may mean it sees those entries.  This
     // should not be legal in constructors like rebBlock() since rebEval()
     // is not exposed there.

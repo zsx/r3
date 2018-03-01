@@ -241,7 +241,7 @@
 
 //=//// DO_FLAG_VALUE_IS_INSTRUCTION //////////////////////////////////////=//
 //
-// If variadic processing of rebDo() comes across a rebEval() instruction,
+// If variadic processing of rebRun() comes across a rebEval() instruction,
 // it is responsible for freeing it.  It can't be freed on the cycle it is
 // used, because f->value still point at the singular cell in the instruction.
 // It can only be freed on the subsequent cycle...*but* the lookahead process

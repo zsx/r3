@@ -417,7 +417,7 @@ void RL_rebShutdown(REBOOL clean)
 // consistent fashion because the moment one crosses into a nested BLOCK!,
 // there is nowhere to store the "unevaluated" bit--since it is not a generic
 // value flag that should be leaked.  For now, it's a test of the question of
-// if some routines...like rebDo() and rebPrint()...would not handle splices
+// if some routines...like rebRun() and rebPrint()...would not handle splices
 // as evaluative:
 //
 // https://forum.rebol.info/t/371
@@ -518,7 +518,7 @@ REBVAL *RL_rebBlock(const void *p, ...) {
 // Actual pointers themselves have to be `const` (as opposed to pointing to
 // const data) to avoid the compiler warning in some older GCCs.
 //
-inline static REBOOL Reb_Do_Api_Core_Fails(
+inline static REBOOL Reb_Run_Api_Core_Fails(
     REBVAL * const out,
     const void * const p,
     va_list * const vaptr
@@ -583,14 +583,17 @@ inline static REBOOL Reb_Do_Api_Core_Fails(
 
 
 //
-//  rebDo: RL_API
+//  rebRun: RL_API
 //
 // C variadic function which calls the evaluator on multiple pointers.
 // Each pointer may either be a REBVAL* or a UTF-8 string which will be
-// scanned to reflect one or more values in the sequence.  All REBVAL* are
-// spliced in inert by default, as if they were an evaluative product already.
+// scanned to reflect one or more values in the sequence.
 //
-REBVAL *RL_rebDo(const void *p, ...)
+// All REBVAL* are spliced in inert by default, as if they were an evaluative
+// product already.  Use rebEval() to "retrigger" them (which wraps them in
+// a singular REBARR*, another type of detectable pointer.)
+//
+REBVAL *RL_rebRun(const void *p, ...)
 {
     Enter_Api_Clear_Last_Error();
 
@@ -599,12 +602,7 @@ REBVAL *RL_rebDo(const void *p, ...)
     va_list va;
     va_start(va, p);
 
-    // Due to the way longjmp works, it can possibly "clobber" result if it
-    // is in a register.  The easiest way to get around this is to wrap the
-    // code in a separate function.  Even if that function is inlined, it
-    // should obey the conventions.
-    //
-    if (Reb_Do_Api_Core_Fails(result, p, &va)) {
+    if (Reb_Run_Api_Core_Fails(result, p, &va)) {
         Free_Value(result);
         va_end(va);
         return NULL;
@@ -616,40 +614,52 @@ REBVAL *RL_rebDo(const void *p, ...)
 
 
 //
+//  rebElide: RL_API
+//
+// Variant of rebRun() which assumes you don't need the result.  This saves on
+// allocating an API handle, or the caller needing to manage its lifetime.
+//
+// !!! Error handling in the API is being overhauled to use rebTrap() for
+// trapping Rebol code, -or- rebRescue() for trapping a function that makes
+// several API calls -or- the throw/catch mechanism of the underlying language
+// (if compiled with support for that language, C *must* use rebRescue())
+//
+void RL_rebElide(const void *p, ...)
+{
+    Enter_Api_Clear_Last_Error();
+
+    va_list va;
+    va_start(va, p);
+
+    DECLARE_LOCAL (elided);
+    REBIXO indexor = Do_Va_Core(
+        elided,
+        p, // opt_first (preloads value)
+        &va,
+        DO_FLAG_EXPLICIT_EVALUATE | DO_FLAG_TO_END
+    );
+    UNUSED(indexor);
+
+    va_end(va);
+}
+
+
+//
 //  rebDoValue: RL_API
 //
 // Non-variadic function which takes a single argument which must be a single
 // value.  It invokes the basic behavior of the DO native on a value.
 //
+// !!! This should be replaced with a variadic rebDo() which is able to take
+// an expression to pass to DO, e.g. an expression which calculates a FILE!.
+// That should be done when old instances of rebDo() are changed to rebRun().
+//
 REBVAL *RL_rebDoValue(const REBVAL *v)
 {
     // don't need an Enter_Api_Clear_Last_Error(); call while implementation
-    // is based on the RL_API rebDo(), because it will do it.
+    // is based on the RL_API rebRun(), because it will do it.
 
-    // !!! One design goal of Ren-C's RL_API is to limit the number of
-    // fundamental exposed C functions.  So this formulation of rebDoValue()
-    // is a good example of something that might be in "userspace", vs. part
-    // of the "main" RL_API...possibly using generic memoizations for speed
-    // so "do" and "quote" could be provided textually by users yet not
-    // loaded and bound each time.
-    //
-    // As with much of the API it could be more optimal, but this is a test
-    // of the concept.
-    //
-    return rebDo(rebEval(NAT_VALUE(do)), v, END);
-}
-
-
-//
-//  rebDoString: RL_API
-//
-// Non-variadic function which takes a single argument which must be a C string.
-// It invokes the basic behavior of the DO native on a C string
-// See comments in rebDoValue.
-//
-REBVAL *RL_rebDoString(const char *v)
-{
-    return rebDo(v, END);
+    return rebRun(rebEval(NAT_VALUE(do)), v, END);
 }
 
 
@@ -678,7 +688,7 @@ REBOOL RL_rebPrint(const void *p, ...)
 
     Deep_Freeze_Array(a);
 
-    // !!! See notes in rebDo() on this particular choice of binding.  For
+    // !!! See notes in rebRun() on this particular choice of binding.  For
     // internal usage of PRINT (e.g. calls from PARSE) it really should not
     // be binding into user!
     //
@@ -691,7 +701,7 @@ REBOOL RL_rebPrint(const void *p, ...)
     DECLARE_LOCAL (block);
     Init_Block(block, a);
 
-    REBVAL *result = rebDo(rebEval(print), block, END);
+    REBVAL *result = rebRun(rebEval(print), block, END);
     if (result == NULL)
         return FALSE;
 
@@ -730,13 +740,14 @@ REBVAL *RL_rebLastError(void)
 //
 //  rebEval: RL_API
 //
-// When rebDo() receives a REBVAL*, the default is to assume it should be
+// When rebRun() receives a REBVAL*, the default is to assume it should be
 // spliced into the input stream as if it had already been evaluated.  It's
 // only segments of code supplied via UTF-8 strings, that are live and can
 // execute functions.
 //
-// This instruction is used with rebDo() in order to mark a value as being
-// evaluated.
+// This instruction is used with rebRun() in order to mark a value as being
+// evaluated.  So `rebRun(rebEval(some_word), ...)` will execute that word
+// if it's bound to a FUNCTION! and dereference if it's a variable.
 //
 void *RL_rebEval(const REBVAL *v)
 {
@@ -1154,13 +1165,10 @@ void RL_rebInitDate(
 //
 // Mold any value and produce a UTF-8 string from it.
 //
-// !!! API design question is whether the C APIs should focus on C types and
-// returning a char*, vs returning a STRING! which has to have its spelling
-// extracted in an additional step.  If someone wanted the latter, then the
-// idea is they could write `rebDo("mold", value, END);`...and that rather
-// than trying to optimize that the goal is to optimize the speed of that
-// pattern (e.g. by making a "prepared statement" that only loads and binds
-// "mold" once...)
+// !!! Ideally the UTF-8 string returned could use an allocation strategy that
+// would make it attach GC to the current FRAME!, while also allowing it to be
+// rebRelease()'d.  It might also return a `const char*` to the internal UTF8
+// data with a hold on it.
 //
 char *RL_rebMoldAlloc(REBCNT *len_out, const REBVAL *v)
 {
@@ -1556,7 +1564,7 @@ void RL_rebPanic(const void *p)
 
     switch (Detect_Rebol_Pointer(p)) {
     case DETECTED_AS_UTF8:
-        rebDo(
+        rebRun(
             rebEval(NAT_VALUE(panic)),
             rebString(cast(const char*, p)),
             END
@@ -1575,7 +1583,7 @@ void RL_rebPanic(const void *p)
         break;
 
     case DETECTED_AS_VALUE:
-        rebDo(
+        rebRun(
             rebEval(NAT_VALUE(panic_value)),
             cast(const REBVAL*, p),
             END

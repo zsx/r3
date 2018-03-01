@@ -1210,11 +1210,12 @@ REBNATIVE(to_logic)
 //      /soft
 //          {Evaluate if a GROUP!, GET-WORD!, or GET-PATH!}
 //  ][
-//      if bar? :value [
-//          fail "Cannot quote expression barrier" ;-- not actual error
-//      ]
-//      if any [group! :value | get-word? :value | get-path? :value] [
-//          reduce value
+//      case [
+//          bar? :value [fail "Cannot quote expression barrier"]
+//
+//          soft and (match [group! get-word! get-path!] :value) [
+//              reduce value
+//          ]
 //      ] else [
 //          :value ;-- also sets unevaluated bit, how could a user do so?
 //      ]
@@ -1226,30 +1227,16 @@ REBNATIVE(quote)
 
     REBVAL *v = ARG(value);
 
-    // At the moment, a hard quoting operation is permitted to quote BAR! if
-    // it really wants to.  The general advice is to fail in this case, but it
-    // is not enforced.  (Hard quotes are also generally not recommended in
-    // situations where a soft quote would do.)
-    //
     if (IS_BAR(v))
-        fail (Error_Expression_Barrier_Raw());
+        fail (Error_Expression_Barrier_Raw()); // use UNEVAL instead of QUOTE
 
-    // While we could use Eval_Value_Throws() here and do the evaluation
-    // ourself, that call would need to spawn a new frame.  Using the same
-    // re-evaluation feature that EVAL is based on is more efficient, since it
-    // just runs in the current frame.
-    //
     if (REF(soft) && IS_QUOTABLY_SOFT(v)) {
         Move_Value(D_CELL, v);
-        return R_REEVALUATE_CELL;
+        return R_REEVALUATE_CELL; // EVAL's mechanic lets us reuse this frame
     }
 
-    // We cannot set the VALUE_FLAG_UNEVALUATED bit here and make it stick,
-    // because the bit would just get cleared off by Do_Core when the
-    // function finished.  Ask evaluator to add the bit for us.
-    //
     Move_Value(D_OUT, v);
-    return R_OUT_UNEVALUATED;
+    return R_OUT_UNEVALUATED; // can't add VALUE_FLAG_UNEVALUATED directly
 }
 
 
@@ -1261,7 +1248,7 @@ REBNATIVE(quote)
 //      return: [<opt> any-value!]
 //          {The input value, verbatim.}
 //      :value [<opt> any-value!]
-//          {Value to quote.  Voids are only possible via C rebDo() API.}
+//          {Void quoting is only possible with APPLY or API (e.g. rebRun())}
 //  ][
 //      :value ;-- also sets unevaluated bit, how could a user do so?
 //  ]
@@ -1271,7 +1258,7 @@ REBNATIVE(uneval)
     INCLUDE_PARAMS_OF_UNEVAL;
 
     Move_Value(D_OUT, ARG(value));
-    return R_OUT_UNEVALUATED;
+    return R_OUT_UNEVALUATED; // can't add VALUE_FLAG_UNEVALUATED directly
 }
 
 

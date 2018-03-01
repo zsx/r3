@@ -512,9 +512,9 @@ void Set_Location_Of_Error(
     for (; f != NULL; f = f->prior) {
         if (FRM_IS_VALIST(f)) {
             //
-            // !!! We currently skip any calls from C (e.g. rebDo()) and look
+            // !!! We currently skip any calls from C (e.g. rebRun()) and look
             // for calls from Rebol files for the file and line.  However,
-            // rebDo() might someday supply its C code __FILE__ and __LINE__,
+            // rebRun() might someday supply its C code __FILE__ and __LINE__,
             // which might be interesting to put in the error instead.
             //
             continue;

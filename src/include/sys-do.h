@@ -236,7 +236,7 @@ inline static void Abort_Frame_Core(REBFRM *f) {
         //
         // http://stackoverflow.com/a/32259710/211160
         //
-        // !!! If rebDo() allows transient elements to be put into the va_list
+        // !!! If rebRun() allows transient elements to be put in the va_list
         // with the expectation that they will be cleaned up by the end of
         // the call, any remaining entries in the list would have to be
         // fetched and processed here.
@@ -393,7 +393,7 @@ detect_again:
         // stop when it completed just some tokens, e.g. it doesn't need to
         // include `b` in the array here, it could stop at "]":
         //
-        //     rebDo("[", a, "]", b, END);
+        //     rebRun("[", a, "]", b, END);
         //
         // But if scanning is to be done anyway to produce a REBARR*, it would
         // be wasteful to create individual arrays for each string section,
@@ -408,7 +408,7 @@ detect_again:
 
         if (DSP == dsp_orig) {
             //
-            // This happens when somone says rebDo(..., "", ...) or similar,
+            // This happens when somone says rebRun(..., "", ...) or similar,
             // and gets an empty array from a string scan.  It's not legal
             // to put an END in f->value, and it's unknown if the variadic
             // feed is actually over so as to put NULL... so get another
@@ -420,7 +420,7 @@ detect_again:
 
         REBARR *a = Pop_Stack_Values_Keep_Eval_Flip(dsp_orig);
 
-        // !!! Binding for rebDo() is a very complex thing.  One question is
+        // !!! Binding for rebRun() is a very complex thing.  One question is
         // how the string runs are bound.  Another is how to deal with values
         // spliced into string runs...how do they signal to keep their
         // binding?  With the scanner being a black box here as it is, there's
@@ -477,7 +477,7 @@ detect_again:
         // result of the rebEval() instruction, which is assumed to only
         // provide a value and then be automatically freed.  (The system
         // exposes EVAL the primitive but not a generalized EVAL bit on
-        // values, so this is a hack to make rebDo() slightly more
+        // values, so this is a hack to make rebRun() slightly more
         // palatable.)
         //
         REBARR *eval = ARR(m_cast(void*, p));
@@ -485,7 +485,7 @@ detect_again:
         // !!! The initial plan was to move the value into the frame cell and
         // free the instruction array here.  That can't work because the
         // evaluator needs to be able to see a cell and a unit ahead at the
-        // same time...and `rebDo(rebEval(x), rebEval(y), ...)` can't have
+        // same time...and `rebRun(rebEval(x), rebEval(y), ...)` can't have
         // `y` overwriting the cell where `x` is during that lookahead.
         //
         // So instead we point directly into the instruction and then set a
