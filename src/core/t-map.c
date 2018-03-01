@@ -442,6 +442,42 @@ void MAKE_Map(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
 }
 
 
+inline static REBMAP *Copy_Map(REBMAP *map, REBU64 types) {
+    REBARR *copy = Copy_Array_Shallow(MAP_PAIRLIST(map), SPECIFIED);
+    SET_SER_FLAG(copy, ARRAY_FLAG_PAIRLIST);
+
+    // So long as the copied pairlist is the same array size as the original,
+    // a literal copy of the hashlist can still be used, as a start (needs
+    // its own copy so new map's hashes will reflect its own mutations)
+    //
+    LINK(copy).hashlist = Copy_Sequence(MAP_HASHLIST(map));
+
+    if (types == 0)
+        return MAP(copy); // no types have deep copy requested, shallow is OK
+
+    // Even if the type flags request deep copies of series, none of the keys
+    // need to be copied deeply.  This is because they are immutable at the
+    // time of insertion.
+    //
+    assert(ARR_LEN(copy) % 2 == 0); // should be [key value key value]...
+
+    RELVAL *key = ARR_HEAD(copy);
+    for (; NOT_END(key); key += 2) {
+        assert(Is_Value_Immutable(key)); // immutable key
+
+        RELVAL *v = key + 1;
+        if (IS_VOID(v))
+            continue; // "zombie" map element (not present)
+
+        // No plain Clonify_Value() yet, call on values with length of 1.
+        //
+        Clonify_Values_Len_Managed(v, SPECIFIED, 1, SERIES_MASK_NONE, types);
+    }
+
+    return MAP(copy);
+}
+
+
 //
 //  TO_Map: C
 //
@@ -450,33 +486,33 @@ void TO_Map(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
     assert(kind == REB_MAP);
     UNUSED(kind);
 
-    REBARR* array;
-    REBCNT len;
-    REBCNT index;
-    REBSPC *specifier;
-
     if (IS_BLOCK(arg) || IS_GROUP(arg)) {
         //
         // make map! [word val word val]
         //
-        array = VAL_ARRAY(arg);
-        index = VAL_INDEX(arg);
-        len = VAL_ARRAY_LEN_AT(arg);
-        specifier = VAL_SPECIFIER(arg);
+        REBARR* array = VAL_ARRAY(arg);
+        REBCNT len = VAL_ARRAY_LEN_AT(arg);
+        REBCNT index = VAL_INDEX(arg);
+        REBSPC *specifier = VAL_SPECIFIER(arg);
+
+        REBMAP *map = Make_Map(len / 2); // [key value key value...] + END
+        Append_Map(map, array, index, specifier, len);
+        Rehash_Map(map);
+        Init_Map(out, map);
     }
     else if (IS_MAP(arg)) {
-        array = MAP_PAIRLIST(VAL_MAP(arg));
-        index = 0;// maps don't have an index/"position"
-        len = ARR_LEN(array);
-        specifier = SPECIFIED; // there should be no relative values in a MAP!
+        //
+        // Values are not copied deeply by default.
+        //
+        // !!! Is there really a use in allowing MAP! to be converted TO a
+        // MAP! as opposed to having people COPY it?
+        //
+        REBU64 types = 0;
+
+        Init_Map(out, Copy_Map(VAL_MAP(arg), types));
     }
     else
         fail (arg);
-
-    REBMAP *map = Make_Map(len / 2); // [key value key value...] + END
-    Append_Map(map, array, index, specifier, len);
-    Rehash_Map(map);
-    Init_Map(out, map);
 }
 
 
@@ -797,17 +833,20 @@ REBTYPE(Map)
             UNUSED(ARG(limit));
             fail (Error_Bad_Refines_Raw());
         }
+
+        REBU64 types = 0; // which types to copy non-"shallowly"
+
         if (REF(deep))
-            fail (Error_Bad_Refines_Raw());
+            types |= REF(types) ? 0 : TS_CLONE;
+
         if (REF(types)) {
-            UNUSED(ARG(kinds));
-            fail (Error_Bad_Refines_Raw());
+            if (IS_DATATYPE(ARG(kinds)))
+                types |= FLAGIT_KIND(VAL_TYPE(ARG(kinds)));
+            else
+                types |= VAL_TYPESET_BITS(ARG(kinds));
         }
 
-        // !!! the copying map case should probably not be a MAKE case, but
-        // implemented here as copy.
-        //
-        MAKE_Map(D_OUT, REB_MAP, val); // may fail()
+        Init_Map(D_OUT, Copy_Map(map, types));
         return R_OUT; }
 
     case SYM_CLEAR:

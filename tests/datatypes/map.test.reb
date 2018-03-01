@@ -20,3 +20,17 @@
     clear m
     not find m 'a
 ]
+
+[
+    #2293
+    thing: copy/deep [a [b]]
+    m: make map! reduce [1 thing]
+    m2: copy/deep m
+    thing2: select m2 1
+    append thing/2 'c
+    append thing2 'd
+    did all [
+        thing = [a [b c]]
+        thing2 = [a [b] d]
+    ]
+]
