@@ -27,38 +27,31 @@
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
+// !!! The VECTOR! datatype was a largely unused/untested feature of R3-Alpha,
+// the goal of which was to store and process raw packed integers/floats, in
+// a more convenient way than using a BINARY!.  User attempts to extend this
+// to multi-dimensional matrix also happened after the R3-Alpha release.
+//
+// Keeping the code in this form around is of questionable value in Ren-C,
+// but it has been kept alive mostly for purposes of testing FFI callbacks
+// (e.g. qsort()) by giving Rebol a very limited ability to work with packed
+// C-style memory blocks.
+//
+// Ultimately it is kept as a bookmark for what a user-defined type in an
+// extension might have to deal with to bridge Rebol userspace to vector data.
+//
 
 #include "sys-core.h"
 
 #define Init_Vector(v,s) \
     Init_Any_Series((v), REB_VECTOR, (s))
 
-// Encoding Format:
-//      stored in series->size for now
-//      [d d d d   d d d d   0 0 0 0   t s b b]
 
-// Encoding identifiers:
-enum {
-    VTSI08 = 0,
-    VTSI16,
-    VTSI32,
-    VTSI64,
-
-    VTUI08,
-    VTUI16,
-    VTUI32,
-    VTUI64,
-
-    VTSF08,     // not used
-    VTSF16,     // not used
-    VTSF32,
-    VTSF64
-};
-
-#define VECT_TYPE(s) (MISC(s).size & 0xff)
-
-static REBCNT bit_sizes[4] = {8, 16, 32, 64};
-
+// !!! Routines in the vector code seem to want to make it easy to exchange
+// blobs of data without knowing what's in them.  This has led to what is
+// likely undefined behavior, casting REBDEC to REBU64 etc.  It all needs
+// a lot of review if this code is ever going to be used for anything real.
+//
 REBU64 f_to_u64(float n) {
     union {
         REBU64 u;
@@ -69,90 +62,119 @@ REBU64 f_to_u64(float n) {
 }
 
 
-REBU64 get_vect(REBCNT bits, REBYTE *data, REBCNT n)
-{
-    switch (bits) {
-    case VTSI08:
-        return (REBI64) ((i8*)data)[n];
+// !!! This routine appears to get whatever the data element type is of the
+// vector back as an unsigned 64 bit quantity...even if it's floating point.
+//
+REBU64 get_vect(
+    REBOOL non_integer, REBOOL sign, REBCNT bits,
+    REBYTE *data, REBCNT n
+){
+    if (non_integer) {
+        assert(sign);
 
-    case VTSI16:
-        return (REBI64) ((i16*)data)[n];
+        switch (bits) {
+        case 32:
+            return f_to_u64(((float*)data)[n]);
 
-    case VTSI32:
-        return (REBI64) ((i32*)data)[n];
+        case 64:
+            return ((REBU64*)data)[n];
+        }
+    }
+    else {
+        if (sign) {
+            switch (bits) {
+            case 8:
+                return (REBI64) ((i8*)data)[n];
 
-    case VTSI64:
-        return (REBI64) ((i64*)data)[n];
+            case 16:
+                return (REBI64) ((i16*)data)[n];
 
-    case VTUI08:
-        return (REBU64) ((u8*)data)[n];
+            case 32:
+                return (REBI64) ((i32*)data)[n];
 
-    case VTUI16:
-        return (REBU64) ((u16*)data)[n];
+            case 64:
+                return (REBI64) ((i64*)data)[n];
+            }
+        }
+        else {
+            switch (bits) {
+            case 8:
+                return (REBU64) ((u8*)data)[n];
 
-    case VTUI32:
-        return (REBU64) ((u32*)data)[n];
+            case 16:
+                return (REBU64) ((u16*)data)[n];
 
-    case VTUI64:
-        return (REBU64) ((i64*)data)[n];
+            case 32:
+                return (REBU64) ((u32*)data)[n];
 
-    case VTSF08:
-    case VTSF16:
-    case VTSF32:
-        return f_to_u64(((float*)data)[n]);
-
-    case VTSF64:
-        return ((REBU64*)data)[n];
+            case 64:
+                return (REBU64) ((i64*)data)[n];
+            }
+        }
     }
 
-    return 0;
+    panic ("Unsupported vector element sign/type/size combination");
 }
 
-void set_vect(REBCNT bits, REBYTE *data, REBCNT n, REBI64 i, REBDEC f) {
-    switch (bits) {
+void set_vect(
+    REBOOL non_integer, REBOOL sign, REBCNT bits,
+    REBYTE *data, REBCNT n, REBI64 i, REBDEC f
+){
+    if (non_integer) {
+        assert(sign);
 
-    case VTSI08:
-        ((i8*)data)[n] = (i8)i;
-        break;
+        switch (bits) {
+        case 32:
+            ((float*)data)[n] = (float)f;
+            return;
 
-    case VTSI16:
-        ((i16*)data)[n] = (i16)i;
-        break;
-
-    case VTSI32:
-        ((i32*)data)[n] = (i32)i;
-        break;
-
-    case VTSI64:
-        ((i64*)data)[n] = (i64)i;
-        break;
-
-    case VTUI08:
-        ((u8*)data)[n] = (u8)i;
-        break;
-
-    case VTUI16:
-        ((u16*)data)[n] = (u16)i;
-        break;
-
-    case VTUI32:
-        ((u32*)data)[n] = (u32)i;
-        break;
-
-    case VTUI64:
-        ((i64*)data)[n] = (u64)i;
-        break;
-
-    case VTSF08:
-    case VTSF16:
-    case VTSF32:
-        ((float*)data)[n] = (float)f;
-        break;
-
-    case VTSF64:
-        ((double*)data)[n] = f;
-        break;
+        case 64:
+            ((double*)data)[n] = f;
+            return;
+        }
     }
+    else {
+        if (sign) {
+            switch (bits) {
+            case 8:
+                ((i8*)data)[n] = (i8)i;
+                return;
+
+            case 16:
+                ((i16*)data)[n] = (i16)i;
+                return;
+
+            case 32:
+                ((i32*)data)[n] = (i32)i;
+                return;
+
+            case 64:
+                ((i64*)data)[n] = (i64)i;
+                return;
+            }
+        }
+        else {
+            switch (bits) {
+            case 8:
+                ((u8*)data)[n] = (u8)i;
+                return;
+
+            case 16:
+                ((u16*)data)[n] = (u16)i;
+                return;
+
+            case 32:
+                ((u32*)data)[n] = (u32)i;
+                return;
+
+            case 64:
+                ((i64*)data)[n] = (u64)i;
+                return;
+            }
+        }
+    }
+
+    panic ("Unsupported vector element sign/type/size combination");
 }
 
 
@@ -162,9 +184,12 @@ void Set_Vector_Row(REBSER *ser, const REBVAL *blk)
     REBCNT len = VAL_LEN_AT(blk);
     RELVAL *val;
     REBCNT n = 0;
-    REBCNT bits = VECT_TYPE(ser);
     REBI64 i = 0;
     REBDEC f = 0;
+
+    REBOOL non_integer = LOGICAL(MISC(ser).vect_info.non_integer);
+    REBOOL sign = LOGICAL(MISC(ser).vect_info.sign);
+    REBCNT bits = MISC(ser).vect_info.bits;
 
     if (IS_BLOCK(blk)) {
         val = VAL_ARRAY_AT(blk);
@@ -172,25 +197,28 @@ void Set_Vector_Row(REBSER *ser, const REBVAL *blk)
         for (; NOT_END(val); val++) {
             if (IS_INTEGER(val)) {
                 i = VAL_INT64(val);
-                if (bits > VTUI64) f = (REBDEC)(i);
+                if (non_integer)
+                    f = (REBDEC)(i);
             }
             else if (IS_DECIMAL(val)) {
                 f = VAL_DECIMAL(val);
-                if (bits <= VTUI64) i = (REBINT)(f);
+                if (NOT(non_integer))
+                    i = (REBINT)(f);
             }
             else
                 fail (Error_Invalid_Core(val, VAL_SPECIFIER(blk)));
 
             //if (n >= ser->tail) Expand_Vector(ser);
 
-            set_vect(bits, SER_DATA_RAW(ser), n++, i, f);
+            set_vect(non_integer, sign, bits, SER_DATA_RAW(ser), n++, i, f);
         }
     }
     else {
         REBYTE *data = VAL_BIN_AT(blk);
         for (; len > 0; len--, idx++) {
             set_vect(
-                bits, SER_DATA_RAW(ser), n++, cast(REBI64, data[idx]), f
+                non_integer, sign, bits,
+                SER_DATA_RAW(ser), n++, cast(REBI64, data[idx]), f
             );
         }
     }
@@ -210,14 +238,23 @@ REBARR *Vector_To_Array(const REBVAL *vect)
 
     REBARR *array = Make_Array(len);
 
-    REBYTE *data = SER_DATA_RAW(VAL_SERIES(vect));
-    REBCNT type = VECT_TYPE(VAL_SERIES(vect));
+    REBSER *ser = VAL_SERIES(vect);
+
+    REBYTE *data = SER_DATA_RAW(ser);
+
+    REBOOL non_integer = LOGICAL(MISC(ser).vect_info.non_integer);
+    REBOOL sign = LOGICAL(MISC(ser).vect_info.sign);
+    REBCNT bits = MISC(ser).vect_info.bits;
 
     RELVAL *val = ARR_HEAD(array);
     REBCNT n;
     for (n = VAL_INDEX(vect); n < VAL_LEN_HEAD(vect); n++, val++) {
-        VAL_RESET_HEADER(val, (type >= VTSF08) ? REB_DECIMAL : REB_INTEGER);
-        VAL_INT64(val) = get_vect(type, data, n); // can be int or decimal
+        if (non_integer) {
+            REBU64 u = get_vect(non_integer, sign, bits, data, n);
+            Init_Decimal_Bits(val, cast(REBYTE*, &u));
+        }
+        else
+            Init_Integer(val, get_vect(non_integer, sign, bits, data, n));
     }
 
     TERM_ARRAY_LEN(array, len);
@@ -232,10 +269,17 @@ REBARR *Vector_To_Array(const REBVAL *vect)
 //
 REBINT Compare_Vector(const RELVAL *v1, const RELVAL *v2)
 {
-    REBCNT b1 = VECT_TYPE(VAL_SERIES(v1));
-    REBCNT b2 = VECT_TYPE(VAL_SERIES(v2));
+    REBSER *ser1 = VAL_SERIES(v1);
+    REBOOL non_integer1 = LOGICAL(MISC(ser1).vect_info.non_integer);
+    REBOOL sign1 = LOGICAL(MISC(ser1).vect_info.sign);
+    REBCNT bits1 = MISC(ser1).vect_info.bits;
 
-    if ((b1 >= VTSF08 && b2 < VTSF08) || (b2 >= VTSF08 && b1 < VTSF08))
+    REBSER *ser2 = VAL_SERIES(v2);
+    REBOOL non_integer2 = LOGICAL(MISC(ser2).vect_info.non_integer);
+    REBOOL sign2 = LOGICAL(MISC(ser2).vect_info.sign);
+    REBCNT bits2 = MISC(ser2).vect_info.bits;
+
+    if (non_integer1 != non_integer2)
         fail (Error_Not_Same_Type_Raw());
 
     REBCNT l1 = VAL_LEN_AT(v1);
@@ -249,12 +293,16 @@ REBINT Compare_Vector(const RELVAL *v1, const RELVAL *v2)
     REBU64 i2 = 0; // ...
     REBCNT n;
     for (n = 0; n < len; n++) {
-        i1 = get_vect(b1, d1, n + VAL_INDEX(v1));
-        i2 = get_vect(b2, d2, n + VAL_INDEX(v2));
+        i1 = get_vect(non_integer1, sign1, bits1, d1, n + VAL_INDEX(v1));
+        i2 = get_vect(non_integer2, sign2, bits2, d2, n + VAL_INDEX(v2));
         if (i1 != i2)
             break;
     }
 
+    // !!! This is comparing unsigned integer representations of signed or
+    // possibly floating point quantities.  While that may give a *consistent*
+    // ordering for sorting, it's not particularly *meaningful*.
+    //
     if (n != len) {
         if (i1 > i2) return 1;
         return -1;
@@ -269,23 +317,30 @@ REBINT Compare_Vector(const RELVAL *v1, const RELVAL *v2)
 //
 void Shuffle_Vector(REBVAL *vect, REBOOL secure)
 {
-    REBCNT n;
-    REBCNT k;
-    REBU64 swap;
-    REBYTE *data = SER_DATA_RAW(VAL_SERIES(vect));
-    REBCNT type = VECT_TYPE(VAL_SERIES(vect));
+    REBSER *ser = VAL_SERIES(vect);
+
+    REBYTE *data = SER_DATA_RAW(ser);
     REBCNT idx = VAL_INDEX(vect);
 
     // We can do it as INTS, because we just deal with the bits:
-    if (type == VTSF32) type = VTUI32;
-    else if (type == VTSF64) type = VTUI64;
 
+    const REBOOL non_integer = FALSE;
+    REBOOL sign = LOGICAL(MISC(ser).vect_info.sign);
+    REBCNT bits = MISC(ser).vect_info.bits;
+
+    REBCNT n;
     for (n = VAL_LEN_AT(vect); n > 1;) {
-        k = idx + (REBCNT)Random_Int(secure) % n;
+        REBCNT k = idx + (REBCNT)Random_Int(secure) % n;
         n--;
-        swap = get_vect(type, data, k);
-        set_vect(type, data, k, get_vect(type, data, n + idx), 0);
-        set_vect(type, data, n + idx, swap, 0);
+        REBU64 swap = get_vect(non_integer, sign, bits, data, k);
+        set_vect(
+            non_integer, sign, bits,
+            data, k, get_vect(non_integer, sign, bits, data, n + idx), 0
+        );
+        set_vect(
+            non_integer, sign, bits,
+            data, n + idx, swap, 0
+        );
     }
 }
 
@@ -296,37 +351,33 @@ void Shuffle_Vector(REBVAL *vect, REBOOL secure)
 void Set_Vector_Value(REBVAL *var, REBSER *series, REBCNT index)
 {
     REBYTE *data = SER_DATA_RAW(series);
-    REBCNT bits = VECT_TYPE(series);
 
-    if (bits >= VTSF08) {
-        VAL_RESET_HEADER(var, REB_DECIMAL);
-        REBU64 u =  get_vect(bits, data, index);
+    REBOOL non_integer = LOGICAL(MISC(series).vect_info.non_integer);
+    REBOOL sign = LOGICAL(MISC(series).vect_info.sign);
+    REBCNT bits = MISC(series).vect_info.bits;
+
+    if (non_integer) {
+        REBU64 u = get_vect(non_integer, sign, bits, data, index);
         Init_Decimal_Bits(var, cast(REBYTE*, &u));
     }
-    else {
-        VAL_RESET_HEADER(var, REB_INTEGER);
-        VAL_INT64(var) = get_vect(bits, data, index);
-    }
+    else
+        Init_Integer(var, get_vect(non_integer, sign, bits, data, index));
 }
 
 
 //
 //  Make_Vector: C
 //
-// type: the datatype
-// sign: signed or unsigned
-// dims: number of dimensions
-// bits: number of bits per unit (8, 16, 32, 64)
-// size: size of array ?
-//
-REBSER *Make_Vector(
-    REBINT type,
-    REBINT sign,
-    REBINT dims,
-    REBINT bits,
-    REBINT size
+static REBSER *Make_Vector(
+    REBOOL non_integer, // if true, it's a float/decimal, not integral
+    REBOOL sign, // signed or unsigned
+    REBINT dims, // number of dimensions
+    REBCNT bits, // number of bits per unit (8, 16, 32, 64)
+    REBINT len
 ){
-    REBCNT len = size * dims;
+    assert(dims == 1);
+    UNUSED(dims);
+
     if (len > 0x7fffffff)
         fail ("vector size too big");
 
@@ -334,15 +385,9 @@ REBSER *Make_Vector(
     CLEAR(SER_DATA_RAW(s), (len * bits) / 8);
     SET_SERIES_LEN(s, len);
 
-    // Store info about the vector (could be moved to flags if necessary):
-    switch (bits) {
-    case  8: bits = 0; break;
-    case 16: bits = 1; break;
-    case 32: bits = 2; break;
-    case 64: bits = 3; break;
-    }
-
-    MISC(s).size = (dims << 8) | (type << 3) | (sign << 2) | bits;
+    MISC(s).vect_info.non_integer = non_integer ? 1 : 0;
+    MISC(s).vect_info.bits = bits;
+    MISC(s).vect_info.sign = sign ? 1 : 0;
 
     return s;
 }
@@ -366,12 +411,6 @@ REBSER *Make_Vector(
 //
 REBOOL Make_Vector_Spec(REBVAL *out, const RELVAL head[], REBSPC *specifier)
 {
-    REBINT type = -1; // 0 = int,    1 = float
-    REBINT sign = -1; // 0 = signed, 1 = unsigned
-    REBINT dims = 1;
-    REBINT bits = 32;
-    REBCNT size = 1;
-
     const RELVAL *item = head;
 
     if (specifier) {
@@ -381,62 +420,61 @@ REBOOL Make_Vector_Spec(REBVAL *out, const RELVAL head[], REBSPC *specifier)
         // integer values.
     }
 
-    // UNSIGNED
+    REBOOL sign;
     if (IS_WORD(item) && VAL_WORD_SYM(item) == SYM_UNSIGNED) {
-        sign = 1;
+        sign = FALSE;
         ++item;
     }
+    else
+        sign = TRUE; // default to signed, not unsigned
 
-    // INTEGER! or DECIMAL!
+    REBOOL non_integer;
     if (IS_WORD(item)) {
         if (SAME_SYM_NONZERO(VAL_WORD_SYM(item), SYM_FROM_KIND(REB_INTEGER)))
-            type = 0;
+            non_integer = FALSE;
         else if (
             SAME_SYM_NONZERO(VAL_WORD_SYM(item), SYM_FROM_KIND(REB_DECIMAL))
         ){
-            type = 1;
-            if (sign > 0)
-                return FALSE;
+            non_integer = TRUE;
+            if (NOT(sign))
+                return FALSE; // C doesn't have unsigned floating points
         }
         else
             return FALSE;
         ++item;
     }
-
-    if (type < 0)
-        type = 0;
-    if (sign < 0)
-        sign = 0;
-
-    // BITS
-    if (IS_INTEGER(item)) {
-        bits = Int32(item);
-        if (
-            (bits == 32 || bits == 64)
-            || (type == 0 && (bits == 8 || bits == 16))
-        ){
-            ++item;
-        }
-        else
-            return FALSE;
-    }
     else
+        non_integer = FALSE; // default to integer, not floating point
+
+    REBCNT bits;
+    if (NOT(IS_INTEGER(item)))
+        return FALSE; // bit size required, no defaulting
+
+    bits = Int32(item);
+    ++item;
+
+    if (non_integer && (bits == 8 || bits == 16))
+        return FALSE; // C doesn't have 8 or 16 bit floating points
+
+    if (NOT(bits == 8 || bits == 16 || bits == 32 || bits == 64))
         return FALSE;
 
-    // SIZE
+    REBCNT size;
     if (NOT_END(item) && IS_INTEGER(item)) {
         if (Int32(item) < 0)
             return FALSE;
         size = Int32(item);
         ++item;
     }
+    else
+        size = 1; // !!! default size to 1 (?)
 
     // Initial data:
 
     const REBVAL *iblk;
     if (NOT_END(item) && (IS_BLOCK(item) || IS_BINARY(item))) {
         REBCNT len = VAL_LEN_AT(item);
-        if (IS_BINARY(item) && type == 1)
+        if (IS_BINARY(item) && NOT(non_integer))
             return FALSE;
         if (len > size)
             size = len;
@@ -446,19 +484,24 @@ REBOOL Make_Vector_Spec(REBVAL *out, const RELVAL head[], REBSPC *specifier)
     else
         iblk = NULL;
 
-    // Index offset:
     REBCNT index;
     if (NOT_END(item) && IS_INTEGER(item)) {
         index = (Int32s(item, 1) - 1);
         ++item;
     }
     else
-        index = 0;
+        index = 0; // default index offset inside returned REBVAL to 0
 
     if (NOT_END(item))
         return FALSE;
 
-    REBSER *vect = Make_Vector(type, sign, dims, bits, size);
+    // !!! Dims appears to be part of unfinished work on multidimensional
+    // vectors, which along with the rest of this should be storing in a
+    // OBJECT!-like structure for a user-defined type, vs being bit-packed.
+    //
+    REBINT dims = 1;
+
+    REBSER *vect = Make_Vector(non_integer, sign, dims, bits, size);
     if (vect == NULL)
         return FALSE;
 
@@ -478,8 +521,13 @@ void MAKE_Vector(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg)
     // CASE: make vector! 100
     if (IS_INTEGER(arg) || IS_DECIMAL(arg)) {
         REBINT size = Int32s(arg, 0);
-        if (size < 0) goto bad_make;
-        REBSER *ser = Make_Vector(0, 0, 1, 32, size);
+        if (size < 0)
+            goto bad_make;
+
+        const REBOOL non_integer = FALSE;
+        const REBOOL sign = TRUE;
+        const REBINT dims = 1;
+        REBSER *ser = Make_Vector(non_integer, sign, dims, 32, size);
         Init_Vector(out, ser);
         return;
     }
@@ -539,15 +587,18 @@ void Pick_Vector(REBVAL *out, const REBVAL *value, const REBVAL *picker) {
     }
 
     REBYTE *vp = SER_DATA_RAW(vect);
-    REBINT bits = VECT_TYPE(vect);
 
-    if (bits < VTSF08)
-        Init_Integer(out, get_vect(bits, vp, n - 1)); // 64-bit
-    else {
+    REBOOL non_integer = LOGICAL(MISC(vect).vect_info.non_integer);
+    REBOOL sign = LOGICAL(MISC(vect).vect_info.sign);
+    REBCNT bits = MISC(vect).vect_info.bits;
+
+    if (non_integer) {
         VAL_RESET_HEADER(out, REB_DECIMAL);
-        REBI64 i = get_vect(bits, vp, n - 1);
+        REBI64 i = get_vect(non_integer, sign, bits, vp, n - 1);
         Init_Decimal_Bits(out, cast(REBYTE*, &i));
     }
+    else
+        Init_Integer(out, get_vect(non_integer, sign, bits, vp, n - 1));
 }
 
 
@@ -574,13 +625,16 @@ void Poke_Vector_Fail_If_Read_Only(
         fail (Error_Out_Of_Range(picker));
 
     REBYTE *vp = SER_DATA_RAW(vect);
-    REBINT bits = VECT_TYPE(vect);
+
+    REBOOL non_integer = LOGICAL(MISC(vect).vect_info.non_integer);
+    REBOOL sign = LOGICAL(MISC(vect).vect_info.sign);
+    REBCNT bits = MISC(vect).vect_info.bits;
 
     REBI64 i;
     REBDEC f;
     if (IS_INTEGER(poke)) {
         i = VAL_INT64(poke);
-        if (bits > VTUI64)
+        if (non_integer)
             f = cast(REBDEC, i);
         else {
             // !!! REVIEW: f was not set in this case; compiler caught the
@@ -591,15 +645,15 @@ void Poke_Vector_Fail_If_Read_Only(
     }
     else if (IS_DECIMAL(poke)) {
         f = VAL_DECIMAL(poke);
-        if (bits <= VTUI64)
-            i = cast(REBINT, f);
-        else
+        if (non_integer)
             i = 0xDECAFBAD; // not used, but avoid maybe uninitalized warning
+        else
+            i = cast(REBINT, f);
     }
     else
         fail (Error_Invalid(poke));
 
-    set_vect(bits, vp, n - 1, i, f);
+    set_vect(non_integer, sign, bits, vp, n - 1, i, f);
 }
 
 
@@ -674,7 +728,7 @@ REBTYPE(Vector)
         }
 
         ser = Copy_Sequence(vect);
-        MISC(ser).size = MISC(vect).size; // attributes
+        MISC(ser).vect_info = MISC(vect).vect_info; // attributes
         Init_Vector(value, ser);
         goto return_vector; }
 
@@ -710,7 +764,6 @@ void MF_Vector(REB_MOLD *mo, const RELVAL *v, REBOOL form)
 {
     REBSER *vect = VAL_SERIES(v);
     REBYTE *data = SER_DATA_RAW(vect);
-    REBCNT bits = VECT_TYPE(vect);
 
     REBCNT len;
     REBCNT n;
@@ -722,18 +775,22 @@ void MF_Vector(REB_MOLD *mo, const RELVAL *v, REBOOL form)
         n = VAL_INDEX(v);
     }
 
+    REBOOL non_integer = LOGICAL(MISC(vect).vect_info.non_integer);
+    REBOOL sign = LOGICAL(MISC(vect).vect_info.sign);
+    REBCNT bits = MISC(vect).vect_info.bits;
+
     if (NOT(form)) {
-        enum Reb_Kind kind = (bits >= VTSF08) ? REB_DECIMAL : REB_INTEGER;
+        enum Reb_Kind kind = non_integer ? REB_DECIMAL : REB_INTEGER;
         Pre_Mold(mo, v);
         if (NOT_MOLD_FLAG(mo, MOLD_FLAG_ALL))
             Append_Codepoint(mo->series, '[');
-        if (bits >= VTUI08 && bits <= VTUI64)
+        if (NOT(sign))
             Append_Unencoded(mo->series, "unsigned ");
         Emit(
             mo,
             "N I I [",
             Canon(SYM_FROM_KIND(kind)),
-            bit_sizes[bits & 3],
+            bits,
             len
         );
         if (len)
@@ -744,15 +801,14 @@ void MF_Vector(REB_MOLD *mo, const RELVAL *v, REBOOL form)
     for (; n < SER_LEN(vect); n++) {
         union {REBU64 i; REBDEC d;} u;
 
-        u.i = get_vect(bits, data, n);
+        u.i = get_vect(non_integer, sign, bits, data, n);
 
         REBYTE buf[32];
         REBYTE l;
-        if (bits < VTSF08) {
-            l = Emit_Integer(buf, u.i);
-        } else {
+        if (non_integer)
             l = Emit_Decimal(buf, u.d, 0, '.', mo->digits);
-        }
+        else
+            l = Emit_Integer(buf, u.i);
         Append_Unencoded_Len(mo->series, s_cast(buf), l);
 
         if ((++c > 7) && (n + 1 < SER_LEN(vect))) {

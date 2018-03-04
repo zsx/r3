@@ -747,10 +747,6 @@ union Reb_Series_Misc {
     //
     REBOOL negated;
 
-    // used for vectors and bitsets
-    //
-    REBCNT size;
-
     // used for IMAGE!
     //
     // !!! The optimization by which images live in a single REBSER vs.
@@ -762,6 +758,16 @@ union Reb_Series_Misc {
         int wide:16; // Note: bitfields can only be int
         int high:16;
     } area;
+
+    // !!! used for VECTOR!, which also should be a user defined type and not
+    // micro-optimizing with putting bits into the REBSER node like this.
+    //
+    struct {
+        unsigned int non_integer:1; // 0->integer, 1->float/decimal
+        unsigned int sign:1; // 0->unsigned, 1->signed
+        unsigned int bits:7; // 8, 16, 32, 64
+        unsigned int unused:23;
+    } vect_info;
 };
 
 

@@ -115,7 +115,7 @@ REBOOL almost_equal(REBDEC a, REBDEC b, REBCNT max_diff) {
 //
 //  Init_Decimal_Bits: C
 //
-void Init_Decimal_Bits(REBVAL *out, const REBYTE *bp)
+REBVAL *Init_Decimal_Bits(RELVAL *out, const REBYTE *bp)
 {
     VAL_RESET_HEADER(out, REB_DECIMAL);
 
@@ -132,6 +132,8 @@ void Init_Decimal_Bits(REBVAL *out, const REBYTE *bp)
 #else
     #error "Unsupported CPU endian"
 #endif
+
+    return KNOWN(out);
 }
 
 
