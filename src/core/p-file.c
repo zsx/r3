@@ -121,7 +121,10 @@ void Ret_Query_File(REBCTX *port, struct devreq_file *file, REBVAL *ret)
     Init_Integer(
         CTX_VAR(context, STD_FILE_INFO_SIZE), file->size
     );
-    OS_FILE_TIME(CTX_VAR(context, STD_FILE_INFO_DATE), file);
+
+    REBVAL *timestamp = OS_FILE_TIME(file);
+    Move_Value(CTX_VAR(context, STD_FILE_INFO_DATE), timestamp);
+    rebRelease(timestamp);
 
     REBSER *ser = To_REBOL_Path(
         file->path, 0, (OS_WIDE ? PATH_OPT_UNI_SRC : 0)

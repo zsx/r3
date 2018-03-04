@@ -315,31 +315,30 @@ void RL_rebVersion(REBYTE vers[])
 //
 //  rebStartup: RL_API
 //
-// Initialize the REBOL interpreter.
+// This function will allocate and initialize all memory structures used by
+// the REBOL interpreter. This is an extensive process that takes time.
 //
-// Returns:
-//     Zero on success, otherwise an error indicating that the
-//     host library is not compatible with this release.
-// Arguments:
-//     lib - the host lib (OS_ functions) to be used by REBOL.
-//         See host-lib.c for details.
-// Notes:
-//     This function will allocate and initialize all memory
-//     structures used by the REBOL interpreter. This is an
-//     extensive process that takes time.
+// `lib` is the host lib table (OS_XXX functions) which Rebol core does not
+// take for granted--and assumes a host must provide to operate.  An example
+// of this would be that getting the current UTC date and time varies from OS
+// to OS, so for the NOW native to be implemented it has to call something
+// outside of standard C...e.g. OS_GET_TIME().  So even though NOW is in the
+// core, it will be incomplete without having that function supplied.
 //
-void RL_rebStartup(void *lib)
+// !!! Increased modularization of the core, and new approaches, are making
+// this concept obsolete.  For instance, the NOW native might not even live
+// in the core, but be supplied by a "Timer Extension" which is considered to
+// be sandboxed and non-core enough that having platform-specific code in it
+// is not a problem.  Also, hooks can be supplied in the form of natives that
+// are later HIJACK'd by some hosts (see rebPanic() and rebFail()), as a
+// way of injecting richer platform-or-scenario-specific code into a more
+// limited default host operation.  It is expected that the OS_XXX functions
+// will eventually disappear completely.
+//
+void RL_rebStartup(const void *lib)
 {
     if (PG_last_error != NULL)
         panic ("rebStartup() called when it's already started");
-
-    // The RL_XXX API functions are stored like a C++ vtable, so they are
-    // function pointers inside of a struct.  It's not completely obvious
-    // what the applications of this are...theoretically it could be for
-    // namespacing, or using multiple different versions of the API in a
-    // single codebase, etc.  But all known clients use macros against a
-    // global "RL" rebol library, so it's not clear what the advantage is
-    // over just exporting C functions.
 
     Host_Lib = cast(REBOL_HOST_LIB*, lib);
 
@@ -1237,21 +1236,6 @@ REBCNT RL_rebValIndex(const REBVAL *v) {
 //
 //  rebInitDate: RL_API
 //
-// There was a data structure called a REBOL_DAT in R3-Alpha which was defined
-// in %reb-defs.h, and it appeared in the host callbacks to be used in
-// `os_get_time()` and `os_file_time()`.  This allowed the host to pass back
-// date information without actually knowing how to construct a date REBVAL.
-//
-// Today "host code" (which may all become "port code") is expected to either
-// be able to speak in terms of Rebol values through linkage to the internal
-// API or the more minimal RL_Api.  Either way, it should be able to make
-// REBVALs corresponding to dates...even if that means making a string of
-// the date to load and then RL_Do_String() to produce the value.
-//
-// This routine is a quick replacement for the format of the struct, as a
-// temporary measure while it is considered whether things like os_get_time()
-// will have access to the full internal API or not.
-//
 // !!! Note this doesn't allow you to say whether the date has a time
 // or zone component at all.  Those could be extra flags, or if Rebol values
 // were used they could be blanks vs. integers.  Further still, this kind
@@ -1260,8 +1244,7 @@ REBCNT RL_rebValIndex(const REBVAL *v) {
 // the internal API is available for clients who need that performance,
 // who can call date initialization themselves.
 //
-void RL_rebInitDate(
-    REBVAL *out,
+REBVAL *RL_rebInitDate(
     int year,
     int month,
     int day,
@@ -1271,16 +1254,18 @@ void RL_rebInitDate(
 ){
     Enter_Api_Clear_Last_Error();
 
-    VAL_RESET_HEADER(out, REB_DATE);
-    VAL_YEAR(out)  = year;
-    VAL_MONTH(out) = month;
-    VAL_DAY(out) = day;
+    REBVAL *result = Alloc_Value();
+    VAL_RESET_HEADER(result, REB_DATE);
+    VAL_YEAR(result) = year;
+    VAL_MONTH(result) = month;
+    VAL_DAY(result) = day;
 
-    SET_VAL_FLAG(out, DATE_FLAG_HAS_ZONE);
-    INIT_VAL_ZONE(out, zone / ZONE_MINS);
+    SET_VAL_FLAG(result, DATE_FLAG_HAS_ZONE);
+    INIT_VAL_ZONE(result, zone / ZONE_MINS);
 
-    SET_VAL_FLAG(out, DATE_FLAG_HAS_TIME);
-    VAL_NANO(out) = SECS_TO_NANO(seconds) + nano;
+    SET_VAL_FLAG(result, DATE_FLAG_HAS_TIME);
+    VAL_NANO(result) = SECS_TO_NANO(seconds) + nano;
+    return result;
 }
 
 
