@@ -119,7 +119,7 @@ DEVICE_CMD Open_Serial(REBREQ *req)
     memset(&timeouts, '\0', sizeof(timeouts));
 
     // req->special.serial.path should be prefixed with "\\.\" to allow for higher com port numbers
-    wchar_t fullpath[MAX_SERIAL_DEV_PATH] = L"\\\\.\\";
+    WCHAR fullpath[MAX_SERIAL_DEV_PATH] = L"\\\\.\\";
 
     if (!serial->path) {
         req->error = -RFE_BAD_PATH;

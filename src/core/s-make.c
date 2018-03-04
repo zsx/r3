@@ -117,9 +117,9 @@ REBSER *Copy_Bytes_To_Unicode(REBYTE *src, REBINT len)
 // Create a REBOL string series from a wide char string.
 // Minimize to bytes if possible
 //
-REBSER *Copy_Wide_Str(const wchar_t *ws, REBINT len)
+REBSER *Copy_Wide_Str(const REBWCHAR *ws, REBINT len)
 {
-    assert(sizeof(REBUNI) == sizeof(wchar_t));
+    assert(sizeof(REBUNI) == sizeof(REBWCHAR));
 
     REBSER *dst;
     if (All_Codepoints_Latin1(cast(const REBUNI*, ws), len)) {
@@ -159,7 +159,7 @@ REBSER *Copy_Wide_Str(const wchar_t *ws, REBINT len)
 REBSER *Copy_OS_Str(const void *src, REBINT len)
 {
 #ifdef OS_WIDE_CHAR
-    return Copy_Wide_Str(cast(const wchar_t*, src), len);
+    return Copy_Wide_Str(cast(const REBWCHAR*, src), len);
 #else
     return Decode_UTF_String(cast(const REBYTE*, src), len, 8);
 #endif

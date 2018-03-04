@@ -124,7 +124,7 @@ Special internal defines used by RT, not Host-Kit developers:
         #define HAS_LL_CONSTS
     #endif
 
-    #define OS_WIDE_CHAR            // wchar_t used strings passed to OS API
+    #define OS_WIDE_CHAR            // REBWCHAR used strings passed to OS API
     #include <wchar.h>
 
     // ASCII strings to Integer

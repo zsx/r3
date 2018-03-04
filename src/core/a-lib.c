@@ -1381,12 +1381,10 @@ char *RL_rebSpellingOfAlloc(REBCNT *len_out, const REBVAL *v)
 //
 //  rebSpellingOfW: RL_API
 //
-// Extract wchar_t data from an ANY-STRING! or ANY-WORD!.  Note that while
-// the size of a wchar_t varies on Linux, it is part of the windows platform
-// standard to be two bytes.
+// Extract UCS2 data from an ANY-STRING! or ANY-WORD!.
 //
 REBCNT RL_rebSpellingOfW(
-    wchar_t *buf,
+    REBWCHAR *buf,
     REBCNT buf_chars, // characters buffer can hold (not including terminator)
     const REBVAL *v
 ){
@@ -1423,12 +1421,12 @@ REBCNT RL_rebSpellingOfW(
 //
 //  rebSpellingOfAllocW: RL_API
 //
-wchar_t *RL_rebSpellingOfAllocW(REBCNT *len_out, const REBVAL *v)
+REBWCHAR *RL_rebSpellingOfAllocW(REBCNT *len_out, const REBVAL *v)
 {
     Enter_Api_Clear_Last_Error();
 
     REBCNT len = rebSpellingOfW(NULL, 0, v);
-    wchar_t *result = OS_ALLOC_N(wchar_t, len + 1);
+    REBWCHAR *result = OS_ALLOC_N(REBWCHAR, len + 1);
     rebSpellingOfW(result, len, v);
     if (len_out != NULL)
         *len_out = len;
@@ -1506,19 +1504,19 @@ REBVAL *RL_rebFile(const char *utf8)
 //
 //  rebStringW: RL_API
 //
-REBVAL *RL_rebStringW(const wchar_t *wstr)
+REBVAL *RL_rebStringW(const REBWCHAR *wstr)
 {
     Enter_Api_Clear_Last_Error();
 
-    REBCNT num_chars;
-#ifdef TO_WINDOWS
-    num_chars = wcslen(wstr);
-#else
-    fail("wide character counting on wchar_t not implemented yet on linux");
-#endif
+    REBCNT num_chars = 0;
+    const REBWCHAR *wtemp = wstr;
+    while (*wtemp != '\0') {
+        ++num_chars;
+        ++wtemp;
+    }
 
     REBSER *ser = Make_Unicode(num_chars);
-    memcpy(UNI_HEAD(ser), wstr, sizeof(wchar_t) * num_chars);
+    memcpy(UNI_HEAD(ser), wstr, sizeof(REBWCHAR) * num_chars);
     TERM_UNI_LEN(ser, num_chars);
 
     return Init_String(Alloc_Value(), ser);
@@ -1528,7 +1526,7 @@ REBVAL *RL_rebStringW(const wchar_t *wstr)
 //
 //  rebFileW: RL_API
 //
-REBVAL *RL_rebFileW(const wchar_t *wstr)
+REBVAL *RL_rebFileW(const REBWCHAR *wstr)
 {
     REBVAL *result = rebStringW(wstr);
     VAL_RESET_HEADER(result, REB_FILE);

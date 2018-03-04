@@ -130,7 +130,7 @@ static int Read_Directory(struct devreq_file *dir, struct devreq_file *file)
     REBREQ *dir_req = AS_REBREQ(dir);
     REBREQ *file_req = AS_REBREQ(file);
     HANDLE h = dir_req->requestee.handle;
-    wchar_t *cp = 0;
+    WCHAR *cp = 0;
 
     // !!! This old code from R3-Alpha triggered a warning on info not
     // necessarily being initialized.  Rather than try and fix it, this just
@@ -484,7 +484,7 @@ DEVICE_CMD Delete_File(REBREQ *req)
 DEVICE_CMD Rename_File(REBREQ *req)
 {
     struct devreq_file *file = DEVREQ_FILE(req);
-    if (MoveFile(cast(wchar_t*, file->path), cast(wchar_t*, req->common.data)))
+    if (MoveFile(cast(WCHAR*, file->path), cast(WCHAR*, req->common.data)))
         return DR_DONE;
     req->error = GetLastError();
     return DR_ERROR;

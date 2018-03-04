@@ -161,7 +161,7 @@ int OS_Get_Current_Dir(REBCHR **path)
     int len;
 
     len = GetCurrentDirectory(0, NULL); // length, incl terminator.
-    *path = OS_ALLOC_N(wchar_t, len);
+    *path = OS_ALLOC_N(WCHAR, len);
     GetCurrentDirectory(len, *path);
     len--; // less terminator
 

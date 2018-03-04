@@ -77,8 +77,8 @@ REBNATIVE(locale)
     }
     int len = GetLocaleInfo(0, type, 0, 0);
     REBSER *data = Make_Unicode(len);
-    assert(sizeof(REBUNI) == sizeof(wchar_t));
-    len = GetLocaleInfo(0, type, cast(wchar_t*, UNI_HEAD(data)), len);
+    assert(sizeof(REBUNI) == sizeof(WCHAR));
+    len = GetLocaleInfo(0, type, cast(WCHAR*, UNI_HEAD(data)), len);
     SET_UNI_LEN(data, len - 1);
 
     Init_String(D_OUT, data);

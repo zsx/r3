@@ -27,7 +27,7 @@
 //=////////////////////////////////////////////////////////////////////////=//
 //
 
-#include <stddef.h> // size_t, wchar_t and other definitions API use
+#include <stddef.h> // size_t and other definitions API use
 
 #include "reb-config.h"
 
@@ -50,7 +50,7 @@
 // code are done via STRING! values.
 //
 #ifdef OS_WIDE_CHAR
-    typedef wchar_t REBCHR;
+    typedef REBWCHAR REBCHR;
 #else
     typedef char REBCHR;
 #endif

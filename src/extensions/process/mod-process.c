@@ -94,11 +94,11 @@
 //
 REBCTX *Error_OS(int errnum)
 {
-#ifdef TO_WINDOWS
+  #ifdef TO_WINDOWS
     if (errnum == 0)
         errnum = GetLastError();
 
-    wchar_t *lpMsgBuf; // FormatMessage writes allocated buffer address here
+    WCHAR *lpMsgBuf; // FormatMessage writes allocated buffer address here
 
      // Specific errors have %1 %2 slots, and if you know the error ID and
      // that it's one of those then this lets you pass arguments to fill
@@ -119,7 +119,7 @@ REBCTX *Error_OS(int errnum)
         lpSource,
         errnum, // message identifier
         MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), // default language
-        cast(wchar_t*, &lpMsgBuf), // allocated buffer address written here
+        cast(WCHAR*, &lpMsgBuf), // allocated buffer address written here
         0, // buffer size (not used since FORMAT_MESSAGE_ALLOCATE_BUFFER)
         Arguments
     );
@@ -137,7 +137,7 @@ REBCTX *Error_OS(int errnum)
     LocalFree(lpMsgBuf);
 
     return Error(RE_USER, message, END);
-#else
+  #else
     // strerror() is not thread-safe, but strerror_r is. Unfortunately, at
     // least in glibc, there are two different protocols for strerror_r(),
     // depending on whether you are using the POSIX-compliant implementation
@@ -157,10 +157,10 @@ REBCTX *Error_OS(int errnum)
     // (Note that undefined pre-processor names arithmetically compare as 0,
     // which is used in the original glibc test; we are more explicit.)
 
-    #ifdef USE_STRERROR_NOT_STRERROR_R
+      #ifdef USE_STRERROR_NOT_STRERROR_R
         char *shared = strerror(errnum);
         return Error_User(shared);
-    #elif defined(__GNU_LIBRARY__) \
+      #elif defined(__GNU_LIBRARY__) \
             && (defined(_GNU_SOURCE) \
                 || ((!defined(_POSIX_C_SOURCE) || _POSIX_C_SOURCE < 200112L) \
                     && (!defined(_XOPEN_SOURCE) || _XOPEN_SOURCE < 600)))
@@ -172,7 +172,7 @@ REBCTX *Error_OS(int errnum)
         if (maybe_str != buffer)
             strncpy(buffer, maybe_str, MAX_POSIX_ERROR_LEN);
         return Error_User(buffer);
-    #else
+      #else
         // Quoting glibc's strerror_r manpage: "The XSI-compliant strerror_r()
         // function returns 0 on success. On error, a (positive) error number
         // is returned (since glibc 2.13), or -1 is returned and errno is set
@@ -192,8 +192,8 @@ REBCTX *Error_OS(int errnum)
             return Error_User("ERANGE: insufficient buffer size for error");
         else
             return Error_User("Unknown problem getting strerror_r() message");
-    #endif
-#endif
+      #endif
+  #endif
 }
 
 
@@ -219,9 +219,9 @@ REBCTX *Error_OS(int errnum)
 //
 int OS_Create_Process(
     REBFRM *frame_, // stopgap: allows access to CALL's ARG() and REF()
-    const wchar_t *call,
+    const WCHAR *call,
     int argc,
-    const wchar_t * argv[],
+    const WCHAR * argv[],
     REBOOL flag_wait,
     u64 *pid,
     int *exit_code,
@@ -242,12 +242,12 @@ int OS_Create_Process(
     if (call == NULL)
         fail ("'argv[]'-style launching not implemented on Windows CALL");
 
-#ifdef GET_IS_NT_FLAG // !!! Why was this here?
+  #ifdef GET_IS_NT_FLAG // !!! Why was this here?
     REBOOL is_NT;
     OSVERSIONINFO info;
     GetVersionEx(&info);
     is_NT = info.dwPlatformId >= VER_PLATFORM_WIN32_NT;
-#endif
+  #endif
 
     UNUSED(argc);
     UNUSED(argv);
@@ -257,7 +257,7 @@ int OS_Create_Process(
     HANDLE hOutputRead = 0, hOutputWrite = 0;
     HANDLE hInputWrite = 0, hInputRead = 0;
     HANDLE hErrorWrite = 0, hErrorRead = 0;
-    wchar_t *cmd = NULL;
+    WCHAR *cmd = NULL;
     char *oem_input = NULL;
 
     UNUSED(REF(info));
@@ -299,7 +299,7 @@ int OS_Create_Process(
         REBSER *path = Value_To_OS_Path(ARG(in), FALSE);
 
         hInputRead = CreateFile(
-            SER_HEAD(wchar_t, path),
+            SER_HEAD(WCHAR, path),
             GENERIC_READ, // desired mode
             0, // shared mode
             &sa, // security attributes
@@ -346,7 +346,7 @@ int OS_Create_Process(
         REBSER *path = Value_To_OS_Path(ARG(out), FALSE);
 
         si.hStdOutput = CreateFile(
-            SER_HEAD(wchar_t, path),
+            SER_HEAD(WCHAR, path),
             GENERIC_WRITE, // desired mode
             0, // shared mode
             &sa, // security attributes
@@ -360,7 +360,7 @@ int OS_Create_Process(
             && GetLastError() == ERROR_FILE_EXISTS
         ){
             si.hStdOutput = CreateFile(
-                SER_HEAD(wchar_t, path),
+                SER_HEAD(WCHAR, path),
                 GENERIC_WRITE, // desired mode
                 0, // shared mode
                 &sa, // security attributes
@@ -407,7 +407,7 @@ int OS_Create_Process(
         REBSER *path = Value_To_OS_Path(ARG(out), FALSE);
 
         si.hStdError = CreateFile(
-            SER_HEAD(wchar_t, path),
+            SER_HEAD(WCHAR, path),
             GENERIC_WRITE, // desired mode
             0, // shared mode
             &sa, // security attributes
@@ -421,7 +421,7 @@ int OS_Create_Process(
             && GetLastError() == ERROR_FILE_EXISTS
         ){
             si.hStdError = CreateFile(
-                SER_HEAD(wchar_t, path),
+                SER_HEAD(WCHAR, path),
                 GENERIC_WRITE, // desired mode
                 0, // shared mode
                 &sa, // security attributes
@@ -448,10 +448,10 @@ int OS_Create_Process(
 
     if (REF(shell)) {
         // command to cmd.exe needs to be surrounded by quotes to preserve the inner quotes
-        const wchar_t *sh = L"cmd.exe /C \"";
-        size_t len = wcslen(sh) + wcslen(call) + 3;
+        const WCHAR *sh = L"cmd.exe /C \"";
+        REBCNT len = wcslen(sh) + wcslen(call) + 3;
 
-        cmd = cast(wchar_t*, malloc(len * sizeof(wchar_t)));
+        cmd = OS_ALLOC_N(WCHAR, len);
         cmd[0] = L'\0';
         wcscat(cmd, sh);
         wcscat(cmd, call);
@@ -477,7 +477,7 @@ int OS_Create_Process(
         &pi // process information
     );
 
-    free(cmd);
+    OS_FREE(cmd);
 
     *pid = pi.dwProcessId;
 
@@ -501,11 +501,11 @@ int OS_Create_Process(
             if (IS_STRING(ARG(in))) {
                 DWORD dest_len = 0;
                 /* convert input encoding from UNICODE to OEM */
-                // !!! Is cast to wchar_t here legal?
+                // !!! Is cast to WCHAR here legal?
                 dest_len = WideCharToMultiByte(
                     CP_OEMCP,
                     0,
-                    cast(wchar_t*, input),
+                    cast(WCHAR*, input),
                     input_len,
                     oem_input,
                     dest_len,
@@ -518,7 +518,7 @@ int OS_Create_Process(
                         WideCharToMultiByte(
                             CP_OEMCP,
                             0,
-                            cast(wchar_t*, input),
+                            cast(WCHAR*, input),
                             input_len,
                             oem_input,
                             dest_len,
@@ -684,7 +684,7 @@ int OS_Create_Process(
         if (IS_STRING(ARG(out)) && *output != NULL && *output_len > 0) {
             /* convert to wide char string */
             int dest_len = 0;
-            wchar_t *dest = NULL;
+            WCHAR *dest = NULL;
             dest_len = MultiByteToWideChar(
                 CP_OEMCP, 0, *output, *output_len, dest, 0
             );
@@ -693,7 +693,7 @@ int OS_Create_Process(
                 *output = NULL;
                 *output_len = 0;
             }
-            dest = cast(wchar_t*, malloc(*output_len * sizeof(wchar_t)));
+            dest = cast(WCHAR*, malloc(*output_len * sizeof(WCHAR)));
             if (dest == NULL)
                 goto cleanup;
             MultiByteToWideChar(
@@ -707,7 +707,7 @@ int OS_Create_Process(
         if (IS_STRING(ARG(err)) && *err != NULL && *err_len > 0) {
             /* convert to wide char string */
             int dest_len = 0;
-            wchar_t *dest = NULL;
+            WCHAR *dest = NULL;
             dest_len = MultiByteToWideChar(
                 CP_OEMCP, 0, *err, *err_len, dest, 0
             );
@@ -716,7 +716,7 @@ int OS_Create_Process(
                 *err = NULL;
                 *err_len = 0;
             }
-            dest = cast(wchar_t*, malloc(*err_len * sizeof(wchar_t)));
+            dest = cast(WCHAR*, malloc(*err_len * sizeof(WCHAR)));
             if (dest == NULL) goto cleanup;
             MultiByteToWideChar(CP_OEMCP, 0, *err, *err_len, dest, dest_len);
             free(*err);
@@ -1694,15 +1694,15 @@ REBNATIVE(call)
 
     REBINT r = OS_Create_Process(
         frame_,
-#ifdef TO_WINDOWS
-        cast(const wchar_t*, cmd),
+      #ifdef TO_WINDOWS
+        cast(const WCHAR*, cmd),
         argc,
-        cast(const wchar_t**, argv),
-#else
+        cast(const WCHAR**, argv),
+      #else
         cast(const char*, cmd),
         argc,
         cast(const char**, argv),
-#endif
+      #endif
         flag_wait,
         &pid,
         &exit_code,
@@ -1817,7 +1817,7 @@ REBNATIVE(get_os_browsers)
 
     REBDSP dsp_orig = DSP;
 
-#if defined(TO_WINDOWS)
+  #if defined(TO_WINDOWS)
 
     HKEY key;
     if (
@@ -1832,7 +1832,7 @@ REBNATIVE(get_os_browsers)
         fail ("Could not open registry key for http\\shell\\open\\command");
     }
 
-    static_assert_c(sizeof(REBUNI) == sizeof(wchar_t));
+    static_assert_c(sizeof(REBUNI) == sizeof(WCHAR));
 
     DWORD num_bytes = 0; // pass NULL and use 0 for initial length, to query
 
@@ -1873,7 +1873,7 @@ REBNATIVE(get_os_browsers)
     DS_PUSH_TRASH;
     Init_String(DS_TOP, ser);
 
-#elif defined(TO_LINUX)
+  #elif defined(TO_LINUX)
 
     // Caller should try xdg-open first, then try x-www-browser otherwise
     //
@@ -1882,14 +1882,14 @@ REBNATIVE(get_os_browsers)
     DS_PUSH_TRASH;
     Init_String(DS_TOP, Make_UTF8_May_Fail(cb_cast("x-www-browser %1")));
 
-#else // Just try /usr/bin/open on POSIX, OS X, Haiku, etc.
+  #else // Just try /usr/bin/open on POSIX, OS X, Haiku, etc.
 
     // Just use /usr/bin/open
     //
     DS_PUSH_TRASH;
     Init_String(DS_TOP, Make_UTF8_May_Fail(cb_cast("/usr/bin/open %1")));
 
-#endif
+  #endif
 
     Init_Block(D_OUT, Pop_Stack_Values(dsp_orig));
     return R_OUT;
@@ -2033,10 +2033,10 @@ static REBNATIVE(get_env)
 
     REBCTX *error = NULL;
 
-#ifdef TO_WINDOWS
+  #ifdef TO_WINDOWS
     // Note: The Windows variant of this API is NOT case-sensitive
 
-    wchar_t *key = rebSpellingOfAllocW(NULL, variable);
+    WCHAR *key = rebSpellingOfAllocW(NULL, variable);
 
     DWORD val_len_plus_one = GetEnvironmentVariable(key, NULL, 0);
     if (val_len_plus_one == 0) { // some failure...
@@ -2046,7 +2046,7 @@ static REBNATIVE(get_env)
             error = Error_User("Unknown error when requesting variable size");
     }
     else {
-        wchar_t *val = OS_ALLOC_N(wchar_t, val_len_plus_one);
+        WCHAR *val = OS_ALLOC_N(WCHAR, val_len_plus_one);
         DWORD result = GetEnvironmentVariable(key, val, val_len_plus_one);
         if (result == 0)
             error = Error_User("Unknown error fetching variable to buffer");
@@ -2056,7 +2056,7 @@ static REBNATIVE(get_env)
     }
 
     OS_FREE(key);
-#else
+  #else
     // Note: The Posix variant of this API is case-sensitive
 
     char *key = rebSpellingOfAlloc(NULL, variable);
@@ -2073,7 +2073,7 @@ static REBNATIVE(get_env)
     }
 
     OS_FREE(key);
-#endif
+  #endif
 
     // Error is broken out like this so that the proper freeing can be done
     // without leaking temporary buffers.
@@ -2113,8 +2113,8 @@ static REBNATIVE(set_env)
 
     REBCTX *error = NULL;
 
-#ifdef TO_WINDOWS
-    wchar_t *key = rebSpellingOfAllocW(NULL, variable);
+  #ifdef TO_WINDOWS
+    WCHAR *key = rebSpellingOfAllocW(NULL, variable);
 
     REBOOL success;
 
@@ -2124,7 +2124,7 @@ static REBNATIVE(set_env)
     else {
         assert(IS_STRING(value));
 
-        wchar_t *val = rebSpellingOfAllocW(NULL, value);
+        WCHAR *val = rebSpellingOfAllocW(NULL, value);
         success = SetEnvironmentVariable(key, val);
         OS_FREE(val);
     }
@@ -2133,7 +2133,7 @@ static REBNATIVE(set_env)
 
     if (NOT(success)) // make better error with GetLastError + variable name
         error = Error_User("environment variable couldn't be modified");
-#else
+  #else
 
     REBCNT key_len;
     char *key = rebSpellingOfAlloc(&key_len, variable);
@@ -2143,10 +2143,10 @@ static REBNATIVE(set_env)
     if (IS_BLANK(value)) {
         UNUSED(key_len);
 
-    #ifdef unsetenv
+      #ifdef unsetenv
         if (unsetenv(key) == -1)
             success = FALSE;
-    #else
+      #else
         // WARNING: KNOWN PORTABILITY ISSUE
         //
         // Simply saying putenv("FOO") will delete FOO from the environment,
@@ -2159,12 +2159,12 @@ static REBNATIVE(set_env)
         //
         if (putenv(key) == -1) // !!! Why mutable?
             success = FALSE;
-    #endif
+      #endif
     }
     else {
         assert(IS_STRING(value));
 
-    #ifdef setenv
+      #ifdef setenv
         UNUSED(key_len);
 
         char *val = rebSpellingOfAlloc(NULL, value);
@@ -2176,7 +2176,7 @@ static REBNATIVE(set_env)
             success = FALSE;
 
         OS_FREE(val);
-    #else
+      #else
         // WARNING: KNOWN MEMORY LEAK!
         //
         // putenv takes its argument as a single "key=val" string.  It is
@@ -2208,14 +2208,14 @@ static REBNATIVE(set_env)
             success = FALSE;
 
         /* OS_FREE(key_equals_val); */ // !!! Can't do this, crashes getenv()
-#endif
+      #endif
     }
 
     OS_FREE(key);
 
     if (NOT(success)) // make better error if more information is known
         error = Error_User("environment variable couldn't be modified");
-#endif
+  #endif
 
     // Don't do the fail() in mid-environment work, as it will leak memory
     // if the OS strings aren't freed up.  Done like this so that the error
@@ -2238,7 +2238,7 @@ static REBNATIVE(set_env)
 //
 static REBNATIVE(list_env)
 {
-#ifdef TO_WINDOWS
+  #ifdef TO_WINDOWS
     //
     // Windows environment strings are sequential null-terminated strings,
     // with a 0-length string signaling end ("keyA=valueA\0keyB=valueB\0\0")
@@ -2247,10 +2247,10 @@ static REBNATIVE(list_env)
     //
     // !!! Adding to a map as we go along would probably be better.
 
-    wchar_t *env = GetEnvironmentStrings();
+    WCHAR *env = GetEnvironmentStrings();
 
     REBCNT num_pairs = 0;
-    const wchar_t *key_equals_val = env;
+    const WCHAR *key_equals_val = env;
     REBCNT len;
     while ((len = wcslen(key_equals_val)) != 0) {
         ++num_pairs;
@@ -2261,7 +2261,7 @@ static REBNATIVE(list_env)
 
     key_equals_val = env;
     while ((len = wcslen(key_equals_val)) != 0) {
-        const wchar_t *eq = wcschr(key_equals_val, '=');
+        const WCHAR *eq = wcschr(key_equals_val, '=');
 
         Init_String(
             Alloc_Tail_Array(array),
@@ -2281,7 +2281,7 @@ static REBNATIVE(list_env)
     Init_Map(D_OUT, map);
 
     return R_OUT;
-#else
+  #else
     // Note: 'environ' is an extern of a global found in <unistd.h>, and each
     // entry contains a `key=value` formatted string.
     //
@@ -2326,7 +2326,7 @@ static REBNATIVE(list_env)
     Init_Map(D_OUT, map);
 
     return R_OUT;
-#endif
+  #endif
 }
 
 

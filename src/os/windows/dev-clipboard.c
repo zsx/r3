@@ -75,8 +75,8 @@ DEVICE_CMD Close_Clipboard(REBREQ *req)
 DEVICE_CMD Read_Clipboard(REBREQ *req)
 {
     HANDLE data;
-    wchar_t *cp;
-    wchar_t *bin;
+    WCHAR *cp;
+    WCHAR *bin;
     REBINT len;
 
     req->actual = 0;
@@ -99,7 +99,7 @@ DEVICE_CMD Read_Clipboard(REBREQ *req)
         return DR_ERROR;
     }
 
-    cp = cast(wchar_t*, GlobalLock(data));
+    cp = cast(WCHAR*, GlobalLock(data));
     if (!cp) {
         GlobalUnlock(data);
         CloseClipboard();
@@ -108,7 +108,7 @@ DEVICE_CMD Read_Clipboard(REBREQ *req)
     }
 
     len = wcslen(cp);
-    bin = OS_ALLOC_N(wchar_t, len + 1);
+    bin = OS_ALLOC_N(WCHAR, len + 1);
     wcsncpy(bin, cp, len);
 
     GlobalUnlock(data);
@@ -117,7 +117,7 @@ DEVICE_CMD Read_Clipboard(REBREQ *req)
 
     req->flags |= RRF_WIDE;
     req->common.data = cast(REBYTE *, bin);
-    req->actual = len * sizeof(wchar_t);
+    req->actual = len * sizeof(WCHAR);
     Signal_Device(req, EVT_READ);
     return DR_DONE;
 }

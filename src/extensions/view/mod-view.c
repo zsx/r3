@@ -136,7 +136,7 @@ REBNATIVE(request_file_p)
 
     osDialogOpen = TRUE;
 
-#ifdef TO_WINDOWS
+  #ifdef TO_WINDOWS
     OPENFILENAME ofn;
     memset(&ofn, '\0', sizeof(ofn));
     ofn.lStructSize = sizeof(ofn);
@@ -144,7 +144,7 @@ REBNATIVE(request_file_p)
     ofn.hwndOwner = NULL; // !!! Should be set to something for modality
     ofn.hInstance = NULL; // !!! Also should be set for context (app type)
 
-    wchar_t *lpstrFilter;
+    WCHAR *lpstrFilter;
     if (REF(filter)) {
         DECLARE_MOLD (mo);
         Push_Mold(mo);
@@ -185,7 +185,7 @@ REBNATIVE(request_file_p)
     //
     ofn.nFilterIndex = 0;
 
-    wchar_t* lpstrFile = OS_ALLOC_N(wchar_t, MAX_FILE_REQ_BUF);
+    WCHAR* lpstrFile = OS_ALLOC_N(WCHAR, MAX_FILE_REQ_BUF);
     ofn.lpstrFile = lpstrFile;
     ofn.lpstrFile[0] = '\0'; // may be filled with ARG(name) below
     ofn.nMaxFile = MAX_FILE_REQ_BUF - 1; // size in characters, space for NULL
@@ -193,7 +193,7 @@ REBNATIVE(request_file_p)
     ofn.lpstrFileTitle = NULL; // can be used to get file w/o path info...
     ofn.nMaxFileTitle = 0; // ...but we want the full path
 
-    wchar_t *lpstrInitialDir;
+    WCHAR *lpstrInitialDir;
     if (REF(file)) {
         //
         // !!! Ultimately we don't want routines like this using REBSER...
@@ -202,9 +202,9 @@ REBNATIVE(request_file_p)
         // series code to this branch.
         //
         REBSER *ser = Value_To_OS_Path(ARG(name), TRUE);
-        assert(SER_WIDE(ser) == sizeof(wchar_t));
+        assert(SER_WIDE(ser) == sizeof(WCHAR));
 
-        wchar_t *dir = SER_HEAD(wchar_t, ser);
+        WCHAR *dir = SER_HEAD(WCHAR, ser);
         REBCNT dir_len = SER_LEN(ser);
 
         // If the last character doesn't indicate a directory, that means
@@ -238,7 +238,7 @@ REBNATIVE(request_file_p)
         lpstrInitialDir = NULL;
     ofn.lpstrInitialDir = lpstrInitialDir;
 
-    wchar_t *lpstrTitle;
+    WCHAR *lpstrTitle;
     if (REF(title))
         lpstrTitle = rebSpellingOfAllocW(NULL, ARG(text));
     else
@@ -291,7 +291,7 @@ REBNATIVE(request_file_p)
             Init_File(DS_TOP, solo);
         }
         else {
-            const wchar_t *item = ofn.lpstrFile;
+            const WCHAR *item = ofn.lpstrFile;
 
             REBCNT len = wcslen(item);
             assert(len != 0); // must have at least one item for success
@@ -343,7 +343,7 @@ REBNATIVE(request_file_p)
     if (REF(title))
         OS_FREE(lpstrTitle);
 
-#elif defined(USE_GTK_FILECHOOSER)
+  #elif defined(USE_GTK_FILECHOOSER)
 
     // gtk_init_check() will not terminate the program if gtk cannot be
     // initialized, and it will return TRUE if GTK is successfully initialized
@@ -466,7 +466,7 @@ REBNATIVE(request_file_p)
         gtk_main_iteration ();
     }
 
-#else
+  #else
     UNUSED(REF(save));
     UNUSED(REF(multi));
     UNUSED(REF(file));
@@ -477,7 +477,7 @@ REBNATIVE(request_file_p)
     UNUSED(ARG(list));
 
     error = Error_User("REQUEST-FILE only on GTK and Windows at this time");
-#endif
+  #endif
 
     osDialogOpen = FALSE;
 
@@ -519,7 +519,7 @@ int CALLBACK ReqDirCallbackProc(
 ){
     UNUSED(lParam);
 
-    const wchar_t* dir = cast(wchar_t*, lpData);
+    const WCHAR* dir = cast(WCHAR*, lpData);
 
     static REBOOL inited = FALSE;
     switch (uMsg) {
@@ -569,7 +569,7 @@ REBNATIVE(request_dir_p)
 
     REBCTX *error = NULL;
 
-#if defined(USE_WINDOWS_DIRCHOOSER)
+  #if defined(USE_WINDOWS_DIRCHOOSER)
     //
     // COM must be initialized to use SHBrowseForFolder.  BIF_NEWDIALOGSTYLE
     // is incompatible with COINIT_MULTITHREADED, the dialog will hang and
@@ -589,7 +589,7 @@ REBNATIVE(request_dir_p)
     bi.hwndOwner = NULL;
     bi.pidlRoot = NULL;
 
-    wchar_t display[MAX_PATH];
+    WCHAR display[MAX_PATH];
     display[0] = '\0';
     bi.pszDisplayName = display; // assumed length is MAX_PATH
 
@@ -622,7 +622,7 @@ REBNATIVE(request_dir_p)
     LPCITEMIDLIST pFolder = SHBrowseForFolder(&bi);
     osDialogOpen = FALSE;
 
-    wchar_t folder[MAX_PATH];
+    WCHAR folder[MAX_PATH];
     if (pFolder == NULL)
         Init_Blank(D_OUT);
     else if (NOT(SHGetPathFromIDList(pFolder, folder)))
@@ -631,17 +631,17 @@ REBNATIVE(request_dir_p)
         Init_File(D_OUT, Copy_Wide_Str(folder, wcslen(folder)));
 
     if (REF(title))
-        OS_FREE(cast(wchar_t*, bi.lpszTitle));
+        OS_FREE(cast(WCHAR*, bi.lpszTitle));
     if (REF(path))
-        OS_FREE(cast(wchar_t*, bi.lParam));
-#else
+        OS_FREE(cast(WCHAR*, bi.lParam));
+  #else
     UNUSED(REF(title));
     UNUSED(ARG(text));
     UNUSED(REF(path));
     UNUSED(ARG(dir));
 
     error = Error_User("Temporary implementation of REQ-DIR only on Windows");
-#endif
+  #endif
 
     if (error != NULL)
         fail (error);
