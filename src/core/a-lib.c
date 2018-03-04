@@ -1011,8 +1011,8 @@ int RL_rebEvent(REBEVT *evt)
 // having to go through rebRescue().
 //
 // But using rebRescue() internally allows the core to be compiled and run
-// compatibly across all these scenarios.  It is named after Ruby's "rescue2"
-// operation, which deals with the identical problem:
+// compatibly across all these scenarios.  It is named after Ruby's operation,
+// which deals with the identical problem:
 //
 // http://silverhammermba.github.io/emberb/c/#rescue
 //
@@ -1023,23 +1023,86 @@ REBVAL *RL_rebRescue(
     void *opaque
 ){
     struct Reb_State state;
-    REBCTX *error;
+    REBCTX *error_ctx;
 
     if (Saved_State == NULL)
-        PUSH_UNHALTABLE_TRAP(&error, &state);
+        PUSH_UNHALTABLE_TRAP(&error_ctx, &state);
     else
-        PUSH_TRAP(&error, &state);
+        PUSH_TRAP(&error_ctx, &state);
 
     // The first time through the following code 'error' will be NULL, but...
     // `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
     //
-    if (error != NULL)
-        return Init_Error(Alloc_Value(), error);
+    if (error_ctx != NULL)
+        return Init_Error(Alloc_Value(), error_ctx);
 
-    (*dangerous)(opaque);
+    REBVAL *result = (*dangerous)(opaque);
 
     DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
-    return NULL; // no ERROR! raised
+
+    if (result == NULL)
+        return NULL; // NULL is considered a legal result
+
+    // Analogous to how TRAP works, if you don't have a handler for the
+    // error case then you can't return an ERROR!, since all errors indicate
+    // a failure.
+    //
+    // !!! Is returning rebVoid() too "quiet" a response?  Should it fail?
+    // Returning NULL seems like it would be prone to creating surprise
+    // crashes if the caller didn't expect NULLs, or used them to signal
+    // some other purpose.
+    //
+    if (IS_ERROR(result)) {
+        rebRelease(result);
+        return rebVoid();
+    }
+
+    if (IS_VOID(result)) {
+        rebRelease(result);
+        return rebBlank();
+    }
+
+    return result;
+}
+
+
+//
+//  rebRescueWith: RL_API
+//
+// Variant of rebRescue() with a handler hook (parallels TRAP/WITH, except
+// for C code as the protected code and the handler).  More similar to
+// Ruby's rescue2 operation.
+//
+REBVAL *RL_rebRescueWith(
+    REBDNG *dangerous, // !!! pure C function only if not using throw/catch!
+    REBRSC *rescuer, // errors in the rescuer function will *not* be caught
+    void *opaque
+){
+    struct Reb_State state;
+    REBCTX *error_ctx;
+
+    if (Saved_State == NULL)
+        PUSH_UNHALTABLE_TRAP(&error_ctx, &state);
+    else
+        PUSH_TRAP(&error_ctx, &state);
+
+    // The first time through the following code 'error' will be NULL, but...
+    // `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
+    //
+    if (error_ctx != NULL) {
+        REBVAL *error = Init_Error(Alloc_Value(), error_ctx);
+
+        REBVAL *result = (*rescuer)(error, opaque); // *not* guarded by trap!
+
+        rebRelease(error);
+        return result; // no special handling, may be NULL
+    }
+
+    REBVAL *result = (*dangerous)(opaque); // guarded by trap
+
+    DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
+
+    return result; // no special handling, may be NULL
 }
 
 

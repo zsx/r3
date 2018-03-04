@@ -908,7 +908,7 @@ static void callback_dispatcher_core(struct Reb_Callback_Invocation *inv)
 
     DECLARE_LOCAL (result);
     if (Do_At_Throws(result, code, 0, SPECIFIED))
-        fail (Error_No_Catch_For_Throw(result));
+        fail (Error_No_Catch_For_Throw(result)); // caller will panic()
 
     if (inv->cif->rtype->type == FFI_TYPE_VOID)
         assert(IS_BLANK(RIN_RET_SCHEMA(inv->rin)));
@@ -923,6 +923,8 @@ static void callback_dispatcher_core(struct Reb_Callback_Invocation *inv)
             param // parameter used for symbol in error only
         );
     }
+
+    return NULL;
 }
 
 

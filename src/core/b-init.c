@@ -1042,7 +1042,7 @@ void Set_Stack_Limit(void *base) {
   #endif
 }
 
-static void Startup_Mezzanine(BOOT_BLK *boot);
+static REBVAL *Startup_Mezzanine(BOOT_BLK *boot);
 
 
 //
@@ -1392,7 +1392,7 @@ void Startup_Core(void)
 // a graceful fashion.  This is the routine protected by rebRescue() so that
 // initialization can handle exceptions.
 //
-static void Startup_Mezzanine(BOOT_BLK *boot)
+static REBVAL *Startup_Mezzanine(BOOT_BLK *boot)
 {
     Startup_Base(VAL_ARRAY(&boot->base));
 
@@ -1425,6 +1425,8 @@ static void Startup_Mezzanine(BOOT_BLK *boot)
         //
         panic (result);
     }
+
+    return NULL;
 }
 
 

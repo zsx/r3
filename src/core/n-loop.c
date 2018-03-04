@@ -970,7 +970,7 @@ static inline REBCNT Finalize_Remove_Each(struct Remove_Each_State *res)
 
 // See notes on Remove_Each_State
 //
-static void Remove_Each_Core(struct Remove_Each_State *res)
+static REBVAL *Remove_Each_Core(struct Remove_Each_State *res)
 {
     // Set a bit saying we are iterating the series, which will disallow
     // mutations (including a nested REMOVE-EACH) until completion or failure.
@@ -1021,7 +1021,7 @@ static void Remove_Each_Core(struct Remove_Each_State *res)
                 // finalized anyway.
                 //
                 assert(THROWN(res->out)); // how caller knows it threw
-                return;
+                return NULL;
             }
 
             if (stop) {
@@ -1078,6 +1078,8 @@ static void Remove_Each_Core(struct Remove_Each_State *res)
         // !!! Should the return conventions of REMOVE-EACH honor the
         // "loop protocol" where a broken loop returns BLANK!?
     }
+
+    return NULL;
 }
 
 

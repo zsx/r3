@@ -131,4 +131,19 @@ enum REBOL_Ext_Types
 
 typedef unsigned char REBRXT;
 
-typedef void (REBDNG)(void *);
+// "Dangerous Function" which is called by rebRescue().  Argument can be a
+// REBVAL* but does not have to be.  Result must be a REBVAL* or NULL.
+//
+// !!! If the dangerous function returns an ERROR!, it will currently be
+// converted to void, in a behavior which parallels TRAP without a handler.
+// voids will also be converted to BLANK!s.
+//
+typedef REBVAL* (REBDNG)(void *opaque);
+
+// "Rescue Function" which is called as the handler in rebRescueWith().  It
+// receives the REBVAL* of the error that occurred, and the opaque pointer.
+//
+// !!! If either the dangerous function or the rescuing function return an
+// ERROR! value, that is not interfered with the way rebRescue() does.
+//
+typedef REBVAL* (REBRSC)(REBVAL *error, void *opaque);

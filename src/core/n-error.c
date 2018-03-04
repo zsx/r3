@@ -40,7 +40,7 @@
 // This is the code which is protected by the exception mechanism.  See the
 // rebRescue() API for more information.
 //
-static void Trap_Native_Core(REBFRM *frame_) {
+static REBVAL *Trap_Native_Core(REBFRM *frame_) {
     INCLUDE_PARAMS_OF_TRAP;
 
     UNUSED(REF(with));
@@ -53,6 +53,8 @@ static void Trap_Native_Core(REBFRM *frame_) {
         //
         // returned value is tested for THROWN() status by caller
     }
+
+    return NULL;
 }
 
 
