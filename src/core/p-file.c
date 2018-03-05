@@ -557,7 +557,11 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
         REBSER *target = Value_To_OS_Path(ARG(to), TRUE);
         if (target == NULL)
             fail (Error_Bad_File_Path_Raw(ARG(to)));
-        req->common.data = BIN_HEAD(target);
+
+        // Until UTF-8 Everywhere, is either UTF-8 (Posix) or UCS2 (Windows)
+        assert(SER_WIDE(target) == 1 || SER_WIDE(target) == 2);
+        req->common.data = SER_DATA_RAW(target);
+
         OS_DO_DEVICE(req, RDC_RENAME);
         Free_Series(target);
         if (req->error)
