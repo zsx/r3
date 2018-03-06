@@ -69,7 +69,7 @@
 // in order to use the OS_* macro functions."
 //
 #ifdef REB_API  // Included by C command line
-    REBOL_HOST_LIB *Host_Lib;
+    const REBOL_HOST_LIB *Host_Lib;
     EXTERN_C REBOL_HOST_LIB Host_Lib_Init;
 #endif
 
@@ -340,7 +340,7 @@ void RL_rebStartup(const void *lib)
     if (PG_last_error != NULL)
         panic ("rebStartup() called when it's already started");
 
-    Host_Lib = cast(REBOL_HOST_LIB*, lib);
+    Host_Lib = cast(const REBOL_HOST_LIB*, lib);
 
     if (Host_Lib->size < HOST_LIB_SIZE)
         panic ("Host-lib wrong size");

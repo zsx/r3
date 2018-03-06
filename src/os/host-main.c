@@ -56,10 +56,6 @@
     // Windows-XP-specific dependencies were added in Ren-C, but the version
     // was bumped to avoid compilation errors in the common case.
     //
-    // !!! Note that %sys-core.h includes <windows.h> as well if building
-    // for windows.  The redundant inclusion should not create a problem.
-    // (So better to do the inclusion just to test that it doesn't.)
-    //
     #undef _WIN32_WINNT
     #define _WIN32_WINNT 0x0501
     #include <windows.h>
@@ -87,7 +83,7 @@
 EXTERN_C REBOL_HOST_LIB Host_Lib_Init;
 
 
-// The initialization done by RL_Init() is intended to be as basic as possible
+// Initialization done by rebStartup() is intended to be as basic as possible
 // in order to get the Rebol series/values/array functions ready to be run.
 // Once that's ready, the rest of the initialization can take advantage of
 // a working evaluator.  This includes PARSE to process the command line
@@ -101,16 +97,87 @@ EXTERN_C REBOL_HOST_LIB Host_Lib_Init;
 #include "tmp-host-start.inc"
 
 
-#ifndef REB_CORE
-EXTERN_C void Init_Windows(void);
-EXTERN_C void OS_Init_Graphics(void);
-EXTERN_C void OS_Destroy_Graphics(void);
-#endif
-
-
 #ifdef TO_WINDOWS
+    //
+    // Most Windows-specific code is expected to be run in extensions (or
+    // in the interim, in "devices").  However, it's expected that all Windows
+    // code be able to know its `HINSTANCE`.  This is usually passed in a
+    // WinMain(), but since we don't use WinMain() in order to be able to
+    // act as a console app -or- a GUI app some tricks are needed to capture
+    // it, and then export it for other code to use.
+    //
     EXTERN_C HINSTANCE App_Instance;
     HINSTANCE App_Instance = 0;
+
+    // For why this is done this way with a potential respawning, see the
+    // StackOverflow question:
+    //
+    // "Can one executable be both a console and a GUI application":
+    //
+    //     http://stackoverflow.com/q/493536/
+    //
+    void Determine_Hinstance_May_Respawn(WCHAR *this_exe_path) {
+        if (GetStdHandle(STD_OUTPUT_HANDLE) == 0) {
+            //
+            // No console to attach to, we must be the DETACHED_PROCESS which
+            // was spawned in the below branch.
+            //
+            App_Instance = GetModuleHandle(NULL);
+        }
+        else {
+          #ifdef REB_CORE
+            //
+            // In "Core" mode, use a console but do not initialize graphics.
+            // (stdio redirection works, blinking console window during start)
+            //
+            App_Instance = cast(HINSTANCE,
+                GetWindowLongPtr(GetConsoleWindow(), GWLP_HINSTANCE)
+            );
+            UNUSED(this_exe_path);
+          #else
+            //
+            // In the "GUI app" mode, stdio redirection doesn't work properly,
+            // but no blinking console window during start.
+            //
+            if (this_exe_path == NULL) { // argc was > 1
+                App_Instance = cast(HINSTANCE,
+                    GetWindowLongPtr(GetConsoleWindow(), GWLP_HINSTANCE)
+                );
+            }
+            else {
+                // Launch child as a DETACHED_PROCESS so that GUI can be
+                // initialized, and exit.
+                //
+                STARTUPINFO startinfo;
+                ZeroMemory(&startinfo, sizeof(startinfo));
+                startinfo.cb = sizeof(startinfo);
+
+                PROCESS_INFORMATION procinfo;
+                if (!CreateProcess(
+                    NULL, // lpApplicationName
+                    this_exe_path, // lpCommandLine
+                    NULL, // lpProcessAttributes
+                    NULL, // lpThreadAttributes
+                    FALSE, // bInheritHandles
+                    CREATE_DEFAULT_ERROR_MODE | DETACHED_PROCESS,
+                    NULL, // lpEnvironment
+                    NULL, // lpCurrentDirectory
+                    &startinfo,
+                    &procinfo
+                )){
+                    MessageBox(
+                        NULL, // owner window
+                        L"CreateProcess() failed in %host-main.c",
+                        this_exe_path, // title
+                        MB_ICONEXCLAMATION | MB_OK
+                    );
+                }
+
+                exit(0);
+            }
+          #endif
+        }
+    }
 #endif
 
 
@@ -252,39 +319,20 @@ void Enable_Ctrl_C(void)
 #endif
 
 
-
-/***********************************************************************
-**
-**  MAIN ENTRY POINT
-**
-**  Win32 args:
-**      inst:  current instance of the application (app handle)
-**      prior: always NULL (use a mutex for single inst of app)
-**      cmd:   command line string (or use GetCommandLine)
-**      show:  how app window is to be shown (e.g. maximize, minimize, etc.)
-**
-**  Win32 return:
-**      If the function succeeds, terminating when it receives a WM_QUIT
-**      message, it should return the exit value contained in that
-**      message's wParam parameter. If the function terminates before
-**      entering the message loop, it should return zero.
-**
-**  Posix args: as you would expect in C.
-**  Posix return: ditto.
-**
-*/
-/***********************************************************************/
-
-// Using a main entry point for a console program (as opposed to WinMain)
-// so that we can connect to the console.  See the StackOverflow question
-// "Can one executable be both a console and a GUI application":
+//=//// MAIN ENTRY POINT //////////////////////////////////////////////////=//
 //
-//     http://stackoverflow.com/questions/493536/
+// Using a main() entry point for a console program (as opposed to WinMain())
+// so we can connect to the console.  See Determine_Hinstance_May_Respawn().
 //
-// int WINAPI WinMain(HINSTANCE inst, HINSTANCE prior, LPSTR cmd, int show)
-
-int main(int argc, char **argv_ansi)
+int main(int argc, char *argv_ansi[])
 {
+    // We only enable Ctrl-C when user code is running...not when the
+    // HOST-CONSOLE function itself is, or during startup.  (Enabling it
+    // during startup would require a special "kill" mode that did not
+    // call rebHalt(), as basic startup cannot meaningfully be halted.)
+    //
+    Disable_Ctrl_C();
+
     // Must be done before an console I/O can occur. Does not use reb-lib,
     // so this device should open even if there are other problems.
     //
@@ -293,38 +341,34 @@ int main(int argc, char **argv_ansi)
     Host_Lib = &Host_Lib_Init;
     rebStartup(Host_Lib);
 
-    // We only enable Ctrl-C when user code is running...not when the
-    // HOST-CONSOLE function itself is.
-    //
-    Disable_Ctrl_C();
-
-    // With basic initialization done, we want to turn the platform-dependent
+    // With interpreter startup done, we want to turn the platform-dependent
     // argument strings into a block of Rebol strings as soon as possible.
     // That way the command line argument processing can be taken care of by
-    // PARSE instead of C code!
+    // PARSE in the HOST-STARTUP user function, instead of C code!
     //
     REBVAL *argv_block = rebBlock(END);
 
-#ifdef TO_WINDOWS
-    UNUSED(argv_ansi);
-
+  #ifdef TO_WINDOWS
     //
     // Were we using WinMain we'd be getting our arguments in Unicode, but
     // since we're using an ordinary main() we do not.  However, this call
-    // lets us slip out and pick up the arguments in Unicode form.
+    // lets us slip out and pick up the arguments in Unicode form (UCS2).
     //
-    WCHAR **argv_utf16 = CommandLineToArgvW(GetCommandLineW(), &argc);
+    WCHAR **argv_ucs2 = CommandLineToArgvW(GetCommandLineW(), &argc);
+    UNUSED(argv_ansi);
+
+    Determine_Hinstance_May_Respawn(argc > 1 ? NULL : argv_ucs2[0]);
 
     int i;
     for (i = 0; i < argc; ++i) {
-        if (argv_utf16[i] == NULL)
+        if (argv_ucs2[i] == NULL)
             continue; // !!! Comment here said "shell bug" (?)
 
-        REBVAL *arg = rebStringW(argv_utf16[i]);
+        REBVAL *arg = rebStringW(argv_ucs2[i]);
         rebElide("append", argv_block, arg, END);
         rebRelease(arg);
     }
-#else
+  #else
     // Just take the ANSI C "char*" args...which should ideally be in UTF8.
     //
     int i = 0;
@@ -336,48 +380,13 @@ int main(int argc, char **argv_ansi)
         rebElide("append", argv_block, arg, END);
         rebRelease(arg);
     }
-#endif
+  #endif
 
-#ifdef TO_WINDOWS
-    // no console, we must be the child process
-    if (GetStdHandle(STD_OUTPUT_HANDLE) == 0)
-    {
-        App_Instance = GetModuleHandle(NULL);
-    }
-#ifdef REB_CORE
-    else //use always the console for R3/core
-    {
-        // GetWindowsLongPtr support 32 & 64 bit windows
-        App_Instance = (HINSTANCE)GetWindowLongPtr(GetConsoleWindow(), GWLP_HINSTANCE);
-    }
-#else
-    //followinng R3/view code behaviors when compiled as:
-    //-"console app" mode: stdio redirection works but blinking console window during start
-    //-"GUI app" mode stdio redirection doesn't work properly, no blinking console window during start
-    else if (argc > 1) // we have command line args
-    {
-        // GetWindowsLongPtr support 32 & 64 bit windows
-        App_Instance = (HINSTANCE)GetWindowLongPtr(GetConsoleWindow(), GWLP_HINSTANCE);
-    }
-    else // no command line args but a console - launch child process so GUI is initialized and exit
-    {
-        DWORD dwCreationFlags = CREATE_DEFAULT_ERROR_MODE | DETACHED_PROCESS;
-        STARTUPINFO startinfo;
-        PROCESS_INFORMATION procinfo;
-        ZeroMemory(&startinfo, sizeof(startinfo));
-        startinfo.cb = sizeof(startinfo);
-        if (!CreateProcess(NULL, argv_utf16[0], NULL, NULL, FALSE, dwCreationFlags, NULL, NULL, &startinfo, &procinfo))
-            MessageBox(0, L"CreateProcess() failed :(", L"", 0);
-        exit(0);
-    }
-#endif //REB_CORE
-#endif //TO_WINDOWS
-
-    // Common code for console & GUI version
-#ifndef REB_CORE
-    Init_Windows();
-    OS_Init_Graphics();
-#endif // REB_CORE
+    // !!! This calls into the internal API for decompression, instead of
+    // turning the data into a BINARY! and then using rebRun("decompress"...)
+    // on it.  It would be wasteful to make that intermediate compressed form
+    // as a binary, which raises the question of if there should be a
+    // rebDecompress() (or rebSizedDecompress()?) entry point.
 
     const REBOOL gzip = FALSE;
     const REBOOL raw = FALSE;
@@ -440,9 +449,9 @@ int main(int argc, char **argv_ansi)
     DECLARE_LOCAL(exec_path);
     REBCHR *path;
     REBINT path_len = OS_GET_CURRENT_EXEC(&path);
-    if (path_len < 0){
+    if (path_len < 0)
         Init_Blank(exec_path);
-    } else {
+    else {
         Init_File(exec_path,
             To_REBOL_Path(path, path_len, (OS_WIDE ? PATH_OPT_UNI_SRC : 0))
             );
@@ -467,8 +476,8 @@ int main(int argc, char **argv_ansi)
     //
     // Note that `result`, `code`, and status have to be freed each loop ATM.
     //
-    REBVAL *result = rebBlock(exec_path, argv_block, ext_value, END);
     REBVAL *code = rebVoid();
+    REBVAL *result = rebBlock(exec_path, argv_block, ext_value, END);
     REBVAL *status = rebVoid();
 
     // The DO and APPLY hooks are used to implement things like tracing
@@ -578,7 +587,7 @@ int main(int argc, char **argv_ansi)
         if (IS_BAR(status)) // currently means halted, not really an ERROR!
             continue;
 
-        if (IS_ERROR(status))
+        if (IS_ERROR(status)) // interpreted as an exit code
             continue;
 
         assert(IS_INTEGER(status));
@@ -597,10 +606,6 @@ int main(int argc, char **argv_ansi)
 
     OS_QUIT_DEVICES(0);
 
-#ifndef REB_CORE
-    OS_Destroy_Graphics();
-#endif
-
     Close_StdIO();
 
     // No need to do a "clean" shutdown, as we are about to exit the process
@@ -609,5 +614,5 @@ int main(int argc, char **argv_ansi)
     REBOOL clean = FALSE;
     rebShutdown(clean);
 
-    return exit_status; // http://stackoverflow.com/questions/1101957/
+    return exit_status; // http://stackoverflow.com/q/1101957/
 }
