@@ -35,7 +35,7 @@
 //
 //  Snap_State_Core: C
 //
-// Used by SNAP_STATE, PUSH_TRAP, and PUSH_UNHALTABLE_TRAP.
+// Used by SNAP_STATE and PUSH_TRAP.
 //
 // **Note:** Modifying this routine likely means a necessary modification to
 // both `Assert_State_Balanced_Debug()` and `Trapped_Helper_Halted()`.
@@ -150,10 +150,9 @@ void Assert_State_Balanced_Debug(
 //
 //  Trapped_Helper_Halted: C
 //
-// This is used by both PUSH_TRAP and PUSH_UNHALTABLE_TRAP to do the work of
-// responding to a longjmp.  (Hence it is run when setjmp returns TRUE.)  Its
-// job is to safely recover from a sudden interruption, though the list of
-// things which can be safely recovered from is finite.
+// This do the work of responding to a longjmp.  (Hence it is run when setjmp
+// returns TRUE.)  Its job is to safely recover from a sudden interruption,
+// though the list of things which can be safely recovered from is finite.
 //
 // (Among the countless things that are not handled automatically would be a
 // memory allocation via malloc().)
@@ -164,14 +163,10 @@ void Assert_State_Balanced_Debug(
 // without cost.  Rebol's greater concern is not so much the cost of setup for
 // stack unwinding, but being written without requiring a C++ compiler.
 //
-// Returns whether the trapped error was a RE_HALT or not.
-//
-REBOOL Trapped_Helper_Halted(struct Reb_State *s)
+void Trapped_Helper(struct Reb_State *s)
 {
     ASSERT_CONTEXT(s->error);
     assert(CTX_TYPE(s->error) == REB_ERROR);
-
-    REBOOL halted = LOGICAL(ERR_NUM(s->error) == RE_HALT);
 
     // Restore Rebol data stack pointer at time of Push_Trap
     //
@@ -207,7 +202,7 @@ REBOOL Trapped_Helper_Halted(struct Reb_State *s)
     TG_Frame_Stack = s->frame;
     TERM_SEQUENCE_LEN(UNI_BUF, s->uni_buf_len);
 
-#if !defined(NDEBUG)
+  #if !defined(NDEBUG)
     //
     // Because reporting errors in the actual Push_Mold process leads to
     // recursion, this debug flag helps make it clearer what happens if
@@ -215,26 +210,24 @@ REBOOL Trapped_Helper_Halted(struct Reb_State *s)
     // a fail of some kind, the flag for the warning needs to be cleared.
     //
     TG_Pushing_Mold = FALSE;
-#endif
+  #endif
 
     SET_SERIES_LEN(TG_Mold_Stack, s->mold_loop_tail);
 
     Saved_State = s->last_state;
     Stack_Limit = s->stack_limit;
-
-    return halted;
 }
 
 
 //
 //  Fail_Core: C
 //
-// Cause a "trap" of an error by longjmp'ing to the enclosing PUSH_TRAP (or
-// PUSH_UNHALTABLE_TRAP).  Note that these failures interrupt code mid-stream,
-// so if a Rebol function is running it will not make it to the point of
-// returning the result value.  This distinguishes the "fail" mechanic from
-// the "throw" mechanic, which has to bubble up a THROWN() value through
-// D_OUT (used to implement BREAK, CONTINUE, RETURN, LEAVE...)
+// Cause a "trap" of an error by longjmp'ing to the enclosing PUSH_TRAP.  Note
+// that these failures interrupt code mid-stream, so if a Rebol function is
+// running it will not make it to the point of returning the result value.
+// This distinguishes the "fail" mechanic from the "throw" mechanic, which has
+// to bubble up a THROWN() value through D_OUT (used to implement BREAK,
+// CONTINUE, RETURN, LEAVE, HALT...)
 //
 // The function will auto-detect if the pointer it is given is an ERROR!'s
 // REBCTX* or a UTF-8 string.  If it's a string, an error will be created from

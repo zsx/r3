@@ -525,17 +525,12 @@ inline static REBOOL Reb_Run_Api_Core_Fails(
     struct Reb_State state;
     REBCTX *error;
 
-    PUSH_UNHALTABLE_TRAP(&error, &state); // must catch HALTs
+    PUSH_TRAP(&error, &state); // must catch HALTs
 
 // The first time through the following code 'error' will be NULL, but...
 // `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
 
     if (error != NULL) {
-        if (ERR_NUM(error) == RE_HALT) {
-            Init_Bar(PG_last_error); // denotes halting (for now)
-            return TRUE;
-        }
-
         Init_Error(PG_last_error, error);
         return TRUE;
     }
@@ -556,15 +551,23 @@ inline static REBOOL Reb_Run_Api_Core_Fails(
     DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
 
     if (indexor == THROWN_FLAG) {
-        if (IS_FUNCTION(out) && VAL_FUNC_DISPATCHER(out) == &N_quit) {
-            //
-            // Command issued a purposeful QUIT or EXIT.  Convert the
-            // QUIT/WITH value (if any) into an integer for last error to
-            // signal this (for now).
-            //
-            CATCH_THROWN(out, out);
-            Init_Integer(PG_last_error, Exit_Status_From_Value(out));
-            return TRUE;
+        if (IS_FUNCTION(out)) {
+            if (VAL_FUNC(out) == NAT_FUNC(quit)) {
+                //
+                // Command issued a purposeful QUIT or EXIT.  Convert the
+                // QUIT/WITH value (if any) into an integer for last error to
+                // signal this (for now).
+                //
+                CATCH_THROWN(out, out);
+                Init_Integer(PG_last_error, Exit_Status_From_Value(out));
+                return TRUE;
+            }
+
+            if (VAL_FUNC(out) == NAT_FUNC(halt)) {
+                CATCH_THROWN(out, out);
+                Init_Bar(PG_last_error); // denotes halting (for now)
+                return TRUE;
+            }
         }
 
         // For now, convert all other THROWN() values into uncaught throw
@@ -1024,10 +1027,7 @@ REBVAL *RL_rebRescue(
     struct Reb_State state;
     REBCTX *error_ctx;
 
-    if (Saved_State == NULL)
-        PUSH_UNHALTABLE_TRAP(&error_ctx, &state);
-    else
-        PUSH_TRAP(&error_ctx, &state);
+    PUSH_TRAP(&error_ctx, &state);
 
     // The first time through the following code 'error' will be NULL, but...
     // `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
@@ -1080,10 +1080,7 @@ REBVAL *RL_rebRescueWith(
     struct Reb_State state;
     REBCTX *error_ctx;
 
-    if (Saved_State == NULL)
-        PUSH_UNHALTABLE_TRAP(&error_ctx, &state);
-    else
-        PUSH_TRAP(&error_ctx, &state);
+    PUSH_TRAP(&error_ctx, &state);
 
     // The first time through the following code 'error' will be NULL, but...
     // `fail` can longjmp here, so 'error' won't be NULL *if* that happens!

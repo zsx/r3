@@ -42,7 +42,10 @@
 REBNATIVE(halt)
 {
     UNUSED(frame_);
-    fail (VAL_CONTEXT(TASK_HALT_ERROR));
+
+    Move_Value(D_OUT, NAT_VALUE(halt));
+    CONVERT_NAME_TO_THROWN(D_OUT, VOID_CELL);
+    return R_OUT_IS_THROWN;
 }
 
 

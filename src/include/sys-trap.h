@@ -143,34 +143,7 @@
 // will see the error pointer as being NULL.  If a trap occurs during
 // code before the paired DROP_TRAP happens, then the C state will be
 // magically teleported back to the line after the PUSH_TRAP with the
-// error value now non-null and usable, including put into a REBVAL via
-// the `Init_Error()` function.
-//
-#define PUSH_TRAP(e,s) \
-    PUSH_TRAP_CORE((e), (s), TRUE)
-
-
-// PUSH_UNHALTABLE_TRAP is a form of PUSH_TRAP that will receive RE_HALT in
-// the same way it would be told about other errors.  In a pure C client,
-// it would usually be only at the topmost level (e.g. console REPL loop).
-//
-// It's also necessary at C-to-C++ boundary crossings (as in Ren/C++) even
-// if they are not the topmost.  This is because C++ needs to know if *any*
-// longjmp happens, to keep it from crossing stack frames with constructed
-// objects without running their destructors.  Once it is done unwinding
-// any relevant C++ call frames, it may have to trigger another longjmp IF
-// the C++ code was called from other Rebol C code.  (This is done in the
-// exception handler found in Ren/C++'s %function.hpp)
-//
-// Note: Despite the technical needs of low-level clients, there is likely
-// no reasonable use-case for a user-exposed ability to intercept HALTs in
-// Rebol code, for instance with a "TRAP/HALT" construction.
-//
-#define PUSH_UNHALTABLE_TRAP(e,s) \
-    PUSH_TRAP_CORE((e), (s), FALSE)
-
-
-// Core implementation behind PUSH_TRAP and PUSH_UNHALTABLE_TRAP.
+// error context now non-null and usable.
 //
 // Note: The implementation of this macro was chosen stylistically to
 // hide the result of the setjmp call.  That's because you really can't
@@ -189,37 +162,21 @@
 // According to the developers, "This is not a bug as if you inline it, the
 // place setjmp goes to could be not where you want to goto."
 //
-#define PUSH_TRAP_CORE(e,s,haltable) \
+#define PUSH_TRAP(e,s) \
     do { \
-        assert(Saved_State || (DSP == 0 && FS_TOP == NULL)); \
+        assert(Saved_State != NULL || (DSP == 0 && FS_TOP == NULL)); \
         Snap_State_Core(s); \
         (s)->last_state = Saved_State; \
         Saved_State = (s); \
-        if (haltable) \
-            assert((s)->last_state != NULL); /* top must be unhaltable */ \
-        else \
-            Set_Stack_Limit(s); /* for thread switches; see comments */ \
-        if (!SET_JUMP((s)->cpu_state)) { \
-            /* this branch will always be run */ \
-            *(e) = NULL; \
-        } \
+        if (!SET_JUMP((s)->cpu_state)) \
+            *(e) = NULL; /* this branch will always be run */ \
         else { \
-            /* this runs if before the DROP_TRAP a longjmp() happens */ \
-            if (haltable) { \
-               if (Trapped_Helper_Halted(s)) \
-                    fail ((s)->error); /* proxy the halt up the stack */ \
-                else \
-                    *(e) = (s)->error; \
-            } \
-            else { \
-               (void)Trapped_Helper_Halted(s); /* ignore result */ \
-                *(e) = (s)->error; \
-            } \
+            Trapped_Helper(s); \
+            *(e) = (s)->error; \
         } \
     } while (0)
 
 
-// If either a haltable or non-haltable TRAP is PUSHed, it must be DROP'd.
 // DROP_TRAP_SAME_STACKLEVEL_AS_PUSH has a long and informative name to
 // remind you that you must DROP_TRAP from the same scope you PUSH_TRAP
 // from.  (So do not call PUSH_TRAP in a function, then return from that

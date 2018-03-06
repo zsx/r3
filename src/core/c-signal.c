@@ -120,9 +120,7 @@ REBOOL Do_Signals_Throws(REBVAL *out)
 
     if (filtered_sigs & SIG_HALT) {
         //
-        // Early in the booting process, it's not possible to handle Ctrl-C
-        // because the error machinery has not been initialized.  There must
-        // be at least one PUSH_UNHALTABLE_TRAP() before fail() can work.
+        // Early in the booting process, it's not possible to handle Ctrl-C.
         //
         if (Saved_State == NULL)
             panic ("Ctrl-C or other HALT signal with no trap to process it");
@@ -130,7 +128,9 @@ REBOOL Do_Signals_Throws(REBVAL *out)
         CLR_SIGNAL(SIG_HALT);
         Eval_Sigmask = saved_mask;
 
-        fail (VAL_CONTEXT(TASK_HALT_ERROR));
+        Move_Value(out, NAT_VALUE(halt));
+        CONVERT_NAME_TO_THROWN(out, VOID_CELL);
+        return TRUE; // thrown
     }
 
     if (filtered_sigs & SIG_INTERRUPT) {

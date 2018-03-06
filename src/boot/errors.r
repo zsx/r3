@@ -18,7 +18,6 @@ Special: [
     code: 0
     type: "special"     ; Not really "errors"
     null:               {invalid error code zero}
-    halt:               {halted by user or script}
 ]
 
 Internal: [

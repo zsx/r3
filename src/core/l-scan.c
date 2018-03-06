@@ -2450,7 +2450,7 @@ REBARR *Scan_Va_Managed(
     // https://stackoverflow.com/q/32259543/
     //
     // It needs to be called before the longjmp in fail() crosses this stack
-    // level.  That means either PUSH_UNHALTABLE_TRAP here, or coming up with
+    // level.  That means either PUSH_TRAP here, or coming up with
     // some more generic mechanism to register cleanup code that runs during
     // the fail().
     //

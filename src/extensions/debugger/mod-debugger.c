@@ -573,7 +573,6 @@ REBOOL Host_Breakpoint_Quitting_Hook(
     // `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
 
         if (error != NULL) {
-            assert(ERR_NUM(error) != RE_HALT); // not an "unhaltable" trap
             Init_Error(instruction_out, error);
             *last_failed = TRUE_VALUE;
             goto loop;
@@ -622,7 +621,7 @@ REBOOL Host_Breakpoint_Quitting_Hook(
 
         // NOTE: Although the operation has finished at this point, it may
         // be that a Ctrl-C set up a pending FAIL, which will be triggered
-        // during output below.  See the PUSH_UNHALTABLE_TRAP in the caller.
+        // during output below.  See the PUSH_TRAP in the caller.
 
         // Result will be printed by next loop
         //
@@ -693,21 +692,19 @@ REBOOL Do_Breakpoint_Throws(
 
         // The host may return a block of code to execute, but cannot
         // while evaluating do a THROW or a FAIL that causes an effective
-        // "resumption".  Halt is the exception, hence we PUSH_TRAP and
-        // not PUSH_UNHALTABLE_TRAP.  QUIT is also an exception, but a
-        // desire to quit is indicated by the return value of the breakpoint
-        // hook (which may or may not decide to request a quit based on the
-        // QUIT command being run).
+        // "resumption".  HALT and QUIT are exceptions, where a desire to quit
+        // is indicated by the thrown value of the breakpoint hook (which may
+        // or may not decide to request a quit based on QUIT being run).
         //
         // The core doesn't want to get involved in presenting UI, so if
         // an error makes it here and wasn't trapped by the host first that
         // is a bug in the host.  It should have done its own PUSH_TRAP.
         //
         if (error) {
-        #if !defined(NDEBUG)
+          #if !defined(NDEBUG)
             printf("Error not trapped during breakpoint\n");
             panic (error);
-        #endif
+          #endif
 
             // In release builds, if an error managed to leak out of the
             // host's breakpoint hook somehow...just re-push the trap state

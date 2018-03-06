@@ -19,7 +19,6 @@ ballast         ; current memory ballast (used for GC)
 max-ballast     ; ballast reset value
 
 stack-error     ; special stack overlow error object
-halt-error      ; special halt error object
 
 buf-collect     ; temporary cache for collecting object keys or words
 buf-utf8        ; UTF8 reused buffer

@@ -1000,7 +1000,6 @@ void Startup_Task(void)
 
     // Symbols system not initialized, can't init the errors just yet
     //
-    Init_Unreadable_Blank(TASK_HALT_ERROR);
     Init_Unreadable_Blank(TASK_STACK_ERROR);
 
     TERM_ARRAY_LEN(task, TASK_MAX);
@@ -1025,9 +1024,9 @@ void Startup_Task(void)
 // So it's better to go with a build configuration #define.  Note that stacks
 // growing up is uncommon (e.g. Debian hppa architecture)
 //
-// Currently, this is called every time PUSH_UNHALTABLE_TRAP() is called, and
-// hopefully only one instance of it per thread will be in effect (otherwise,
-// the bounds would add and be useless).
+// Currently, this is called every time PUSH_TRAP() is called when Saved_State
+// is NULL, and hopefully only one instance of it per thread will be in effect
+// (otherwise, the bounds would add and be useless).
 //
 void Set_Stack_Limit(void *base) {
     REBUPT bounds;
@@ -1076,14 +1075,12 @@ void Startup_Core(void)
 //
 //==//////////////////////////////////////////////////////////////////////==//
 
-    // The general trick of the moment is to have PUSH_UNHALTABLE_TRAP reset
-    // the stack limit.  This is because even with a single evaluator used
-    // on multiple threads, you have to trap errors to make sure an attempt
-    // is not made to longjmp the state to an address from another thread--
-    // hence every thread switch must also be a site of trapping all errors.
-    // However, if we are to use any routines which call C_STACK_OVERFLOWING
-    // in the code below before we've actually pushed a trap, we must start
-    // up the stack limit to something valid.
+    // !!! See notes on Set_Stack_Limit() about the dodginess of this
+    // approach.  Note also that even with a single evaluator used on multiple
+    // threads, you have to trap errors to make sure an attempt is not made
+    // to longjmp the state to an address from another thread--hence every
+    // thread switch must also be a site of trapping all errors.  (Or the
+    // limit must be saved in thread local storage.)
 
     int dummy; // variable whose address acts as base of stack for below code
     Set_Stack_Limit(&dummy);
@@ -1322,7 +1319,6 @@ void Startup_Core(void)
 
     // Special pre-made errors:
     Init_Error(TASK_STACK_ERROR, Error_Stack_Overflow_Raw());
-    Init_Error(TASK_HALT_ERROR, Error_Halt_Raw());
 
 
 //==//////////////////////////////////////////////////////////////////////==//
@@ -1358,8 +1354,6 @@ void Startup_Core(void)
         Shutdown_Core(); // In good enough state to shutdown cleanly by now
         return err_num;
       #endif
-
-        assert(VAL_ERR_NUM(error) != RE_HALT);
 
         panic (error);
     }

@@ -440,15 +440,23 @@ REBNATIVE(wait)
 
     // Prevent GC on temp port block:
     // Note: Port block is always a copy of the block.
-    if (ports)
+    //
+    if (ports != NULL)
         Init_Block(D_OUT, ports);
 
     // Process port events [stack-move]:
-    if (!Wait_Ports(ports, timeout, REF(only))) {
+    if (Wait_Ports_Throws(D_OUT, ports, timeout, REF(only)))
+        return R_OUT_IS_THROWN;
+        
+    assert(IS_LOGIC(D_OUT));
+
+    if (IS_FALSEY(D_OUT)) { // timeout
         Sieve_Ports(NULL); // just reset the waked list
         return R_BLANK;
     }
-    if (!ports) return R_BLANK;
+
+    if (ports == NULL)
+        return R_BLANK;
 
     // Determine what port(s) waked us:
     Sieve_Ports(ports);

@@ -337,13 +337,7 @@ REBSER *Inflate_To_Prefixed_Series(
     struct Reb_State state;
     REBCTX *error;
 
-    // !!! This currently has to be an unhaltable trap, because the
-    // compression code is used during bootstrap; in which case this call may
-    // be the topmost.  Note that resets the Stack_Limit, which is generally
-    // not advisable unless you are switching threads and at the top level...
-    // but shouldn't cause any harm, as no Rebol code runs before the drop.
-    // 
-    PUSH_UNHALTABLE_TRAP(&error, &state);
+    PUSH_TRAP(&error, &state);
 
 // The first time through the following code 'error' will be NULL, but...
 // `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
