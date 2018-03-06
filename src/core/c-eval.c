@@ -1737,39 +1737,36 @@ reevaluate:;
 
     //==////////////////////////////////////////////////////////////////==//
     //
-    // DEBUG CHECK RETURN OF ALL FUNCTIONS (not just user functions)
-    //
-    //==////////////////////////////////////////////////////////////////==//
-
-    // Here we know the function finished and nothing threw past it or
-    // FAIL / fail()'d.
-    //
-    // Generally the return type is validated by the Returner_Dispatcher()
-    // with everything else assumed to return the correct type.  But this
-    // double checks any function marked with RETURN in the debug build,
-    // so native return types are checked instead of just trusting the C.
-
-      #if !defined(NDEBUG)
-        assert(f->eval_type == REB_FUNCTION); // shouldn't have changed
-
-        assert(NOT_END(f->out)); // should have overwritten
-        assert(NOT(THROWN(f->out))); // throws must be R_OUT_IS_THROWN
-        if (Is_Bindable(f->out))
-            assert(f->out->extra.binding != NULL);
-
-        if (GET_FUN_FLAG(f->phase, FUNC_FLAG_RETURN)) {
-            REBVAL *typeset = FUNC_PARAM(f->phase, FUNC_NUM_PARAMS(f->phase));
-            assert(VAL_PARAM_SYM(typeset) == SYM_RETURN);
-            if (!TYPE_CHECK(typeset, VAL_TYPE(f->out)))
-                fail (Error_Bad_Return_Type(f, VAL_TYPE(f->out)));
-        }
-      #endif
-
-    //==////////////////////////////////////////////////////////////////==//
-    //
     // FUNCTION! CALL COMPLETION
     //
     //==////////////////////////////////////////////////////////////////==//
+
+        // Here we know the function finished and nothing threw past it or
+        // FAIL / fail()'d.  It should still be in REB_FUNCTION evaluation
+        // type, and overwritten the f->out with a non-thrown value.  If the
+        // function composition is a CHAIN, the chained functions are still
+        // pending on the stack to be run.
+        //
+        assert(f->eval_type == REB_FUNCTION);
+        assert(NOT_END(f->out));
+        assert(NOT(THROWN(f->out)));
+        assert(NOT(Is_Bindable(f->out)) || f->out->extra.binding != NULL);
+
+        // Usermode functions check the return type via Returner_Dispatcher(),
+        // with everything else assumed to return the correct type.  But this
+        // double checks any function marked with RETURN in the debug build,
+        // so native return types are checked instead of just trusting the C.
+        //
+      #ifdef DEBUG_NATIVE_RETURNS
+        if (GET_FUN_FLAG(f->phase, FUNC_FLAG_RETURN)) {
+            REBVAL *typeset = FUNC_PARAM(f->phase, FUNC_NUM_PARAMS(f->phase));
+            assert(VAL_PARAM_SYM(typeset) == SYM_RETURN);
+            if (!TYPE_CHECK(typeset, VAL_TYPE(f->out))) {
+                printf("Native code violated return type contract!\n");
+                panic (Error_Bad_Return_Type(f, VAL_TYPE(f->out)));
+            }
+        }
+      #endif
 
     skip_output_check:
         //
@@ -1990,10 +1987,10 @@ reevaluate:;
             }
         }
 
-        // Leave VALUE_FLAG_UNEVALUATED as it was.  If we added it, then
-        // things like `if condition (semiquote do [1 + 1])` wouldn't work, so
-        // one would be forced to write `if condition semiquote do [1 + 1]`.
-        // This would limit the flexiblity of grouping.
+        // !!! This leaves VALUE_FLAG_UNEVALUATED as it was, e.g. such that
+        // `(1 + 2)` will appear evaluated while `(3)` will not.  Is this the
+        // intent?  It was done this way so you could put an expression using
+        // SEMIQUOTE inside of a GROUP!...
         //
         break; }
 

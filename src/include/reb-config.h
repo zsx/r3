@@ -296,6 +296,12 @@ Special internal defines used by RT, not Host-Kit developers:
     #define DEBUG_MEMORY_ALIGN
     #define DEBUG_CELL_WRITABILITY
 
+    // Natives can be decorated with a RETURN: annotation, but this is not
+    // checked in the release build.  It's assumed they will only return the
+    // correct types.  This switch is used to panic() if they're wrong.
+    //
+    #define DEBUG_NATIVE_RETURNS
+
     // Cast checks in SER(), NOD(), ARR() are expensive--they make sure that
     // when you have a void pointer and cast it to a REBSER, that the header
     // actually is for a REBSER (etc.)  Disable this by default unless you are
