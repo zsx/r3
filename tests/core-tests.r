@@ -101,7 +101,6 @@
 %control/default.test.reb
 %control/disarm.test.reb
 %control/do.test.reb
-%control/dont.test.reb
 %control/either.test.reb
 %control/else.test.reb
 %control/exit.test.reb

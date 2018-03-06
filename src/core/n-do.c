@@ -185,126 +185,20 @@ REBNATIVE(eval_enfix)
 
 
 //
-//  Do_Or_Dont_Shared_Throws: C
-//
-REBOOL Do_Or_Dont_Shared_Throws(
-    REBVAL *out,
-    const REBVAL *source,
-    REBFLGS flags,
-    const REBVAL *var
-){
-    DECLARE_LOCAL (temp);
-
-    REBVAL *position;
-    if (IS_VARARGS(source)) {
-        if (Is_Block_Style_Varargs(&position, source)) {
-            //
-            // We can execute the array, but we must "consume" elements out
-            // of it (e.g. advance the index shared across all instances)
-            // This is done by the REB_BLOCK case, which we jump to.
-            //
-            // !!! If any VARARGS! op does not honor the "locked" flag on the
-            // array during execution, there will be problems if it is TAKE'n
-            // or DO'd while this operation is in progress.
-            //
-            goto do_and_update_position;
-        }
-
-        REBFRM *f;
-        if (NOT(Is_Frame_Style_Varargs_May_Fail(&f, source)))
-            panic(source); // Frame is the only other type
-
-        // Pretty much by definition, we are in the middle of a function call
-        // in the frame the varargs came from.  It's still on the stack, and
-        // we don't want to disrupt its state.  Use a subframe.
-        //
-        if (FRM_AT_END(f))
-            Init_Void(out);
-        else if (Do_Next_In_Subframe_Throws(out, f, flags))
-            return TRUE;
-
-        // The variable passed in /NEXT is just set to the vararg itself,
-        // which has its positioning updated automatically by virtue of the
-        // evaluation performing a "consumption" of VARARGS! content.
-        //
-        if (NOT(IS_BLANK(var)))
-            Move_Value(Sink_Var_May_Fail(var, SPECIFIED), source);
-
-        return FALSE;
-    }
-    else {
-        Move_Value(temp, source);
-        position = temp;
-    }
-
-do_and_update_position:
-    assert(IS_BLOCK(position) || IS_GROUP(position));
-
-    REBIXO indexor = Do_Array_At_Core(
-        out,
-        NULL, // no opt_head, start with value at array index
-        VAL_ARRAY(position),
-        VAL_INDEX(position),
-        VAL_SPECIFIER(position),
-        flags // may have FRAME_FLAG_NEUTRAL or FRAME_FLAG_TO_END set
-    );
-
-    if (indexor == THROWN_FLAG) {
-        //
-        // !!! The relationship between throwing and erroring and VARARGS!
-        // is not totally clear when they originate from a BLOCK!, because
-        // the block isn't tied to any frame lifetime.  But a FRAME!-based
-        // varargs can't be used after a throw or error, so they probably
-        // shouldn't be usable either.
-        //
-        Init_Unreadable_Blank(position);
-        return TRUE;
-    }
-
-    // "continuation" of block...turn END_FLAG into the end so it can test
-    // TAIL? as true to know the evaluation finished.
-    //
-    // !!! Is there merit to setting to BLANK! instead?  Easier to test
-    // and similar to FIND.  On the downside, "lossy" in that after the
-    // DOs are finished the var can't be used to recover the series again,
-    // you'd have to save it.
-    //
-    // Note: While `source` is a local by default, if we jump here via
-    // `goto do_block_source`, it will be a singular array inside a varargs,
-    // whose position being updated after evaluation is important.
-    //
-    if (indexor == END_FLAG)
-        VAL_INDEX(position) = VAL_LEN_HEAD(position);
-    else
-        VAL_INDEX(position) = cast(REBCNT, indexor) - 1; // one past
-
-    if (NOT(IS_BLANK(var))) {
-        if (IS_VARARGS(source))
-            Move_Value(Sink_Var_May_Fail(var, SPECIFIED), source); // VARARGS!
-        else
-            Move_Value(Sink_Var_May_Fail(var, SPECIFIED), position); // BLOCK!
-    }
-
-    return FALSE;
-}
-
-
-//
 //  do: native [
 //
 //  {Evaluates a block of source code (directly or fetched according to type)}
 //
 //      return: [<opt> any-value!]
 //      source [
-//          <opt> ;-- should DO accept an optional argument (chaining?)
-//          blank! ;-- same question... necessary, or not?
+//          blank! ;-- useful for `do any [...]` scenarios when no match
 //          block! ;-- source code in block form
 //          group! ;-- same as block (or should it have some other nuance?)
 //          string! ;-- source code in text form
 //          binary! ;-- treated as UTF-8
 //          url! ;-- load code from URL via protocol
 //          file! ;-- load code from file on local disk
-//          tag! ;-- proposed as module library tag name, hacked as demo
+//          tag! ;-- module name (URL! looked up from table)
 //          error! ;-- should use FAIL instead
 //          function! ;-- will only run arity 0 functions (avoids DO variadic)
 //          frame! ;-- acts like APPLY (voids are optionals, not unspecialized)
@@ -327,28 +221,110 @@ REBNATIVE(do)
     INCLUDE_PARAMS_OF_DO;
 
     REBVAL *source = ARG(source);
+    REBVAL *var = ARG(var);
 
     switch (VAL_TYPE(source)) {
-    case REB_MAX_VOID:
-        // useful for `do if ...` types of scenarios
-        return R_VOID;
-
     case REB_BLANK:
-        // useful for `do all ...` types of scenarios
         return R_BLANK;
 
-    case REB_VARARGS:
     case REB_BLOCK:
-    case REB_GROUP:
-        if (Do_Or_Dont_Shared_Throws(
+    case REB_GROUP: {
+        REBVAL *opt_head = NULL;
+        REBIXO indexor = Do_Array_At_Core(
             D_OUT,
-            source,
-            REF(next) ? DO_FLAG_NORMAL : DO_FLAG_TO_END,
-            REF(next) ? ARG(var) : BLANK_VALUE
-        )){
+            opt_head,
+            VAL_ARRAY(source),
+            VAL_INDEX(source),
+            VAL_SPECIFIER(source),
+            REF(next) ? DO_FLAG_NORMAL : DO_FLAG_TO_END
+        );
+
+        if (indexor == THROWN_FLAG)
             return R_OUT_IS_THROWN;
+
+        if (REF(next) && NOT(IS_BLANK(ARG(var)))) {
+            if (indexor == END_FLAG)
+                VAL_INDEX(source) = VAL_LEN_HEAD(source); // e.g. TAIL?
+            else
+                VAL_INDEX(source) = cast(REBCNT, indexor) - 1; // was one past
+
+            Move_Value(Sink_Var_May_Fail(ARG(var), SPECIFIED), source);
         }
-        return R_OUT;
+
+        return R_OUT; }
+
+    case REB_VARARGS: {
+        REBVAL *position;
+        if (Is_Block_Style_Varargs(&position, source)) {
+            //
+            // We can execute the array, but we must "consume" elements out
+            // of it (e.g. advance the index shared across all instances)
+            //
+            // !!! If any VARARGS! op does not honor the "locked" flag on the
+            // array during execution, there will be problems if it is TAKE'n
+            // or DO'd while this operation is in progress.
+            //
+            REBVAL *opt_head = NULL;
+            REBIXO indexor = Do_Array_At_Core(
+                D_OUT,
+                opt_head,
+                VAL_ARRAY(position),
+                VAL_INDEX(position),
+                VAL_SPECIFIER(source),
+                REF(next) ? DO_FLAG_NORMAL : DO_FLAG_TO_END
+            );
+
+            if (indexor == THROWN_FLAG) {
+                //
+                // !!! A BLOCK! varargs doesn't technically need to "go bad"
+                // on a throw, since the block is still around.  But a FRAME!
+                // varargs does.  This will cause an assert if reused, and
+                // having BLANK! mean "thrown" may evolve into a convention.
+                //
+                Init_Unreadable_Blank(position);
+                return R_OUT_IS_THROWN;
+            }
+
+            if (indexor == END_FLAG)
+                SET_END(position); // convention for shared data at end point
+
+            if (REF(next) && NOT(IS_BLANK(var)))
+                Move_Value(Sink_Var_May_Fail(var, SPECIFIED), source);
+
+            return R_OUT;
+        }
+
+        REBFRM *f;
+        if (NOT(Is_Frame_Style_Varargs_May_Fail(&f, source)))
+            panic (source); // Frame is the only other type
+
+        // By definition, we are in the middle of a function call in the frame
+        // the varargs came from.  It's still on the stack, and we don't want
+        // to disrupt its state.  Use a subframe.
+        //
+        REBFLGS flags = 0;
+        if (REF(next)) {
+            if (FRM_AT_END(f))
+                Init_Void(D_OUT);
+            else if (Do_Next_In_Subframe_Throws(D_OUT, f, flags))
+                return R_OUT_IS_THROWN;
+
+            // The variable passed in /NEXT is just set to the vararg itself,
+            // which has its positioning updated automatically by virtue of
+            // the evaluation performing a "consumption" of VARARGS! content.
+            //
+            if (NOT(IS_BLANK(var)))
+                Move_Value(Sink_Var_May_Fail(var, SPECIFIED), source);
+        }
+        else {
+            Init_Void(D_OUT);
+            while (NOT(FRM_AT_END(f))) {
+                if (Do_Next_In_Subframe_Throws(D_OUT, f, flags))
+                    return R_OUT_IS_THROWN;
+            }
+        }
+
+        return R_OUT; }
 
     case REB_BINARY:
     case REB_STRING:
@@ -436,51 +412,6 @@ REBNATIVE(do)
     // functions only, EVAL generalizes it.
     //
     fail (Error_Use_Eval_For_Eval_Raw());
-}
-
-
-//
-//  don't: native [
-//
-//  {Experimental function for skipping over a DO unit of code w/o evaluation}
-//
-//      return: [logic!]
-//          {If true, it was possible to determine the arity and skip it}
-//      source [block! varargs!]
-//          {The value to attempt to skip content out of}
-//      /next
-//          {Don't do next expression only, update block variable}
-//      var [any-word! blank!]
-//          "If not blank, then a variable updated with new block position"
-//  ]
-//
-REBNATIVE(dont)
-//
-// !!! This experimental code exploits DO_FLAG_NEUTRAL, which attempts to run
-// through the same code path as DO (e.g. Do_Core()) but disable any actual
-// side effects.
-//
-// Anytime an actual side-effect is required in order to figure out where an
-// expression would end (variadic functions, GROUP! evaluation in a PATH!) the
-// evaluator will throw to abort the scan.
-{
-    INCLUDE_PARAMS_OF_DONT;
-
-    REBVAL *source = ARG(source);
-
-    if (Do_Or_Dont_Shared_Throws(
-        D_CELL,
-        source,
-        DO_FLAG_NEUTRAL | (REF(next) ? DO_FLAG_NORMAL : DO_FLAG_TO_END),
-        REF(next) ? ARG(var) : BLANK_VALUE
-    )){
-        CATCH_THROWN(D_OUT, D_CELL);
-        assert(IS_BLANK(D_CELL)); // "throw name" (current invariant)
-        assert(IS_BAR(D_OUT)); // "thrown value" (current invariant)
-        return R_FALSE;
-    }
-
-    return R_TRUE;
 }
 
 

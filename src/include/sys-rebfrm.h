@@ -210,18 +210,12 @@
     FLAGIT_LEFT(12)
 
 
-//=//// DO_FLAG_NEUTRAL ///////////////////////////////////////////////////=//
+//=//// DO_FLAG_NO_PATH_GROUPS ////////////////////////////////////////////=//
 //
-// !!! Experimental feature puts the evaluator into neutral and throws up
-// the stack in the case that it cannot skip without actually having side
-// effects.  It will be a trick to do efficiently, but for starters doing it
-// at all would be interesting.
+// This feature is used in PATH! evaluations to request no side effects.
+// It prevents GET of a PATH! from running GROUP!s.
 //
-// !!! This feature has proven to be questionable, and may not exist long
-// term.  However, the flag is currently used with paths to indicate that
-// GROUP!s should not be executed, and may wind up just serving that purpose.
-//
-#define DO_FLAG_NEUTRAL \
+#define DO_FLAG_NO_PATH_GROUPS \
     FLAGIT_LEFT(13)
 
 

@@ -97,11 +97,8 @@ REBOOL Next_Path_Throws(REBPVS *pvs)
         );
     }
     else if (IS_GROUP(pvs->value)) { // object/(expr) case:
-        if (pvs->flags.bits & DO_FLAG_NEUTRAL) {
-            Move_Value(pvs->out, BLANK_VALUE);
-            CONVERT_NAME_TO_THROWN(pvs->out, BAR_VALUE);
-            return TRUE;
-        }
+        if (pvs->flags.bits & DO_FLAG_NO_PATH_GROUPS)
+            fail ("GROUP! in PATH! used with GET or SET (use REDUCE/EVAL)");
 
         REBSPC *derived = Derive_Specifier(pvs->specifier, pvs->value);
         if (Do_At_Throws(
@@ -355,11 +352,8 @@ REBOOL Do_Path_Throws_Core(
             pvs->opt_label = VAL_WORD_SPELLING(pvs->value);
     }
     else if (IS_GROUP(pvs->value)) {
-        if (pvs->flags.bits & DO_FLAG_NEUTRAL) {
-            Move_Value(pvs->out, BLANK_VALUE);
-            CONVERT_NAME_TO_THROWN(pvs->out, BAR_VALUE);
-            goto return_thrown;
-        }
+        if (pvs->flags.bits & DO_FLAG_NO_PATH_GROUPS)
+            fail ("GROUP! in PATH! used with GET or SET (use REDUCE/EVAL)");
 
         REBSPC *derived = Derive_Specifier(pvs->specifier, pvs->value);
         if (Do_At_Throws(

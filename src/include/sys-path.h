@@ -107,14 +107,9 @@ inline static void Get_Path_Core(
         VAL_INDEX(any_path),
         Derive_Specifier(specifier, any_path),
         NULL, // not requesting value to set means it's a get
-        DO_FLAG_NEUTRAL
+        DO_FLAG_NO_PATH_GROUPS
     )){
-        DECLARE_LOCAL (arg); // use frame cell instead
-        CATCH_THROWN(arg, out);
-        assert(IS_BLANK(out)); // "throw name" (current invariant)
-        assert(IS_BAR(arg)); // "thrown value" (current invariant)
-
-        fail ("PATH!s used with GET can't contain GROUP!s (use REDUCE)");
+        panic (out); // shouldn't be possible... no executions!
     }
 }
 
@@ -153,7 +148,7 @@ inline static void Set_Path_Core(
     //
     DECLARE_LOCAL (out);
 
-    REBFLGS flags = DO_FLAG_NEUTRAL;
+    REBFLGS flags = DO_FLAG_NO_PATH_GROUPS;
     if (enfix)
         flags |= DO_FLAG_SET_PATH_ENFIXED;
 
@@ -167,11 +162,6 @@ inline static void Set_Path_Core(
         setval,
         flags
     )){
-        DECLARE_LOCAL (arg); // use frame cell instead
-        CATCH_THROWN(arg, out);
-        assert(IS_BLANK(out)); // "throw name" (current invariant)
-        assert(IS_BAR(arg)); // "thrown value" (current invariant)
-
-        fail ("PATH!s used with SET can't contain GROUP!s (use EVAL)");
+        panic (out); // shouldn't be possible, no executions!
     }
 }
