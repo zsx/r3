@@ -228,7 +228,7 @@ ATTRIBUTE_NO_RETURN void Panic_Core(
 //
 //  "Cause abnormal termination of Rebol (dumps debug info in debug builds)"
 //
-//      value [string!]
+//      reason [string! error!]
 //          "Message to report (evaluation not counted in ticks)"
 //  ]
 //
@@ -236,14 +236,23 @@ REBNATIVE(panic)
 {
     INCLUDE_PARAMS_OF_PANIC;
 
+    REBVAL *v = ARG(reason);
+    void *p;
+
     // panic() on the string value itself would report information about the
     // string cell...but panic() on UTF-8 character data assumes you mean to
-    // report the contained message.  Use PANIC* if the latter is the intent.
+    // report the contained message.  PANIC-VALUE for the latter intent.
     //
-    REBCNT len = VAL_LEN_AT(ARG(value));
-    REBCNT index = VAL_INDEX(ARG(value));
-    REBSER *temp = Temp_UTF8_At_Managed(ARG(value), &index, &len);
-    REBYTE *utf8 = BIN_HEAD(temp);
+    if (IS_STRING(v)) {
+        REBCNT len = VAL_LEN_AT(v);
+        REBCNT index = VAL_INDEX(v);
+        REBSER *temp = Temp_UTF8_At_Managed(v, &index, &len);
+        p = BIN_HEAD(temp); // UTF-8 data
+    }
+    else {
+        assert(IS_ERROR(v));
+        p = VAL_CONTEXT(v);
+    }
 
     // Note that by using the frame's tick instead of TG_Tick, we don't count
     // the evaluation of the value argument.  Hence the tick count shown in
@@ -251,10 +260,10 @@ REBNATIVE(panic)
     // *before* the PANIC FUNCTION! was invoked.
     //
   #ifdef DEBUG_COUNT_TICKS
-    Panic_Core(utf8, frame_->tick, FRM_FILE_UTF8(frame_), FRM_LINE(frame_));
+    Panic_Core(p, frame_->tick, FRM_FILE_UTF8(frame_), FRM_LINE(frame_));
   #else
     const REBUPT tick = 0;
-    Panic_Core(utf8, tick, FRM_FILE_UTF8(frame_), FRM_LINE(frame_));
+    Panic_Core(p, tick, FRM_FILE_UTF8(frame_), FRM_LINE(frame_));
   #endif
 }
 

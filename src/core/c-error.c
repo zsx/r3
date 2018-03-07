@@ -43,8 +43,8 @@
 void Snap_State_Core(struct Reb_State *s)
 {
     // See remarks in Set_Stack_Limit() for why this is needed as part of
-    // PUSH_UNHALTABLE_TRAP, in light of multithreading as in Ren Garden.
-    // It's not ideal, but it works around a problem for the moment.
+    // multithreading as in Ren Garden.  It's not ideal, but it works around
+    // a problem for the moment.
     //
     s->stack_limit = Stack_Limit;
 
@@ -1466,52 +1466,6 @@ REBCTX *Error_On_Port(REBCNT errnum, REBCTX *port, REBINT err_code)
     Init_Integer(err_code_value, err_code);
 
     return Error(errnum, val, err_code_value, END);
-}
-
-
-//
-//  Exit_Status_From_Value: C
-//
-// This routine's job is to turn an arbitrary value into an
-// operating system exit status:
-//
-//     https://en.wikipedia.org/wiki/Exit_status
-//
-int Exit_Status_From_Value(REBVAL *value)
-{
-    assert(!THROWN(value));
-
-    if (IS_INTEGER(value)) {
-        //
-        // Fairly obviously, an integer should return an integer result.
-        // But Rebol integers are 64 bit and signed, while exit statuses don't
-        // go that large.
-        //
-        return VAL_INT32(value);
-    }
-    else if (IS_VOID(value) || IS_BLANK(value)) {
-        //
-        // An void would happen with just QUIT or EXIT and no /WITH, so
-        // treating that as a 0 for success makes sense.  A blank could also
-        // make sense as success.
-        //
-        //     exit/with any [bad-code-a | bad-code-b]
-        //
-        return 0;
-    }
-    else if (IS_ERROR(value)) {
-        //
-        // Rebol errors do have an error number in them, and if your
-        // program tries to return a Rebol error it seems it wouldn't
-        // hurt to try using that.  They may be out of range for
-        // platforms using byte-sized error codes, however...
-        //
-        return VAL_ERR_NUM(value);
-    }
-
-    // Just 1 otherwise.
-    //
-    return 1;
 }
 
 

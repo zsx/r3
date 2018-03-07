@@ -449,13 +449,6 @@ REBNATIVE(test)
 
     REBVAL *temp = rebRun("trap [x: 10]", END);
 
-    if (temp == NULL) { // bounce the error back
-        REBVAL *last = rebLastError();
-        REBCTX *error = VAL_CONTEXT(last);
-        rebRelease(last);
-        fail (error);
-    }
-
     Move_Value(D_OUT, temp);
     rebRelease(temp);
 

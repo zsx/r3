@@ -184,7 +184,6 @@ main: 'host-main.c
 
 os: [
     + host-device.c
-    host-stdio.c
     host-table.c
     dev-net.c
     dev-dns.c

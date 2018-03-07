@@ -1474,16 +1474,15 @@ void Shutdown_Core(void)
     Shutdown_Scanner();
     Shutdown_Char_Cases();
 
+    // This calls through the Host_Lib table, which Shutdown_Api() nulls out.
+    //
+    Shutdown_StdIO();
+
     Shutdown_Api();
     Shutdown_Symbols();
     Shutdown_Interning();
 
     Shutdown_GC();
-
-    // !!! Need to review the relationship between Open_StdIO (which the host
-    // does) and Startup_StdIO...they both open, and both close.
-
-    Shutdown_StdIO();
 
     FREE(REB_OPTS, Reb_Opts);
 

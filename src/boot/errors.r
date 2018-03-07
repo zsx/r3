@@ -160,6 +160,11 @@ Script: [
 
     no-return:          {block did not return a value}
     block-lines:        {expected block of lines}
+
+    ; !!! It's a bit unfortunate to have these as two separate errors.  If
+    ; the display could be a FUNCTION! it render smarter and put the name
+    ; into a field that was detected as being blank or not.
+    ;
     no-catch:           [{Missing CATCH for THROW of} :arg1]
     no-catch-named:     [{Missing CATCH for THROW of} :arg1 {with /NAME:} :arg2]
 

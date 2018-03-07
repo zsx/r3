@@ -136,7 +136,7 @@ i64 OS_Delta_Time(i64 base)
 {
     LARGE_INTEGER time;
     if (!QueryPerformanceCounter(&time))
-        rebPanic ("Missing high performance timer");
+        rebPanic ("{Missing high performance timer}", rebEnd());
 
     if (base == 0) return time.QuadPart; // counter (may not be time)
 

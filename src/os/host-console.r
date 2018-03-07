@@ -287,25 +287,25 @@ start-console: procedure [
 host-console: function [
     {Rebol function called from C in a loop to implement the console.}
 
-    return: [block! group!]
-        {Rebol code to request that the C caller run in a sandbox}
+    return: [integer! block! group!]
+        {Exit code, or Rebol to request that the C caller run in a sandbox}
 
-    prior [<opt> block! group!]
+    prior [blank! block! group!]
         {Whatever BLOCK! or GROUP! that HOST-CONSOLE previously ran}
 
     result [<opt> any-value!]
         {The result from evaluating LAST-CODE (if not errored or halted)}
 
-    status [<opt> blank! error! bar!]
-        {BLANK! if no error, BAR! if HALT, or an ERROR! if a problem}
+    status [blank! error!]
+        {BLANK! if no error, or ERROR! if a problem (includes HALT, QUIT...)}
 ][
-    if not set? 'prior [
+    if not prior [
         ;
         ; First time running, so do startup.  As a temporary hack we get some
         ; properties passed from the C main() as a BLOCK! in result.  (These
         ; should probably be injected into the environment somehow instead.)
         ;
-        assert [not set? 'status | block? result | 3 = length of result]
+        assert [not status | block? result and (length of result = 3)]
         set [exec-path: argv: boot-exts:] result
         return (host-start exec-path argv boot-exts)
     ]
@@ -320,10 +320,60 @@ host-console: function [
         block? first prior [first prior]
     ] !! []
 
-    if bar? status [ ; execution of prior code was halted
+    ; QUIT handling (uncaught THROW/NAME with the name as the QUIT FUNCTION!)
+    ;
+    ; !!! R3-Alpha permitted arbitrary values for parameterized QUIT, which
+    ; would be what DO of a script would return.  But if not an integer,
+    ; they have to be mapped to an operating system exit status:
+    ;
+    ; https://en.wikipedia.org/wiki/Exit_status
+    ;
+    all [
+        error? status
+        status/id = 'no-catch-named
+        :status/arg2 = :QUIT
+    ] then [
+        assert [not set? 'result]
+
+        return case [
+            void? :status/arg1 [
+                ;
+                ; Plain QUIT (no /WITH), consider it success
+                ;
+                0
+            ]
+
+            blank? :status/arg1 [0]
+
+            integer? :status/arg1 [
+                ;
+                ; Fairly obviously, an integer should return an integer
+                ; result.  But Rebol integers are 64 bit and signed, while
+                ; exit statuses are small and unsigned.
+                ;
+                return :status/arg1
+            ]
+
+            error? :status/arg1 [
+                ;
+                ; Rebol errors have numbers, but they're out of range on
+                ; platforms with byte-sized error codes.  Use generic 1.
+                ;
+                return 1
+            ]
+        ] !! 1
+    ]
+
+    ; HALT handling (uncaught THROW/NAME with the name as the HALT FUNCTION!)
+    ;
+    all [
+        error? status
+        status/id = 'no-catch-named
+        :status/arg2 = :HALT
+    ] then [
         assert [not set? 'result]
         if find directives #quit-if-halt [
-            return [quit/with 130] ; standard exit code for bash (128 + 2)
+            return 130 ; standard exit code for bash (128 + 2)
         ]
         if find directives #console-if-halt [
             return [
@@ -355,10 +405,10 @@ host-console: function [
             ; Errors can occur during HOST-START, before the SYSTEM/CONSOLE
             ; has a chance to be initialized.
             ;
-            if all [
+            all [
                 function? :system/console ;-- starts as BLANK!
                 function? :system/console/print-error ;-- may not be set
-            ][
+            ] then [
                 system/console/print-error (status)
             ] else [
                 print (status)

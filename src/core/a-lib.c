@@ -69,12 +69,11 @@
 // in order to use the OS_* macro functions."
 //
 #ifdef REB_API  // Included by C command line
-    const REBOL_HOST_LIB *Host_Lib;
+    const REBOL_HOST_LIB *Host_Lib = NULL;
     EXTERN_C REBOL_HOST_LIB Host_Lib_Init;
 #endif
 
 
-static REBVAL *PG_last_error = NULL;
 static REBRXT Reb_To_RXT[REB_MAX];
 static enum Reb_Kind RXT_To_Reb[RXT_MAX];
 
@@ -84,35 +83,10 @@ static enum Reb_Kind RXT_To_Reb[RXT_MAX];
 // in particular notice if the core tries to use an API function before the
 // proper moment in the boot.
 //
-// !!! Review the balance of which APIs can set or clear errors.  It's not
-// useful if they all do as a rule...for instance, it may be more convenient
-// to `rebRelease()` something before an error check than be forced to free it
-// on branches that test for an error on the call before the free.  See the
-// notes on Windows GetLastError() about how the APIs document whether they
-// manipulate the error or not--not all of them clear it rotely.
-//
-// !!! `set_api_error` is a fairly lame way of setting the error, but
-// shows the concept of what needs to be done to obey the convention.  How
-// could it return an "errant" result of an unboxing, for instance, if the
-// type cannot be unboxed as asked?
-//
-// !!! A better way of doing this kind of thing would probably be to have
-// the code generator for the RL_API notice attributes on the APIs in the
-// comment blocks, e.g. `// rebBlock: RL_API [#clears-error]` or similar.
-// Then the first line of the API would be `ENTER_API(rebBlock)` which
-// would run theappropriate code for what was described in the API header.
-//
-inline static void Enter_Api_Cant_Error(void) {
-    if (PG_last_error == NULL)
+inline static void Enter_Api(void) {
+    if (Host_Lib == NULL)
         panic ("rebStartup() not called before API call");
 }
-inline static void Enter_Api_Clear_Last_Error(void) {
-    Enter_Api_Cant_Error();
-    SET_END(PG_last_error);
-}
-#define set_api_error(msg) \
-    assert(IS_END(PG_last_error)); \
-    Init_Error(PG_last_error, Error_User(msg));
 
 
 // API REBVALs live in "pairings", but aren't kept alive by references from
@@ -185,14 +159,6 @@ inline static void Free_Value(REBVAL *v)
 //
 void Startup_Api(void)
 {
-    // The last_error is used to signal whether the API has been initialized
-    // as well as to store a copy of the last error.  If it's END then that
-    // means no error.
-    //
-    assert(PG_last_error == NULL);
-    PG_last_error = Alloc_Value();
-    SET_END(PG_last_error);
-
     // These tables used to be built by overcomplicated Rebol scripts.  It's
     // less hassle to have them built on initialization.
 
@@ -273,8 +239,8 @@ void Startup_Api(void)
 //
 void Shutdown_Api(void)
 {
-    assert(PG_last_error != NULL);
-    Free_Value(PG_last_error);
+    assert(Host_Lib != NULL);
+    Host_Lib = NULL;
 }
 
 
@@ -337,7 +303,7 @@ void RL_rebVersion(REBYTE vers[])
 //
 void RL_rebStartup(const void *lib)
 {
-    if (PG_last_error != NULL)
+    if (Host_Lib != NULL)
         panic ("rebStartup() called when it's already started");
 
     Host_Lib = cast(const REBOL_HOST_LIB*, lib);
@@ -379,7 +345,7 @@ void RL_rebInit(void)
 //
 void RL_rebShutdown(REBOOL clean)
 {
-    Enter_Api_Cant_Error();
+    Enter_Api();
 
     // At time of writing, nothing Shutdown_Core() does pertains to
     // committing unfinished data to disk.  So really there is
@@ -431,11 +397,8 @@ static REBARR* Array_From_Vaptr_Maybe_Null(
     enum Reb_Pointer_Detect detect;
 
     while ((detect = Detect_Rebol_Pointer(p)) != DETECTED_AS_END) {
-        if (p == NULL) {
-            set_api_error("use END to terminate rebPrint(), not NULL");
-            DS_DROP_TO(dsp_orig);
-            return NULL;
-        }
+        if (p == NULL)
+            fail ("use END to terminate rebPrint(), not NULL");
 
         switch (detect) {
         case DETECTED_AS_UTF8: {
@@ -449,9 +412,7 @@ static REBARR* Array_From_Vaptr_Maybe_Null(
             break; }
 
         case DETECTED_AS_SERIES:
-            set_api_error("no complex instructions in rebPrint() yet\n");
-            DS_DROP_TO(dsp_orig);
-            return NULL;
+            fail ("no complex instructions in rebPrint() yet");
 
         case DETECTED_AS_FREED_SERIES:
             panic (p);
@@ -513,77 +474,6 @@ REBVAL *RL_rebBlock(const void *p, ...) {
 }
 
 
-// Broken out as a function to avoid longjmp "clobbering" from PUSH_TRAP()
-// Actual pointers themselves have to be `const` (as opposed to pointing to
-// const data) to avoid the compiler warning in some older GCCs.
-//
-inline static REBOOL Reb_Run_Api_Core_Fails(
-    REBVAL * const out,
-    const void * const p,
-    va_list * const vaptr
-){
-    struct Reb_State state;
-    REBCTX *error;
-
-    PUSH_TRAP(&error, &state); // must catch HALTs
-
-// The first time through the following code 'error' will be NULL, but...
-// `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
-
-    if (error != NULL) {
-        Init_Error(PG_last_error, error);
-        return TRUE;
-    }
-
-
-    // Note: It's not possible to make C variadics that can take 0 arguments;
-    // there always has to be one real argument to find the varargs.  Luckily
-    // the design of REBFRM* allows us to pre-load one argument outside of the
-    // REBARR* or va_list is being passed in.  Pass `p` as opt_first argument.
-    //
-    REBIXO indexor = Do_Va_Core(
-        out,
-        p, // opt_first (see note above)
-        vaptr,
-        DO_FLAG_EXPLICIT_EVALUATE | DO_FLAG_TO_END
-    );
-
-    DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
-
-    if (indexor == THROWN_FLAG) {
-        if (IS_FUNCTION(out)) {
-            if (VAL_FUNC(out) == NAT_FUNC(quit)) {
-                //
-                // Command issued a purposeful QUIT or EXIT.  Convert the
-                // QUIT/WITH value (if any) into an integer for last error to
-                // signal this (for now).
-                //
-                CATCH_THROWN(out, out);
-                Init_Integer(PG_last_error, Exit_Status_From_Value(out));
-                return TRUE;
-            }
-
-            if (VAL_FUNC(out) == NAT_FUNC(halt)) {
-                CATCH_THROWN(out, out);
-                Init_Bar(PG_last_error); // denotes halting (for now)
-                return TRUE;
-            }
-        }
-
-        // For now, convert all other THROWN() values into uncaught throw
-        // errors.  Since that error captures the thrown value as well as the
-        // throw name, the information is there to be extracted.
-        //
-        Init_Error(PG_last_error, Error_No_Catch_For_Throw(out));
-        return TRUE;
-    }
-    else
-        assert(indexor == END_FLAG); // we asked to do to end
-
-    return FALSE;
-}
-
-
 //
 //  rebRun: RL_API
 //
@@ -597,21 +487,97 @@ inline static REBOOL Reb_Run_Api_Core_Fails(
 //
 REBVAL *RL_rebRun(const void *p, ...)
 {
-    Enter_Api_Clear_Last_Error();
+    Enter_Api();
 
     REBVAL *result = Alloc_Value();
 
     va_list va;
     va_start(va, p);
 
-    if (Reb_Run_Api_Core_Fails(result, p, &va)) {
+    REBIXO indexor = Do_Va_Core(
+        result,
+        p, // opt_first (preloads value)
+        &va,
+        DO_FLAG_EXPLICIT_EVALUATE | DO_FLAG_TO_END
+    );
+    va_end(va);
+
+    if (indexor == THROWN_FLAG) {
+        DECLARE_LOCAL (thrown); // !!! review necessity of temporary
+        Move_Value(thrown, result);
         Free_Value(result);
-        va_end(va);
-        return NULL;
+
+        fail (Error_No_Catch_For_Throw(thrown));
     }
 
-    va_end(va);
     return result; // client's responsibility to rebRelease(), for now
+}
+
+
+//
+//  rebTrap: RL_API
+//
+// Behaves like rebRun() except traps errors.  Any throws/halts/quits will
+// also be converted to an ERROR! and returned as a value.  As with the TRAP
+// native when used without a /WITH clause, any non-raised errors that are
+// evaluated to will return void...and voids turned into blanks.
+//
+REBVAL *RL_rebTrap(const void * const p, ...) {
+
+    Enter_Api();
+
+    struct Reb_State state;
+    REBCTX *error_ctx;
+
+    PUSH_TRAP(&error_ctx, &state);
+
+    // The first time through the following code 'error' will be NULL, but...
+    // `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
+    //
+    if (error_ctx != NULL)
+        return Init_Error(Alloc_Value(), error_ctx);
+
+    va_list va;
+    va_start(va, p);
+
+    REBVAL *result = Alloc_Value();
+    REBIXO indexor = Do_Va_Core(
+        result,
+        p, // opt_first (preloads value)
+        &va,
+        DO_FLAG_EXPLICIT_EVALUATE | DO_FLAG_TO_END
+    );
+    va_end(va);
+
+    if (indexor == THROWN_FLAG) {
+        REBCTX *error = Error_No_Catch_For_Throw(result);
+        Free_Value(result);
+
+        fail (error); // throws to above
+    }
+
+    DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
+
+    // Analogous to how TRAP works, if you don't have a handler for the
+    // error case then you can't return an ERROR!, since all errors indicate
+    // a failure.
+    //
+    // !!! Is returning rebVoid() too "quiet" a response?  Should it fail?
+    // Returning NULL seems like it would be prone to creating surprise
+    // crashes if the caller didn't expect NULLs, or used them to signal
+    // some other purpose.
+    //
+    if (IS_ERROR(result)) {
+        rebRelease(result);
+        return rebVoid();
+    }
+    
+    if (IS_VOID(result)) {
+        rebRelease(result);
+        return rebBlank();
+    }
+
+    return result;
 }
 
 
@@ -623,7 +589,7 @@ REBVAL *RL_rebRun(const void *p, ...)
 //
 void RL_rebElide(const void *p, ...)
 {
-    Enter_Api_Clear_Last_Error();
+    Enter_Api();
 
     va_list va;
     va_start(va, p);
@@ -635,9 +601,10 @@ void RL_rebElide(const void *p, ...)
         &va,
         DO_FLAG_EXPLICIT_EVALUATE | DO_FLAG_TO_END
     );
-    UNUSED(indexor);
-
     va_end(va);
+
+    if (indexor == THROWN_FLAG)
+        fail (Error_No_Catch_For_Throw(elided));
 }
 
 
@@ -653,9 +620,6 @@ void RL_rebElide(const void *p, ...)
 //
 REBVAL *RL_rebDoValue(const REBVAL *v)
 {
-    // don't need an Enter_Api_Clear_Last_Error(); call while implementation
-    // is based on the RL_API rebRun(), because it will do it.
-
     return rebRun(rebEval(NAT_VALUE(do)), v, END);
 }
 
@@ -667,7 +631,8 @@ REBVAL *RL_rebDoValue(const REBVAL *v)
 //
 REBOOL RL_rebPrint(const void *p, ...)
 {
-    Enter_Api_Clear_Last_Error();
+    Enter_Api();
+
     REBVAL *print = CTX_VAR(
         Lib_Context,
         Find_Canon_In_Context(Lib_Context, STR_CANON(Intern("print")), TRUE)
@@ -707,32 +672,6 @@ REBOOL RL_rebPrint(const void *p, ...)
 }
 
 
-//
-//  rebLastError: RL_API
-//
-// Get the last error that occurred, or NULL if none.
-//
-REBVAL *RL_rebLastError(void)
-{
-    Enter_Api_Cant_Error(); // just checking error doesn't clear it
-
-    if (IS_END(PG_last_error))
-        return NULL; // error clear since last API called which might have one
-
-    assert(
-        IS_BAR(PG_last_error) // currently denotes HALT
-        || IS_INTEGER(PG_last_error) // currently denotes QUIT/WITH status
-        || IS_ERROR(PG_last_error) // other errors including uncaught THROW
-    );
-
-    // Returning a copy is important, because the error can be an object and
-    // someone might want to pick apart the error properties using API
-    // functions.  Giving back a direct pointer to the last error would mean
-    // those APIs would overwrite it during inspection.
-    //
-    return Move_Value(Alloc_Value(), PG_last_error);
-}
-
 
 //
 //  rebEval: RL_API
@@ -748,12 +687,10 @@ REBVAL *RL_rebLastError(void)
 //
 void *RL_rebEval(const REBVAL *v)
 {
-    Enter_Api_Clear_Last_Error();
+    Enter_Api();
 
-    if (IS_VOID(v)) {
-        set_api_error ("Cannot pass voids to rebEval()");
-        return NULL;
-    }
+    if (IS_VOID(v))
+        fail ("Cannot pass voids to rebEval()");
 
     // !!! The presence of the VALUE_FLAG_EVAL_FLIP is a pretty good
     // indication that it's an eval instruction.  So it's not necessary to
@@ -781,7 +718,7 @@ void *RL_rebEval(const REBVAL *v)
 //
 REBVAL *RL_rebVoid(void)
 {
-    Enter_Api_Clear_Last_Error();
+    Enter_Api();
     return Init_Void(Alloc_Value());
 }
 
@@ -791,7 +728,7 @@ REBVAL *RL_rebVoid(void)
 //
 REBVAL *RL_rebBlank(void)
 {
-    Enter_Api_Clear_Last_Error();
+    Enter_Api();
     return Init_Blank(Alloc_Value());
 }
 
@@ -806,8 +743,7 @@ REBVAL *RL_rebBlank(void)
 //
 REBVAL *RL_rebLogic(long logic)
 {
-    Enter_Api_Clear_Last_Error();
-
+    Enter_Api();
     return Init_Logic(Alloc_Value(), LOGICAL(logic));
 }
 
@@ -820,8 +756,7 @@ REBVAL *RL_rebLogic(long logic)
 //
 REBVAL *RL_rebInteger(REBI64 i)
 {
-    Enter_Api_Clear_Last_Error();
-
+    Enter_Api();
     return Init_Integer(Alloc_Value(), i);
 }
 
@@ -831,8 +766,7 @@ REBVAL *RL_rebInteger(REBI64 i)
 //
 REBVAL *RL_rebDecimal(REBDEC dec)
 {
-    Enter_Api_Clear_Last_Error();
-
+    Enter_Api();
     return Init_Decimal(Alloc_Value(), dec);
 }
 
@@ -845,7 +779,7 @@ REBVAL *RL_rebTimeHMS(
     unsigned int minute,
     unsigned int second
 ){
-    Enter_Api_Clear_Last_Error();
+    Enter_Api();
 
     REBVAL *result = Alloc_Value();
     VAL_RESET_HEADER(result, REB_TIME);
@@ -858,7 +792,7 @@ REBVAL *RL_rebTimeHMS(
 //  rebTimeNano: RL_API
 //
 REBVAL *RL_rebTimeNano(long nanoseconds) {
-    Enter_Api_Clear_Last_Error();
+    Enter_Api();
 
     REBVAL *result = Alloc_Value();
     VAL_RESET_HEADER(result, REB_TIME);
@@ -875,7 +809,7 @@ REBVAL *RL_rebDateYMD(
     unsigned int month,
     unsigned int day
 ){
-    Enter_Api_Clear_Last_Error();
+    Enter_Api();
 
     REBVAL *result = Alloc_Value();
     VAL_RESET_HEADER(result, REB_DATE); // no time or time zone flags
@@ -891,16 +825,13 @@ REBVAL *RL_rebDateYMD(
 //
 REBVAL *RL_rebDateTime(const REBVAL *date, const REBVAL *time)
 {
-    Enter_Api_Clear_Last_Error();
+    Enter_Api();
 
-    if (NOT(IS_DATE(date))) {
-        set_api_error("rebDateTime() date parameter must be DATE!");
-        return NULL;
-    }
-    if (NOT(IS_TIME(time))) {
-        set_api_error("rebDateTime() time parameter must be TIME!");
-        return NULL;
-    }
+    if (NOT(IS_DATE(date)))
+        fail ("rebDateTime() date parameter must be DATE!");
+
+    if (NOT(IS_TIME(time)))
+        fail ("rebDateTime() time parameter must be TIME!");
 
     // if we had a timezone, we'd need to set DATE_FLAG_HAS_ZONE and
     // then INIT_VAL_ZONE().  But since DATE_FLAG_HAS_ZONE is not set,
@@ -932,7 +863,7 @@ REBVAL *RL_rebDateTime(const REBVAL *date, const REBVAL *time)
 //
 void RL_rebHalt(void)
 {
-    Enter_Api_Clear_Last_Error();
+    Enter_Api();
 
     SET_SIGNAL(SIG_HALT);
 }
@@ -960,7 +891,7 @@ void RL_rebHalt(void)
 //
 int RL_rebEvent(REBEVT *evt)
 {
-    Enter_Api_Clear_Last_Error();
+    Enter_Api();
 
     REBVAL *event = Append_Event();     // sets signal
 
@@ -1024,6 +955,8 @@ REBVAL *RL_rebRescue(
     REBDNG *dangerous, // !!! pure C function only if not using throw/catch!
     void *opaque
 ){
+    Enter_Api();
+
     struct Reb_State state;
     REBCTX *error_ctx;
 
@@ -1077,6 +1010,8 @@ REBVAL *RL_rebRescueWith(
     REBRSC *rescuer, // errors in the rescuer function will *not* be caught
     void *opaque
 ){
+    Enter_Api();
+
     struct Reb_State state;
     REBCTX *error_ctx;
 
@@ -1131,7 +1066,7 @@ inline static REBFRM *Extract_Live_Rebfrm_May_Fail(const REBVAL *frame) {
 //  rebFrmNumArgs: RL_API
 //
 REBCNT RL_rebFrmNumArgs(const REBVAL *frame) {
-    Enter_Api_Clear_Last_Error();
+    Enter_Api();
 
     REBFRM *f = Extract_Live_Rebfrm_May_Fail(frame);
     return FRM_NUM_ARGS(f);
@@ -1141,7 +1076,7 @@ REBCNT RL_rebFrmNumArgs(const REBVAL *frame) {
 //  rebFrmArg: RL_API
 //
 REBVAL *RL_rebFrmArg(const REBVAL *frame, REBCNT n) {
-    Enter_Api_Clear_Last_Error();
+    Enter_Api();
 
     REBFRM *f = Extract_Live_Rebfrm_May_Fail(frame);
     return FRM_ARG(f, n);
@@ -1156,7 +1091,7 @@ REBVAL *RL_rebFrmArg(const REBVAL *frame, REBCNT n) {
 // REB_XXX numbering scheme.  So for the moment, REBRXT is being kept as is.
 //
 REBRXT RL_rebTypeOf(const REBVAL *v) {
-    Enter_Api_Clear_Last_Error();
+    Enter_Api();
 
     enum Reb_Kind kind = VAL_TYPE(v);
     return IS_VOID(v) ? 0 : Reb_To_RXT[kind];
@@ -1164,12 +1099,32 @@ REBRXT RL_rebTypeOf(const REBVAL *v) {
 
 
 //
-//  rebUnboxLogic: RL_API
+//  rebDid: RL_API
 //
-REBOOL RL_rebUnboxLogic(const REBVAL *v) {
-    Enter_Api_Clear_Last_Error();
+REBOOL RL_rebDid(const void *p, ...) {
+    Enter_Api();
 
-    return VAL_LOGIC(v);
+    va_list va;
+    va_start(va, p);
+
+    DECLARE_LOCAL (condition);
+    REBIXO indexor = Do_Va_Core(
+        condition,
+        p, // opt_first (preloads value)
+        &va,
+        DO_FLAG_EXPLICIT_EVALUATE | DO_FLAG_TO_END
+    );
+    if (indexor == THROWN_FLAG) {
+        va_end(va);
+        fail (Error_No_Catch_For_Throw(condition));
+    }
+
+    va_end(va);
+
+    if (IS_VOID(condition))
+        fail ("rebDid() received void");
+
+    return IS_TRUTHY(condition);
 }
 
 
@@ -1177,8 +1132,7 @@ REBOOL RL_rebUnboxLogic(const REBVAL *v) {
 //  rebUnboxInteger: RL_API
 //
 long RL_rebUnboxInteger(const REBVAL *v) {
-    Enter_Api_Clear_Last_Error();
-
+    Enter_Api();
     return VAL_INT64(v);
 }
 
@@ -1186,8 +1140,7 @@ long RL_rebUnboxInteger(const REBVAL *v) {
 //  rebUnboxDecimal: RL_API
 //
 REBDEC RL_rebUnboxDecimal(const REBVAL *v) {
-    Enter_Api_Clear_Last_Error();
-
+    Enter_Api();
     return VAL_DECIMAL(v);
 }
 
@@ -1195,8 +1148,7 @@ REBDEC RL_rebUnboxDecimal(const REBVAL *v) {
 //  rebUnboxChar: RL_API
 //
 REBUNI RL_rebUnboxChar(const REBVAL *v) {
-    Enter_Api_Clear_Last_Error();
-
+    Enter_Api();
     return VAL_CHAR(v);
 }
 
@@ -1204,8 +1156,7 @@ REBUNI RL_rebUnboxChar(const REBVAL *v) {
 //  rebNanoOfTime: RL_API
 //
 long RL_rebNanoOfTime(const REBVAL *v) {
-    Enter_Api_Clear_Last_Error();
-
+    Enter_Api();
     return VAL_NANO(v);
 }
 
@@ -1214,8 +1165,7 @@ long RL_rebNanoOfTime(const REBVAL *v) {
 //  rebValTupleData: RL_API
 //
 REBYTE *RL_rebValTupleData(const REBVAL *v) {
-    Enter_Api_Clear_Last_Error();
-
+    Enter_Api();
     return VAL_TUPLE_DATA(m_cast(REBVAL*, v));
 }
 
@@ -1224,8 +1174,7 @@ REBYTE *RL_rebValTupleData(const REBVAL *v) {
 //  rebValIndex: RL_API
 //
 REBCNT RL_rebValIndex(const REBVAL *v) {
-    Enter_Api_Clear_Last_Error();
-
+    Enter_Api();
     return VAL_INDEX(v);
 }
 
@@ -1249,7 +1198,7 @@ REBVAL *RL_rebInitDate(
     int nano,
     int zone
 ){
-    Enter_Api_Clear_Last_Error();
+    Enter_Api();
 
     REBVAL *result = Alloc_Value();
     VAL_RESET_HEADER(result, REB_DATE);
@@ -1278,7 +1227,7 @@ REBVAL *RL_rebInitDate(
 //
 char *RL_rebMoldAlloc(REBCNT *len_out, const REBVAL *v)
 {
-    Enter_Api_Clear_Last_Error();
+    Enter_Api();
 
     DECLARE_MOLD (mo);
     Push_Mold(mo);
@@ -1314,7 +1263,7 @@ REBCNT RL_rebSpellingOf(
     REBCNT buf_chars,
     const REBVAL *v
 ){
-    Enter_Api_Clear_Last_Error();
+    Enter_Api();
 
     REBCNT index;
     REBCNT len;
@@ -1349,7 +1298,7 @@ REBCNT RL_rebSpellingOf(
 //
 char *RL_rebSpellingOfAlloc(REBCNT *len_out, const REBVAL *v)
 {
-    Enter_Api_Clear_Last_Error();
+    Enter_Api();
 
     REBCNT len = rebSpellingOf(NULL, 0, v);
     char *result = OS_ALLOC_N(char, len + 1);
@@ -1370,7 +1319,7 @@ REBCNT RL_rebSpellingOfW(
     REBCNT buf_chars, // characters buffer can hold (not including terminator)
     const REBVAL *v
 ){
-    Enter_Api_Clear_Last_Error();
+    Enter_Api();
 
     REBCNT index;
     REBCNT len;
@@ -1405,7 +1354,7 @@ REBCNT RL_rebSpellingOfW(
 //
 REBWCHAR *RL_rebSpellingOfAllocW(REBCNT *len_out, const REBVAL *v)
 {
-    Enter_Api_Clear_Last_Error();
+    Enter_Api();
 
     REBCNT len = rebSpellingOfW(NULL, 0, v);
     REBWCHAR *result = OS_ALLOC_N(REBWCHAR, len + 1);
@@ -1426,7 +1375,7 @@ REBCNT RL_rebValBin(
     REBCNT buf_chars,
     const REBVAL *binary
 ){
-    Enter_Api_Clear_Last_Error();
+    Enter_Api();
 
     if (NOT(IS_BINARY(binary)))
         fail ("rebValBin() only works on BINARY!");
@@ -1450,7 +1399,7 @@ REBCNT RL_rebValBin(
 //
 REBYTE *RL_rebValBinAlloc(REBCNT *len_out, const REBVAL *binary)
 {
-    Enter_Api_Clear_Last_Error();
+    Enter_Api();
 
     REBCNT len = rebValBin(NULL, 0, binary);
     REBYTE *result = OS_ALLOC_N(REBYTE, len + 1);
@@ -1466,7 +1415,7 @@ REBYTE *RL_rebValBinAlloc(REBCNT *len_out, const REBVAL *binary)
 //
 REBVAL *RL_rebBinary(void *bytes, size_t size)
 {
-    Enter_Api_Clear_Last_Error();
+    Enter_Api();
 
     REBSER *bin = Make_Binary(size);
     memcpy(BIN_HEAD(bin), bytes, size);
@@ -1481,7 +1430,7 @@ REBVAL *RL_rebBinary(void *bytes, size_t size)
 //
 REBVAL *RL_rebSizedString(const char *utf8, size_t size)
 {
-    Enter_Api_Clear_Last_Error();
+    Enter_Api();
 
     return Init_String(
         Alloc_Value(),
@@ -1495,8 +1444,7 @@ REBVAL *RL_rebSizedString(const char *utf8, size_t size)
 //
 REBVAL *RL_rebString(const char *utf8)
 {
-    Enter_Api_Clear_Last_Error();
-
+    Enter_Api();
     return Init_String(Alloc_Value(), Make_UTF8_May_Fail(cb_cast(utf8)));
 }
 
@@ -1506,7 +1454,7 @@ REBVAL *RL_rebString(const char *utf8)
 //
 REBVAL *RL_rebFile(const char *utf8)
 {
-    REBVAL *result = rebString(utf8);
+    REBVAL *result = rebString(utf8); // Enter_Api() called
     VAL_RESET_HEADER(result, REB_FILE);
     return result;
 }
@@ -1517,7 +1465,7 @@ REBVAL *RL_rebFile(const char *utf8)
 //
 REBVAL *RL_rebStringW(const REBWCHAR *wstr)
 {
-    Enter_Api_Clear_Last_Error();
+    Enter_Api();
 
     REBCNT num_chars = 0;
     const REBWCHAR *wtemp = wstr;
@@ -1539,7 +1487,7 @@ REBVAL *RL_rebStringW(const REBWCHAR *wstr)
 //
 REBVAL *RL_rebFileW(const REBWCHAR *wstr)
 {
-    REBVAL *result = rebStringW(wstr);
+    REBVAL *result = rebStringW(wstr); // Enter_Api() called
     VAL_RESET_HEADER(result, REB_FILE);
     return result;
 }
@@ -1559,7 +1507,7 @@ REBVAL *RL_rebFileW(const REBWCHAR *wstr)
 //
 REBVAL *RL_rebManage(REBVAL *v)
 {
-    Enter_Api_Clear_Last_Error();
+    Enter_Api();
 
     assert(Is_Api_Value(v));
     assert(NOT(v->header.bits & CELL_FLAG_STACK));
@@ -1598,7 +1546,7 @@ REBVAL *RL_rebManage(REBVAL *v)
 //
 REBVAL *RL_rebUnmanage(REBVAL *v)
 {
-    Enter_Api_Clear_Last_Error();
+    Enter_Api();
 
     REBVAL *key = PAIRING_KEY(v);
     assert(IS_FRAME(key));
@@ -1613,7 +1561,7 @@ REBVAL *RL_rebUnmanage(REBVAL *v)
 //
 void RL_rebRelease(REBVAL *v)
 {
-    Enter_Api_Cant_Error();
+    Enter_Api();
 
     if (NOT(Is_Api_Value(v)))
         panic("Attempt to rebRelease() a non-API handle");
@@ -1634,8 +1582,7 @@ void RL_rebFree(void *p) {OS_FREE(p);}
 //
 REBVAL *RL_rebError(const char *msg)
 {
-    Enter_Api_Cant_Error();
-
+    Enter_Api();
     return Init_Error(Alloc_Value(), Error_User(msg));
 }
 
@@ -1663,6 +1610,8 @@ REBVAL *RL_rebError(const char *msg)
 //
 void RL_rebFail(const void *p, const void *p2)
 {
+    Enter_Api();
+
     assert(Detect_Rebol_Pointer(p2) == DETECTED_AS_END);
 
     // !!! There needs to be some sort of story on unmanaged API handles in
@@ -1692,78 +1641,46 @@ void RL_rebFail(const void *p, const void *p2)
 //      #noreturn
 //  ]
 //
-// panic() and panic_at() are used internally to the interpreter for
-// situations which are so corrupt that the interpreter cannot safely run
-// any more functions (a "blue screen of death").  However, panics at the
-// API level should not be that severe.
+// Calls PANIC via rebRun(), but is a separate entry point in order to have
+// an attribute saying it doesn't return.
 //
-// So this routine is willing to do delegation.  If it receives a UTF-8
-// string, it will convert it to a STRING! and call the PANIC native on that
-// string.  If it receives a REBVAL*, it will call the PANIC-VALUE native on
-// that string.
-//
-// By dispatching to FUNCTION!s to do the dirty work of crashing out and
-// exiting Rebol, this allows a console or user to HIJACK those functions
-// with custom behavior (such as more graceful exits, writing to logs).
-// That hijacking would also affect any other "safe" PANIC calls in userspace.
-//
-void RL_rebPanic(const void *p)
+void RL_rebPanic(const void *p, const void *end)
 {
-    Enter_Api_Cant_Error();
+    Enter_Api();
+    assert(Detect_Rebol_Pointer(end) == DETECTED_AS_END); // !!! TBD: variadic
+    UNUSED(end);
 
-#if defined(DEBUG_COUNT_TICKS)
-    const REBUPT tick = TG_Tick;
-#else
-    const REBUPT tick = 0;
-#endif
-
-    // Like Panic_Core, the underlying API for rebPanic might want to take an
-    // optional file and line.
-    //
-    char *file = NULL;
-    int line = 0;
+    rebRun(rebEval(NAT_VALUE(panic)), p, END);
 
     // !!! Should there be a special bit or dispatcher used on the PANIC and
     // PANIC-VALUE functions that ensures they exit?  If it were a dispatcher
     // then HIJACK would have to be aware of it and preserve it.
+    //
+    panic ("HIJACK'd PANIC function did not exit Rebol");
+}
 
-    const void *p2 = p; // keep original p for examining in the debugger
 
-    switch (Detect_Rebol_Pointer(p)) {
-    case DETECTED_AS_UTF8:
-        rebRun(
-            rebEval(NAT_VALUE(panic)),
-            rebString(cast(const char*, p)),
-            END
-        );
-        p2 = "HIJACK'd PANIC function did not exit Rebol";
-        break;
+//
+//  rebPanicValue: RL_API [
+//      #noreturn
+//  ]
+//
+// Calls PANIC-VALUE via rebRun(), but is a separate entry point in order to
+// have an attribute saying it doesn't return.
+//
+void RL_rebPanicValue(const void *p, const void *end)
+{
+    Enter_Api();
+    assert(Detect_Rebol_Pointer(end) == DETECTED_AS_END); // !!! TBD: variadic
+    UNUSED(end);
 
-    case DETECTED_AS_SERIES:
-    case DETECTED_AS_FREED_SERIES:
-        //
-        // !!! The libRebol API might use REBSER nodes as an exposed type for
-        // special operations (it's already the return result of rebEval()).
-        // So it could be reasonable that API-based panics on them are "known"
-        // API types that should give more information than a low-level crash.
-        //
-        break;
+    rebRun(rebEval(NAT_VALUE(panic_value)), p, END);
 
-    case DETECTED_AS_VALUE:
-        rebRun(
-            rebEval(NAT_VALUE(panic_value)),
-            cast(const REBVAL*, p),
-            END
-        );
-        p2 = "HIJACK'd PANIC-VALUE function did not exit Rebol";
-        break;
-
-    case DETECTED_AS_END:
-    case DETECTED_AS_TRASH_CELL:
-        break;
-    };
-
-    Panic_Core(p2, tick, file, line);
+    // !!! Should there be a special bit or dispatcher used on the PANIC and
+    // PANIC-VALUE functions that ensures they exit?  If it were a dispatcher
+    // then HIJACK would have to be aware of it and preserve it.
+    //
+    panic ("HIJACK'd PANIC-VALUE function did not exit Rebol");
 }
 
 
@@ -1776,7 +1693,7 @@ void RL_rebPanic(const void *p)
 //
 REBVAL *RL_rebFileToLocal(const REBVAL *file, REBOOL full)
 {
-    Enter_Api_Clear_Last_Error();
+    Enter_Api();
 
     if (NOT(IS_FILE(file)))
         fail ("rebFileToLocal() only works on FILE!");
@@ -1797,7 +1714,7 @@ REBVAL *RL_rebFileToLocal(const REBVAL *file, REBOOL full)
 //
 REBVAL *RL_rebLocalToFile(const REBVAL *string, REBOOL is_dir)
 {
-    Enter_Api_Clear_Last_Error();
+    Enter_Api();
 
     if (NOT(IS_STRING(string)))
         fail ("rebLocalToFile() only works on STRING!");

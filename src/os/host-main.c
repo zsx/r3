@@ -181,11 +181,6 @@ EXTERN_C REBOL_HOST_LIB Host_Lib_Init;
 #endif
 
 
-// Host bare-bones stdio functs:
-extern void Open_StdIO(void);
-extern void Close_StdIO(void);
-
-
 // Assume that Ctrl-C is enabled in a console application by default.
 // (Technically it may be set to be ignored by a parent process or context,
 // in which case conventional wisdom is that we should not be enabling it
@@ -319,6 +314,24 @@ void Enable_Ctrl_C(void)
 #endif
 
 
+// Can't just use a TRAP when running user code, because it might legitimately
+// evaluate to an ERROR! value, as well as FAIL.  Uses rebRescue().
+
+struct sandbox_info {
+    REBVAL *group_or_block;
+    REBVAL *result;
+};
+
+REBVAL *Run_Sandboxed_Code(struct sandbox_info *info) {
+    //
+    // !!! Change this to rebRun("lib/do", ...) when binding logic is fixed,
+    // so the argument doesn't get rebound.
+    //
+    info->result = rebDoValue(info->group_or_block);
+    return rebBlank(); // distinct type from rebRescue() ERROR! trapping
+}
+
+
 //=//// MAIN ENTRY POINT //////////////////////////////////////////////////=//
 //
 // Using a main() entry point for a console program (as opposed to WinMain())
@@ -333,13 +346,7 @@ int main(int argc, char *argv_ansi[])
     //
     Disable_Ctrl_C();
 
-    // Must be done before an console I/O can occur. Does not use reb-lib,
-    // so this device should open even if there are other problems.
-    //
-    Open_StdIO();
-
-    Host_Lib = &Host_Lib_Init;
-    rebStartup(Host_Lib);
+    rebStartup(&Host_Lib_Init);
 
     // With interpreter startup done, we want to turn the platform-dependent
     // argument strings into a block of Rebol strings as soon as possible.
@@ -438,7 +445,7 @@ int main(int argc, char *argv_ansi[])
     }
 
     if (!IS_FUNCTION(host_console))
-        rebPanic (host_console);
+        rebPanicValue (host_console, END);
 
     Free_Series(startup);
 
@@ -463,7 +470,7 @@ int main(int argc, char *argv_ansi[])
     // various forms of failures during service routines that were already
     // being handled by the framework surrounding HOST-CONSOLE.  The new
     // approach is to let HOST-CONSOLE be the sole entry point, and that
-    // LAST-STATUS being void is an indication that it is running for the
+    // PRIOR code being blank is an indication that it is running for the
     // first time.  Thus it can use that opportunity to run any startup
     // code or print any banners it wishes.
     //
@@ -471,14 +478,13 @@ int main(int argc, char *argv_ansi[])
     // explicit parameters.  The parameters might best be passed by
     // sticking them in the environment somewhere and letting HOST-CONSOLE
     // find them...but for the moment we pass them as a BLOCK! in the
-    // LAST-RESULT argument when the LAST-STATUS is void, and let it
-    // unpack them.
+    // RESULT argument when the PRIOR code is blank, and let it unpack them.
     //
-    // Note that `result`, `code`, and status have to be freed each loop ATM.
+    // Note that `code`, `result`, and `status` have to be freed each loop ATM.
     //
-    REBVAL *code = rebVoid();
+    REBVAL *code = rebBlank();
     REBVAL *result = rebBlock(exec_path, argv_block, ext_value, END);
-    REBVAL *status = rebVoid();
+    REBVAL *status = rebBlank();
 
     // The DO and APPLY hooks are used to implement things like tracing
     // or debugging.  If they were allowed to run during the host
@@ -498,50 +504,37 @@ int main(int argc, char *argv_ansi[])
     REBINT Save_Trace_Level = Trace_Level;
     REBINT Save_Trace_Depth = Trace_Depth;
 
-    do {
-        assert(NOT(ctrl_c_enabled)); // can't cancel during HOST-CONSOLE
+    while (TRUE) {
+        assert(NOT(ctrl_c_enabled)); // not while HOST-CONSOLE is on the stack
 
-        // !!! In this early phase of trying to establish the API, we assume
-        // this code is responsible for freeing the result `code` (if it
-        // does not come back NULL indicating a failure).
-        //
-        REBVAL *new_code = rebRun(
+        REBVAL *trapped = rebTrap(
             rebEval(host_console), // HOST-CONSOLE function (run it)
-            code, // GROUP! or BLOCK! that was executed prior below (or void)
-            result, // result of evaluating previous code (void if error)
-            status, // BLANK! if no error, BAR! if halt, or the ERROR!
+            code, // GROUP! or BLOCK! executed prior (blank if first run)
+            result, // result of evaluating previous code (or void if error)
+            status, // blank or the ERROR! (maybe uncaught throw/halt/quit)
             END
         );
+
+        if (rebDid("lib/error?", trapped, END))
+            rebPanic (trapped, END); // unsafe code should run in a GROUP!
+
         rebRelease(code);
         rebRelease(result);
         rebRelease(status);
 
-        if ((code = new_code) == NULL) {
-            //
-            // We don't allow cancellation while the HOST-CONSOLE function is
-            // running, and it should not FAIL or otherwise raise an error.
-            // This is why it needs to be written in such a way that any
-            // arbitrary user code--or operations that might just legitimately
-            // take a long time--are returned in `code` to be sandboxed.
-            //
-            REBVAL *e = rebLastError();
-            assert(NOT(IS_BAR(e))); // at moment, the signal for HALT/Ctrl-C
-            assert(NOT(IS_INTEGER(e))); // at moment, signals an exit code
-            rebPanic (e); // should dump some info about the `e` ERROR!
-        }
+        code = trapped;
 
-        if (NOT(IS_BLOCK(code)) && NOT(IS_GROUP(code))) {
-            status = rebError("HOST-CONSOLE must return GROUP! or BLOCK!");
-            result = rebVoid();
-            continue;
-        }
+        if (rebDid("lib/integer?", code, END))
+            break; // when HOST-CONSOLE returns INTEGER! it means an exit code
+
+        REBOOL is_console_instruction = rebDid("lib/block?", code, END);
 
         // Restore custom DO and APPLY hooks, but only if running a GROUP!.
         // (We do not want to trace/debug/instrument Rebol code that the
         // console is using to implement *itself*, which it does with BLOCK!)
         // Same for Trace_Level seen by PARSE.
         //
-        if (IS_GROUP(code)) {
+        if (NOT(is_console_instruction)) {
             PG_Do = saved_do_hook;
             PG_Apply = saved_apply_hook;
             Trace_Level = Save_Trace_Level;
@@ -553,15 +546,19 @@ int main(int argc, char *argv_ansi[])
         // accept the cancellation or consider it an error condition or a
         // reason to fall back to the default skin).
         //
+        struct sandbox_info info;
+        info.group_or_block = code;
+        info.result = NULL;
+
         Enable_Ctrl_C();
-        result = rebDoValue(code);
+        status = rebRescue(cast(REBDNG*, &Run_Sandboxed_Code), &info);
         Disable_Ctrl_C();
 
         // If the custom DO and APPLY hooks were changed by the user code,
         // then save them...but restore the unhooked versions for the next
         // iteration of HOST-CONSOLE.  Same for Trace_Level seen by PARSE.
         //
-        if (IS_GROUP(code)) {
+        if (NOT(is_console_instruction)) {
             saved_do_hook = PG_Do;
             saved_apply_hook = PG_Apply;
             PG_Do = &Do_Core;
@@ -572,33 +569,14 @@ int main(int argc, char *argv_ansi[])
             Trace_Depth = 0;
         }
 
-        if (result != NULL) {
-            status = rebBlank();
-            continue;
-        }
+        if (rebDid("lib/blank?", status, END))
+            result = info.result;
+        else
+            result = rebVoid();
+    }
 
-        // Otherwise it was a failure of some kind...get the last error and
-        // signal it to the next iteration of HOST-CONSOLE.
-
-        status = rebLastError();
-        assert(status != NULL);
-        result = rebVoid();
-
-        if (IS_BAR(status)) // currently means halted, not really an ERROR!
-            continue;
-
-        if (IS_ERROR(status)) // interpreted as an exit code
-            continue;
-
-        assert(IS_INTEGER(status));
-
-    } while (NOT(IS_INTEGER(status)));
-
-    int exit_status = VAL_INT32(status);
-
-    rebRelease(status);
+    int exit_status = rebUnboxInteger(code);
     rebRelease(code);
-    rebRelease(result);
 
     rebRelease(argv_block);
 
@@ -606,13 +584,8 @@ int main(int argc, char *argv_ansi[])
 
     OS_QUIT_DEVICES(0);
 
-    Close_StdIO();
-
-    // No need to do a "clean" shutdown, as we are about to exit the process
-    // (Note: The debug build runs through the clean shutdown anyway!)
-    //
-    REBOOL clean = FALSE;
-    rebShutdown(clean);
+    const REBOOL clean = FALSE; // process exiting, not necessary
+    rebShutdown(clean); // Note: debug build runs a clean shutdown anyway
 
     return exit_status; // http://stackoverflow.com/q/1101957/
 }
