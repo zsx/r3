@@ -208,14 +208,15 @@ REBINT Awake_System(REBARR *ports, REBOOL only)
 
 
 //
-//  Wait_Ports: C
+//  Wait_Ports_Throws: C
 //
 // Inputs:
 //     Ports: a block of ports or zero (on stack to avoid GC).
 //     Timeout: milliseconds to wait
 //
 // Returns:
-//     TRUE when port action happened, or FALSE for timeout.
+//     out is LOGIC! TRUE when port action happened, or FALSE for timeout
+//     if a throw happens, out will be the thrown value and returns TRUE
 //
 REBOOL Wait_Ports_Throws(
     REBVAL *out,

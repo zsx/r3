@@ -571,7 +571,7 @@ REBVAL *RL_rebTrap(const void * const p, ...) {
         rebRelease(result);
         return rebVoid();
     }
-    
+
     if (IS_VOID(result)) {
         rebRelease(result);
         return rebBlank();

@@ -447,7 +447,7 @@ REBNATIVE(wait)
     // Process port events [stack-move]:
     if (Wait_Ports_Throws(D_OUT, ports, timeout, REF(only)))
         return R_OUT_IS_THROWN;
-        
+
     assert(IS_LOGIC(D_OUT));
 
     if (IS_FALSEY(D_OUT)) { // timeout

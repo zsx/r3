@@ -70,6 +70,8 @@ REBOOL Reduce_Any_Array_Throws(
             continue;
         }
 
+        REBOOL line = GET_VAL_FLAG(f->value, VALUE_FLAG_LINE);
+
         if (Do_Next_In_Frame_Throws(reduced, f)) {
             Move_Value(out, reduced);
             DS_DROP_TO(dsp_orig);
@@ -90,6 +92,8 @@ REBOOL Reduce_Any_Array_Throws(
         }
 
         DS_PUSH(reduced);
+        if (line)
+            SET_VAL_FLAG(DS_TOP, VALUE_FLAG_LINE);
     }
 
     if (flags & REDUCE_FLAG_INTO)
@@ -206,6 +210,7 @@ REBOOL Compose_Any_Array_Throws(
     DECLARE_LOCAL (specific);
 
     while (FRM_HAS_MORE(f)) {
+        REBOOL line = GET_VAL_FLAG(f->value, VALUE_FLAG_LINE);
         if (IS_GROUP(f->value)) {
             //
             // Evaluate the GROUP! at current position into `composed` cell.
@@ -236,6 +241,10 @@ REBOOL Compose_Any_Array_Throws(
                     // may be needed to derelativize its children.
                     //
                     DS_PUSH_RELVAL(push, VAL_SPECIFIER(composed));
+                    if (line) {
+                        SET_VAL_FLAG(DS_TOP, VALUE_FLAG_LINE);
+                        line = FALSE;
+                    }
                     push++;
                 }
             }
@@ -245,6 +254,8 @@ REBOOL Compose_Any_Array_Throws(
                 // compose/only [([a b c]) unmerged] => [[a b c] unmerged]
                 //
                 DS_PUSH(composed);
+                if (line)
+                    SET_VAL_FLAG(DS_TOP, VALUE_FLAG_LINE);
             }
             else {
                 //
@@ -273,6 +284,8 @@ REBOOL Compose_Any_Array_Throws(
                 }
 
                 DS_PUSH(composed);
+                if (line)
+                    SET_VAL_FLAG(DS_TOP, VALUE_FLAG_LINE);
             }
             else {
                 if (ANY_ARRAY(f->value)) {
@@ -292,6 +305,9 @@ REBOOL Compose_Any_Array_Throws(
                 }
                 else
                     DS_PUSH_RELVAL(f->value, f->specifier);
+
+                if (line)
+                    SET_VAL_FLAG(DS_TOP, VALUE_FLAG_LINE);
             }
             Fetch_Next_In_Frame(f);
         }
@@ -300,6 +316,7 @@ REBOOL Compose_Any_Array_Throws(
             // compose [[(1 + 2)] (reverse "wollahs")] => [[(1 + 2)] "shallow"]
             //
             DS_PUSH_RELVAL(f->value, f->specifier);
+            assert(line == GET_VAL_FLAG(DS_TOP, VALUE_FLAG_LINE));
             Fetch_Next_In_Frame(f);
         }
     }
