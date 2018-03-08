@@ -1034,10 +1034,14 @@ reevaluate:;
                 switch (pclass) {
                 case PARAM_CLASS_NORMAL:
                     Move_Value(f->arg, f->out);
+                    if (GET_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED))
+                        SET_VAL_FLAG(f->arg, VALUE_FLAG_UNEVALUATED);
                     break;
 
                 case PARAM_CLASS_TIGHT:
                     Move_Value(f->arg, f->out);
+                    if (GET_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED))
+                        SET_VAL_FLAG(f->arg, VALUE_FLAG_UNEVALUATED);
                     break;
 
                 case PARAM_CLASS_HARD_QUOTE:
@@ -1941,11 +1945,12 @@ reevaluate:;
             goto finished;
         }
 
-        // !!! This leaves VALUE_FLAG_UNEVALUATED as it was, e.g. such that
-        // `(1 + 2)` will appear evaluated while `(3)` will not.  Is this the
-        // intent?  It was done this way so you could put an expression using
-        // SEMIQUOTE inside of a GROUP!...
+        // This has to set the evaluated flag to bypass checking.  e.g.
+        // `if (1) [print "this is supposed to work"]`.  Unfortunately this
+        // means you can't semiquote things inside groups, only outside of
+        // them, e.g. `semiquote (a b c)` and not `(semiquote a b c)`.
         //
+        CLEAR_VAL_FLAG(f->out, VALUE_FLAG_UNEVALUATED);
         break; }
 
 //==//////////////////////////////////////////////////////////////////////==//

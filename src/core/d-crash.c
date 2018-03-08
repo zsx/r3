@@ -187,7 +187,7 @@ ATTRIBUTE_NO_RETURN void Panic_Core(
         UNUSED(v);
         strncat(buf, "value", PANIC_BUF_SIZE - strlen(buf));
     #else
-        if (IS_ERROR(v)) {
+        if (NOT_END(v) && IS_ERROR(v)) {
             printf("...panicking on an ERROR! value...");
             PROBE(v);
         }

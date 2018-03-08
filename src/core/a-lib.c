@@ -489,28 +489,22 @@ REBVAL *RL_rebRun(const void *p, ...)
 {
     Enter_Api();
 
-    REBVAL *result = Alloc_Value();
-
     va_list va;
     va_start(va, p);
 
+    DECLARE_LOCAL (temp); // so a fail() won't leak a handle...
     REBIXO indexor = Do_Va_Core(
-        result,
+        temp,
         p, // opt_first (preloads value)
         &va,
         DO_FLAG_EXPLICIT_EVALUATE | DO_FLAG_TO_END
     );
     va_end(va);
 
-    if (indexor == THROWN_FLAG) {
-        DECLARE_LOCAL (thrown); // !!! review necessity of temporary
-        Move_Value(thrown, result);
-        Free_Value(result);
+    if (indexor == THROWN_FLAG)
+        fail (Error_No_Catch_For_Throw(temp));
 
-        fail (Error_No_Catch_For_Throw(thrown));
-    }
-
-    return result; // client's responsibility to rebRelease(), for now
+    return Move_Value(Alloc_Value(), temp);
 }
 
 
