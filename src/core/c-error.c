@@ -498,7 +498,7 @@ void Set_Location_Of_Error(
     Init_Near_For_Frame(&vars->nearest, where);
 
     // Try to fill in the file and line information of the error from the
-    // stack, looking for arrays with SERIES_FLAG_FILE_LINE.
+    // stack, looking for arrays with ARRAY_FLAG_FILE_LINE.
     //
     f = where;
     for (; f != NULL; f = f->prior) {
@@ -511,7 +511,7 @@ void Set_Location_Of_Error(
             //
             continue;
         }
-        if (NOT_SER_FLAG(f->source.array, SERIES_FLAG_FILE_LINE))
+        if (NOT_SER_FLAG(f->source.array, ARRAY_FLAG_FILE_LINE))
             continue;
         break;
     }

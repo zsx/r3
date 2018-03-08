@@ -349,7 +349,7 @@ REBTYPE(Function)
 
             REBSER *s = VAL_SERIES(VAL_FUNC_BODY(value));
 
-            if (NOT_SER_FLAG(s, SERIES_FLAG_FILE_LINE))
+            if (NOT_SER_FLAG(s, ARRAY_FLAG_FILE_LINE))
                 return R_BLANK;
 
             // !!! How to tell whether it's a URL! or a FILE! ?
@@ -363,7 +363,7 @@ REBTYPE(Function)
 
             REBSER *s = VAL_SERIES(VAL_FUNC_BODY(value));
 
-            if (NOT_SER_FLAG(s, SERIES_FLAG_FILE_LINE))
+            if (NOT_SER_FLAG(s, ARRAY_FLAG_FILE_LINE))
                 return R_BLANK;
 
             Init_Integer(D_OUT, MISC(s).line);

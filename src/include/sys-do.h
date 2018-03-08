@@ -306,7 +306,7 @@ inline static void Push_Frame_At(
 inline static void Push_Frame(REBFRM *f, const REBVAL *v)
 {
     Push_Frame_At(
-        f, VAL_ARRAY(v), VAL_INDEX(v), VAL_SPECIFIER(v), DO_FLAG_NORMAL
+        f, VAL_ARRAY(v), VAL_INDEX(v), VAL_SPECIFIER(v), DO_MASK_NONE
     );
 }
 
@@ -780,7 +780,7 @@ inline static REBIXO DO_NEXT_MAY_THROW(
         return END_FLAG;
     }
 
-    Init_Endlike_Header(&f->flags, DO_FLAG_NORMAL);
+    Init_Endlike_Header(&f->flags, DO_MASK_NONE);
 
     f->source.vaptr = NULL;
     f->source.array = array;

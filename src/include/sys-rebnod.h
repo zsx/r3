@@ -84,13 +84,13 @@
 
 struct Reb_Header {
     //
-    // Uses REBUPT which is 32-bits on 32 bit platforms and 64-bits on 64 bit
-    // machines.  Note the numbers and layout in the headers will not be
-    // directly comparable across architectures.
+    // Uses REBUPT (like C99's uintptr_t) which is 32-bits on 32 bit platforms
+    // and 64-bits on 64 bit machines.  See macros like FLAGIT_LEFT() for
+    // how these bits are laid out in special ways on varying architectures.
     //
-    // !!! A clever future application of the 32 unused header bits on 64-bit
-    // architectures might be able to add optimization or instrumentation
-    // abilities as a bonus.
+    // !!! Future application of the 32 unused header bits on 64-bit machines
+    // might add some kind of optimization or instrumentation, though the
+    // unused bits are currently in weird byte positions.
     //
     REBUPT bits;
 };
@@ -226,20 +226,20 @@ struct Reb_Header {
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
-//  NODE_FLAG_SPECIAL (seventh-leftmost bit)
+//  NODE_FLAG_6 (seventh-leftmost bit)
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // It's a bit of a pun to try and come up with a meaning that is shared
-// between REBSER and REBVAL for this bit,  But the specific desire to put the
+// between REBSER and REBVAL for this bit.  But the specific desire to put the
 // NODE_FLAG_CELL in eighth from the left position means it's easier to make
 // this a generic node flag to keep the first byte layout knowledge here.
 //
-// For a REBVAL, this means THROWN.  For a REBSER, this means marked as
-// voids being legal.  They alias this as ARRAY_FLAG_VOIDS_LEGAL and
-// VALUE_FLAG_THROWN.
+// For the moment it's unused, but the ideal use would be for something you
+// would want to test on a node without needing to know if it was a cell
+// or a series in order to make some fast decision.
 //
-#define NODE_FLAG_SPECIAL \
+#define NODE_FLAG_6 \
     FLAGIT_LEFT(6)
 
 

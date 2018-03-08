@@ -63,12 +63,12 @@
 // completely encompass evaluation possibilities in R3-Alpha, but it was also
 // necessary to consider cases where a value was intended to be provided
 // *without* evaluation.  This introduced EVAL/ONLY.
-//
+
+
 // The default for a DO operation is just a single DO/NEXT, where args
 // to functions are evaluated (vs. quoted), and lookahead is enabled.
 //
-
-#define DO_FLAG_NORMAL 0
+#define DO_MASK_NONE 0
 
 // See Init_Endlike_Header() for why these are chosen the way they are.  This
 // means that the Reb_Frame->flags field can function as an implicit END for

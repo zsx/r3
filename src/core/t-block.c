@@ -939,7 +939,7 @@ REBTYPE(Array)
             specifier,
             tail, // tail
             0, // extra
-            SERIES_FLAG_FILE_LINE, // flags
+            ARRAY_FLAG_FILE_LINE, // flags
             types // types to copy deeply
         );
         Init_Any_Array(D_OUT, VAL_TYPE(value), copy);

@@ -236,7 +236,7 @@ REBNATIVE(do)
             VAL_ARRAY(source),
             VAL_INDEX(source),
             VAL_SPECIFIER(source),
-            REF(next) ? DO_FLAG_NORMAL : DO_FLAG_TO_END
+            REF(next) ? DO_MASK_NONE : DO_FLAG_TO_END
         );
 
         if (indexor == THROWN_FLAG)
@@ -271,7 +271,7 @@ REBNATIVE(do)
                 VAL_ARRAY(position),
                 VAL_INDEX(position),
                 VAL_SPECIFIER(source),
-                REF(next) ? DO_FLAG_NORMAL : DO_FLAG_TO_END
+                REF(next) ? DO_MASK_NONE : DO_FLAG_TO_END
             );
 
             if (indexor == THROWN_FLAG) {

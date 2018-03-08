@@ -264,7 +264,7 @@ REBNATIVE(bind)
             VAL_SPECIFIER(v),
             ARR_LEN(VAL_ARRAY(v)), // tail
             0, // extra
-            SERIES_FLAG_FILE_LINE, // flags
+            ARRAY_FLAG_FILE_LINE, // flags
             TS_ARRAY // types to copy deeply
         );
         INIT_VAL_ARRAY(D_OUT, array); // warning: macro copies args

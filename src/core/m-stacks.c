@@ -294,8 +294,9 @@ REBCTX *Context_For_Frame_May_Reify_Managed(REBFRM *f)
         return CTX(f->varlist);
     }
 
-    f->varlist = Alloc_Singular_Array_Core(ARRAY_FLAG_VARLIST);
-    SET_SER_INFO(f->varlist, CONTEXT_INFO_STACK); // NOT a SER_FLAG!
+    f->varlist = Alloc_Singular_Array_Core(
+        ARRAY_FLAG_VARLIST | CONTEXT_FLAG_STACK
+    );
     MISC(f->varlist).meta = NULL; // seen by GC, must initialize
 
     // When running a function frame, the arglist will be marked safe from

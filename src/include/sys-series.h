@@ -261,7 +261,7 @@ inline static REBCNT SER_LEN(REBSER *s) {
 }
 
 inline static void SET_SERIES_LEN(REBSER *s, REBCNT len) {
-    assert(NOT_SER_INFO(s, CONTEXT_INFO_STACK));
+    assert(NOT_SER_FLAG(s, CONTEXT_FLAG_STACK));
 
     if (s->info.bits & SERIES_INFO_HAS_DYNAMIC) {
         s->content.dynamic.len = len;

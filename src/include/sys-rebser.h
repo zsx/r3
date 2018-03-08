@@ -79,36 +79,20 @@
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // Series have two places to store bits...in the "header" and in the "info".
-// The following are the SERIES_FLAG_XXX that are used in the header, while
-// the SERIES_INFO_XXX flags will be found in the info.
+// The following are the SERIES_FLAG_XXX and ARRAY_FLAG_XXX etc. that are used
+// in the header, while the SERIES_INFO_XXX flags will be found in the info.
 //
-// As a general rule for choosing which place to put a bit, if it may be
-// interesting to test/set multiple bits at the same time, then they should
-// be in the same flag group.  Also, SERIES_FLAG_XXX are passed to the
-// Make_Series() function, so anything that controls series creation is best
-// put in there.
+// ** Make_Series() takes SERIES_FLAG_XXX as a parameter, so anything that
+// controls series creation should be a _FLAG_ as opposed to an _INFO_! **
 //
-// !!! Perhaps things that don't change for the lifetime of the series should
-// also prefer the header vs. info?  Such separation might help with caching.
+// (Other general rules might be that bits that are to be tested or set as
+// a group should be in the same flag group.  Perhaps things that don't change
+// for the lifetime of the series might prefer header to the info, too?
+// Such things might help with caching.)
 //
 
 #define SERIES_MASK_NONE \
     0 // helps locate places that want to say "no flags"
-
-
-//=//// ARRAY_FLAG_VOIDS_LEGAL ////////////////////////////////////////////=//
-//
-// Identifies arrays in which it is legal to have void elements.  This is true
-// for instance on reified C va_list()s which were being used for unevaluated
-// applies (like R3-Alpha's APPLY/ONLY).  When those va_lists need to be put
-// into arrays for the purposes of GC protection, they may contain voids which
-// they need to track.
-//
-// Note: ARRAY_FLAG_VARLIST also implies legality of voids, which
-// are used to represent unset variables.
-//
-#define ARRAY_FLAG_VOIDS_LEGAL \
-    NODE_FLAG_SPECIAL
 
 
 //=//// SERIES_FLAG_FIXED_SIZE ////////////////////////////////////////////=//
@@ -134,21 +118,6 @@
 #define SERIES_FLAG_DONT_RELOCATE SERIES_FLAG_FIXED_SIZE
 
 
-//=//// SERIES_FLAG_FILE_LINE /////////////////////////////////////////////=//
-//
-// The Reb_Series node has two pointers in it, ->link and ->misc, which are
-// used for a variety of purposes (pointing to the keylist for an object,
-// the C code that runs as the dispatcher for a function, etc.)  But for
-// regular source series, they can be used to store the filename and line
-// number, if applicable.
-//
-// Only arrays preserve file and line info, as UTF-8 strings need to use the
-// ->misc and ->link fields for caching purposes in strings.
-//
-#define SERIES_FLAG_FILE_LINE \
-    FLAGIT_LEFT(GENERAL_SERIES_BIT + 1)
-
-
 //=//// SERIES_FLAG_UTF8_STRING ///////////////////////////////////////////=//
 //
 // Indicates the series holds a UTF-8 encoded string.
@@ -163,7 +132,7 @@
 // http://utf8everywhere.org/
 //
 #define SERIES_FLAG_UTF8_STRING \
-    FLAGIT_LEFT(GENERAL_SERIES_BIT + 2)
+    FLAGIT_LEFT(GENERAL_SERIES_BIT + 1)
 
 
 //=//// SERIES_FLAG_POWER_OF_2 ////////////////////////////////////////////=//
@@ -194,7 +163,7 @@
 // http://stackoverflow.com/questions/3190146/
 //
 #define SERIES_FLAG_POWER_OF_2 \
-    FLAGIT_LEFT(GENERAL_SERIES_BIT + 3)
+    FLAGIT_LEFT(GENERAL_SERIES_BIT + 2)
 
 
 //=//// SERIES_FLAG_ARRAY /////////////////////////////////////////////////=//
@@ -210,7 +179,59 @@
 // items which are incidentally the size of a REBVAL, but not actually arrays.
 //
 #define SERIES_FLAG_ARRAY \
-    FLAGIT_LEFT(GENERAL_SERIES_BIT + 4)
+    FLAGIT_LEFT(GENERAL_SERIES_BIT + 3)
+
+
+// ^-- STOP GENERIC SERIES FLAGS AT FLAGIT_LEFT(15) --^
+//
+// If a series is not an array, then the rightmost 16 bits of the series flags
+// are used to store an arbitrary per-series-type 16 bit number.  Right now,
+// that's used by the string series to save their REBSYM id integer (if they
+// have one).
+//
+#ifdef CPLUSPLUS_11
+    static_assert(GENERAL_SERIES_BIT + 4 < 16, "SERIES_FLAG_XXX too high");
+#endif
+
+
+//
+// Because there are a lot of different array flags that one might want to
+// check, they are broken into a separate section.  However, note that if you
+// do not know a series is an array you can't check just for this...e.g.
+// an arbitrary REBSER tested for ARRAY_FLAG_VARLIST might alias with a
+// UTF-8 symbol string whose symbol number uses that bit (!).
+//
+#define GENERAL_ARRAY_BIT (GENERAL_SERIES_BIT + 8)
+
+
+//=//// ARRAY_FLAG_FILE_LINE //////////////////////////////////////////////=//
+//
+// The Reb_Series node has two pointers in it, ->link and ->misc, which are
+// used for a variety of purposes (pointing to the keylist for an object,
+// the C code that runs as the dispatcher for a function, etc.)  But for
+// regular source series, they can be used to store the filename and line
+// number, if applicable.
+//
+// Only arrays preserve file and line info, as UTF-8 strings need to use the
+// ->misc and ->link fields for caching purposes in strings.
+//
+#define ARRAY_FLAG_FILE_LINE \
+    FLAGIT_LEFT(GENERAL_ARRAY_BIT + 0)
+
+
+//=//// ARRAY_FLAG_VOIDS_LEGAL ////////////////////////////////////////////=//
+//
+// Identifies arrays in which it is legal to have void elements.  This is true
+// for instance on reified C va_list()s which were being used for unevaluated
+// applies (like R3-Alpha's APPLY/ONLY).  When those va_lists need to be put
+// into arrays for the purposes of GC protection, they may contain voids which
+// they need to track.
+//
+// Note: ARRAY_FLAG_VARLIST also implies legality of voids, which
+// are used to represent unset variables.
+//
+#define ARRAY_FLAG_VOIDS_LEGAL \
+    FLAGIT_LEFT(GENERAL_ARRAY_BIT + 1)
 
 
 //=//// ARRAY_FLAG_PARAMLIST //////////////////////////////////////////////=//
@@ -219,7 +240,7 @@
 // FUNCTION! (the first element will be a canon value of the function)
 //
 #define ARRAY_FLAG_PARAMLIST \
-    FLAGIT_LEFT(GENERAL_SERIES_BIT + 5)
+    FLAGIT_LEFT(GENERAL_ARRAY_BIT + 2)
 
 
 //=//// ARRAY_FLAG_VARLIST ////////////////////////////////////////////////=//
@@ -232,7 +253,7 @@
 // See notes on REBCTX for further details about what a context is.
 //
 #define ARRAY_FLAG_VARLIST \
-    FLAGIT_LEFT(GENERAL_SERIES_BIT + 6)
+    FLAGIT_LEFT(GENERAL_ARRAY_BIT + 3)
 
 
 //=//// ARRAY_FLAG_PAIRLIST ///////////////////////////////////////////////=//
@@ -241,19 +262,34 @@
 // series also has a hashlist linked to in the series node.
 //
 #define ARRAY_FLAG_PAIRLIST \
-    FLAGIT_LEFT(GENERAL_SERIES_BIT + 7)
+    FLAGIT_LEFT(GENERAL_ARRAY_BIT + 4)
 
 
-// ^-- STOP AT FLAGIT_LEFT(15) --^
+//=//// CONTEXT_FLAG_STACK ////////////////////////////////////////////////=//
 //
-// The rightmost 16 bits of the series flags are used to store an arbitrary
-// per-series-type 16 bit number.  Right now, that's used by the string series
-// to save their REBSYM id integer(if they have one).  Note that the flags
-// are flattened in kind of a wasteful way...some are mutually exclusive and
-// could use the same bit, if needed.
+// This indicates that a context's varlist data lives on the stack.  That
+// means that when the function terminates, the data will no longer be
+// accessible (so SERIES_FLAG_INACCESSIBLE will be true).
+//
+// !!! Ultimately this flag may be unnecessary because stack-based and
+// dynamic series will "hybridize" so that they may have some stack
+// fields and some fields in dynamic memory.  For now it's a good sanity
+// check that things which should only happen to stack contexts (like becoming
+// inaccessible) are checked against this flag.
+//
+#define CONTEXT_FLAG_STACK \
+    FLAGIT_LEFT(GENERAL_ARRAY_BIT + 5)
+
+
+// ^-- STOP ARRAY FLAGS AT FLAGIT_LEFT(31) --^
+//
+// Arrays can use all the way up to the 32-bit limit on the flags (since
+// they're not using the arbitrary 16-bit number the way that a REBSTR is for
+// storing the symbol).  64-bit machines have more space, but it shouldn't
+// be used for anything but optimizations.
 //
 #ifdef CPLUSPLUS_11
-    static_assert(GENERAL_SERIES_BIT + 7 < 16, "SERIES_FLAG_XXX too high");
+    static_assert(GENERAL_ARRAY_BIT + 5 < 32, "ARRAY_FLAG_XXX too high");
 #endif
 
 
@@ -263,9 +299,9 @@
 //
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// See remarks above about the two places where series store bits.  These
-// are the info bits, which are more likely to be changed over the lifetime
-// of the series--defaulting to FALSE.
+// See remarks on SERIES <<FLAG>> BITS about the two places where series store
+// bits.  These are the info bits, which are more likely to be changed over
+// the lifetime of the series--defaulting to FALSE.
 //
 // See Init_Endlike_Header() for why the bits are chosen the way they are.
 // 4 are reserved, this means that the Reb_Series->info field can function as
@@ -418,22 +454,6 @@
     FLAGIT_LEFT(11)
 
 
-//=//// CONTEXT_INFO_STACK ////////////////////////////////////////////////=//
-//
-// This indicates that a context's varlist data lives on the stack.  That
-// means that when the function terminates, the data will no longer be
-// accessible (so SERIES_INFO_INACCESSIBLE will be true).
-//
-// !!! Ultimately this flag may be unnecessary because stack-based and
-// dynamic series will "hybridize" so that they may have some stack
-// fields and some fields in dynamic memory.  For now it's a good sanity
-// check that things which should only happen to stack contexts (like becoming
-// inaccessible) are checked against this flag.
-//
-#define CONTEXT_INFO_STACK \
-    FLAGIT_LEFT(12)
-
-
 // ^-- STOP AT FLAGIT_LEFT(15) --^
 //
 // The rightmost 16 bits of the series info is used to store an 8 bit length
@@ -441,7 +461,7 @@
 // flags need to stop at FLAGIT_LEFT(15).
 //
 #ifdef CPLUSPLUS_11
-    static_assert(13 < 16, "SERIES_INFO_XXX too high");
+    static_assert(11 < 16, "SERIES_INFO_XXX too high");
 #endif
 
 

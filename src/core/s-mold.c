@@ -611,7 +611,7 @@ REBOOL Form_Reduce_Throws(
     Push_Mold(mo);
 
     DECLARE_FRAME (f);
-    Push_Frame_At(f, array, index, specifier, DO_FLAG_NORMAL);
+    Push_Frame_At(f, array, index, specifier, DO_MASK_NONE);
 
     REBOOL pending = FALSE;
 

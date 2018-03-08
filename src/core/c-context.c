@@ -1440,12 +1440,8 @@ void Assert_Context_Core(REBCTX *c)
         panic (varlist);
 
     REBARR *keylist = CTX_KEYLIST(c);
-
-    if (!CTX_KEYLIST(c))
+    if (keylist == NULL)
         panic (c);
-
-    if (GET_SER_INFO(keylist, CONTEXT_INFO_STACK))
-        panic (keylist);
 
     REBVAL *rootvar = CTX_VALUE(c);
     if (!ANY_CONTEXT(rootvar))
@@ -1457,7 +1453,7 @@ void Assert_Context_Core(REBCTX *c)
     if (keys_len < 1)
         panic (keylist);
 
-    if (GET_SER_INFO(CTX_VARLIST(c), CONTEXT_INFO_STACK)) {
+    if (GET_SER_FLAG(CTX_VARLIST(c), CONTEXT_FLAG_STACK)) {
         if (vars_len != 1)
             panic (varlist);
     }

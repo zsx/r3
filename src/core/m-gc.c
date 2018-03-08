@@ -124,16 +124,13 @@ static void Mark_Devices_Deep(void);
 //
 static inline void Mark_Rebser_Only(REBSER *s)
 {
-#if !defined(NDEBUG)
+  #if !defined(NDEBUG)
     if (NOT(IS_SERIES_MANAGED(s))) {
         printf("Link to non-MANAGED item reached by GC\n");
         panic (s);
     }
-#endif
+  #endif
     assert(NOT_SER_FLAG(s, SERIES_FLAG_ARRAY));
-
-    if (s->header.bits & SERIES_FLAG_FILE_LINE)
-        LINK(s).file->header.bits |= NODE_FLAG_MARKED;
     s->header.bits |= NODE_FLAG_MARKED;
 }
 
@@ -208,7 +205,7 @@ inline static void Queue_Mark_Array_Deep(REBARR *a) {
     assert(NOT_SER_FLAG(a, ARRAY_FLAG_PARAMLIST));
     assert(NOT_SER_FLAG(a, ARRAY_FLAG_PAIRLIST));
 
-    if (GET_SER_FLAG(a, SERIES_FLAG_FILE_LINE))
+    if (GET_SER_FLAG(a, ARRAY_FLAG_FILE_LINE))
         LINK(a).file->header.bits |= NODE_FLAG_MARKED;
 
     Queue_Mark_Array_Subclass_Deep(a);
@@ -216,10 +213,12 @@ inline static void Queue_Mark_Array_Deep(REBARR *a) {
 
 inline static void Queue_Mark_Context_Deep(REBCTX *c) {
     REBARR *a = CTX_VARLIST(c);
-    assert(GET_SER_FLAG(a, ARRAY_FLAG_VARLIST));
-    assert(NOT_SER_FLAG(a, ARRAY_FLAG_PARAMLIST));
-    assert(NOT_SER_FLAG(a, ARRAY_FLAG_PAIRLIST));
-    assert(NOT_SER_FLAG(a, SERIES_FLAG_FILE_LINE));
+    assert(
+        ARRAY_FLAG_VARLIST == (SER(a)->header.bits & (
+            ARRAY_FLAG_VARLIST | ARRAY_FLAG_PAIRLIST | ARRAY_FLAG_PARAMLIST
+            | ARRAY_FLAG_FILE_LINE
+        ))
+    );
 
     Queue_Mark_Array_Subclass_Deep(a);
 
@@ -230,10 +229,12 @@ inline static void Queue_Mark_Context_Deep(REBCTX *c) {
 
 inline static void Queue_Mark_Function_Deep(REBFUN *f) {
     REBARR *a = FUNC_PARAMLIST(f);
-    assert(GET_SER_FLAG(a, ARRAY_FLAG_PARAMLIST));
-    assert(NOT_SER_FLAG(a, ARRAY_FLAG_VARLIST));
-    assert(NOT_SER_FLAG(a, ARRAY_FLAG_PAIRLIST));
-    assert(NOT_SER_FLAG(a, SERIES_FLAG_FILE_LINE));
+    assert(
+        ARRAY_FLAG_PARAMLIST == (SER(a)->header.bits & (
+            ARRAY_FLAG_VARLIST | ARRAY_FLAG_PAIRLIST | ARRAY_FLAG_PARAMLIST
+            | ARRAY_FLAG_FILE_LINE
+        ))
+    );
 
     Queue_Mark_Array_Subclass_Deep(a);
 
@@ -244,11 +245,12 @@ inline static void Queue_Mark_Function_Deep(REBFUN *f) {
 
 inline static void Queue_Mark_Map_Deep(REBMAP *m) {
     REBARR *a = MAP_PAIRLIST(m);
-    assert(GET_SER_FLAG(a, ARRAY_FLAG_PAIRLIST));
-    assert(NOT_SER_FLAG(a, ARRAY_FLAG_PARAMLIST));
-    assert(NOT_SER_FLAG(a, ARRAY_FLAG_VARLIST));
-    assert(NOT_SER_FLAG(a, SERIES_FLAG_FILE_LINE));
-
+    assert(
+        ARRAY_FLAG_PAIRLIST == (SER(a)->header.bits & (
+            ARRAY_FLAG_VARLIST | ARRAY_FLAG_PAIRLIST | ARRAY_FLAG_PARAMLIST
+            | ARRAY_FLAG_FILE_LINE
+        ))
+    );
 
     Queue_Mark_Array_Subclass_Deep(a);
 
@@ -308,10 +310,12 @@ static void Queue_Mark_Opt_Value_Deep(const RELVAL *v);
 // faster by avoiding a queue step for the array node or walk.
 //
 inline static void Queue_Mark_Singular_Array(REBARR *a) {
-    assert(NOT_SER_FLAG(a, ARRAY_FLAG_PAIRLIST));
-    assert(NOT_SER_FLAG(a, ARRAY_FLAG_PARAMLIST));
-    assert(NOT_SER_FLAG(a, ARRAY_FLAG_VARLIST));
-    assert(NOT_SER_FLAG(a, SERIES_FLAG_FILE_LINE));
+    assert(
+        0 == (SER(a)->header.bits & (
+            ARRAY_FLAG_VARLIST | ARRAY_FLAG_PAIRLIST | ARRAY_FLAG_PARAMLIST
+            | ARRAY_FLAG_FILE_LINE
+        ))
+    );
 
     assert(NOT_SER_INFO(a, SERIES_INFO_HAS_DYNAMIC));
 
@@ -852,9 +856,8 @@ static void Propagate_All_GC_Marks(void)
             // functions with stack-bound arg and local lifetimes.  They are
             // just singular REBARRs with the FRAME! archetype value.
             //
-            assert(GET_SER_FLAG(a, ARRAY_FLAG_VARLIST));
-            assert(IS_FRAME(ARR_HEAD(a)));
-            assert(GET_SER_INFO(a, CONTEXT_INFO_STACK));
+            assert(ALL_SER_FLAGS(a, ARRAY_FLAG_VARLIST | CONTEXT_FLAG_STACK));
+            assert(IS_FRAME(ARR_SINGLE(a)));
             continue;
         }
 

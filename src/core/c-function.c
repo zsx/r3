@@ -1098,8 +1098,8 @@ REBFUN *Make_Function(
     // error).  That protection is now done to the frame series on reification
     // in order to be able to MAKE FRAME! and reuse the native's paramlist.
 
-    assert(NOT_SER_FLAG(paramlist, SERIES_FLAG_FILE_LINE));
-    assert(NOT_SER_FLAG(body_holder, SERIES_FLAG_FILE_LINE));
+    assert(NOT_SER_FLAG(paramlist, ARRAY_FLAG_FILE_LINE));
+    assert(NOT_SER_FLAG(body_holder, ARRAY_FLAG_FILE_LINE));
 
     return FUN(paramlist);
 }
@@ -1126,7 +1126,9 @@ REBFUN *Make_Function(
 //
 REBCTX *Make_Expired_Frame_Ctx_Managed(REBFUN *func)
 {
-    REBARR *varlist = Alloc_Singular_Array_Core(ARRAY_FLAG_VARLIST);
+    REBARR *varlist = Alloc_Singular_Array_Core(
+        ARRAY_FLAG_VARLIST | CONTEXT_FLAG_STACK
+    );
     MISC(varlist).meta = NULL; // seen by GC, must be initialized
     MANAGE_ARRAY(varlist);
 
@@ -1141,7 +1143,7 @@ REBCTX *Make_Expired_Frame_Ctx_Managed(REBFUN *func)
     // then that also means the data values are unavailable.
     //
     REBCTX *expired = CTX(varlist);
-    SET_SER_INFOS(varlist, CONTEXT_INFO_STACK | SERIES_INFO_INACCESSIBLE);
+    SET_SER_INFO(varlist, SERIES_INFO_INACCESSIBLE);
     INIT_CTX_KEYLIST_SHARED(expired, FUNC_PARAMLIST(func));
 
     return expired;
@@ -1293,7 +1295,7 @@ REBFUN *Make_Interpreted_Function_May_Fail(
 
         // We could reuse the EMPTY_ARRAY, however that would be a fairly
         // esoteric optimization...and also, it would not give us anywhere to
-        // put the SERIES_FLAG_FILE_LINE bits.
+        // put the ARRAY_FLAG_FILE_LINE bits.
         //
         body_array = Make_Array_Core(1, NODE_FLAG_MANAGED);
     }
@@ -1338,15 +1340,15 @@ REBFUN *Make_Interpreted_Function_May_Fail(
     //
     // Favor the spec first, then the body.
     //
-    if (GET_SER_FLAG(VAL_ARRAY(spec), SERIES_FLAG_FILE_LINE)) {
+    if (GET_SER_FLAG(VAL_ARRAY(spec), ARRAY_FLAG_FILE_LINE)) {
         LINK(body_array).file = LINK(VAL_ARRAY(spec)).file;
         MISC(body_array).line = MISC(VAL_ARRAY(spec)).line;
-        SET_SER_FLAG(body_array, SERIES_FLAG_FILE_LINE);
+        SET_SER_FLAG(body_array, ARRAY_FLAG_FILE_LINE);
     }
-    else if (GET_SER_FLAG(VAL_ARRAY(code), SERIES_FLAG_FILE_LINE)) {
+    else if (GET_SER_FLAG(VAL_ARRAY(code), ARRAY_FLAG_FILE_LINE)) {
         LINK(body_array).file = LINK(VAL_ARRAY(code)).file;
         MISC(body_array).line = MISC(VAL_ARRAY(code)).line;
-        SET_SER_FLAG(body_array, SERIES_FLAG_FILE_LINE);
+        SET_SER_FLAG(body_array, ARRAY_FLAG_FILE_LINE);
     }
     else {
         // Ideally all source series should have a file and line numbering

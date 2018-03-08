@@ -254,7 +254,7 @@ inline static REBARR *Make_Array_Core(REBCNT capacity, REBUPT flags)
 }
 
 #define Make_Array(capacity) \
-    Make_Array_Core((capacity), SERIES_FLAG_FILE_LINE)
+    Make_Array_Core((capacity), ARRAY_FLAG_FILE_LINE)
 
 // !!! Currently, many bits of code that make copies don't specify if they are
 // copying an array to turn it into a paramlist or varlist, or to use as the
@@ -269,14 +269,14 @@ inline static REBARR *Make_Array_For_Copy(
     REBARR *original
 ){
     if (
-        (flags & SERIES_FLAG_FILE_LINE)
+        (flags & ARRAY_FLAG_FILE_LINE)
         && original != NULL
-        && GET_SER_FLAG(original, SERIES_FLAG_FILE_LINE)
+        && GET_SER_FLAG(original, ARRAY_FLAG_FILE_LINE)
     ){
         REBARR *a = Make_Array_Core(capacity, 0);
         LINK(a).file = LINK(original).file;
         MISC(a).line = MISC(original).line;
-        SET_SER_FLAG(a, SERIES_FLAG_FILE_LINE);
+        SET_SER_FLAG(a, ARRAY_FLAG_FILE_LINE);
         return a;
     }
 
@@ -368,7 +368,7 @@ inline static REBARR* Copy_Array_At_Extra_Deep_Managed(
         specifier,
         ARR_LEN(original), // tail
         extra, // extra
-        SERIES_MASK_NONE, // no SERIES_FLAG_FILE_LINE by default
+        SERIES_MASK_NONE, // no ARRAY_FLAG_FILE_LINE by default
         TS_SERIES & ~TS_NOT_COPIED // types
     );
 }

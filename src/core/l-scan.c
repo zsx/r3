@@ -2345,7 +2345,7 @@ static REBARR *Scan_Child_Array(SCAN_STATE *ss, REBYTE mode_char)
     REBARR *a = Pop_Stack_Values_Core(dsp_orig, NODE_FLAG_MANAGED);
     MISC(a).line = ss->line;
     LINK(a).file = ss->file;
-    SET_SER_FLAG(a, SERIES_FLAG_FILE_LINE);
+    SET_SER_FLAG(a, ARRAY_FLAG_FILE_LINE);
 
     // The only variables that should actually be written back into the
     // parent ss are those reflecting an update in the "feed" of
@@ -2442,7 +2442,7 @@ REBARR *Scan_Va_Managed(
 
     MISC(a).line = ss.line;
     LINK(a).file = ss.file;
-    SET_SER_FLAG(a, SERIES_FLAG_FILE_LINE);
+    SET_SER_FLAG(a, ARRAY_FLAG_FILE_LINE);
 
     // !!! While in practice every system has va_end() as a no-op, it's not
     // necessarily true from a standards point of view:
@@ -2477,7 +2477,7 @@ REBARR *Scan_UTF8_Managed(REBSTR *filename, const REBYTE *utf8, REBCNT size)
     REBARR *a = Pop_Stack_Values_Core(dsp_orig, NODE_FLAG_MANAGED);
     MISC(a).line = ss.line;
     LINK(a).file = ss.file;
-    SET_SER_FLAG(a, SERIES_FLAG_FILE_LINE);
+    SET_SER_FLAG(a, ARRAY_FLAG_FILE_LINE);
 
     return a;
 }
@@ -2601,7 +2601,7 @@ REBNATIVE(transcode)
     REBARR *a = Pop_Stack_Values_Core(dsp_orig, NODE_FLAG_MANAGED);
     MISC(a).line = ss.line;
     LINK(a).file = ss.file;
-    SET_SER_FLAG(a, SERIES_FLAG_FILE_LINE);
+    SET_SER_FLAG(a, ARRAY_FLAG_FILE_LINE);
 
     Init_Block(D_OUT, a);
 

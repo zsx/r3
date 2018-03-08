@@ -103,7 +103,7 @@ REBOOL Reduce_Any_Array_Throws(
             out,
             VAL_TYPE(any_array),
             Pop_Stack_Values_Core(
-                dsp_orig, NODE_FLAG_MANAGED | SERIES_FLAG_FILE_LINE
+                dsp_orig, NODE_FLAG_MANAGED | ARRAY_FLAG_FILE_LINE
             )
         );
 
@@ -328,7 +328,7 @@ REBOOL Compose_Any_Array_Throws(
             out,
             VAL_TYPE(any_array),
             Pop_Stack_Values_Core(
-                dsp_orig, NODE_FLAG_MANAGED | SERIES_FLAG_FILE_LINE
+                dsp_orig, NODE_FLAG_MANAGED | ARRAY_FLAG_FILE_LINE
             )
         );
 

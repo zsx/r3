@@ -1868,7 +1868,7 @@ reevaluate:;
             //
             DS_PUSH_RELVAL(current, f->specifier);
 
-            REBFLGS flags = DO_FLAG_NORMAL | DO_FLAG_FULFILLING_SET; // /NEXT
+            REBFLGS flags = DO_FLAG_FULFILLING_SET; // not DO_FLAG_TO_END
 
             if (Do_Next_Mid_Frame_Throws(f, flags)) { // light reuse of `f`
                 DS_DROP;
@@ -2084,7 +2084,7 @@ reevaluate:;
             //
             DS_PUSH_RELVAL(current, f->specifier);
 
-            REBFLGS flags = DO_FLAG_NORMAL | DO_FLAG_FULFILLING_SET; // /NEXT
+            REBFLGS flags = DO_FLAG_FULFILLING_SET; // not DO_FLAG_TO_END
 
             if (Do_Next_Mid_Frame_Throws(f, flags)) { // light reuse of `f`
                 DS_DROP;

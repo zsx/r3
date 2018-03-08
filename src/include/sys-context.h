@@ -189,7 +189,7 @@ inline static REBFRM *CTX_FRAME_MAY_FAIL(REBCTX *c) {
 }
 
 inline static REBVAL *CTX_VARS_HEAD(REBCTX *c) {
-    if (NOT_SER_INFO(CTX_VARLIST(c), CONTEXT_INFO_STACK))
+    if (NOT_SER_FLAG(CTX_VARLIST(c), CONTEXT_FLAG_STACK))
         return KNOWN(ARR_AT(CTX_VARLIST(c), 1));
 
     REBFRM *f = CTX_FRAME_IF_ON_STACK(c);
@@ -245,7 +245,7 @@ inline static REBOOL CTX_VARS_UNAVAILABLE(REBCTX *c) {
     // of a stack context is the only case that should happen today.
     //
     if (GET_SER_INFO(CTX_VARLIST(c), SERIES_INFO_INACCESSIBLE)) {
-        assert(GET_SER_INFO(CTX_VARLIST(c), CONTEXT_INFO_STACK));
+        assert(GET_SER_FLAG(CTX_VARLIST(c), CONTEXT_FLAG_STACK));
         return TRUE;
     }
     return FALSE;

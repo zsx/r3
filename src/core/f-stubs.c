@@ -397,10 +397,10 @@ REBVAL *Init_Any_Context_Core(
     RELVAL *out, // allows RELVAL slot as input, but will be filled w/REBVAL
     enum Reb_Kind kind,
     REBCTX *c
-) {
-#if defined(NDEBUG)
+){
+  #if defined(NDEBUG)
     UNUSED(kind);
-#else
+  #else
     //
     // In a debug build we check to make sure the type of the embedded value
     // matches the type of what is intended (so someone who thinks they are
@@ -418,11 +418,8 @@ REBVAL *Init_Any_Context_Core(
 
     assert(GET_SER_FLAG(varlist, ARRAY_FLAG_VARLIST));
 
-    if (GET_SER_FLAG(varlist, SERIES_FLAG_FILE_LINE))
-        panic (varlist);
-
-    assert(NOT_SER_FLAG(varlist, SERIES_FLAG_FILE_LINE));
-    assert(NOT_SER_FLAG(keylist, SERIES_FLAG_FILE_LINE));
+    assert(NOT_SER_FLAG(varlist, ARRAY_FLAG_FILE_LINE));
+    assert(NOT_SER_FLAG(keylist, ARRAY_FLAG_FILE_LINE));
 
     if (IS_FRAME(CTX_VALUE(c)))
         assert(IS_FUNCTION(CTX_FRAME_FUNC_VALUE(c)));
@@ -434,7 +431,7 @@ REBVAL *Init_Any_Context_Core(
         MISC(varlist).meta == NULL
         || ANY_CONTEXT(CTX_VALUE(MISC(varlist).meta))
     );
-#endif
+  #endif
 
     // Some contexts (stack frames in particular) start out unmanaged, and
     // then check to see if an operation like Init_Any_Context set them to

@@ -956,13 +956,14 @@ REBSER *Make_Series_Core(REBCNT capacity, REBYTE wide, REBUPT flags)
     // stack and propagate whatever file and line number information it might
     // know about from the source it's running onto this series.
     //
-    if (flags & SERIES_FLAG_FILE_LINE) {
+    if (flags & ARRAY_FLAG_FILE_LINE) {
+        assert(flags & SERIES_FLAG_ARRAY);
         if (FS_TOP != NULL) {
             LINK(s).file = FRM_FILE(FS_TOP);
             MISC(s).line = FRM_LINE(FS_TOP);
         }
         else
-            CLEAR_SER_FLAG(s, SERIES_FLAG_FILE_LINE);
+            CLEAR_SER_FLAG(s, ARRAY_FLAG_FILE_LINE);
     }
 
     assert(s->info.bits & NODE_FLAG_END);

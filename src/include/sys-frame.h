@@ -131,8 +131,8 @@ inline static REBSTR* FRM_FILE(REBFRM *f) {
     if (f->source.array == NULL)
         return Canon(SYM___ANONYMOUS__);
 
-    if (NOT_SER_FLAG(f->source.array, SERIES_FLAG_FILE_LINE))
-        return Canon(SYM___ANONYMOUS__);;
+    if (NOT_SER_FLAG(f->source.array, ARRAY_FLAG_FILE_LINE))
+        return Canon(SYM___ANONYMOUS__);
 
     return LINK(f->source.array).file;
 }
@@ -145,7 +145,7 @@ inline static int FRM_LINE(REBFRM *f) {
     if (f->source.array == NULL)
         return 0;
 
-    if (NOT_SER_FLAG(f->source.array, SERIES_FLAG_FILE_LINE))
+    if (NOT_SER_FLAG(f->source.array, ARRAY_FLAG_FILE_LINE))
         return 0;
 
     return MISC(SER(f->source.array)).line;
@@ -574,7 +574,7 @@ inline static void Drop_Function_Core(
     assert(cast(REBFRM*, LINK(f->varlist).keysource) == f);
     LINK(f->varlist).keysource = NOD(FUNC_PARAMLIST(f->original));
 
-    if (NOT_SER_INFO(f->varlist, CONTEXT_INFO_STACK)) {
+    if (NOT_SER_FLAG(f->varlist, CONTEXT_FLAG_STACK)) {
         //
         // If there's no stack memory being tracked by this context, it
         // has dynamic memory and is being managed by the garbage collector

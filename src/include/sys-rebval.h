@@ -98,7 +98,7 @@
 //     }
 //
 #define VALUE_FLAG_THROWN \
-    NODE_FLAG_SPECIAL
+    FLAGIT_LEFT(GENERAL_CELL_BIT + 0)
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -124,7 +124,7 @@
 // reclaim the bit for a "higher purpose".
 //
 #define VALUE_FLAG_FALSEY \
-    FLAGIT_LEFT(GENERAL_CELL_BIT + 0)
+    FLAGIT_LEFT(GENERAL_CELL_BIT + 1)
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -144,7 +144,7 @@
 // name considering its similarity to `newline` the line feed char.
 //
 #define VALUE_FLAG_LINE \
-    FLAGIT_LEFT(GENERAL_CELL_BIT + 1)
+    FLAGIT_LEFT(GENERAL_CELL_BIT + 2)
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -170,7 +170,7 @@
 // That has a lot of impact for the new user experience.
 //
 #define VALUE_FLAG_UNEVALUATED \
-    FLAGIT_LEFT(GENERAL_CELL_BIT + 2)
+    FLAGIT_LEFT(GENERAL_CELL_BIT + 3)
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -196,7 +196,7 @@
 // !!! This feature is a work in progress.
 //
 #define CELL_FLAG_STACK \
-    FLAGIT_LEFT(GENERAL_CELL_BIT + 3)
+    FLAGIT_LEFT(GENERAL_CELL_BIT + 4)
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -209,23 +209,14 @@
 // OP! which would acquire its first argument from the left hand side.  In
 // Ren-C, there is only one kind of function, but it's possible to tag a
 // particular function value cell in a context as being "enfixed", hence it
-// will acquire its first argument from the left.
+// will acquire its first argument from the left.  See SET/ENFIX and ENFIX.
 //
 // This bit is not copied by Move_Value.  As a result, if you say something
 // like `foo: :+`, foo will contain the non-enfixed form of the function.
 //
-// !!! The feature of not carrying over enfixedness in assignment was designed
-// as part of the "OneFunction" initiative, to try and make it so that when
-// something like a SORT function was passed a comparator, it would not have
-// to worry about that function being infix or not.  However, the addition of
-// the <tight> parameter convention throws in a potential wrench to the idea
-// that callees can somehow ignore variances in how functions process their
-// arguments.  It may be that this should be a function flag, and carried
-// over normally...but conservatively the feature is implemented like this.
-//
 
 #define VALUE_FLAG_ENFIXED \
-    FLAGIT_LEFT(GENERAL_CELL_BIT + 4)
+    FLAGIT_LEFT(GENERAL_CELL_BIT + 5)
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -247,7 +238,7 @@
 // shared NODE_FLAG_PROTECTED in common.)
 
 #define CELL_FLAG_PROTECTED \
-    FLAGIT_LEFT(GENERAL_CELL_BIT + 5)
+    FLAGIT_LEFT(GENERAL_CELL_BIT + 6)
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -265,15 +256,14 @@
 //
 
 #define VALUE_FLAG_EVAL_FLIP \
-    FLAGIT_LEFT(GENERAL_CELL_BIT + 6)
+    FLAGIT_LEFT(GENERAL_CELL_BIT + 7)
 
 
 
 // v-- BEGIN TYPE SPECIFIC BITS HERE
 
 
-#define TYPE_SPECIFIC_BIT \
-    (GENERAL_CELL_BIT + 7)
+#define TYPE_SPECIFIC_BIT (GENERAL_CELL_BIT + 8)
 
 
 //=////////////////////////////////////////////////////////////////////////=//
