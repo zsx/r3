@@ -148,7 +148,7 @@ void Assert_State_Balanced_Debug(
 
 
 //
-//  Trapped_Helper_Halted: C
+//  Trapped_Helper: C
 //
 // This do the work of responding to a longjmp.  (Hence it is run when setjmp
 // returns TRUE.)  Its job is to safely recover from a sudden interruption,

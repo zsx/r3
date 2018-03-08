@@ -1087,26 +1087,15 @@ void Startup_Core(void)
 
 //==//////////////////////////////////////////////////////////////////////==//
 //
-// TEST EARLY BOOT PANIC AND FAIL
-//
-//==//////////////////////////////////////////////////////////////////////==//
-
-    // It should be legal to panic at any time (especially given that the
-    // low bar for behavior is "crash out").  fail() is more complex since it
-    // uses error objects which require the system to be initialized, so it
-    // should fall back to being a panic at early boot phases.
-
-  #if defined(TEST_EARLY_BOOT_PANIC)
-    panic ("early panic test");
-  #elif defined(TEST_EARLY_BOOT_FAIL)
-    fail (Error_No_Value_Raw(BLANK_VALUE));
-  #endif
-
-//==//////////////////////////////////////////////////////////////////////==//
-//
 // INITIALIZE BASIC DIAGNOSTICS
 //
 //==//////////////////////////////////////////////////////////////////////==//
+
+  #if defined(TEST_EARLY_BOOT_PANIC)
+    panic ("early panic test"); // should crash
+  #elif defined(TEST_EARLY_BOOT_FAIL)
+    fail (Error_No_Value_Raw(BLANK_VALUE)); // same as panic (crash)
+  #endif
 
   #ifndef NDEBUG
     PG_Always_Malloc = FALSE;
@@ -1159,10 +1148,7 @@ void Startup_Core(void)
 
     Startup_Task();
 
-    // !!! REVIEW: Init_Function_Tags() uses BUF_UTF8, not available until
-    // this point in time.
-    //
-    Init_Function_Tags();
+    Init_Function_Tags(); // !!! Note: uses BUF_UTF8, not available until here
 
 //==//////////////////////////////////////////////////////////////////////==//
 //
@@ -1304,22 +1290,15 @@ void Startup_Core(void)
     PG_Boot_Phase = BOOT_ERRORS;
 
   #if defined(TEST_MID_BOOT_PANIC)
-    //
-    // At this point panics should be able to do a reasonable job of giving
-    // details on Rebol types.
-    //
-    panic (EMPTY_ARRAY);
+    panic (EMPTY_ARRAY); // panics should be able to give some details by now
   #elif defined(TEST_MID_BOOT_FAIL)
-    //
-    // With no PUSH_TRAP yet, fail should give a localized assert in a debug
-    // build, and panic the release build.
-    //
-    fail (Error_No_Value_Raw(BLANK_VALUE));
+    fail (Error_No_Value_Raw(BLANK_VALUE)); // DEBUG->assert, RELEASE->panic
   #endif
 
-    // Special pre-made errors:
+    // Pre-make the stack overflow error (so it doesn't need to be made
+    // during a stack overflow)
+    //
     Init_Error(TASK_STACK_ERROR, Error_Stack_Overflow_Raw());
-
 
 //==//////////////////////////////////////////////////////////////////////==//
 //
@@ -1365,17 +1344,8 @@ void Startup_Core(void)
     PG_Boot_Phase = BOOT_DONE;
 
   #if !defined(NDEBUG)
-    //
-    // This memory check from R3-Alpha is somewhat superfluous, but include a
-    // call to it during Init in the debug build, because otherwise no one
-    // will think to keep it up to date and working.
-    //
-    Check_Memory_Debug();
-
-    // We can only do a check of the pointer detection service after the
-    // system is somewhat initialized.
-    //
-    Assert_Pointer_Detection_Working();
+    Check_Memory_Debug(); // old R3-Alpha check, call here to keep it working
+    Assert_Pointer_Detection_Working(); // can't be done too early in boot
   #endif
 
     Recycle(); // necessary?
@@ -1409,16 +1379,8 @@ static REBVAL *Startup_Mezzanine(BOOT_BLK *boot)
         fail (Error_No_Catch_For_Throw(result));
     }
 
-    if (!IS_VOID(result)) {
-        //
-        // !!! `finish-init-core` Rebol code should return void, but it may be
-        // that more graceful error delivery than a panic should be given if
-        // it does not.  It may be that fairly legitimate circumstances which
-        // the user could fix would cause a more ordinary message delivery.
-        // For the moment, though, we panic on any non-void return result.
-        //
-        panic (result);
-    }
+    if (NOT(IS_VOID(result)))
+        panic (result); // FINISH-INIT-CORE returns void by convention
 
     return NULL;
 }
@@ -1444,28 +1406,18 @@ static REBVAL *Startup_Mezzanine(BOOT_BLK *boot)
 void Shutdown_Core(void)
 {
   #if !defined(NDEBUG)
-    //
-    // This memory check from R3-Alpha is somewhat superfluous, but include a
-    // call to it during Shutdown in the debug build, because otherwise no one
-    // will think to keep it up to date and working.
-    //
-    Check_Memory_Debug();
+    Check_Memory_Debug(); // old R3-Alpha check, call here to keep it working
   #endif
 
-    assert(!Saved_State);
+    assert(Saved_State == NULL);
 
     Shutdown_Stacks();
 
-    // Run Recycle, but the TRUE flag indicates we want every series
-    // that is managed to be freed.  (Only unmanaged should be left.)
-    // We remove the only two root contexts that the Startup_Core process added
-    // -however- there may be other roots.  But by this point, the roots
-    // created by Alloc_Pairing() with an owning context should be freed.
-    //
     CLEAR_SER_FLAG(PG_Root_Array, NODE_FLAG_ROOT);
     CLEAR_SER_FLAG(TG_Task_Array, NODE_FLAG_ROOT);
 
-    Recycle_Core(TRUE, NULL);
+    const REBOOL shutdown = TRUE; // go ahead and free all managed series
+    Recycle_Core(shutdown, NULL);
 
     Shutdown_Event_Scheme();
     Shutdown_CRC();
