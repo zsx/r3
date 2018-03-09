@@ -344,7 +344,12 @@ matrix:
         - HOST=arm-eabi
         - FFI="no"
         - ODBC_REQUIRES_LTDL="no"
-
+        - TCC="arm-tcc"
+        - ARCH_CFLAGS="-DANDROID -DTCC_ARM_EABI -DTCC_ARM_VFP -DTCC_ARM_HARDFLOAT"
+      addons:
+        apt:
+          packages:
+            - gcc-multilib # for cross-compiling
 
     # Emscripten, Node, debug
     #
@@ -425,7 +430,7 @@ script:
 
     - TOP_DIR=${PWD}
     - |
-      if [[ ${OS_ID} = "0.13.2" || ${OS_ID} = "0.13.1" ]]; then
+      if [[ ${OS_ID} = "0.13.2" ]]; then
           if [ `uname -m` = x86_64 ]; then
               wget https://github.com/giuliolunati/android-travis/releases/download/v1.0.0/android-ndk-r13.tgz
               export ANDROID_NDK=$TOP_DIR/android-ndk-r13
@@ -436,7 +441,7 @@ script:
           echo $PWD
           ls -dl $PWD/android-ndk-r13
           export TOOLS=$ANDROID_NDK/toolchains/arm-linux-androideabi-4.9/prebuilt/linux-x86_64/bin/arm-linux-androideabi-
-          export EXTRA_CC_FLAGS="--sysroot=$ANDROID_NDK/platforms/android-19/arch-arm"
+          export SYSROOT="--sysroot=$ANDROID_NDK/platforms/android-19/arch-arm"
       fi
       if [[ ${OS_ID} = "0.3.40" || ${OS_ID} = "0.3.1" ]]; then
           # Use prebuilt binaries
@@ -499,6 +504,8 @@ script:
                   ${TOP_DIR}/external/tcc/configure --cpu=x86 --extra-cflags="-DEMBEDDED_IN_R3 ${ARCH_CFLAGS}"
               elif [[ ${OS_ID} == "0.3.1" ]]; then #x86-win32
                   ${TOP_DIR}/external/tcc/configure --cpu=x86 --extra-cflags="-DEMBEDDED_IN_R3" --enable-mingw32 --cross-prefix=${TOOLS}
+              elif [[ ${OS_ID} == "0.13.2" ]]; then #arm-android5
+                  ${TOP_DIR}/external/tcc/configure --cpu=arm --extra-cflags="-DEMBEDDED_IN_R3 ${ARCH_CFLAGS} ${SYSROOT}" --cross-prefix=${TOOLS}
               else #x86_64-win32
                   ${TOP_DIR}/external/tcc/configure --enable-mingw32 --cpu=x86_64 --extra-cflags="-DEMBEDDED_IN_R3" --cross-prefix=${TOOLS}
               fi
@@ -513,6 +520,8 @@ script:
                   ${TOP_DIR}/external/tcc/configure --cpu=x86 --extra-cflags="-DEMBEDDED_IN_R3 ${ARCH_CFLAGS}"
               elif [[ ${OS_ID} == "0.3.1" ]]; then #x86-win32
                   ${TOP_DIR}/external/tcc/configure --cpu=x86 --extra-cflags="-DEMBEDDED_IN_R3" --cross-prefix=${TOOLS}
+              elif [[ ${OS_ID} == "0.13.2" ]]; then #arm-android5
+                  ${TOP_DIR}/external/tcc/configure --cpu=arm --extra-cflags="-DEMBEDDED_IN_R3 ${ARCH_CFLAGS} ${SYSROOT}" --cross-prefix=${TOOLS}
               else #x86_64-win32
                   ${TOP_DIR}/external/tcc/configure --cpu=x86_64 --extra-cflags="-DEMBEDDED_IN_R3" --cross-prefix=${TOOLS}
               fi
@@ -525,6 +534,7 @@ script:
               ls #take a look at files under current directory
               echo "make libtcc1.a"
               make libtcc1.a XCC=${TOOLS}gcc XAR=${TOOLS}ar
+              ${TOOLS}ar d libtcc1.a armeabi.o #avoid linking conflict with libtcc.a
 
               echo "Looking for symbol r3_tcc_alloca"
               if [[ ${OS_ID} == "0.3.1" ]]; then #x86-win32

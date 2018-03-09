@@ -25,7 +25,8 @@ tools-dir: make-dir/tools
 change-dir output-dir: system/options/path 
 src-dir: append copy make-dir %../src
 src-dir: relative-to-path src-dir output-dir
-
+tcc-dir: append copy make-dir %../external/tcc
+tcc-dir: relative-to-path tcc-dir output-dir
 user-config: make object! load make-dir/default-config.r
 
 ;;;; PROCESS ARGS
@@ -258,7 +259,7 @@ parse-ext-build-spec: function [
 
 ; Discover extensions:
 use [extension-dir entry][
-    extension-dir: %../src/extensions/
+    extension-dir: src-dir/extensions/%
     for-each entry read extension-dir [
         ;print ["entry:" mold entry]
         if all [
@@ -951,11 +952,11 @@ case [
         tcc-rootdir: either file? user-config/with-tcc [
             first split-path user-config/with-tcc
         ][
-            %../external/tcc/
+            tcc-dir/%
         ]
         cfg-tcc: make object! [
             exec-file: join-of tcc-rootdir any [get-env "TCC" %tcc]
-            includes: [%../external/tcc]
+            includes: reduce [tcc-dir]
             searches: reduce [tcc-rootdir]
             libraries: reduce [tcc-rootdir/libtcc1.a tcc-rootdir/libtcc.a]
             cpp-flags: get-env "TCC_CPP_EXTRA_FLAGS" ; extra cpp flags passed to tcc for preprocess %sys-core.i
@@ -1486,7 +1487,7 @@ prep: make rebmake/entry-class [
                     output: %prep/include/sys-core.i
                     source: src-dir/include/sys-core.h
                     definitions: join-of app-config/definitions [ {DEBUG_STDIO_OK} ]
-                    includes: append-of app-config/includes [%../external/tcc %../external/tcc/include]
+                    includes: append-of app-config/includes reduce [tcc-dir tcc-dir/include]
                     cflags: append-of append-of [ {-dD} {-nostdlib} ] opt cfg-ffi/cflags opt cfg-tcc/cpp-flags
                 ]
                 reduce [
