@@ -323,16 +323,13 @@ inline static REBARR *Alloc_Singular_Array_Core(REBUPT flags) {
 
 
 #define Copy_Values_Len_Shallow(v,s,l) \
-    Copy_Values_Len_Extra_Skip_Shallow_Core((v), (s), (l), 0, 1, 0)
+    Copy_Values_Len_Extra_Shallow_Core((v), (s), (l), 0, 0)
 
 #define Copy_Values_Len_Shallow_Core(v,s,l,f) \
-    Copy_Values_Len_Extra_Skip_Shallow_Core((v), (s), (l), 0, 1, (f))
+    Copy_Values_Len_Extra_Shallow_Core((v), (s), (l), 0, (f))
 
-#define Copy_Values_Len_Reversed_Shallow(v,s,l) \
-    Copy_Values_Len_Extra_Skip_Shallow_Core((v), (s), (l), 0, -1, 0)
-
-#define Copy_Values_Len_Extra_Shallow(v, s, l, e) \
-    Copy_Values_Len_Extra_Skip_Shallow_Core((v), (s), (l), (e), 1, 0) 
+#define Copy_Values_Len_Extra_Shallow(v,s,l,e) \
+    Copy_Values_Len_Extra_Shallow_Core((v), (s), (l), (e), 0) 
 
 
 #define Copy_Array_Shallow(a,s) \

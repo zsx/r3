@@ -277,6 +277,39 @@ REBNATIVE(function_of)
 
 
 //
+//  parent-of: native [
+//
+//  "Get the parent of a FRAME!"
+//
+//      return: [blank! frame!]
+//      frame [frame!]
+//  ]
+//
+REBNATIVE(parent_of)
+{
+    INCLUDE_PARAMS_OF_PARENT_OF;
+
+    REBVAL *frame = ARG(frame);
+
+    // We only want to return frames that are actual function frames (though
+    // `pending? = true` ones count).
+    //
+    REBFRM *f = CTX_FRAME_MAY_FAIL(VAL_CONTEXT(frame));
+    while ((f = f->prior) != NULL) {
+        if (Is_Function_Frame(f)) {
+            Init_Any_Context(
+                D_OUT, REB_FRAME, Context_For_Frame_May_Reify_Managed(f)
+            );
+            D_OUT->payload.any_context.phase = f->phase;
+            return R_OUT;
+        }
+    }
+
+    return R_BLANK;
+}
+
+
+//
 //  Is_Context_Running_Or_Pending: C
 //
 REBOOL Is_Context_Running_Or_Pending(REBCTX *frame_ctx)

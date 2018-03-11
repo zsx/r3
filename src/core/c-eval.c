@@ -746,9 +746,11 @@ reevaluate:;
 
                 if (f->doing_pickups) {
                     f->param = END; // !Is_Function_Frame_Fulfilling
+                    assert(f->special != f->arg); // not just typechecking
                   #if !defined(NDEBUG)
                     f->arg = m_cast(REBVAL*, END); // checked after
                   #endif
+                    assert(f->special != f->arg); // preserved invariant
                     break;
                 }
 
@@ -1384,6 +1386,17 @@ reevaluate:;
         // been marched to an end cell...or just be the NULL it started with
         //
         assert(f->special == NULL || IS_END(f->special));
+
+        if (f->special == f->arg) { // just typechecking...
+            if (f->varlist != NULL)
+                assert(NOT_SER_INFO(f->varlist, SERIES_INFO_INACCESSIBLE));
+        }
+        else { // was fulfilling...
+            if (f->varlist != NULL) {
+                assert(GET_SER_INFO(f->varlist, SERIES_INFO_INACCESSIBLE));
+                CLEAR_SER_INFO(f->varlist, SERIES_INFO_INACCESSIBLE);
+            }
+        }
 
         // While having the rule that arg terminates isn't strictly necessary,
         // it is a useful tool...and implicit termination makes it as cheap

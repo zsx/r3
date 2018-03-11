@@ -603,18 +603,29 @@ void RL_rebElide(const void *p, ...)
 
 
 //
-//  rebDoValue: RL_API
+//  rebRunInline: RL_API
 //
 // Non-variadic function which takes a single argument which must be a single
-// value.  It invokes the basic behavior of the DO native on a value.
+// value that is a BLOCK! or GROUP!.  The goal is that it not add an extra
+// stack level the way calling DO would.  This is important for instance in
+// the console, so that BACKTRACE does not look up and see a Rebol function
+// like DO on the stack.
 //
-// !!! This should be replaced with a variadic rebDo() which is able to take
-// an expression to pass to DO, e.g. an expression which calculates a FILE!.
-// That should be done when old instances of rebDo() are changed to rebRun().
+// !!! This may be replaceable with `rebRun(rebInline(v), END);` or something
+// similar.
 //
-REBVAL *RL_rebDoValue(const REBVAL *v)
+REBVAL *RL_rebRunInline(const REBVAL *array)
 {
-    return rebRun(rebEval(NAT_VALUE(do)), v, END);
+    Enter_Api();
+
+    if (NOT(IS_BLOCK(array)) && NOT(IS_GROUP(array)))
+        fail ("rebRunInline() only supports BLOCK! and GROUP!");
+
+    DECLARE_LOCAL (group);
+    Move_Value(group, array);
+    VAL_SET_TYPE_BITS(group, REB_GROUP);
+
+    return rebRun(rebEval(NAT_VALUE(eval)), group, END);
 }
 
 

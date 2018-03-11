@@ -231,25 +231,6 @@ REBARR *Pop_Stack_Values_Core(REBDSP dsp_start, REBUPT flags)
 
 
 //
-//  Pop_Stack_Values_Reversed: C
-//
-// Pops computed values from the stack to make a new ARRAY, but reverses the
-// data so the last pushed item is the first in the array.
-//
-REBARR *Pop_Stack_Values_Reversed(REBDSP dsp_start)
-{
-    REBARR *array = Copy_Values_Len_Reversed_Shallow(
-        DS_TOP, // start at DS_TOP, work backwards somewhere in the stack
-        SPECIFIED, // data stack should be fully specified--no relative values
-        DSP - dsp_start // len
-    );
-
-    DS_DROP_TO(dsp_start);
-    return array;
-}
-
-
-//
 //  Pop_Stack_Values_Into: C
 //
 // Pops computed values from the stack into an existing ANY-ARRAY.  The
@@ -276,38 +257,33 @@ void Pop_Stack_Values_Into(REBVAL *into, REBDSP dsp_start) {
 //
 //  Context_For_Frame_May_Reify_Managed: C
 //
-// A Reb_Frame does not allocate a REBSER for its frame to be used in the
-// context by default.  But one can be allocated on demand, even for a NATIVE!
-// in order to have a binding location for the debugger (for instance).
-// If it becomes necessary to create words bound into the frame that is
-// another case where the frame needs to be brought into existence.
+// A Reb_Frame does not allocate a series node for it to be used in FRAME!
+// any_context payloads by default.  Operations like `context of 'return` will
+// allocate them.  The debugger can even make them for native functions for
+// stack introspection (though they should be read-only for user access).
 //
-// If there's already a frame this will return it, otherwise create it.
+// !!! Techniques are planned to allow REBVAL* with any_context payloads that
+// point directly at REBFRM* with no series node the GC has to process.  This
+// would only be possible if the cell storing its lifetime is not longer than
+// the lifetime of the REBFRM*.  (This is similar to how REBFRM* are permitted
+// in "direct binding" slots.)
+//
+// If there's already a frame this returns it, otherwise create it.  The
+// managed status is so it's safe to refer to from FRAME! REBVAL*, since the
+// arguments and locals in the frame's contents are marked by the frame stack.
 //
 REBCTX *Context_For_Frame_May_Reify_Managed(REBFRM *f)
 {
     assert(Is_Function_Frame(f));
-    assert(NOT(Is_Function_Frame_Fulfilling(f)));
-
-    if (f->varlist != NULL) {
-        assert(GET_SER_FLAG(f->varlist, ARRAY_FLAG_VARLIST));
+    if (f->varlist != NULL)
         return CTX(f->varlist);
-    }
 
     f->varlist = Alloc_Singular_Array_Core(
-        ARRAY_FLAG_VARLIST | CONTEXT_FLAG_STACK
+        ARRAY_FLAG_VARLIST | CONTEXT_FLAG_STACK | NODE_FLAG_MANAGED
     );
     MISC(f->varlist).meta = NULL; // seen by GC, must initialize
+    LINK(f->varlist).keysource = NOD(f); // see notes on LINK().keysource
 
-    // When running a function frame, the arglist will be marked safe from
-    // GC. It is managed because the pointer makes its way into bindings that
-    // ANY-WORD! values may have, and they need to not crash.
-    //
-    // !!! Note that theoretically pending mode arrays do not need GC
-    // access as no running code could get them, but the debugger is
-    // able to access this information.  This is under review for how it
-    // might be stopped.
-    //
     REBVAL *rootvar = SINK(ARR_SINGLE(f->varlist));
     VAL_RESET_HEADER(rootvar, REB_FRAME);
     rootvar->payload.any_context.varlist = f->varlist;
@@ -326,15 +302,23 @@ REBCTX *Context_For_Frame_May_Reify_Managed(REBFRM *f)
     // running...which should not stop FRM_ARG from working in the native
     // itself, but should stop modifications from user code.
     //
-    LINK(f->varlist).keysource = NOD(f);
     if (f->flags.bits & DO_FLAG_NATIVE_HOLD)
         SET_SER_INFO(f->varlist, SERIES_INFO_HOLD);
 
+    if (Is_Function_Frame_Fulfilling(f)) {
+        //
+        // Generally only the debugger should be able to reify a function
+        // frame that is still fulfilling.  (TBD: Enforce this?)  However it
+        // needs to be possible, because the userspace debugger has to have
+        // some way of modeling the in-progress stack, and it doesn't make
+        // much sense to do this with anything but a FRAME! value.  But a
+        // frame in such a state must not permit access to fields.
+        //
+        SET_SER_INFO(f->varlist, SERIES_INFO_INACCESSIBLE);
+    }
+
     REBCTX *c = CTX(f->varlist);
     ASSERT_ARRAY_MANAGED(CTX_KEYLIST(c));
-    MANAGE_ARRAY(f->varlist);
-
     ASSERT_CONTEXT(c);
-    assert(NOT(CTX_VARS_UNAVAILABLE(c)));
     return c;
 }

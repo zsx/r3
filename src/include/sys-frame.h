@@ -589,7 +589,8 @@ inline static void Drop_Function_Core(
 
     assert(NOT_SER_INFO(f->varlist, SERIES_INFO_HAS_DYNAMIC));
 
-    assert(NOT_SER_INFO(f->varlist, SERIES_INFO_INACCESSIBLE));
+    if (drop_chunks)
+        assert(NOT_SER_INFO(f->varlist, SERIES_INFO_INACCESSIBLE));
     SET_SER_INFO(f->varlist, SERIES_INFO_INACCESSIBLE);
 
 finished:

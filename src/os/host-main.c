@@ -324,10 +324,11 @@ struct sandbox_info {
 
 REBVAL *Run_Sandboxed_Code(struct sandbox_info *info) {
     //
-    // !!! Change this to rebRun("lib/do", ...) when binding logic is fixed,
-    // so the argument doesn't get rebound.
+    // Don't want to use DO here, because that would add an extra stack
+    // level of Rebol FUNCTION! in the backtrace.  See notes on rebRunInline()
+    // for its possible future.
     //
-    info->result = rebDoValue(info->group_or_block);
+    info->result = rebRunInline(info->group_or_block);
     return rebBlank(); // distinct type from rebRescue() ERROR! trapping
 }
 

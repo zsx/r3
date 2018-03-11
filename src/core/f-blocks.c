@@ -101,25 +101,24 @@ REBARR *Copy_Array_At_Max_Shallow(
 
 
 //
-//  Copy_Values_Len_Extra_Skip_Shallow_Core: C
+//  Copy_Values_Len_Extra_Shallow_Core: C
 //
 // Shallow copy the first 'len' values of `head` into a new
 // series created to hold exactly that many entries.
 //
-REBARR *Copy_Values_Len_Extra_Skip_Shallow_Core(
+REBARR *Copy_Values_Len_Extra_Shallow_Core(
     const RELVAL head[],
     REBSPC *specifier,
     REBCNT len,
     REBCNT extra,
-    REBINT skip,
     REBUPT flags
-) {
+){
     REBARR *array = Make_Array_Core(len + extra + 1, flags);
 
     REBCNT count = 0;
     const RELVAL *src = head;
     RELVAL *dest = ARR_HEAD(array);
-    for (; count < len; ++count, src += skip, ++dest) {
+    for (; count < len; ++count, ++src, ++dest) {
         Derelativize(dest, src, specifier);
         if (flags & ARRAY_FLAG_VOIDS_LEGAL) {
             if (GET_VAL_FLAG(src, VALUE_FLAG_EVAL_FLIP))
