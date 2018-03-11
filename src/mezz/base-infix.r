@@ -314,8 +314,8 @@ and: enfix func [
     :right [group! block!]
         {Quoted expression, evaluated unless left is blank or FALSE}
 ][
-    if semiquoted? 'left [
-        fail/where "left hand side of AND should not be literal" 'left
+    if all [block? :left semiquoted? 'left] [
+        fail/where "left hand side of AND should not be literal block" 'left
     ]
     either group? right [
         did all [:left | really* do right]
@@ -334,8 +334,8 @@ or: enfix func [
     :right [group! block!]
         {Quoted expression, evaluated only if left is blank or FALSE}
 ][
-    if semiquoted? 'left [
-        fail/where "left hand side of OR should not be literal" 'left
+    if all [block? :left semiquoted? 'left] [
+        fail/where "left hand side of OR should not be literal block" 'left
     ]
     either group? right [
         did any [:left | really* do right]
@@ -354,8 +354,8 @@ xor: enfix func [
     :right [group! block!]
         {Quoted expression, must be always evaluated as well}
 ][
-    if semiquoted? 'left [
-        fail/where "left hand side of XOR should not be literal" 'left
+    if all [block? :left semiquoted? 'left] [
+        fail/where "left hand side of XOR should not be literal block" 'left
     ]
     either group? right [
         did either not :left [
