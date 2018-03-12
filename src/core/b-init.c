@@ -544,13 +544,13 @@ static REBARR *Startup_Natives(REBARR *boot_natives)
     //
     Bind_Values_Deep(item, Lib_Context);
 
-    REBARR *catalog = Make_Array(NUM_NATIVES);
+    REBARR *catalog = Make_Array(Num_Natives);
 
     REBCNT n = 0;
     REBVAL *action_word = NULL;
 
     while (NOT_END(item)) {
-        if (n >= NUM_NATIVES)
+        if (n >= Num_Natives)
             panic (item);
 
         // Each entry should be one of these forms:
@@ -655,7 +655,7 @@ static REBARR *Startup_Natives(REBARR *boot_natives)
         ++n;
     }
 
-    if (n != NUM_NATIVES)
+    if (n != Num_Natives)
         panic ("Incorrect number of natives found during processing");
 
     if (action_word == NULL)
@@ -1167,13 +1167,13 @@ void Startup_Core(void)
     const REBOOL only = FALSE;
     REBSER *utf8 = Inflate_To_Series(
         Native_Specs,
-        NAT_COMPRESSED_SIZE,
-        NAT_UNCOMPRESSED_SIZE,
+        Nat_Compressed_Size, // use instead of NAT_COMPRESSED_SIZE macro etc..
+        Nat_Uncompressed_Size, // ...so that extern linkage gets picked up
         gzip,
         raw,
         only
     );
-    if (utf8 == NULL || SER_LEN(utf8) != NAT_UNCOMPRESSED_SIZE)
+    if (utf8 == NULL || SER_LEN(utf8) != Nat_Uncompressed_Size)
         panic ("decompressed native specs size mismatch (try `make clean`)");
 
     // Use Scan_Va_Managed() not because it's actually variadic, but because

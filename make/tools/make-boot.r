@@ -856,6 +856,13 @@ print [num-natives "natives"]
 
 e-bootblock/emit newline
 
+e-bootblock/emit-line [
+    "#define NUM_NATIVES" space num-natives
+]
+e-bootblock/emit-line [
+    "const REBCNT Num_Natives = NUM_NATIVES;"
+]
+
 e-bootblock/emit-line {REBVAL Natives[NUM_NATIVES];}
 
 e-bootblock/emit-line "const REBNAT Native_C_Funcs[NUM_NATIVES] = {"
@@ -892,6 +899,28 @@ insert tail-of data make char! 0 ; scanner requires zero termination
 
 comp-data: compress data: to-binary data
 
+; Array sizes in C have to be constant expressions, which doesn't include
+; constant values.  Have to use #defines.
+;
+e-bootblock/emit-line [
+    "#define NAT_UNCOMPRESSED_SIZE" space (length-of data)
+]
+e-bootblock/emit-line [
+    "#define NAT_COMPRESSED_SIZE" space (length-of comp-data)
+]
+
+; Though #defines must be used for the array declarations, using values with
+; external linkage at other sites makes it so that the file containing the
+; natives can be recompiled and not require recompiling places where they
+; are referred to as well.
+;
+e-bootblock/emit-line [
+    "const REBCNT Nat_Uncompressed_Size = NAT_UNCOMPRESSED_SIZE;"
+]
+e-bootblock/emit-line [
+    "const REBCNT Nat_Compressed_Size = NAT_COMPRESSED_SIZE;"
+]
+
 e-bootblock/emit {
 // Native_Specs contains data which is the DEFLATE-algorithm-compressed
 // representation of the textual function specs for Rebol's native
@@ -927,24 +956,24 @@ e-boot: make-emitter "Bootstrap Structure and Root Module" inc/tmp-boot.h
 
 e-boot/emit newline
 
-e-boot/emit-line ["#define NUM_NATIVES" space num-natives]
-e-boot/emit-line ["#define NAT_UNCOMPRESSED_SIZE" space (length-of data)]
-e-boot/emit-line ["#define NAT_COMPRESSED_SIZE" space (length-of comp-data)]
-e-boot/emit-line ["#define CHECK_TITLE" space (checksum to binary! title)]
-
 e-boot/emit {
+
+EXTERN_C const REBCNT Num_Natives;
+EXTERN_C const REBCNT Nat_Uncompressed_Size;
+EXTERN_C const REBCNT Nat_Compressed_Size;
+
 // Compressed data of the native specifications.  This is uncompressed during
 // boot and executed.
 //
-EXTERN_C const REBYTE Native_Specs[NAT_COMPRESSED_SIZE];
+EXTERN_C const REBYTE Native_Specs[]; // size is Nat_Compressed_Size
 
 // Raw C function pointers for natives.
 //
-EXTERN_C const REBNAT Native_C_Funcs[NUM_NATIVES];
+EXTERN_C const REBNAT Native_C_Funcs[]; // size is Num_Natives
 
 // A canon FUNCTION! REBVAL of the native, accessible by the native's index #.
 //
-EXTERN_C REBVAL Natives[NUM_NATIVES];
+EXTERN_C REBVAL Natives[]; // size is Num_Natives
 }
 
 e-boot/emit newline

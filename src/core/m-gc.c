@@ -1096,7 +1096,7 @@ static void Mark_Symbol_Series(void)
 static void Mark_Natives(void)
 {
     REBCNT n;
-    for (n = 0; n < NUM_NATIVES; ++n)
+    for (n = 0; n < Num_Natives; ++n)
         Queue_Mark_Value_Deep(&Natives[n]);
 
    Propagate_All_GC_Marks();
