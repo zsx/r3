@@ -408,8 +408,26 @@ help: procedure [
         ]
     ]
 
+    ; !!! R3-Alpha permitted "multiple inheritance" in objects, in the sense
+    ; that it would blindly overwrite fields of one object with another, which
+    ; wreaked havoc on the semantics of functions in unrelated objects.  It
+    ; doesn't work easily with derived binding, and doesn't make a lot of
+    ; sense.  But it was used here to unify the lib and user contexts to
+    ; remove potential duplicates (even if not actually identical).  This
+    ; does that manually, review.
+    ;
+    make-libuser: does [
+        libuser: copy system/contexts/lib
+        for-each [key val] system/contexts/user [
+            if set? 'val [
+               append libuser reduce [key :val]
+            ]
+        ]
+        libuser
+    ]
+
     if all [word? :topic | set? :topic | datatype? get :topic] [
-        types: dump-obj/match make lib system/contexts/user :topic
+        types: dump-obj/match make-libuser :topic
         if not empty? types [
             print ["Found these" (uppercase form topic) "words:" newline types]
         ] else [
@@ -420,7 +438,7 @@ help: procedure [
 
     ; If arg is a string, search the system:
     if string? :topic [
-        types: dump-obj/match make lib system/contexts/user :topic
+        types: dump-obj/match make-libuser :topic
         sort types
         if not empty? types [
             print ["Found these related words:" newline types]
@@ -616,25 +634,9 @@ help: procedure [
 ]
 
 
-; !!! MAKE is used here to deliberately avoid the use of an abstraction,
-; because of the adaptation of SOURCE to be willing to take an index that
-; indicates the caller's notion of a stack frame.  (So `source 3` would
-; give the source of the function they saw labeled as 3 in BACKTRACE.)
-;
-; The problem is that if FUNCTION is implemented using its own injection of
-; unknown stack levels, it's not possible to count how many stack levels
-; the call to source itself introduced.
-;
-; !!! This is fairly roundabout and probably should just make users type
-; `source backtrace 5` or similar.  Being left as-is for the talking point
-; of how to implement functions which want to do this kind of thing.
-;
-source: make function! [[
+source: procedure [
     "Prints the source code for a function."
-    'arg [integer! word! path! function! tag!]
-        {If integer then the function backtrace for that index is shown}
-
-    f: name: ; pure locals
+    'arg [word! path! function! tag!]
 ][
     case [
         tag? :arg [
@@ -651,49 +653,6 @@ source: make function! [[
             name: arg
             f: get :arg
         ]
-
-        integer? :arg [
-            name: unspaced ["backtrace-" arg]
-
-            ; We add two here because we assume the caller meant to be
-            ; using as point of reference what BACKTRACE would have told
-            ; *them* that index 1 was... not counting when SOURCE and this
-            ; nested CASE is on the stack.
-            ;
-            ; !!! A maze of questions are opened by this kind of trick,
-            ; which are beyond the scope of this comment.
-
-            ; The usability rule for backtraces is that 0 is the number
-            ; given to a breakpoint if it's the top of the stack (after
-            ; backtrace removes itself from consideration).  If running
-            ; SOURCE when under a breakpoint, the rule will not apply...
-            ; hence the numbering will start at 1 and the breakpoint is
-            ; now 3 deep in the stack (after SOURCE+CASE).  Yet the
-            ; caller is asking about 1, 2, 3... or even 0 for what they
-            ; saw in the backtrace as the breakpoint.
-            ;
-            ; This is an interim convoluted answer to how to resolve it,
-            ; which would likely be done better with a /relative refinement
-            ; to backtrace.  Before investing in that, some usability
-            ; experience just needs to be gathered, so compensate.
-            ;
-            f: function-of backtrace (
-                1 ; if BREAKPOINT, compensate differently (it's called "0")
-                + 1 ; CASE
-                + 1 ; SOURCE
-            )
-            f: function-of backtrace (
-                arg
-                ; if breakpoint there, bump 0 up to a 1, 1 to a 2, etc.
-                + (either :f == :breakpoint [1] [0])
-                + 1 ; CASE
-                + 1 ; SOURCE
-            )
-
-            unless :f [
-                print ["Stack level" arg "does not exist in backtrace"]
-            ]
-        ]
     ] else [
         name: "anonymous"
         f: :arg
@@ -706,12 +665,10 @@ source: make function! [[
         any [string? :f url? :f][
             print f
         ]
-        true [
-            print [name "is a" mold type of :f "and not a FUNCTION!"]
-        ]
+    ] else [
+        print [name "is a" mold type of :f "and not a FUNCTION!"]
     ]
-    () ;-- return nothing, as with a PROCEDURE
-]]
+]
 
 
 what: procedure [
