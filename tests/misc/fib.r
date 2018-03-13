@@ -54,10 +54,10 @@ assert [r = c-r]
 if find system/options/args "bench" [
     n-loop: 10000
 
-    c-t: dt [
+    c-t: delta-time [
         loop n-loop [c-fib 30]
     ]
-    r-t: dt [
+    r-t: delta-time [
         loop n-loop [fib 30]
     ]
     print ["c-t:" c-t "r-t:" r-t "improvement:" r-t / c-t]

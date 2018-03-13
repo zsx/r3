@@ -355,10 +355,14 @@ REBNATIVE(make_native)
 //          The block supports the following dialect:
 //          include [block! path!]
 //              "include path"
-//          define [block!]
-//              {define preprocessor symbols as "VAR=VAL" or "VAR"}
 //          debug
 //              "Add debugging information to the generated code?"
+//          options [any-string!]
+//          runtime-path [file! string!]
+//          library-path [block! file! any-string!]
+//          library [block! file! any-string!]
+
+//
 //      }
 //  ]
 //
