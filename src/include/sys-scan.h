@@ -208,6 +208,10 @@ enum rebol_esc_codes {
 
 typedef struct rebol_scan_state {
     //
+    // The mode_char can be '\0', '[', '(', or '/'
+    //
+    REBYTE mode_char;
+
     // If vaptr is NULL, then it is assumed that the `begin` is the source of
     // the UTF-8 data to scan.  Otherwise, it is a variadic feed of UTF-8
     // strings and values that are spliced in.

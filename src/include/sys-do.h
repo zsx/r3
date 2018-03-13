@@ -403,7 +403,7 @@ detect_again:
         // well.  This is an area to be investigated, and tight integration
         // between this code and the scanner may be needed.
         //
-        Scan_To_Stack(&ss, '\0');
+        Scan_To_Stack(&ss);
         f->source.vaptr = NULL; // !!! for now, assume scan went to the end
 
         if (DSP == dsp_orig) {

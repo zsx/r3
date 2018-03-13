@@ -361,7 +361,6 @@ REBNATIVE(make_native)
 //          runtime-path [file! string!]
 //          library-path [block! file! any-string!]
 //          library [block! file! any-string!]
-
 //
 //      }
 //  ]

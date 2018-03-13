@@ -408,7 +408,7 @@ static REBARR* Array_From_Vaptr_Maybe_Null(
 
             SCAN_STATE ss;
             Init_Scan_State(&ss, Intern("rebPrint()"), start_line, utf8, size);
-            Scan_To_Stack(&ss, 0);
+            Scan_To_Stack(&ss);
             break; }
 
         case DETECTED_AS_SERIES:
