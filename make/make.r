@@ -178,7 +178,7 @@ gen-obj: func [
         ]
         output: to-obj-path to string! ;\
             either main [
-                join-of %main/ last s
+                join-of %main/ (last ensure path! s)
             ] [s]
         cflags: either empty? flags [_] [flags]
         definitions: (to-value :definitions)
@@ -1029,10 +1029,18 @@ print-newline
 
 ;add system settings
 add-app-def: adapt specialize :append [series: app-config/definitions] [
-    value: flatten/deep reduce bind value system-definitions
+    value: replace/all (
+        flatten/deep reduce bind value system-definitions
+    ) blank []
 ]
 add-app-cflags: adapt specialize :append [series: app-config/cflags] [
-    value: if block? value [flatten/deep reduce bind value compiler-flags]
+    value: either block? value [
+        replace/all (
+            flatten/deep reduce bind value compiler-flags
+        ) blank []
+    ][
+        assert [any-string? value]
+    ]
 ]
 add-app-lib: adapt specialize :append [series: app-config/libraries] [
     value: either block? value [
