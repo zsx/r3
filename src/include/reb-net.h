@@ -29,22 +29,22 @@
 
 // REBOL Socket types:
 enum socket_types {
-    RST_UDP,                    // TCP or UDP
-    RST_LISTEN = 8,             // LISTEN
-    RST_REVERSE,                // DNS reverse
+    RST_UDP     = 1 << 0,   // TCP or UDP
+    RST_LISTEN  = 1 << 8,   // LISTEN
+    RST_REVERSE = 1 << 9,   // DNS reverse
     RST_MAX
 };
 
 // REBOL Socket Modes (state flags)
 enum {
-    RSM_OPEN = 0,               // socket is allocated
-    RSM_ATTEMPT,                // attempting connection
-    RSM_CONNECT,                // connection is open
-    RSM_BIND,                   // socket is bound to port
-    RSM_LISTEN,                 // socket is listening (TCP)
-    RSM_SEND,                   // sending
-    RSM_RECEIVE,                // receiving
-    RSM_ACCEPT,                 // an inbound connection
+    RSM_OPEN    = 1 << 0,   // socket is allocated
+    RSM_ATTEMPT = 1 << 1,   // attempting connection
+    RSM_CONNECT = 1 << 2,   // connection is open
+    RSM_BIND    = 1 << 3,   // socket is bound to port
+    RSM_LISTEN  = 1 << 4,   // socket is listening (TCP)
+    RSM_SEND    = 1 << 5,   // sending
+    RSM_RECEIVE = 1 << 6,   // receiving
+    RSM_ACCEPT  = 1 << 7,   // an inbound connection
     RSM_MAX
 };
 
