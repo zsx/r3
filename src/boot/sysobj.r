@@ -83,6 +83,7 @@ schemes: make object! [[][]]
 
 ports: construct [] [
     wait-list: []   ; List of ports to add to 'wait
+    pump: []
     input:          ; Port for user input.
     output:         ; Port for user output
     system:         ; Port for system events
