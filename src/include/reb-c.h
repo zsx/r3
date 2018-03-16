@@ -421,6 +421,42 @@ typedef struct sInt64 {
 #pragma pack()
 
 
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// ALIGNMENT SIZE
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Data alignment is a complex topic, which has to do with the fact that the
+// following kind of assignment can be slowed down or fail entirely on
+// some platforms:
+//
+//    char *cp = (char*)malloc(sizeof(double) + 1);
+//    double *dp = (double*)(cp + 1);
+//    *dp = 6.28318530718
+//
+// malloc() guarantees that the pointer it returns is aligned to store any
+// fundamental type safely.  But skewing that pointer to not be aligned in
+// a way for that type (e.g. by a byte above) means assignments and reads of
+// types with more demanding alignment will fail.  e.g. a double expects to
+// read/write to pointers where `((uintptr_t)ptr % sizeof(double)) == 0`
+//
+// The C standard does not provide a way to know what the largest fundamental
+// type is, even though malloc() must be compatible with it.  So if one is
+// writing one's own allocator to give back memory blocks, it's necessary to
+// guess.  We guess the larger of size of a double and size of a void*, though
+// note this may not be enough for absolutely any type in the compiler:
+//
+//    "In Visual C++, the fundamental alignment is the alignment that's
+//    required for a double, or 8 bytes. In code that targets 64-bit
+//    platforms, it's 16 bytes.)
+//
+
+#define ALIGN_SIZE \
+    (sizeof(double) > sizeof(void*) ? sizeof(double) : sizeof(void*))
+
+
 //=////////////////////////////////////////////////////////////////////////=//
 //
 // BOOLEAN DEFINITION

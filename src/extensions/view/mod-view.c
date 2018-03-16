@@ -336,12 +336,12 @@ REBNATIVE(request_file_p)
     // the OPENFILENAME structure...so we free caches of what we put in.
     //
     if (REF(filter))
-        OS_FREE(lpstrFilter);
+        rebFree(lpstrFilter);
     OS_FREE(lpstrFile);
     if (REF(file) && lpstrInitialDir != NULL)
-        OS_FREE(lpstrInitialDir);
+        rebFree(lpstrInitialDir);
     if (REF(title))
-        OS_FREE(lpstrTitle);
+        rebFree(lpstrTitle);
 
   #elif defined(USE_GTK_FILECHOOSER)
 
@@ -454,9 +454,9 @@ REBNATIVE(request_file_p)
     gtk_widget_destroy(dialog);
 
     if (REF(file))
-        OS_FREE(name);
+        rebFree(name);
     if (REF(title))
-        OS_FREE(title);
+        rebFree(title);
 
     while (gtk_events_pending()) {
         //
@@ -631,9 +631,9 @@ REBNATIVE(request_dir_p)
         Init_File(D_OUT, Copy_Wide_Str(folder, wcslen(folder)));
 
     if (REF(title))
-        OS_FREE(cast(WCHAR*, bi.lpszTitle));
+        rebFree(cast(WCHAR*, bi.lpszTitle));
     if (REF(path))
-        OS_FREE(cast(WCHAR*, bi.lParam));
+        rebFree(cast(WCHAR*, bi.lParam));
   #else
     UNUSED(REF(title));
     UNUSED(ARG(text));

@@ -38,9 +38,13 @@ EXT_API int EXT_INIT(e) (REBVAL *script, REBVAL *out) \
     REBOOL raw = FALSE; \
     REBOOL only = FALSE; \
     /* binary does not have a \0 terminator */ \
-    Init_Binary(script, Inflate_To_Series( \
-        script_bytes, sizeof(script_bytes), -1, gzip, raw, only \
-    )); \
+    REBCNT utf8_size; \
+    REBYTE *utf8 = rebInflateAlloc( \
+        &utf8_size, script_bytes, sizeof(script_bytes), -1, gzip, raw, only \
+    ); \
+    REBVAL *bin = rebRepossess(utf8, utf8_size); \
+    Move_Value(script, bin); \
+    rebRelease(bin); /* should just return the BINARY! REBVAL* */ \
     return 0;\
 }
 

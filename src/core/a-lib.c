@@ -63,6 +63,7 @@
 //
 
 #include "sys-core.h"
+#include "mem-series.h" // needed for SER_SET_BIAS in rebRepossess()
 
 
 // "Linkage back to HOST functions. Needed when we compile as a DLL
@@ -89,22 +90,34 @@ inline static void Enter_Api(void) {
 }
 
 
+//=//// API VALUE ALLOCATION //////////////////////////////////////////////=//
+//
 // API REBVALs live in "pairings", but aren't kept alive by references from
 // other values (the way that a pairing used by a PAIR! is kept alive by its
 // references in any array elements or other cells referring to that pairing).
-// This means their concept of being "managed" comes from other conditions
-// besides the NODE_FLAG_MANAGED bit.
+// The API value content is in the paired cell, with the PAIRING_KEY() serving
+// as a kind of "meta value" (e.g. a FRAME! that controls the lifetime of
+// the API value, or an INTEGER! reference count, etc.)
 //
-// However, what distinguishes them as API values is that they have both the
-// NODE_FLAG_CELL and NODE_FLAG_ROOT bits set.
+// The long term goal is to have diverse and sophisticated memory management
+// options for API handles.  They would default to automatic GC when the
+// current function frame goes away, but also permit manual freeing.  At the
+// moment they default to manual (hence leak if not `rebRelease()`d) and have
+// to be converted to be GC managed with `rebManage()`.
+//
+// Manual release will always be necessary in *some* places, such as the
+// console code: since it is top-level its "owning frame" never goes away.
+// So for the moment, it doesn't hurt to be doing more solid bookkeeping with
+// a manual default to notice any leaking patterns in the core.
+//
+
+// What distinguishes an API value is that it has both the NODE_FLAG_CELL and
+// NODE_FLAG_ROOT bits set.  Hence if one has a REBVAL* and wants to know
 //
 inline static REBOOL Is_Api_Value(const RELVAL *v) {
-    return LOGICAL(
-        (v->header.bits & (NODE_FLAG_CELL | NODE_FLAG_ROOT))
-        == (NODE_FLAG_CELL | NODE_FLAG_ROOT)
-    );
+    assert(v->header.bits & NODE_FLAG_CELL);
+    return LOGICAL(v->header.bits & NODE_FLAG_ROOT);
 }
-
 
 // !!! The return cell from this allocation is a trash cell which has had some
 // additional bits set.  This means it is not "canonized" trash that can be
@@ -120,22 +133,6 @@ inline static REBVAL *Alloc_Value(void)
     //
     paired->header.bits |= NODE_FLAG_ROOT;
 
-    // The long term goal is to have diverse and sophisticated memory
-    // management options for API handles...where there is some automatic
-    // GC when the attached frame goes away, but also to permit manual
-    // management.  The extra information associated with the API value
-    // allows the GC to do this, but currently we just set it to a BLANK!
-    // in order to indicate manual management is needed.
-    //
-    // Manual release will always be necessary in some places, such as the
-    // console code: since it is top-level its "owning frame" never goes away.
-    // It may be that all "serious" code to the API does explicit management,
-    // some with the help of a C++ wrapper.
-    //
-    // In any case, it's not bad to have solid bookkeeping in the code for the
-    // time being and panics on shutdown if there's a leak.  But clients of
-    // the API will have simpler options also.
-    //
     Init_Blank(PAIRING_KEY(paired)); // the meta-value of the API handle
 
     return paired;
@@ -146,6 +143,201 @@ inline static void Free_Value(REBVAL *v)
     assert(Is_Api_Value(v));
     Free_Pairing(v);
 }
+
+
+//=//// SERIES-BACKED ALLOCATORS //////////////////////////////////////////=//
+//
+// These are replacements for malloc(), realloc(), and free() which use a
+// byte-sized REBSER as the backing store for the data.
+//
+// One benefit of using a series is that it offers more options for automatic
+// memory management (such as being freed in case of a fail(), vs. leaked as
+// a malloc() would, or perhaps being GC'd when a particular FRAME! ends).
+//
+// It also has the benefit of helping interface with client code that has
+// been stylized to use malloc()-ish hooks to produce data, when the eventual
+// target of that data is a Rebol series.  It does this without exposing
+// REBSER* internals to the external API, by allowing one to "rebRepossess()"
+// the underlying series as a BINARY! REBVAL*.
+//
+
+
+//
+//  rebMalloc: RL_API
+//
+// * Like plain malloc(), if size is zero, the implementation just has to
+//   return something that free() will take.  (We pick NULL.)
+//
+// * Unlike plain malloc(), this never returns NULL.  It will fail() instead.
+//
+// * It tries to be like malloc() by giving back a pointer "suitably aligned
+//   for the size of any fundamental type".  See notes on ALIGN_SIZE.
+//
+// !!! rebMallocAlign() could exist to take an alignment, which could save
+// on wasted bytes when ALIGN_SIZE > sizeof(REBSER*)...or work with "weird"
+// large fundamental types that need more alignment than ALIGN_SIZE.
+//
+void *RL_rebMalloc(size_t size)
+{
+    Enter_Api();
+
+    if (size == 0)
+        return NULL; // 0 case is "implementation-defined behavior"
+
+    REBSER *s = Make_Series_Core(
+        ALIGN_SIZE // stores REBSER* (must be at least big enough for void*)
+            + size // for the actual data capacity
+            + 1, // for termination (even BINARY! has this, review necessity)
+        sizeof(REBYTE), // Rebserize() only creates binary series ATM
+        SERIES_FLAG_DONT_RELOCATE // direct data pointer is being handed back!
+    );
+
+    REBYTE *ptr = BIN_HEAD(s) + ALIGN_SIZE;
+    *(cast(REBSER**, ptr) - 1) = s; // save self in bytes *right before* data
+    TERM_BIN_LEN(s, ALIGN_SIZE + size); // uninitialized data to start
+
+    POISON_MEMORY(BIN_HEAD(s), ALIGN_SIZE); // let ASAN catch underruns
+
+    // !!! The data is uninitialized, and if it is turned into a BINARY! via
+    // rebRepossess() before all bytes are assigned initialized, it could be
+    // worse than just random data...MOLDing such a binary and reading those
+    // bytes could be bad (due to, for instance, "trap representations"):
+    //
+    // https://stackoverflow.com/a/37184840
+    //
+    // It may be that rebMalloc() and rebRealloc() should initialize with 0
+    // in the release build to defend against that, but doing so in the debug
+    // build would keep address sanitizer from noticing when memory was not
+    // initialized.
+
+    return ptr;
+}
+
+
+//
+//  rebRealloc: RL_API
+//
+// * Like plain realloc(), NULL is legal for ptr
+//
+// * Like plain realloc(), it preserves the lesser of the old data range or
+//   the new data range, and memory usage drops if new_size is smaller:
+//
+// https://stackoverflow.com/a/9575348
+//
+// * Unlike plain realloc(), this fails instead of returning NULL, hence it is
+//   safe to say `ptr = rebRealloc(ptr, new_size)`
+//
+void *RL_rebRealloc(void *ptr, size_t new_size)
+{
+    Enter_Api();
+
+    assert(new_size > 0); // realloc() deprecated this as of C11 DR 400
+
+    if (ptr == NULL) // C realloc() accepts NULL
+        return rebMalloc(new_size);
+
+    REBYTE *bin_head = cast(REBYTE*, ptr) - ALIGN_SIZE;
+    UNPOISON_MEMORY(bin_head, ALIGN_SIZE); // need to underrun to fetch `s`
+    UNUSED(bin_head);
+
+    REBSER *old = *(cast(REBSER**, ptr) - 1);
+
+    REBCNT old_size = BIN_LEN(old) - ALIGN_SIZE;
+    void *reallocated = rebMalloc(new_size);
+    memcpy(reallocated, ptr, old_size < new_size ? old_size : new_size);
+
+    Free_Series(old); // asserts that `old` is unmanaged
+
+    return reallocated;
+}
+
+
+//
+//  rebFree: RL_API
+//
+// * As with free(), NULL is accepted as a no-op.
+//
+void RL_rebFree(void *ptr)
+{
+    Enter_Api();
+
+    if (ptr == NULL)
+        return;
+
+    REBYTE *bin_head = cast(REBYTE*, ptr) - ALIGN_SIZE;
+    UNPOISON_MEMORY(bin_head, ALIGN_SIZE); // need to underrun to see `s`
+    UNUSED(bin_head);
+
+    REBSER *s = *(cast(REBSER**, ptr) - 1);
+    assert(BYTE_SIZE(s));
+
+    Free_Series(s); // asserts that `s` is unmanaged
+}
+
+
+//
+//  rebRepossess: RL_API
+//
+// Alternative to rebFree() is to take over the underlying series as a
+// BINARY!.  The old void* should not be used after the transition, as this
+// operation makes the series underlying the memory subject to relocation.
+//
+// If the passed in size is less than the size with which the series was
+// allocated, the overage will be treated as unused series capacity.
+//
+// !!! All bytes in the allocation are expected to be initialized by this
+// point, as failure to do so will mean reads crash the interpreter.  See
+// remarks in rebMalloc() about the issue, and possibly doing zero fills.
+//
+// !!! It might seem tempting to use (BIN_LEN(s) - ALIGN_SIZE).  However,
+// some routines make allocations bigger than they ultimately need and do not
+// realloc() before converting the memory to a series...rebInflate() and
+// rebDeflate() do this.  So a version passing the size will be necessary,
+// and since C does not have the size exposed in malloc() and you track it
+// yourself, it seems fair to *always* ask the caller to pass in a size.
+//
+REBVAL *RL_rebRepossess(void *ptr, REBCNT size)
+{
+    Enter_Api();
+
+    REBYTE *bin_head = cast(REBYTE*, ptr) - ALIGN_SIZE;
+    UNPOISON_MEMORY(bin_head, ALIGN_SIZE);
+    UNUSED(bin_head);
+
+    REBSER **ps = cast(REBSER**, ptr) - 1;
+    REBSER *s = *ps;
+    TRASH_POINTER_IF_DEBUG(ps);
+
+    assert(NOT(IS_SERIES_MANAGED(s)));
+    assert(size <= BIN_LEN(s) - ALIGN_SIZE);
+
+    assert(GET_SER_FLAG(s, SERIES_FLAG_DONT_RELOCATE));
+    CLEAR_SER_FLAG(s, SERIES_FLAG_DONT_RELOCATE);
+
+    if (GET_SER_INFO(s, SERIES_INFO_HAS_DYNAMIC)) {
+        //
+        // Dynamic series have the concept of a "bias", which is unused
+        // allocated capacity at the head of a series.  Bump the "bias" to
+        // treat the embedded REBSER* (aligned to REBI64) as unused capacity.
+        //
+        SER_SET_BIAS(s, ALIGN_SIZE);
+        s->content.dynamic.data += ALIGN_SIZE;
+        s->content.dynamic.rest -= ALIGN_SIZE;
+    }
+    else {
+        // Data is in REBSER node itself, no bias.  Just slide the bytes down.
+        //
+        memmove( // src overlaps destination, can't use memcpy()
+            BIN_HEAD(s),
+            BIN_HEAD(s) + ALIGN_SIZE,
+            size
+        );
+    }
+
+    TERM_BIN_LEN(s, size);
+    return Init_Binary(Alloc_Value(), s);
+}
+
 
 
 //
@@ -1248,7 +1440,7 @@ char *RL_rebMoldAlloc(REBCNT *len_out, const REBVAL *v)
     REBCNT len = VAL_LEN_AT(molded);
     REBSER *utf8 = Temp_UTF8_At_Managed(molded, &index, &len);
 
-    char *result = OS_ALLOC_N(char, len + 1);
+    char *result = cast(char*, rebMalloc(len + 1));
     memcpy(result, BIN_AT(utf8, index), len + 1); // has '\0' terminator
 
     if (len_out != NULL)
@@ -1306,7 +1498,7 @@ char *RL_rebSpellingOfAlloc(REBCNT *len_out, const REBVAL *v)
     Enter_Api();
 
     REBCNT len = rebSpellingOf(NULL, 0, v);
-    char *result = OS_ALLOC_N(char, len + 1);
+    char *result = cast(char*, rebMalloc(len + 1));
     rebSpellingOf(result, len, v);
     if (len_out != NULL)
         *len_out = len;
@@ -1362,7 +1554,7 @@ REBWCHAR *RL_rebSpellingOfAllocW(REBCNT *len_out, const REBVAL *v)
     Enter_Api();
 
     REBCNT len = rebSpellingOfW(NULL, 0, v);
-    REBWCHAR *result = OS_ALLOC_N(REBWCHAR, len + 1);
+    REBWCHAR *result = cast(REBWCHAR*, rebMalloc(len + 1));
     rebSpellingOfW(result, len, v);
     if (len_out != NULL)
         *len_out = len;
@@ -1407,7 +1599,7 @@ REBYTE *RL_rebValBinAlloc(REBCNT *len_out, const REBVAL *binary)
     Enter_Api();
 
     REBCNT len = rebValBin(NULL, 0, binary);
-    REBYTE *result = OS_ALLOC_N(REBYTE, len + 1);
+    REBYTE *result = cast(REBYTE*, rebMalloc(len + 1));
     rebValBin(result, len, binary);
     if (len_out != NULL)
         *len_out = len;
@@ -1574,12 +1766,6 @@ void RL_rebRelease(REBVAL *v)
     Free_Value(v);
 }
 
-
-
-//
-//  rebFree: RL_API
-//
-void RL_rebFree(void *p) {OS_FREE(p);}
 
 
 //

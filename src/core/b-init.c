@@ -113,6 +113,8 @@ static void Assert_Basics(void)
     }
   #endif
 
+    assert(sizeof(u32) == 4);
+
     // Although the system is designed to be able to function with REBVAL at
     // any size, the optimization of it being 4x(32-bit) on 32-bit platforms
     // and 4x(64-bit) on 64-bit platforms is a rather important performance
@@ -1186,7 +1188,9 @@ void Startup_Core(void)
     const REBOOL gzip = FALSE;
     const REBOOL raw = FALSE;
     const REBOOL only = FALSE;
-    REBSER *utf8 = Inflate_To_Series(
+    REBCNT utf8_size;
+    REBYTE *utf8 = rebInflateAlloc(
+        &utf8_size,
         Native_Specs,
         Nat_Compressed_Size, // use instead of NAT_COMPRESSED_SIZE macro etc..
         Nat_Uncompressed_Size, // ...so that extern linkage gets picked up
@@ -1194,19 +1198,17 @@ void Startup_Core(void)
         raw,
         only
     );
-    if (utf8 == NULL || SER_LEN(utf8) != Nat_Uncompressed_Size)
+    if (utf8_size != Nat_Uncompressed_Size)
         panic ("decompressed native specs size mismatch (try `make clean`)");
 
-    // Use Scan_Va_Managed() not because it's actually variadic, but because
-    // there are currently no other usages of the function (rigorous builds
-    // notice when things are defined and not used).
-    //
-    REBARR *boot_array = Scan_Va_Managed(
-        Intern("tmp-boot.r"), BIN_HEAD(utf8), END
+    REBARR *boot_array = Scan_UTF8_Managed(
+        Intern("tmp-boot.r"),
+        utf8,
+        utf8_size
     );
     PUSH_GUARD_ARRAY(boot_array); // managed, so must be guarded
 
-    Free_Series(utf8); // don't need decompressed text after it's scanned
+    rebFree(utf8); // don't need decompressed text after it's scanned
 
     BOOT_BLK *boot = cast(BOOT_BLK*, VAL_ARRAY_HEAD(ARR_HEAD(boot_array)));
 

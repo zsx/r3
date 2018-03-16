@@ -2055,7 +2055,7 @@ static REBNATIVE(get_env)
         OS_FREE(val);
     }
 
-    OS_FREE(key);
+    rebFree(key);
   #else
     // Note: The Posix variant of this API is case-sensitive
 
@@ -2072,7 +2072,7 @@ static REBNATIVE(get_env)
         Init_String(D_OUT, Decode_UTF_String(cb_cast(val), len_bytes, 8));
     }
 
-    OS_FREE(key);
+    rebFree(key);
   #endif
 
     // Error is broken out like this so that the proper freeing can be done
@@ -2126,10 +2126,10 @@ static REBNATIVE(set_env)
 
         WCHAR *val = rebSpellingOfAllocW(NULL, value);
         success = SetEnvironmentVariable(key, val);
-        OS_FREE(val);
+        rebFree(val);
     }
 
-    OS_FREE(key);
+    rebFree(key);
 
     if (NOT(success)) // make better error with GetLastError + variable name
         error = Error_User("environment variable couldn't be modified");
@@ -2175,7 +2175,7 @@ static REBNATIVE(set_env)
         if (setenv(key, val, 1) == -1)
             success = FALSE;
 
-        OS_FREE(val);
+        rebFree(val);
       #else
         // WARNING: KNOWN MEMORY LEAK!
         //
@@ -2211,7 +2211,7 @@ static REBNATIVE(set_env)
       #endif
     }
 
-    OS_FREE(key);
+    rebFree(key);
 
     if (NOT(success)) // make better error if more information is known
         error = Error_User("environment variable couldn't be modified");

@@ -32,8 +32,8 @@
 // This wraps that functionality into functions that compress and decompress
 // BINARY! REBSERs.
 //
-// Classically, Rebol added a 32-bit size header onto the front of compressed
-// data, indicating the uncompressed size.  This is the default BINARY! format
+// Classically, Rebol added a 32-bit size header onto compressed data,
+// indicating the uncompressed size.  This is the default BINARY! format
 // returned by COMPRESS.  However, it only used a 32-bit number...gzip also
 // includes the length modulo 32.  This means that if the data is < 4MB in
 // size you can use the length with gzip:
@@ -55,13 +55,12 @@
 
 
 //
-//  REBCNT_To_Bytes: C
+//  U32_To_Bytes: C
 //
 // Get endian-independent encoding of a 32-bit unsigned integer to 4 bytes
 //
-static void REBCNT_To_Bytes(REBYTE *out, REBCNT in)
+static void U32_To_Bytes(REBYTE *out, u32 in)
 {
-    assert(sizeof(REBCNT) == 4);
     out[0] = cast(REBYTE, in);
     out[1] = cast(REBYTE, in >> 8);
     out[2] = cast(REBYTE, in >> 16);
@@ -70,17 +69,16 @@ static void REBCNT_To_Bytes(REBYTE *out, REBCNT in)
 
 
 //
-//  Bytes_To_REBCNT: C
+//  Bytes_To_U32: C
 //
 // Decode endian-independent sequence of 4 bytes back into a 32-bit unsigned
 //
-static REBCNT Bytes_To_REBCNT(const REBYTE * const in)
+static u32 Bytes_To_U32(const REBYTE * const in)
 {
-    assert(sizeof(REBCNT) == 4);
-    return cast(REBCNT, in[0])
-        | cast(REBCNT, in[1] << 8)
-        | cast(REBCNT, in[2] << 16)
-        | cast(REBCNT, in[3] << 24);
+    return cast(u32, in[0])
+        | cast(u32, in[1] << 8)
+        | cast(u32, in[2] << 16)
+        | cast(u32, in[3] << 24);
 }
 
 
@@ -106,23 +104,44 @@ static const int window_bits_zlib_raw = -(MAX_WBITS);
 static const int window_bits_gzip_raw = -(MAX_WBITS | 16); // "raw gzip" ?!
 
 
+// Inflation and deflation tends to ultimately target series, so we want to
+// be using memory that can be transitioned to a series without reallocation.
+// See rebRepossess() for how rebMalloc()'d pointers can be used this way.
+//
+// We go ahead and use the rebMalloc() for zlib's internal state allocation
+// too, so that any fail() calls (e.g. out-of-memory during a rebRealloc())
+// will automatically free that state.  Thus inflateEnd() and deflateEnd()
+// only need to be called if there is no failure.  There's no need to
+// rebRescue(), clean up, and rethrow the error.
+//
+// As a side-benefit, fail() can be used freely for other errors during the
+// inflate or deflate.
+
+static void *zalloc(void *opaque, unsigned nr, unsigned size)
+{
+    UNUSED(opaque);
+    return rebMalloc(nr * size);
+}
+
+static void zfree(void *opaque, void *addr)
+{
+    UNUSED(opaque);
+    rebFree(addr);
+}
+
+
 //
 //  Error_Compression: C
 //
-// Zlib gives back string error messages.  We use them or fall
-// back on the integer code if there is no message.
+// Zlib gives back string error messages.  We use them or fall back on the
+// integer code if there is no message.
 //
 static REBCTX *Error_Compression(const z_stream *strm, int ret)
 {
-    if (ret == Z_MEM_ERROR) {
-        //
-        // We do not technically know the amount of memory that zlib asked
-        // for and did not get.  Hence categorizing it as an "out of memory"
-        // error might be less useful than leaving as a compression error,
-        // but that is what the old code here historically did.
-        //
-        fail (Error_No_Memory(0));
-    }
+    // rebMalloc() fails vs. returning NULL, so as long as zalloc() is used
+    // then Z_MEM_ERROR should never happen.
+    //
+    assert(ret != Z_MEM_ERROR);
 
     DECLARE_LOCAL (arg);
     if (strm->msg != NULL)
@@ -135,46 +154,43 @@ static REBCTX *Error_Compression(const z_stream *strm, int ret)
 
 
 //
-//  Deflate_To_Prefixed_Series: C
+//  rebDeflateAlloc: C
+//
+// !!! Currently all RL_API functions are in %a-lib.c, so this isn't actually
+// in the external API so long as it lives in %u-compress.c. 
 //
 // Exposure of the deflate() of the built-in zlib, so that extensions (such as
 // a PNG encoder) can reuse it.  Currently this does not take any options for
 // tuning the compression, and just uses the recommended defaults by zlib.
 //
-// A BINARY! series is used to return the result, but with a trick: the
-// pointer to the REBSER itself is prepended to the head of the data stream.
-// Because Rebol has what is called the "bias" area at the head of a series,
-// this can be easily trimmed out without needing to perform a reallocation.
-// Hence COMPRESS can use the same code for producing binaries to return
-// to the user, just by bumping the bias past that pointer.
+// See notes on rebMalloc() for how the result can be converted to a series.
 //
 // !!! Adds 32-bit size info to zlib non-raw compressions for compatibility
 // with Rebol2 and R3-Alpha, at the cost of inventing yet-another-format.
 // Consider removing.
 //
-REBSER *Deflate_To_Prefixed_Series(
+REBYTE *rebDeflateAlloc(
+    REBCNT *out_len,
     const unsigned char* input,
-    size_t input_len,
+    REBCNT in_len,
     REBOOL gzip,
     REBOOL raw,
     REBOOL only
 ){
-    int ret;
-
     // compression level can be a value from 1 to 9, or Z_DEFAULT_COMPRESSION
     // if you want it to pick what the library author considers the "worth it"
     // tradeoff of time to generally suggest.
     //
     z_stream strm;
-    strm.zalloc = Z_NULL;
-    strm.zfree = Z_NULL;
-    strm.opaque = Z_NULL;
+    strm.zalloc = &zalloc; // fail() cleans up automatically, see notes
+    strm.zfree = &zfree;
+    strm.opaque = NULL; // passed to zalloc and zfree, not needed currently
 
     // Should there be detection?  (This suppresses unused const warning.)
     //
     UNUSED(window_bits_detect_zlib_gzip);
 
-    ret = deflateInit2(
+    int ret_init = deflateInit2(
         &strm,
         Z_DEFAULT_COMPRESSION,
         Z_DEFLATED,
@@ -185,47 +201,32 @@ REBSER *Deflate_To_Prefixed_Series(
         Z_DEFAULT_STRATEGY
     );
 
-    if (ret != Z_OK)
-        fail (Error_Compression(&strm, ret));
+    if (ret_init != Z_OK)
+        fail (Error_Compression(&strm, ret_init));
 
-    // http://stackoverflow.com/a/4938401/211160
+    // http://stackoverflow.com/a/4938401
     //
-    REBCNT buf_size = deflateBound(&strm, input_len);
+    REBCNT buf_size = deflateBound(&strm, in_len);
+    if (NOT(gzip) && NOT(only))
+        buf_size += sizeof(u32); // for 32-bit length (gzip's is implicit)
 
-    strm.avail_in = input_len;
+    strm.avail_in = in_len;
     strm.next_in = input;
 
-    REBSER *output = Make_Binary(sizeof(REBSER*) + buf_size);
-    *cast(REBSER**, BIN_HEAD(output)) = output; // self-referencing prefix
+    REBYTE *output = cast(REBYTE*, rebMalloc(buf_size));
     strm.avail_out = buf_size;
-    strm.next_out = BIN_HEAD(output) + sizeof(REBSER*);
+    strm.next_out = output;
 
-    ret = deflate(&strm, Z_FINISH);
+    int ret_deflate = deflate(&strm, Z_FINISH);
     deflateEnd(&strm);
 
-    if (ret != Z_STREAM_END)
-        fail (Error_Compression(&strm, ret));
+    if (ret_deflate != Z_STREAM_END)
+        fail (Error_Compression(&strm, ret_deflate));
 
-    TERM_BIN_LEN(output, sizeof(REBSER*) + buf_size - strm.avail_out);
+    assert(strm.total_out == buf_size - strm.avail_out);
+    REBCNT overall_size; // size after any extra envelope data is added
 
-    if (gzip) {
-    #if !defined(NDEBUG)
-        //
-        // GZIP contains its own CRC.  It also has a 32-bit uncompressed
-        // length, conveniently (and perhaps confusingly) at the tail in the
-        // same format that R3-Alpha and Rebol2 used.
-
-        REBCNT gzip_len = Bytes_To_REBCNT(
-            BIN_HEAD(output)
-            + sizeof(REBSER*)
-            + buf_size
-            - strm.avail_out
-            - sizeof(REBCNT)
-        );
-        assert(input_len == gzip_len);
-    #endif
-    }
-    else if (NOT(only)) {
+    if (NOT(gzip) && NOT(only)) {
         //
         // Add 32-bit length to the end.
         //
@@ -236,143 +237,102 @@ REBSER *Deflate_To_Prefixed_Series(
         // clients who wanted to decompress to a known allocation size would
         // have to save the size somewhere.
         //
-        REBYTE out_size[sizeof(REBCNT)];
-        REBCNT_To_Bytes(out_size, cast(REBCNT, input_len));
-        Append_Series(output, cast(REBYTE*, out_size), sizeof(REBCNT));
+        assert(strm.avail_out >= sizeof(u32));
+        U32_To_Bytes(output + strm.total_out, cast(u32, in_len));
+        overall_size = strm.total_out + sizeof(u32);
     }
+    else {
+      #if !defined(NDEBUG)
+        //
+        // GZIP contains its own CRC.  It also has a 32-bit uncompressed
+        // length, conveniently (and perhaps confusingly) at the tail in the
+        // same format that R3-Alpha and Rebol2 used.  Double-check it.
+        //
+        if (gzip) {
+            u32 gzip_len = Bytes_To_U32(
+                output + strm.total_out - sizeof(u32)
+            );
+            assert(in_len == gzip_len);
+        }
+      #endif
+
+        overall_size = strm.total_out;
+    }
+
+    if (out_len != NULL)
+        *out_len = overall_size;
 
     // !!! Trim if more than 1K extra capacity, review logic
     //
-    if (SER_AVAIL(output) > 1024) {
-        REBSER *smaller = Copy_Sequence(output);
-        Free_Series(output);
-        output = smaller;
-
-        *cast(REBSER**, BIN_HEAD(output)) = output; // update prefix
-    }
+    assert(buf_size >= overall_size);
+    if (buf_size - overall_size > 1024)
+        output = cast(REBYTE*, rebRealloc(output, strm.avail_out));
 
     return output;
 }
 
 
 //
-//  Deflate_To_Series: C
+//  rebInflateAlloc: C
 //
-// This is implemented "non-invasively", in order to test the functionality
-// of putting the series pointer in, and then biasing it out.  It could also
-// be done as a parameterization of the core routine which had a flag to
-// not put the bias in.
-//
-REBSER *Deflate_To_Series(
-    const unsigned char* input,
-    size_t len,
-    REBOOL gzip,
-    REBOOL raw,
-    REBOOL only
-){
-    REBSER *s = Deflate_To_Prefixed_Series(input, len, gzip, raw, only);
-
-    // The REBSER* of the series is prefixed at the beginning of the series
-    // data itself.  Trim it out without risking reallocation (adjust bias).
-    //
-    return Rebserize(BIN_HEAD(s) + sizeof(REBSER*));
-}
-
-
-//
-//  Inflate_To_Prefixed_Series: C
+// !!! Currently all RL_API functions are in %a-lib.c, so this isn't actually
+// in the external API so long as it lives in %u-compress.c. 
 //
 // Exposure of the inflate() of the built-in zlib, so that extensions (such as
 // a PNG decoder) can reuse it.  Currently this does not take any options for
-// tuning the compression, and just uses the recommended defaults by zlib.
+// tuning the decompression, and just uses the recommended defaults by zlib.
 //
-// As with the exposure of deflate(), a trick used to share code between
-// LodePNG and DECOMPRESS is to prefix the returned series with the pointer
-// to the REBSER itself.  This can be edited out without risking allocation
-// by adjusting the bias, and lets a custom free() find the series to free
-// through looking backwards.
+// See notes on rebMalloc() for how the result can be converted to a series.
 //
-REBSER *Inflate_To_Prefixed_Series(
+REBYTE *rebInflateAlloc(
+    REBCNT *len_out,
     const REBYTE *input,
-    REBCNT len,
+    REBCNT len_in,
     REBINT max,
     REBOOL gzip,
     REBOOL raw,
     REBOOL only // don't add 4-byte size to end
 ){
-    int ret;
-
     z_stream strm;
-    strm.zalloc = Z_NULL;
-    strm.zfree = Z_NULL;
-    strm.opaque = Z_NULL;
+    strm.zalloc = &zalloc; // fail() cleans up automatically, see notes
+    strm.zfree = &zfree;
+    strm.opaque = NULL; // passed to zalloc and zfree, not needed currently
     strm.total_out = 0;
 
     // We only subtract out the double-checking size if this came from a
     // zlib compression without /ONLY.
     //
-    strm.avail_in = only || gzip ? len : len - sizeof(REBCNT);
+    strm.avail_in = only || gzip ? len_in : len_in - sizeof(REBCNT);
     strm.next_in = input;
 
     // !!! Zlib can detect decompression...use window_bits_detect_zlib_gzip?
     //
-    ret = inflateInit2(
+    int ret_init = inflateInit2(
         &strm,
         raw
             ? (gzip ? window_bits_gzip_raw : window_bits_zlib_raw)
             : (gzip ? window_bits_gzip : window_bits_zlib)
     );
-    if (ret != Z_OK)
-        fail (Error_Compression(&strm, ret));
-
-    // Zlib internally allocates state which must be freed, and is not series
-    // memory.  *But* the following code is a mixture of Zlib code and Rebol
-    // code (e.g. Extend_Series may run out of memory).  If any error is
-    // raised, a longjmp skips `inflateEnd()` and the Zlib state is leaked,
-    // ruining the pristine Valgrind output.
-    //
-    // Since we do the trap anyway, this is the way we handle explicit errors
-    // called in the code below also.
-    //
-    struct Reb_State state;
-    REBCTX *error;
-
-    PUSH_TRAP(&error, &state);
-
-// The first time through the following code 'error' will be NULL, but...
-// `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
-
-    if (error) {
-        //
-        // output will already have been freed
-        //
-        inflateEnd(&strm);
-        fail (error);
-    }
+    if (ret_init != Z_OK)
+        fail (Error_Compression(&strm, ret_init));
 
     REBCNT buf_size;
-    if (gzip || !only) {
+    if (gzip || NOT(only)) {
         //
-        // Both gzip and Rebol's envelope have the size living in the last
-        // 4 bytes of the payload.
+        // Both gzip and Rebol's envelope have the uncompressed size living in
+        // the last 4 bytes of the payload.
         //
-        assert(sizeof(REBCNT) == 4);
-        if (len <= sizeof(REBCNT)) {
-            // !!! Better error message needed
-            fail (Error_Past_End_Raw());
-        }
-        buf_size = Bytes_To_REBCNT(input + len - sizeof(REBCNT));
+        if (len_in <= sizeof(u32))
+            fail (Error_Past_End_Raw()); // !!! Better error?
+
+        buf_size = Bytes_To_U32(input + len_in - sizeof(u32));
 
         // If we know the size is too big go ahead and report an error
         // before doing the buffer allocation
         //
-        if (max >= 0 && buf_size > cast(REBCNT, max)) {
+        if (max >= 0 && buf_size > cast(u32, max)) {
             DECLARE_LOCAL (temp);
             Init_Integer(temp, max);
-
-            // NOTE: You can hit this if you 'make prep' without doing a full
-            // rebuild.  'make clean' and build again, it should go away.
-            //
             fail (Error_Size_Limit_Raw(temp));
         }
     }
@@ -383,8 +343,7 @@ REBSER *Inflate_To_Prefixed_Series(
         //
         //     http://stackoverflow.com/q/929757/211160
         //
-        // If the user's pass in for the "max" seems in the ballpark of a
-        // compression ratio (as opposed to some egregious large number)
+        // If the passed-in "max" seems in the ballpark of a compression ratio
         // then use it, because often that will be the exact size.
         //
         // If the guess is wrong, then the decompression has to keep making
@@ -392,120 +351,68 @@ REBSER *Inflate_To_Prefixed_Series(
 
         // "Typical zlib compression ratios are from 1:2 to 1:5"
 
-        if (max >= 0 && (cast(REBCNT, max) < len * 6))
+        if (max >= 0 && (cast(REBCNT, max) < len_in * 6))
             buf_size = max;
         else
-            buf_size = len * 3;
+            buf_size = len_in * 3;
     }
 
-    // Since the initialization succeeded, go ahead and make the output buffer
+    // Use memory backed by a managed series (can be converted to a series
+    // later if desired, via Rebserize)
     //
-    REBSER *output = Make_Binary(sizeof(REBSER*) + buf_size);
-    *cast(REBSER**, BIN_HEAD(output)) = output; // self-referential prefix
+    REBYTE *output = cast(REBYTE*, rebMalloc(buf_size));
     strm.avail_out = buf_size;
-    strm.next_out = BIN_HEAD(output) + sizeof(REBSER*);
+    strm.next_out = cast(REBYTE*, output);
 
     // Loop through and allocate a larger buffer each time we find the
     // decompression did not run to completion.  Stop if we exceed max.
     //
     while (TRUE) {
+        int ret_inflate = inflate(&strm, Z_NO_FLUSH);
 
-        // Perform the inflation
-        //
-        ret = inflate(&strm, Z_NO_FLUSH);
+        if (ret_inflate == Z_STREAM_END)
+            break; // Finished. (and buffer was big enough)
 
-        if (ret == Z_STREAM_END) {
-            //
-            // Finished with the buffer being big enough...
-            //
-            break;
-        }
+        if (ret_inflate != Z_OK)
+            fail (Error_Compression(&strm, ret_inflate));
 
-        if (ret != Z_OK)
-            fail (Error_Compression(&strm, ret));
-
-        // Still more data to come.  Use remaining data amount to guess
-        // size to add.
-        //
-        REBCNT old_size = buf_size;
+        assert(strm.avail_out == 0); // !!! is this guaranteed?
+        assert(strm.next_out == output + buf_size - strm.avail_out);
 
         if (max >= 0 && buf_size >= cast(REBCNT, max)) {
             DECLARE_LOCAL (temp);
             Init_Integer(temp, max);
-
-            // NOTE: You can hit this on 'make prep' without doing a full
-            // rebuild.  'make clean' and build again, it should go away.
-            //
             fail (Error_Size_Limit_Raw(temp));
         }
 
+        // Use remaining input amount to guess how much more decompressed
+        // data might be produced.  Clamp to limit.
+        //
+        REBCNT old_size = buf_size;
         buf_size = buf_size + strm.avail_in * 3;
         if (max >= 0 && buf_size > cast(REBCNT, max))
             buf_size = max;
 
-        assert(strm.avail_out == 0); // !!! is this guaranteed?
-        assert(
-            strm.next_out
-            == BIN_HEAD(output) + sizeof(REBSER*) + old_size - strm.avail_out
-        );
-
-        // Extend_Series operates on the current series length, must update
-        // before calling it.
-        //
-        TERM_BIN_LEN(output, sizeof(REBSER*) + old_size - strm.avail_out);
-        Extend_Series(output, buf_size - old_size);
+        output = cast(REBYTE*, rebRealloc(output, buf_size));
 
         // Extending keeps the content but may realloc the pointer, so
         // put it at the same spot to keep writing to
         //
-        strm.next_out =
-            BIN_HEAD(output) + sizeof(REBSER*) + old_size - strm.avail_out;
-
+        strm.next_out = output + old_size - strm.avail_out;
         strm.avail_out += buf_size - old_size;
     }
 
-    TERM_BIN_LEN(output, sizeof(REBSER*) + strm.total_out);
-
-    // !!! Trim if more than 1K extra capacity, review logic
+    // !!! Trim if more than 1K extra capacity, review the necessity of this.
+    // (Note it won't happen if the caller knew the decompressed size, so
+    // e.g. decompression on boot isn't wasting time with this realloc.)
     //
-    if (SER_AVAIL(output) > 1024) {
-        REBSER *smaller = Copy_Sequence(output);
-        Free_Series(output);
-        output = smaller;
+    assert(buf_size >= strm.total_out);
+    if (strm.total_out - buf_size > 1024)
+        output = cast(REBYTE*, rebRealloc(output, strm.total_out));
 
-        *cast(REBSER**, BIN_HEAD(output)) = output; // update prefix
-    }
+    if (len_out != NULL)
+        *len_out = strm.total_out;
 
-    DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
-
-    // Make this the last thing done so strm variables can be read up to end
-    //
-    inflateEnd(&strm);
-
+    inflateEnd(&strm); // done last (so strm variables can be read up to end)
     return output;
-}
-
-
-//
-//  Inflate_To_Series: C
-//
-// This is implemented "non-invasively", in order to test the functionality
-// of putting the series pointer in, and then biasing it out.  It could also
-// be done as a parameterization of the core routine which had a flag to
-// not put the bias in.
-//
-REBSER *Inflate_To_Series(
-    const REBYTE *input,
-    REBCNT len,
-    REBINT max,
-    REBOOL gzip,
-    REBOOL raw,
-    REBOOL only
-){
-    REBSER *s = Inflate_To_Prefixed_Series(input, len, max, gzip, raw, only);
-
-    // The REBSER* of the series is prefixed at the beginning of the series
-    // data itself.  Trim it out without risking reallocation (adjust bias).
-    //
-    return Rebserize(BIN_HEAD(s) + sizeof(REBSER*));
 }

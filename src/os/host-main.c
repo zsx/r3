@@ -390,29 +390,25 @@ int main(int argc, char *argv_ansi[])
     }
   #endif
 
-    // !!! This calls into the internal API for decompression, instead of
-    // turning the data into a BINARY! and then using rebRun("decompress"...)
-    // on it.  It would be wasteful to make that intermediate compressed form
-    // as a binary, which raises the question of if there should be a
-    // rebDecompress() (or rebSizedDecompress()?) entry point.
-
     const REBOOL gzip = FALSE;
     const REBOOL raw = FALSE;
     const REBOOL only = FALSE;
-    REBSER *startup = Inflate_To_Series(
+    REBCNT startup_size;
+    REBYTE *startup = rebInflateAlloc(
+        &startup_size,
         &Reb_Init_Code[0],
         REB_INIT_SIZE,
-        -1,
+        -1, // decompressed size should be stored in the payload
         gzip,
         raw,
         only
     );
-    if (startup == NULL)
-        panic ("Can't decompress %host-start.r linked into executable");
 
     REBARR *array = Scan_UTF8_Managed(
-        Intern("host-start.r"), BIN_HEAD(startup), BIN_LEN(startup)
+        Intern("host-start.r"), startup, startup_size
     );
+
+    rebFree(startup);
 
     // Bind the REPL and startup code into the lib context.
     //
@@ -442,13 +438,11 @@ int main(int argc, char *argv_ansi[])
         0,
         SPECIFIED
     )){
-        panic (startup); // just loads functions, shouldn't QUIT or error
+        panic (host_console); // just loads functions, shouldn't QUIT or error
     }
 
     if (!IS_FUNCTION(host_console))
         rebPanicValue (host_console, END);
-
-    Free_Series(startup);
 
     DECLARE_LOCAL (ext_value);
     Init_Blank(ext_value);

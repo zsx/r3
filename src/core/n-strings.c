@@ -373,14 +373,20 @@ REBNATIVE(compress)
     assert(BYTE_SIZE(ser)); // must be BINARY!
 
     const REBOOL raw = REF(only); // use /ONLY to signal raw too?
-    REBSER *compressed = Deflate_To_Series(
+
+    REBCNT out_len;
+    void *compressed = rebDeflateAlloc(
+        &out_len,
         BIN_AT(ser, index),
         len,
         REF(gzip),
         raw,
         REF(only)
     );
-    Init_Binary(D_OUT, compressed);
+
+    REBVAL *bin = rebRepossess(compressed, out_len);
+    Move_Value(D_OUT, bin);
+    rebRelease(bin);
 
     return R_OUT;
 }
@@ -432,7 +438,9 @@ REBNATIVE(decompress)
         len = BIN_LEN(VAL_SERIES(data));
 
     const REBOOL raw = REF(only); // use /ONLY to signal raw also?
-    REBSER *decompressed = Inflate_To_Series(
+    REBCNT out_len;
+    void *decompressed = rebInflateAlloc(
+        &out_len,
         BIN_HEAD(VAL_SERIES(data)) + VAL_INDEX(data),
         len,
         max,
@@ -440,7 +448,10 @@ REBNATIVE(decompress)
         raw,
         REF(only)
     );
-    Init_Binary(D_OUT, decompressed);
+
+    REBVAL *bin = rebRepossess(decompressed, out_len);
+    Move_Value(D_OUT, bin);
+    rebRelease(bin);
 
     return R_OUT;
 }

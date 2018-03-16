@@ -76,17 +76,17 @@
 
 void* lodepng_malloc(size_t size)
 {
-    return Rebol_Malloc(size);
+    return rebMalloc(size);
 }
 
 void* lodepng_realloc(void* ptr, size_t new_size)
 {
-    return Rebol_Realloc(ptr, new_size);
+    return rebRealloc(ptr, new_size);
 }
 
 void lodepng_free(void* ptr)
 {
-    Rebol_Free(ptr);
+    rebFree(ptr);
 }
 
 
@@ -118,21 +118,20 @@ static unsigned rebol_zlib_decompress(
     // So consider it.  But for now, free the buffer and let the logic of
     // zlib always make its own.
     //
-    lodepng_free(*out);
+    rebFree(*out);
 
-    assert(5 == *(const int*)(settings->custom_context)); // just testing
+    assert(5 == *cast(const int*, settings->custom_context)); // just testing
     UNUSED(settings->custom_context);
 
     const REBOOL gzip = FALSE;
     const REBOOL raw = FALSE;
     const REBOOL only = TRUE;
     const REBINT max = -1;
-    REBSER *decompressed = Inflate_To_Prefixed_Series(
-        in, insize, max, gzip, raw, only
+    REBCNT out_len;
+    *out = rebInflateAlloc(
+        &out_len, in, insize, max, gzip, raw, only
     );
-
-    *outsize = BIN_LEN(decompressed) - sizeof(REBSER*);
-    *out = BIN_HEAD(decompressed) + sizeof(REBSER*);
+    *outsize = out_len;
 
     return 0;
 }
@@ -146,18 +145,19 @@ static unsigned rebol_zlib_compress(
 ){
     lodepng_free(*out); // see remarks in decompress, and about COMPRESS/INTO
 
-    assert(5 == *(const int*)(settings->custom_context)); // just testing
+    assert(5 == *cast(const int*, settings->custom_context)); // just testing
     UNUSED(settings->custom_context);
 
     const REBOOL gzip = FALSE;
     const REBOOL raw = FALSE;
     const REBOOL only = TRUE;
-    REBSER *compressed = Deflate_To_Prefixed_Series(
-        in, insize, gzip, raw, only
+    REBCNT out_len;
+    *out = rebDeflateAlloc(
+        &out_len, in, insize, gzip, raw, only
     );
 
-    *outsize = BIN_LEN(compressed) - sizeof(REBSER*);
-    *out = BIN_HEAD(compressed) + sizeof(REBSER*);
+    *outsize = out_len;
+
     return 0;
 }
 
@@ -269,26 +269,20 @@ REBNATIVE(decode_png)
     //
     // https://github.com/lvandeve/lodepng/issues/17
     //
-    // But because we are using a tricky lodepng_malloc() implementation
-    // which is backed by a series, it's possible to hack in a "bias" to the
-    // series, so that it has freed capacity at the beginning.  This freed
-    // capacity is used to drop off the embedded REBSER* at the head of the
-    // "malloc"'d region from the visible data, allowing us to use the series
-    // for the image.
-    //
-    REBSER *s = Rebserize(image_bytes);
-
-    // !!! We don't currently reuse S for the image data for two reasons.  The
-    // series backing Make_Image() needs to be wide=sizeof(u32), and the
-    // fiddling it would take to get that to work is not clearly better than
-    // having IMAGE! use a byte-sized series.  See Rebol_Malloc().
+    // !!! We don't currently rebRepossess() the data as a BINARY! to use
+    // directly for the image data for two reasons.  The series backing
+    // Make_Image() needs to be wide=sizeof(u32), and fiddling it would take
+    // to get that to work is not clearly better than having IMAGE! use a
+    // byte-sized series.
     //
     // The other reason is that is seems the pixel format used by LodePNG is
     // not the same as Rebol's format, so the data has to be rewritten.
     // Review both points, as for large images you don't want to make a copy.
+    // If IMAGE! were a user-defined / extension type, it would make sense
+    // for it to be built on top of BINARY! (and a PAIR! for size...)
     //
     REBSER *image = Make_Image(width, height, TRUE);
-    unsigned char *src = BIN_HEAD(s);
+    unsigned char *src = image_bytes;
     u32 *dest = cast(u32*, IMG_DATA(image));
     REBCNT index;
     for (index = 0; index < width * height; ++index) {
@@ -296,7 +290,7 @@ REBNATIVE(decode_png)
         ++dest;
         src += 4;
     }
-    Free_Series(s);
+    rebFree(image_bytes); // !!! would have been nicer to rebRepossess()
 
     Init_Image(D_OUT, image);
 
