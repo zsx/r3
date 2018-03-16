@@ -503,7 +503,7 @@ ATTRIBUTE_NO_RETURN void Panic_Series_Debug(REBSER *s)
     fprintf(stderr, " series");
 
   #if defined(DEBUG_COUNT_TICKS)
-    fprintf(stderr, "was likely ");
+    fprintf(stderr, " was likely ");
     if (s->header.bits & NODE_FLAG_FREE)
         fprintf(stderr, "freed");
     else
@@ -523,7 +523,7 @@ ATTRIBUTE_NO_RETURN void Panic_Series_Debug(REBSER *s)
         panic ("series guard didn't trigger ASAN/valgrind trap");
 
     panic (
-        "series guard didn't trigger ASAN/Valgrind trap\n"
+        "series guard didn't trigger ASAN/Valgrind trap\n" \
         "either not a REBSER, or you're not running ASAN/Valgrind\n"
     );
   #else

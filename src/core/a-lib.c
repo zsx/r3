@@ -112,7 +112,7 @@ inline static void Enter_Api(void) {
 //
 
 // What distinguishes an API value is that it has both the NODE_FLAG_CELL and
-// NODE_FLAG_ROOT bits set.  Hence if one has a REBVAL* and wants to know
+// NODE_FLAG_ROOT bits set.
 //
 inline static REBOOL Is_Api_Value(const RELVAL *v) {
     assert(v->header.bits & NODE_FLAG_CELL);

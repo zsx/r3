@@ -208,7 +208,7 @@ enum rebol_esc_codes {
 
 typedef struct rebol_scan_state {
     //
-    // The mode_char can be '\0', '[', '(', or '/'
+    // The mode_char can be '\0', ']', ')', or '/'
     //
     REBYTE mode_char;
 

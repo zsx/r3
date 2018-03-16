@@ -1781,7 +1781,7 @@ static REBARR *Scan_Child_Array(SCAN_STATE *ss, REBYTE mode_char);
 //  Scan_To_Stack: C
 //
 // Scans values to the data stack, based on a mode_char.  This mode can be
-// '[', '(', or '/' to indicate the processing type.
+// ']', ')', or '/' to indicate the processing type...or '\0'.
 //
 // If the source bytes are "1" then it will be the array [1]
 // If the source bytes are "[1]" then it will be the array [[1]]
@@ -1791,28 +1791,23 @@ static REBARR *Scan_Child_Array(SCAN_STATE *ss, REBYTE mode_char);
 // transformation (e.g. if the first element was a GET-WORD!, change it to
 // an ordinary WORD! and make it a GET-PATH!)  The caller does this.
 //
-// The return value is always NULL.  (It only has a return value because it
-// may be called by rebRescue(), and that's the convention.)
+// The return value is always NULL, since output is sent to the data stack.
+// (It only has a return value because it may be called by rebRescue(), and
+// that's the convention it uses.)
 //
 REBVAL *Scan_To_Stack(SCAN_STATE *ss) {
-    //
-    // We'd like to use DECLARE_MOLD here, but the macro has a problem with
-    // goto crossing the initialization of `REB_MOLD *mo = &mold_struct`. :-(
-    //
-    REB_MOLD mo;
-    CLEARS(&mo);
+    DECLARE_MOLD (mo);
 
     if (C_STACK_OVERFLOWING(&mo))
         Fail_Stack_Overflow();
 
-    // just_once for load/next see Load_Script for more info.
     const REBOOL just_once = LOGICAL(ss->opts & SCAN_FLAG_NEXT);
     if (just_once)
-        ss->opts &= ~SCAN_FLAG_NEXT; // no deeper
+        ss->opts &= ~SCAN_FLAG_NEXT; // e.g. recursion loads one entire BLOCK!
 
     while (
-        Drop_Mold_If_Pushed(&mo),
-        Locate_Token_May_Push_Mold(&mo, ss),
+        Drop_Mold_If_Pushed(mo),
+        Locate_Token_May_Push_Mold(mo, ss),
         (ss->token != TOKEN_END)
     ){
         assert(ss->begin != NULL && ss->end != NULL);
@@ -2037,7 +2032,7 @@ REBVAL *Scan_To_Stack(SCAN_STATE *ss) {
         case TOKEN_STRING: {
             // During scan above, string was stored in UNI_BUF (with Uni width)
             //
-            REBSER *s = Pop_Molded_String(&mo);
+            REBSER *s = Pop_Molded_String(mo);
             DS_PUSH_TRASH;
             Init_String(DS_TOP, s);
             break; }
@@ -2279,7 +2274,7 @@ REBVAL *Scan_To_Stack(SCAN_STATE *ss) {
         fail (Error_Missing(ss, ss->mode_char));
 
 array_done:
-    Drop_Mold_If_Pushed(&mo);
+    Drop_Mold_If_Pushed(mo);
 
     // The way that newline markers work is they sit on values inside the
     // array.  So if you wanted to preserve the newline on something like:
