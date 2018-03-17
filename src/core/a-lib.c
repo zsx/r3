@@ -165,15 +165,20 @@ inline static void Free_Value(REBVAL *v)
 //
 //  rebMalloc: RL_API
 //
-// * Like plain malloc(), if size is zero, the implementation just has to
-//   return something that free() will take.  (We pick NULL.)
+// * Unlike plain malloc(), this will fail() instead of return NULL if an
+//   allocation cannot be fulfilled.
 //
-// * Unlike plain malloc(), this never returns NULL.  It will fail() instead.
+// * Like plain malloc(), if size is zero, the implementation just has to
+//   return something that free() will take.  A backing series is added in
+//   this case vs. returning NULL, in order to avoid NULL handling in other
+//   routines (e.g. rebRepossess() or handle lifetime control functions).
+//
+// * Because of the above points, NULL is *never* returned.
 //
 // * It tries to be like malloc() by giving back a pointer "suitably aligned
 //   for the size of any fundamental type".  See notes on ALIGN_SIZE.
 //
-// !!! rebMallocAlign() could exist to take an alignment, which could save
+// !!! rebAlignedMalloc() could exist to take an alignment, which could save
 // on wasted bytes when ALIGN_SIZE > sizeof(REBSER*)...or work with "weird"
 // large fundamental types that need more alignment than ALIGN_SIZE.
 //
@@ -181,22 +186,19 @@ void *RL_rebMalloc(size_t size)
 {
     Enter_Api();
 
-    if (size == 0)
-        return NULL; // 0 case is "implementation-defined behavior"
-
     REBSER *s = Make_Series_Core(
         ALIGN_SIZE // stores REBSER* (must be at least big enough for void*)
-            + size // for the actual data capacity
+            + size // for the actual data capacity (may be 0...see notes)
             + 1, // for termination (even BINARY! has this, review necessity)
-        sizeof(REBYTE), // Rebserize() only creates binary series ATM
+        sizeof(REBYTE), // rebRepossess() only creates binary series ATM
         SERIES_FLAG_DONT_RELOCATE // direct data pointer is being handed back!
     );
 
     REBYTE *ptr = BIN_HEAD(s) + ALIGN_SIZE;
-    *(cast(REBSER**, ptr) - 1) = s; // save self in bytes *right before* data
-    TERM_BIN_LEN(s, ALIGN_SIZE + size); // uninitialized data to start
 
-    POISON_MEMORY(BIN_HEAD(s), ALIGN_SIZE); // let ASAN catch underruns
+    REBSER **ps = (cast(REBSER**, ptr) - 1);
+    *ps = s; // save self in bytes *right before* data
+    POISON_MEMORY(ps, sizeof(REBSER*)); // let ASAN catch underruns
 
     // !!! The data is uninitialized, and if it is turned into a BINARY! via
     // rebRepossess() before all bytes are assigned initialized, it could be
@@ -209,6 +211,8 @@ void *RL_rebMalloc(size_t size)
     // in the release build to defend against that, but doing so in the debug
     // build would keep address sanitizer from noticing when memory was not
     // initialized.
+    //
+    TERM_BIN_LEN(s, ALIGN_SIZE + size);
 
     return ptr;
 }
@@ -217,15 +221,19 @@ void *RL_rebMalloc(size_t size)
 //
 //  rebRealloc: RL_API
 //
-// * Like plain realloc(), NULL is legal for ptr
+// * Like plain realloc(), NULL is legal for ptr (despite the fact that
+//   rebMalloc() never returns NULL, this can still be useful)
 //
 // * Like plain realloc(), it preserves the lesser of the old data range or
 //   the new data range, and memory usage drops if new_size is smaller:
 //
 // https://stackoverflow.com/a/9575348
 //
-// * Unlike plain realloc(), this fails instead of returning NULL, hence it is
-//   safe to say `ptr = rebRealloc(ptr, new_size)`
+// * Unlike plain realloc() (but like rebMalloc()), this fails instead of
+//   returning NULL, hence it is safe to say `ptr = rebRealloc(ptr, new_size)`
+//
+// * A 0 size is considered illegal.  This is consistent with the C11 standard
+//   for realloc(), but not with malloc() or rebMalloc()...which allow it.
 //
 void *RL_rebRealloc(void *ptr, size_t new_size)
 {
@@ -236,17 +244,20 @@ void *RL_rebRealloc(void *ptr, size_t new_size)
     if (ptr == NULL) // C realloc() accepts NULL
         return rebMalloc(new_size);
 
-    REBYTE *bin_head = cast(REBYTE*, ptr) - ALIGN_SIZE;
-    UNPOISON_MEMORY(bin_head, ALIGN_SIZE); // need to underrun to fetch `s`
-    UNUSED(bin_head);
+    REBSER **ps = cast(REBSER**, ptr) - 1;
+    UNPOISON_MEMORY(ps, sizeof(REBSER*)); // need to underrun to fetch `s`
 
-    REBSER *old = *(cast(REBSER**, ptr) - 1);
+    REBSER *s = *ps;
 
-    REBCNT old_size = BIN_LEN(old) - ALIGN_SIZE;
+    REBCNT old_size = BIN_LEN(s) - ALIGN_SIZE;
+
+    // !!! It's less efficient to create a new series with another call to
+    // rebMalloc(), but simpler for the time being.  Switch to do this with
+    // the same series node.
+    //
     void *reallocated = rebMalloc(new_size);
     memcpy(reallocated, ptr, old_size < new_size ? old_size : new_size);
-
-    Free_Series(old); // asserts that `old` is unmanaged
+    Free_Series(s); // asserts that `s` is unmanaged
 
     return reallocated;
 }
@@ -264,11 +275,10 @@ void RL_rebFree(void *ptr)
     if (ptr == NULL)
         return;
 
-    REBYTE *bin_head = cast(REBYTE*, ptr) - ALIGN_SIZE;
-    UNPOISON_MEMORY(bin_head, ALIGN_SIZE); // need to underrun to see `s`
-    UNUSED(bin_head);
+    REBSER **ps = cast(REBSER**, ptr) - 1;
+    UNPOISON_MEMORY(ps, sizeof(REBSER*)); // need to underrun to fetch `s`
 
-    REBSER *s = *(cast(REBSER**, ptr) - 1);
+    REBSER *s = *ps;
     assert(BYTE_SIZE(s));
 
     Free_Series(s); // asserts that `s` is unmanaged
@@ -300,16 +310,14 @@ REBVAL *RL_rebRepossess(void *ptr, REBCNT size)
 {
     Enter_Api();
 
-    REBYTE *bin_head = cast(REBYTE*, ptr) - ALIGN_SIZE;
-    UNPOISON_MEMORY(bin_head, ALIGN_SIZE);
-    UNUSED(bin_head);
-
     REBSER **ps = cast(REBSER**, ptr) - 1;
-    REBSER *s = *ps;
-    TRASH_POINTER_IF_DEBUG(ps);
+    UNPOISON_MEMORY(ps, sizeof(REBSER*)); // need to underrun to fetch `s`
 
+    REBSER *s = *ps;
     assert(NOT(IS_SERIES_MANAGED(s)));
-    assert(size <= BIN_LEN(s) - ALIGN_SIZE);
+
+    if (size > BIN_LEN(s) - ALIGN_SIZE)
+        fail ("Attempt to rebRepossess() more than rebMalloc() capacity");
 
     assert(GET_SER_FLAG(s, SERIES_FLAG_DONT_RELOCATE));
     CLEAR_SER_FLAG(s, SERIES_FLAG_DONT_RELOCATE);
