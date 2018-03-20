@@ -549,7 +549,7 @@ REB_R Do_Port_Action(REBFRM *frame_, REBCTX *port, REBSYM action)
 
     REBCNT n; // goto would cross initialization
     n = Find_Action(actor, action);
-    actor = Obj_Value(actor, n);
+    if (n) actor = Obj_Value(actor, n);
     if (!n || !actor || !IS_FUNCTION(actor)) {
         DECLARE_LOCAL (action_word);
         Init_Word(action_word, Canon(action));
