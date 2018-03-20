@@ -190,7 +190,7 @@ enum {
 //
 REB_R Apply_Core_Measured(REBFRM * const f)
 {
-    REBMAP *m = VAL_MAP(ROOT_STATS_MAP);
+    REBMAP *m = VAL_MAP(Root_Stats_Map);
 
     REBOOL is_first_phase = LOGICAL(f->phase == f->original);
 
@@ -403,7 +403,7 @@ REBNATIVE(metrics)
         PG_Apply = &Apply_Core;
     }
 
-    Move_Value(D_OUT, ROOT_STATS_MAP);
+    Move_Value(D_OUT, Root_Stats_Map);
     return R_OUT;
 }
 

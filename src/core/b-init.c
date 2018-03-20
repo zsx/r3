@@ -440,22 +440,6 @@ static void Add_Lib_Keys_R3Alpha_Cant_Make(void)
 
 
 //
-// Init_Function_Tag: C
-//
-// !!! It didn't seem there was a "compare UTF8 byte array to arbitrary
-// decoded REB_TAG which may or may not be REBUNI" routine, but there was
-// an easy way to compare tags to each other.  So pre-fabricating these was
-// quick, but a better solution should be reviewed in terms of an overall
-// string and UTF8 rethinking.
-//
-static void Init_Function_Tag(RELVAL *slot, const char *name)
-{
-    Init_Tag(slot, Make_UTF8_May_Fail(cb_cast(name)));
-    Freeze_Sequence(VAL_SERIES(slot));
-}
-
-
-//
 //  Init_Function_Tags: C
 //
 // FUNC and PROC search for these tags, like <opt> and <local>.  They are
@@ -466,11 +450,20 @@ static void Init_Function_Tag(RELVAL *slot, const char *name)
 //
 static void Init_Function_Tags(void)
 {
-    Init_Function_Tag(ROOT_WITH_TAG, "with");
-    Init_Function_Tag(ROOT_ELLIPSIS_TAG, "...");
-    Init_Function_Tag(ROOT_OPT_TAG, "opt");
-    Init_Function_Tag(ROOT_END_TAG, "end");
-    Init_Function_Tag(ROOT_LOCAL_TAG, "local");
+    Root_With_Tag = rebLock(rebTag("with"), END);
+    Root_Ellipsis_Tag = rebLock(rebTag("..."), END);
+    Root_Opt_Tag = rebLock(rebTag("opt"), END);
+    Root_End_Tag = rebLock(rebTag("end"), END);
+    Root_Local_Tag = rebLock(rebTag("local"), END);
+}
+
+static void Shutdown_Function_Tags(void)
+{
+    rebRelease(Root_With_Tag);
+    rebRelease(Root_Ellipsis_Tag);
+    rebRelease(Root_Opt_Tag);
+    rebRelease(Root_End_Tag);
+    rebRelease(Root_Local_Tag);
 }
 
 
@@ -505,7 +498,12 @@ static void Init_Function_Meta_Shim(void) {
 
     Init_Object(CTX_VAR(function_meta, 1), function_meta); // it's "selfish"
 
-    Init_Object(ROOT_FUNCTION_META, function_meta);
+    Root_Function_Meta = Init_Object(Alloc_Value(), function_meta);
+    rebLock(Root_Function_Meta, END);
+}
+
+static void Shutdown_Function_Meta_Shim(void) {
+    rebRelease(Root_Function_Meta);
 }
 
 
@@ -718,24 +716,15 @@ static REBARR *Startup_Actions(REBARR *boot_actions)
 //
 //  Init_Root_Vars: C
 //
-// Hand-build the root array where special REBOL values are stored, and can
-// be garbage collected.
+// Create some global variables that are useful, and need to be safe from
+// garbage collection.  This relies on the mechanic from the API, where
+// handles are kept around until they are rebRelease()'d.
 //
-// This is called early, so it cannot depend on any other system structures
-// or values.
-//
-// !!! Efficiency note: does not need to be a heap allocated array, which
-// causes double dereferencing to access its values.  Could just be global.
+// This is called early, so there are some special concerns to building the
+// values that would not apply later in boot.
 //
 static void Init_Root_Vars(void)
 {
-    REBARR *root = Make_Array_Core(
-        ROOT_MAX, SERIES_FLAG_FIXED_SIZE | NODE_FLAG_ROOT
-    );
-
-    PG_Root_Array = root;
-    Root_Vars = cast(ROOT_VARS*, ARR_HEAD(root));
-
     // These values are simple isolated VOID, NONE, TRUE, and FALSE values
     // that can be used in lieu of initializing them.  They are initialized
     // as two-element series in order to ensure that their address is not
@@ -788,44 +777,27 @@ static void Init_Root_Vars(void)
     assert(IS_END(END)); // sanity check that it took
     assert(VAL_TYPE_RAW(END) == REB_0); // this implicit END marker has this
 
-    // The EMPTY_BLOCK provides EMPTY_ARRAY.  It is locked for protection.
+    // Note: Not only can rebBlock() not be used yet (because there is no
+    // data stack), PG_Empty_Array must exist before calling Init_Block()
     //
-    PG_Empty_Array = Make_Array(0);
-    Deep_Freeze_Array(PG_Empty_Array);
-    Init_Block(ROOT_EMPTY_BLOCK, PG_Empty_Array);
-    assert(IS_BLOCK(ROOT_EMPTY_BLOCK));
+    PG_Empty_Array = Make_Array(0); // used by Init_Block() in INIT_BINDING
+    Root_Empty_Block = Init_Block(Alloc_Value(), PG_Empty_Array);
+    rebLock(Root_Empty_Block, END);
 
-    REBSER *empty_series = Make_Binary(1);
-    *BIN_AT(empty_series, 0) = '\0';
-    Init_String(ROOT_EMPTY_STRING, empty_series);
-    Freeze_Sequence(VAL_SERIES(ROOT_EMPTY_STRING));
-
-    Init_Char(ROOT_SPACE_CHAR, ' ');
-    Init_Char(ROOT_NEWLINE_CHAR, '\n');
-
-    // BUF_UTF8 not initialized, can't init function tags yet
-    //(at least not how Init_Function_Tags() is written)
+    // Note: rebString() can't run until the UTF8 buffer is allocated.  We
+    // back a string with a binary although, R3-Alpha always terminated
+    // binaries with zero...so no further termination is needed.
     //
-    Init_Unreadable_Blank(ROOT_WITH_TAG);
-    Init_Unreadable_Blank(ROOT_ELLIPSIS_TAG);
-    Init_Unreadable_Blank(ROOT_OPT_TAG);
-    Init_Unreadable_Blank(ROOT_END_TAG);
-    Init_Unreadable_Blank(ROOT_LOCAL_TAG);
+    REBSER *nulled_bin = Make_Binary(1);
+    assert(*BIN_AT(nulled_bin, 0) == '\0');
+    assert(BIN_LEN(nulled_bin) == 0);
+    Root_Empty_String = Init_String(Alloc_Value(), nulled_bin);
+    rebLock(Root_Empty_String, END);
 
-    // Evaluator not initialized, can't do system construction yet
-    //
-    Init_Unreadable_Blank(ROOT_SYSTEM);
+    Root_Space_Char = rebChar(' ');
+    Root_Newline_Char = rebChar('\n');
 
-    // Data stack not initialized, can't do typeset construction yet
-    // (at least not how Startup_Typesets() is written)
-    //
-    Init_Unreadable_Blank(ROOT_TYPESETS);
-
-    // Symbols system not initialized, can't init the function meta shim yet
-    //
-    Init_Unreadable_Blank(ROOT_FUNCTION_META);
-
-    // !!! Putting the stats map in the root object is a temporary solution
+    // !!! Putting the stats map in a root object is a temporary solution
     // to allowing a native coded routine to have a static which is guarded
     // by the GC.  While it might seem better to move the stats into a
     // mostly usermode implementation that hooks apply, this could preclude
@@ -834,11 +806,24 @@ static void Init_Root_Vars(void)
     // this form of mechanism that can diagnose boot, while release builds
     // rely on a usermode stats module.
     //
-    Init_Map(ROOT_STATS_MAP, Make_Map(10));
+    Root_Stats_Map = Init_Map(Alloc_Value(), Make_Map(10));
 
-    TERM_ARRAY_LEN(root, ROOT_MAX);
-    ASSERT_ARRAY(root);
-    MANAGE_ARRAY(root);
+}
+
+static void Shutdown_Root_Vars(void)
+{
+    rebRelease(Root_Stats_Map);
+    Root_Stats_Map = NULL;
+
+    rebRelease(Root_Space_Char);
+    Root_Space_Char = NULL;
+    rebRelease(Root_Newline_Char);
+    Root_Newline_Char = NULL;
+
+    rebRelease(Root_Empty_String);
+    Root_Empty_String = NULL;
+    rebRelease(Root_Empty_Block);
+    Root_Empty_Block = NULL;
 }
 
 
@@ -888,14 +873,12 @@ static void Init_System_Object(
         system
     );
 
-    // We also add the system object under the root, to ensure it can't be
-    // garbage collected and be able to access it from the C code.  (Someone
-    // could say `system: blank` in the Lib_Context and then it would be a
-    // candidate for garbage collection otherwise!)
+    // Make the system object a root value, to protect it from GC.  (Someone
+    // could say `system: blank` in the Lib_Context, otherwise!)
     //
-    Init_Object(ROOT_SYSTEM, system);
+    Root_System = Init_Object(Alloc_Value(), system);
 
-    // Init_Function_Meta_Shim() made ROOT_FUNCTION_META as a bootstrap hack
+    // Init_Function_Meta_Shim() made Root_Function_Meta as a bootstrap hack
     // since it needed to make function meta information for natives before
     // %sysobj.r's code could run using those natives.  But make sure what it
     // made is actually identical to the definition in %sysobj.r.
@@ -903,7 +886,7 @@ static void Init_System_Object(
     assert(
         0 == CT_Context(
             Get_System(SYS_STANDARD, STD_FUNCTION_META),
-            ROOT_FUNCTION_META,
+            Root_Function_Meta,
             1 // "strict equality"
         )
     );
@@ -918,6 +901,12 @@ static void Init_System_Object(
     // Create system/codecs object
     //
     Init_Object(Get_System(SYS_CODECS, 0), Alloc_Context(REB_OBJECT, 10));
+}
+
+void Shutdown_System_Object(void)
+{
+    rebRelease(Root_System);
+    Root_System = NULL;
 }
 
 
@@ -964,14 +953,6 @@ static void Init_Contexts_Object(void)
 //
 void Startup_Task(void)
 {
-    REBARR *task = Make_Array_Core(
-        TASK_MAX,
-        SERIES_FLAG_FIXED_SIZE | NODE_FLAG_ROOT
-    );
-
-    TG_Task_Array = task;
-    Task_Vars = cast(TASK_VARS*, ARR_HEAD(task));
-
     Trace_Level = 0;
     Saved_State = 0;
 
@@ -982,11 +963,10 @@ void Startup_Task(void)
     Eval_Sigmask = ALL_BITS;
     Eval_Limit = 0;
 
-    Startup_Stacks(STACK_MIN/4);
+    Startup_Stacks(STACK_MIN / 4);
 
-    // Initialize a few fields:
-    Init_Integer(TASK_BALLAST, MEM_BALLAST);
-    Init_Integer(TASK_MAX_BALLAST, MEM_BALLAST);
+    TG_Ballast = MEM_BALLAST;
+    TG_Max_Ballast = MEM_BALLAST;
 
     // The thrown arg is not intended to ever be around long enough to be
     // seen by the GC.
@@ -996,17 +976,9 @@ void Startup_Task(void)
 
     Startup_Raw_Print();
     Startup_Scanner();
-    Startup_Mold(MIN_COMMON/4);
+    Startup_Mold(MIN_COMMON / 4);
     Startup_String();
     Startup_Collector();
-
-    // Symbols system not initialized, can't init the errors just yet
-    //
-    Init_Unreadable_Blank(TASK_STACK_ERROR);
-
-    TERM_ARRAY_LEN(task, TASK_MAX);
-    ASSERT_ARRAY(task);
-    MANAGE_ARRAY(task);
 }
 
 
@@ -1153,15 +1125,29 @@ void Startup_Core(void)
 
 //==//////////////////////////////////////////////////////////////////////==//
 //
+// INITIALIZE API
+//
+//==//////////////////////////////////////////////////////////////////////==//
+
+    // The API is one means by which variables can be made whose lifetime is
+    // indefinite until program shutdown.  In R3-Alpha this was done with
+    // boot code that laid out some fixed structure arrays, but it's more
+    // general to do it this way.
+
+    Init_Char_Cases();
+    Startup_CRC();             // For word hashing
+    Set_Random(0);
+    Startup_Interning();
+
+    Startup_Api();
+
+//==//////////////////////////////////////////////////////////////////////==//
+//
 // CREATE GLOBAL OBJECTS
 //
 //==//////////////////////////////////////////////////////////////////////==//
 
     Init_Root_Vars();    // Special REBOL values per program
-    Init_Char_Cases();
-    Startup_CRC();             // For word hashing
-    Set_Random(0);
-    Startup_Interning();
 
 //==//////////////////////////////////////////////////////////////////////==//
 //
@@ -1215,14 +1201,6 @@ void Startup_Core(void)
     Startup_Symbols(VAL_ARRAY(&boot->words));
 
     // STR_SYMBOL(), VAL_WORD_SYM() and Canon(SYM_XXX) now available
-
-    // !!! There is an idea that so-called "Root" and "Task" variables might
-    // be held onto API nodes, whose lifetime is indefinite until program
-    // shutdown.  If that were the case then the API should be started up
-    // early...it depends on when the codebase is presumed free to start
-    // using rebXxxYyy() functions.
-    //
-    Startup_Api();
 
     PG_Boot_Phase = BOOT_LOADED;
 
@@ -1319,9 +1297,11 @@ void Startup_Core(void)
   #endif
 
     // Pre-make the stack overflow error (so it doesn't need to be made
-    // during a stack overflow)
+    // during a stack overflow).  Error creation machinery depends heavily
+    // on the system object being initialized, so this can't be done until
+    // now.
     //
-    Init_Error(TASK_STACK_ERROR, Error_Stack_Overflow_Raw());
+    Startup_Stackoverflow();
 
 //==//////////////////////////////////////////////////////////////////////==//
 //
@@ -1436,16 +1416,23 @@ void Shutdown_Core(void)
 
     Shutdown_Stacks();
 
-    CLEAR_SER_FLAG(PG_Root_Array, NODE_FLAG_ROOT);
-    CLEAR_SER_FLAG(TG_Task_Array, NODE_FLAG_ROOT);
+    Shutdown_Stackoverflow();
+    Shutdown_System_Object();
+    Shutdown_Typesets();
+
+    Shutdown_Function_Meta_Shim();
+    Shutdown_Function_Tags();
+    Shutdown_Root_Vars();
 
     const REBOOL shutdown = TRUE; // go ahead and free all managed series
     Recycle_Core(shutdown, NULL);
 
+    Shutdown_Mold();
+    Shutdown_Collector();
+    Shutdown_Raw_Print();
     Shutdown_Event_Scheme();
     Shutdown_CRC();
     Shutdown_String();
-    Shutdown_Mold();
     Shutdown_Scanner();
     Shutdown_Char_Cases();
 

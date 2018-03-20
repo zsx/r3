@@ -119,7 +119,7 @@ REBNATIVE(load_extension_helper)
         MAKE_Library(lib, REB_LIBRARY, path);
 
         // check if it's reloading an existing extension
-        REBVAL *loaded_exts = CTX_VAR(VAL_CONTEXT(ROOT_SYSTEM), SYS_EXTENSIONS);
+        REBVAL *loaded_exts = CTX_VAR(VAL_CONTEXT(Root_System), SYS_EXTENSIONS);
         if (IS_BLOCK(loaded_exts)) {
             RELVAL *item = VAL_ARRAY_HEAD(loaded_exts);
             for (; NOT_END(item); ++item) {

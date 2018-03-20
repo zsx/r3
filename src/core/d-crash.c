@@ -82,7 +82,7 @@ ATTRIBUTE_NO_RETURN void Panic_Core(
     // First thing's first in the debug build, make sure the file and the
     // line are printed out, as well as the current evaluator tick.
     //
-    printf("C Source File %s, Line %d\n", file, line);
+    printf("C Source File %s, Line %d, Pointer %p\n", file, line, p);
     printf("At evaluator tick: %lu\n", cast(unsigned long, tick));
 
     // Generally Rebol does not #include <stdio.h>, but the debug build does.

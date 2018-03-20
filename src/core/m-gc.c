@@ -925,14 +925,14 @@ static void Reify_Any_C_Valist_Frames(void)
 //
 //  Mark_Root_Series: C
 //
-// In Ren-C, there is a concept of there being an open number of GC roots.
-// Through the API, each cell held by a "paired" which is under GC management
-// is considered to be a root.
+// Currently Alloc_Value() is the only creator of root nodes, which can keep
+// a single API REBVAL* value alive.  This looks at those root nodes and
+// checks to see if their lifetime was dependent on a FRAME!.  If so, it
+// will free the node.  Otherwise, it will mark its dependencies.
 //
-// There is also a special ability of a paired, such that if the "key" is
-// a frame with a certain bit set, then it will tie its lifetime to the
-// lifetime of that frame on the stack.  (Not to the lifetime of the FRAME!
-// value itself, which could be indefinite.)
+// !!! This implementation walks over *all* the nodes.  Conceivably API roots
+// could be in their own pool.  They also wouldn't have to be REBSER nodes
+// at all.  Review.
 //
 static void Mark_Root_Series(void)
 {
@@ -950,16 +950,16 @@ static void Mark_Root_Series(void)
             if (NOT(s->header.bits & NODE_FLAG_ROOT))
                 continue;
 
-            if (NOT(s->info.bits & SERIES_INFO_HAS_DYNAMIC)) {
-                //
-                // Singular roots hold API handles.  They are referenced from
-                // C code, they should never wind up referenced from values.
-                //
-                assert(NOT(s->header.bits & NODE_FLAG_MARKED));
-                if (
-                    GET_SER_FLAG(s, NODE_FLAG_MANAGED)
-                    && GET_SER_INFO(LINK(s).owner, SERIES_INFO_INACCESSIBLE)
-                ){
+            assert(NOT(s->info.bits & SERIES_INFO_HAS_DYNAMIC));
+
+            // API nodes are referenced from C code, they should never wind
+            // up referenced from values.  Marking another root should not
+            // be able to mark these handles.
+            //
+            assert(NOT(s->header.bits & NODE_FLAG_MARKED));
+
+            if (GET_SER_FLAG(s, NODE_FLAG_MANAGED)) {
+                if (GET_SER_INFO(LINK(s).owner, SERIES_INFO_INACCESSIBLE)) {
                     if (NOT_SER_INFO(LINK(s).owner, FRAME_INFO_FAILED)) {
                         //
                         // Long term, it is likely that implicit managed-ness
@@ -977,47 +977,28 @@ static void Mark_Root_Series(void)
                     continue;
                 }
 
-                // Pick up its dependencies deeply.  Note that ENDs are
-                // allowed because for instance, a DO might be executed with
-                // the pairing as the OUT slot (since it is memory guaranteed
-                // not to relocate)
+                // Since the frame is still alive, we should not have to mark
+                // it (it's on the stack and marked in the stack walk).
                 //
-                RELVAL *v = ARR_SINGLE(ARR(s));
-                if (NOT_END(v)) {
-                  #ifdef DEBUG_UNREADABLE_BLANKS
-                    if (NOT(IS_UNREADABLE_DEBUG(v)))
-                  #endif
-                        if (NOT(IS_VOID(v)))
-                            Queue_Mark_Value_Deep(v);
-                }
-
-                // While the API handle counts as a reference to keeping the
-                // frame alive, we know it's not inaccessible.  That means
-                // it's on the stack.  There should be no reason to explicitly
-                // mark LINK(s).owner, it should be marked anyway.
+                // But since this node is managed, currently this has to mark
+                // the node as in use else it will be freed in Sweep_Series()
                 //
-                // However, if managed, currently this has to mark the node
-                // as in use else it will be freed.
-                //
-                if (s->header.bits & NODE_FLAG_MANAGED)
-                    s->header.bits |= NODE_FLAG_MARKED;
+                s->header.bits |= NODE_FLAG_MARKED;
             }
-            else {
-                // All root *series* must be managed
-                //
-                assert(GET_SER_FLAG(s, NODE_FLAG_MANAGED));
-                if (s->header.bits & NODE_FLAG_MARKED)
-                    continue; // this can happen if a previous root marked it
 
-                // We have to do the queueing based on whatever type of series
-                // this is.  So if it's a context, we have to get the
-                // keylist...etc.
-                //
-                if (GET_SER_FLAG(s, SERIES_FLAG_ARRAY))
-                    Queue_Mark_Array_Subclass_Deep(ARR(s));
-                else
-                    Mark_Rebser_Only(s);
+            // Pick up the dependencies deeply.  Note that ENDs are allowed
+            // because for instance, a DO might be executed with the API value
+            // as the OUT slot (since it is memory guaranteed not to relocate)
+            //
+            RELVAL *v = ARR_SINGLE(ARR(s));
+            if (NOT_END(v)) {
+              #ifdef DEBUG_UNREADABLE_BLANKS
+                if (NOT(IS_UNREADABLE_DEBUG(v)))
+              #endif
+                    if (NOT(IS_VOID(v)))
+                        Queue_Mark_Value_Deep(v);
             }
+
         }
     }
 
@@ -1599,25 +1580,25 @@ REBCNT Recycle_Core(REBOOL shutdown, REBSER *sweeplist)
         //
         // https://github.com/zsx/r3/issues/32
         //
-        /*if (GC_Ballast <= VAL_INT32(TASK_BALLAST) / 2
-            && VAL_INT64(TASK_BALLAST) < MAX_I32) {
+        /*if (GC_Ballast <= TG_Ballast / 2
+            && TG_Task_Ballast < MAX_I32) {
             //increasing ballast by half
-            VAL_INT64(TASK_BALLAST) /= 2;
-            VAL_INT64(TASK_BALLAST) *= 3;
-        } else if (GC_Ballast >= VAL_INT64(TASK_BALLAST) * 2) {
+            TG_Ballast /= 2;
+            TG_Ballast *= 3;
+        } else if (GC_Ballast >= TG_Ballast * 2) {
             //reduce ballast by half
-            VAL_INT64(TASK_BALLAST) /= 2;
+            TG_Ballast /= 2;
         }
 
         // avoid overflow
         if (
-            VAL_INT64(TASK_BALLAST) < 0
-            || VAL_INT64(TASK_BALLAST) >= MAX_I32
+            TG_Ballast < 0
+            || TG_Ballast >= MAX_I32
         ) {
-            VAL_INT64(TASK_BALLAST) = MAX_I32;
+            TG_Ballast = MAX_I32;
         }*/
 
-        GC_Ballast = VAL_INT32(TASK_BALLAST);
+        GC_Ballast = TG_Ballast;
 
         if (Reb_Opts->watch_recycle)
             Debug_Fmt(RM_WATCH_RECYCLE, count);

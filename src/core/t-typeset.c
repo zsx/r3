@@ -101,7 +101,21 @@ void Startup_Typesets(void)
         );
     }
 
-    Init_Block(ROOT_TYPESETS, Pop_Stack_Values(dsp_orig));
+    // !!! Why does the system access the typesets through Lib_Context, vs.
+    // using the Root_Typesets?
+    //
+    Root_Typesets = Init_Block(Alloc_Value(), Pop_Stack_Values(dsp_orig));
+    rebLock(Root_Typesets, END);
+}
+
+
+//
+//  Shutdown_Typesets: C
+//
+void Shutdown_Typesets(void)
+{
+    rebRelease(Root_Typesets);
+    Root_Typesets = NULL;
 }
 
 
@@ -167,7 +181,7 @@ REBOOL Update_Typeset_Bits_Core(
 
         if (
             keywords && IS_TAG(item) && (
-                0 == Compare_String_Vals(item, ROOT_ELLIPSIS_TAG, TRUE)
+                0 == Compare_String_Vals(item, Root_Ellipsis_Tag, TRUE)
             )
         ) {
             // Notational convenience for variadic.
@@ -177,7 +191,7 @@ REBOOL Update_Typeset_Bits_Core(
         }
         else if (
             IS_BAR(item) || (keywords && IS_TAG(item) && (
-                0 == Compare_String_Vals(item, ROOT_END_TAG, TRUE)
+                0 == Compare_String_Vals(item, Root_End_Tag, TRUE)
             ))
         ) {
             // A BAR! in a typeset spec for functions indicates a tolerance
@@ -189,7 +203,7 @@ REBOOL Update_Typeset_Bits_Core(
         }
         else if (
             IS_BLANK(item) || (keywords && IS_TAG(item) && (
-                0 == Compare_String_Vals(item, ROOT_OPT_TAG, TRUE)
+                0 == Compare_String_Vals(item, Root_Opt_Tag, TRUE)
             ))
         ) {
             // A BLANK! in a typeset spec for functions indicates a willingness

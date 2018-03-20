@@ -144,17 +144,17 @@ REBNATIVE(recycle)
 
     if (REF(on)) {
         GC_Disabled = FALSE;
-        VAL_INT64(TASK_BALLAST) = VAL_INT32(TASK_MAX_BALLAST);
+        TG_Ballast = TG_Max_Ballast;
     }
 
     if (REF(ballast)) {
-        Move_Value(TASK_MAX_BALLAST, ARG(size));
-        VAL_INT64(TASK_BALLAST) = VAL_INT32(TASK_MAX_BALLAST);
+        TG_Max_Ballast = VAL_INT32(ARG(size));
+        TG_Ballast = TG_Max_Ballast;
     }
 
     if (REF(torture)) {
         GC_Disabled = FALSE;
-        VAL_INT64(TASK_BALLAST) = 0;
+        TG_Ballast = 0;
     }
 
     if (GC_Disabled)

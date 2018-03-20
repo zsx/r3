@@ -82,8 +82,6 @@ Licensed under the Apache License, Version 2.0
 sections: [
     boot-types
     boot-words
-    boot-root
-    boot-task
     boot-actions
     boot-natives
     boot-typespecs
@@ -889,8 +887,6 @@ for-each type datatypes [
 ;-- Create main code section (compressed):
 
 boot-types: new-types
-boot-root: load %root.r
-boot-task: load %task.r
 
 write-if-changed boot/tmp-boot-block.r mold reduce sections
 data: mold/flat reduce sections
@@ -999,60 +995,8 @@ for-each word sections [
         "RELVAL" space (to-c-name word) ";" ;-- can't be REBVAL in C++ build
     ]
 ]
-e-boot/emit "} BOOT_BLK;"
+e-boot/emit-line "} BOOT_BLK;"
 
 ;-------------------
-
-e-boot/emit [newline newline]
-
-e-boot/emit-line {//**** ROOT Vars (GC protected special values):}
-e-boot/emit newline
-
-e-boot/emit-line "typedef struct REBOL_Root_Vars {"
-
-for-each word boot-root [
-    e-boot/emit-line/indent [
-        "RELVAL" space (to-c-name word) ";" ;-- Can't be REBVAL in C++ build
-    ]
-]
-e-boot/emit-line ["} ROOT_VARS;"]
-e-boot/emit newline
-
-n: 0
-for-each word boot-root [
-    e-boot/emit-line [
-        "#define" space (uppercase to-c-name ["ROOT_" word]) space
-        "KNOWN(&Root_Vars->" (lowercase to-c-name word) ")"
-    ]
-    n: n + 1
-]
-e-boot/emit-line ["#define ROOT_MAX" space n]
-
-;-------------------
-
-e-boot/emit [newline newline]
-
-e-boot/emit-line {//**** TASK Vars (GC protected special values)}
-e-boot/emit newline
-
-e-boot/emit-line "typedef struct REBOL_Task_Vars {"
-
-for-each word boot-task [
-    e-boot/emit-line/indent [
-        "RELVAL" space (to-c-name word) ";" ;-- Can't be REBVAL in C++ build
-    ]
-]
-e-boot/emit-line ["} TASK_VARS;"]
-e-boot/emit newline
-
-n: 0
-for-each word boot-task [
-    e-boot/emit-line [
-        "#define" space (uppercase to-c-name ["TASK_" word]) space
-        "KNOWN(&Task_Vars->" (lowercase to-c-name word) ")"
-    ]
-    n: n + 1
-]
-e-boot/emit-line ["#define TASK_MAX" space n]
 
 e-boot/write-emitted

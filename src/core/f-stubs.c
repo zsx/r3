@@ -297,7 +297,7 @@ REBVAL *Get_System(REBCNT i1, REBCNT i2)
 {
     REBVAL *obj;
 
-    obj = CTX_VAR(VAL_CONTEXT(ROOT_SYSTEM), i1);
+    obj = CTX_VAR(VAL_CONTEXT(Root_System), i1);
     if (i2 == 0) return obj;
     assert(IS_OBJECT(obj));
     return CTX_VAR(VAL_CONTEXT(obj), i2);

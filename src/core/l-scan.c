@@ -2567,7 +2567,7 @@ void Startup_Scanner(void)
         ++n;
     assert(cast(enum Reb_Token, n) == TOKEN_MAX);
 
-    Init_String(TASK_BUF_UTF8, Make_Unicode(1020));
+    TG_Buf_Utf8 = Make_Unicode(1020);
 }
 
 
@@ -2576,7 +2576,8 @@ void Startup_Scanner(void)
 //
 void Shutdown_Scanner(void)
 {
-    // Note: Emit and UTF8 buffers freed by task root set
+    Free_Series(TG_Buf_Utf8);
+    TG_Buf_Utf8 = NULL;
 }
 
 

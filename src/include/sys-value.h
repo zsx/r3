@@ -1302,7 +1302,10 @@ inline static REBVAL *Init_Char(RELVAL *out, REBUNI uni) {
 }
 
 #define SPACE_VALUE \
-    (ROOT_SPACE_CHAR)
+    Root_Space_Char
+
+#define NEWLINE_VALUE \
+    Root_Newline_Char
 
 
 //=////////////////////////////////////////////////////////////////////////=//

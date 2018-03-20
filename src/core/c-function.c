@@ -254,10 +254,10 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     //=//// TOP-LEVEL SPEC TAGS LIKE <local>, <with> etc. /////////////////=//
 
         if (IS_TAG(item) && (flags & MKF_KEYWORDS)) {
-            if (0 == Compare_String_Vals(item, ROOT_WITH_TAG, TRUE)) {
+            if (0 == Compare_String_Vals(item, Root_With_Tag, TRUE)) {
                 mode = SPEC_MODE_WITH;
             }
-            else if (0 == Compare_String_Vals(item, ROOT_LOCAL_TAG, TRUE)) {
+            else if (0 == Compare_String_Vals(item, Root_Local_Tag, TRUE)) {
                 mode = SPEC_MODE_LOCAL;
             }
             else
@@ -720,7 +720,7 @@ REBARR *Make_Paramlist_Managed_May_Fail(
     REBCTX *meta = NULL;
 
     if (has_description || has_types || has_notes) {
-        meta = Copy_Context_Shallow(VAL_CONTEXT(ROOT_FUNCTION_META));
+        meta = Copy_Context_Shallow(VAL_CONTEXT(Root_Function_Meta));
         MANAGE_ARRAY(CTX_VARLIST(meta));
     }
 

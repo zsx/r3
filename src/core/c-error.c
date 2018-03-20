@@ -250,7 +250,7 @@ ATTRIBUTE_NO_RETURN void Fail_Core(const void *p)
     if (PG_Probe_Failures) {
         static REBOOL probing = FALSE;
 
-        if (p == cast(void*, VAL_CONTEXT(TASK_STACK_ERROR))) {
+        if (p == cast(void*, VAL_CONTEXT(Root_Stackoverflow_Error))) {
             printf("PROBE(Stack Overflow) -> mold in PROBE would recurse\n");
             fflush(stdout);
         }
@@ -1504,6 +1504,28 @@ REBCTX *Startup_Errors(REBARR *boot_errors)
     }
 
     return catalog;
+}
+
+
+//
+//  Startup_Stackoverflow: C
+//
+void Startup_Stackoverflow(void)
+{
+    Root_Stackoverflow_Error = Init_Error(
+        Alloc_Value(),
+        Error_Stack_Overflow_Raw()
+    );
+}
+
+
+//
+//  Shutdown_Stackoverflow: C
+//
+void Shutdown_Stackoverflow(void)
+{
+    rebRelease(Root_Stackoverflow_Error);
+    Root_Stackoverflow_Error = NULL;
 }
 
 

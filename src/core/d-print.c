@@ -721,5 +721,15 @@ void Form_Args(REB_MOLD *mo, const char *fmt, ...)
 //
 void Startup_Raw_Print(void)
 {
-    Init_Binary(TASK_BYTE_BUF, Make_Binary(1000));
+    TG_Byte_Buf = Make_Binary(1000);
+}
+
+
+//
+//  Shutdown_Raw_Print: C
+//
+void Shutdown_Raw_Print(void)
+{
+    Free_Series(TG_Byte_Buf);
+    TG_Byte_Buf = NULL;
 }

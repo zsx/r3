@@ -551,4 +551,4 @@ inline static void Drop_Chunk_Of_Values(REBVAL *opt_head)
 // error allocations...just use an already made error.
 //
 #define Fail_Stack_Overflow() \
-    fail (VAL_CONTEXT(TASK_STACK_ERROR));
+    fail (VAL_CONTEXT(Root_Stackoverflow_Error));

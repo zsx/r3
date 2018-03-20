@@ -63,10 +63,6 @@ PVAR REBCNT PG_Num_Canon_Slots_In_Use; // Total canon hash slots (+ deleteds)
     PVAR REBCNT PG_Num_Canon_Deleteds; // Deleted canon hash slots "in use"
 #endif
 
-//-- Main contexts:
-PVAR REBARR *PG_Root_Array; // Frame that holds Root_Vars
-PVAR ROOT_VARS *Root_Vars; // PG_Root_Array's values as a C structure
-
 PVAR REBCTX *Lib_Context;
 PVAR REBCTX *Sys_Context;
 
@@ -103,7 +99,33 @@ PVAR REBVAL PG_Bar_Value[2];
 PVAR REBVAL PG_False_Value[2];
 PVAR REBVAL PG_True_Value[2];
 
-PVAR REBARR* PG_Empty_Array; // optimization of VAL_ARRAY(EMPTY_BLOCK)
+// These are root variables which used to be described in %root.r and kept
+// alive by keeping that array alive.  Now they are API handles, kept alive
+// by the same mechanism they use.  This means they can be initialized at
+// the appropriate moment during the boot, one at a time.
+
+PVAR REBVAL *Root_System;
+PVAR REBVAL *Root_Typesets;
+
+PVAR REBVAL *Root_With_Tag; // overrides locals gathering (can disable RETURN)
+PVAR REBVAL *Root_Ellipsis_Tag; // marks variadic argument <...>
+PVAR REBVAL *Root_Opt_Tag; // marks optional argument (can be void)
+PVAR REBVAL *Root_End_Tag; // marks endable argument (void if at end of input)
+PVAR REBVAL *Root_Local_Tag; // marks beginning of a list of "pure locals"
+
+PVAR REBVAL *Root_Empty_String; // read-only ""
+PVAR REBVAL *Root_Empty_Block; // read-only []
+PVAR REBARR* PG_Empty_Array; // optimization of VAL_ARRAY(Root_Empty_Block)
+
+PVAR REBVAL *Root_Space_Char; // ' ' as a CHAR!
+PVAR REBVAL *Root_Newline_Char; // '\n' as a CHAR!
+
+PVAR REBVAL *Root_Function_Meta;
+
+PVAR REBVAL *Root_Stats_Map;
+
+PVAR REBVAL *Root_Stackoverflow_Error; // made in advance, avoids extra calls
+
 
 // This signal word should be thread-local, but it will not work
 // when implemented that way. Needs research!!!!
@@ -129,10 +151,14 @@ PVAR REBAPF PG_Apply; // Rebol "APPLY function" (takes REBFRM, returns REB_R)
 **
 ***********************************************************************/
 
-TVAR REBARR *TG_Task_Array; // Array that holds Task_Vars
-TVAR TASK_VARS *Task_Vars; // TG_Task_Array's values as a C structure
-
 TVAR REBVAL TG_Thrown_Arg;  // Non-GC protected argument to THROW
+
+// !!! These values were held in REBVALs for some reason in R3-Alpha, which
+// means that since they were INTEGER! they were signed 64-bit integers.  It
+// seems the code wants to clip them to 32-bit often, however.
+//
+TVAR REBI64 TG_Ballast;
+TVAR REBI64 TG_Max_Ballast;
 
 //-- Memory and GC:
 TVAR REBPOL *Mem_Pools;     // Memory pool array
@@ -145,9 +171,20 @@ TVAR REBSER **Prior_Expand; // Track prior series expansions (acceleration)
 
 TVAR REBSER *TG_Mold_Stack; // Used to prevent infinite loop in cyclical molds
 
+// These variables used to be described in %task.r and were resident in an
+// array which kept them alive.  However, they were used as series, so really
+// could just be allocated manually...which also saves a dereference to get
+// them out of their respective REBVAL.
+
+TVAR REBARR *TG_Buf_Collect; // for collecting object keys or words
+TVAR REBSER *TG_Buf_Utf8; // UTF8 reused buffer
+TVAR REBSER *TG_Byte_Buf; // temporary byte buffer used mainly by raw print
+TVAR REBSER *TG_Uni_Buf; // temporary unicode buffer - used mainly by mold
+
 // These manually-managed series must either be freed with Free_Series()
 // or handed over to the GC at certain synchronized points, else they
 // would represent a memory leak in the release build.
+
 TVAR REBSER *GC_Manuals;    // Manually memory managed (not by GC)
 
 #if !defined(OS_STACK_GROWS_UP) && !defined(OS_STACK_GROWS_DOWN)

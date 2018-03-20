@@ -1423,7 +1423,17 @@ void Startup_Collector(void)
     // least 2 long to hold the rootkey (SYM_0) and a possible SYM_SELF
     // hidden actual key.
     //
-    Init_Block(TASK_BUF_COLLECT, Make_Array_Core(2 + 98, 0));
+    TG_Buf_Collect = Make_Array_Core(2 + 98, 0);
+}
+
+
+//
+//  Shutdown_Collector: C
+//
+void Shutdown_Collector(void)
+{
+    Free_Array(TG_Buf_Collect);
+    TG_Buf_Collect = NULL;
 }
 
 

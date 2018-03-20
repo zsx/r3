@@ -768,11 +768,17 @@ inline static void SET_SIGNAL(REBFLGS f) {
 //-- Temporary Buffers
 //   These are reused for cases for appending, when length cannot be known.
 
-#define BUF_COLLECT     VAL_ARRAY(TASK_BUF_COLLECT)
+#define BUF_COLLECT \
+    TG_Buf_Collect
 
-#define BYTE_BUF        VAL_SERIES(TASK_BYTE_BUF)
-#define UNI_BUF        VAL_SERIES(TASK_UNI_BUF)
-#define BUF_UTF8        VAL_SERIES(TASK_BUF_UTF8)
+#define BYTE_BUF \
+    TG_Byte_Buf
+
+#define UNI_BUF \
+    TG_Uni_Buf
+
+#define BUF_UTF8 \
+    TG_Buf_Utf8
 
 enum {
     TRACE_FLAG_FUNCTION = 1 << 0
@@ -819,3 +825,5 @@ extern MOLD_FUNC Mold_Or_Form_Dispatch[REB_MAX];
 
 #include "sys-do.h"
 #include "sys-path.h"
+
+#include "sys-roots.h"

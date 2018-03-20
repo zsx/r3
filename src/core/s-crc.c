@@ -402,7 +402,7 @@ REBSER *Make_Hash_Sequence(REBCNT len)
 // field of the REBSER which needs to be given to memory
 // management as well.
 //
-void Init_Map(REBVAL *out, REBMAP *map)
+REBVAL *Init_Map(RELVAL *out, REBMAP *map)
 {
     if (MAP_HASHLIST(map))
         ENSURE_SERIES_MANAGED(MAP_HASHLIST(map));
@@ -413,6 +413,8 @@ void Init_Map(REBVAL *out, REBMAP *map)
     INIT_BINDING(out, UNBOUND);
     out->payload.any_series.series = SER(MAP_PAIRLIST(map));
     out->payload.any_series.index = 0;
+
+    return KNOWN(out);
 }
 
 

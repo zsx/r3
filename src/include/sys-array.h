@@ -385,13 +385,13 @@ inline static REBARR* Copy_Array_At_Extra_Deep_Managed(
 //
 
 #define EMPTY_BLOCK \
-    ROOT_EMPTY_BLOCK
+    Root_Empty_Block
 
 #define EMPTY_ARRAY \
-    PG_Empty_Array // Note: initialized from VAL_ARRAY(ROOT_EMPTY_BLOCK)
+    PG_Empty_Array // Note: initialized from VAL_ARRAY(Root_Empty_Block)
 
 #define EMPTY_STRING \
-    ROOT_EMPTY_STRING
+    Root_Empty_String
 
 inline static REBSPC* AS_SPECIFIER(void *p) {
     REBSPC *specifier = cast(REBSPC*, p);

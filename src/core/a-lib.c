@@ -91,77 +91,6 @@ inline static void Enter_Api(void) {
 }
 
 
-//=//// API VALUE ALLOCATION //////////////////////////////////////////////=//
-//
-// API REBVALs live in singular arrays (which fit inside a REBSER node, that
-// is the size of 2 REBVALs).  But they aren't kept alive by references from
-// other values, like the way that a REBARR used by a BLOCK! is kept alive.
-// They are kept alive by being roots (currently implemented with a flag
-// NODE_FLAG_ROOT, but it could also mean living in a distinct pool from
-// other series nodes).
-//
-// The API value content is in the single cell, with the ->misc holding the
-// REBCTX* of the FRAME! that controls its lifetime, or NULL.  The ->link
-// field (which is in the bytes prior to the value) holds a series with
-// SERIES_FLAG_ARRAY set, which lets a REBVAL* be distinguished from the
-// result of a rebMalloc(), as that pointer is preceded by a node pointer
-// without SERIES_FLAG_ARRAY set.
-//
-// The long term goal is to have diverse and sophisticated memory management
-// options for API handles.  They would default to automatic GC when the
-// current function frame goes away, but also permit manual freeing.  At the
-// moment they default to manual (hence leak if not `rebRelease()`d) and have
-// to be converted to be GC managed with `rebManage()`.
-//
-// Manual release will always be necessary in *some* places, such as the
-// console code: since it is top-level its "owning frame" never goes away.
-// So for the moment, it doesn't hurt to be doing more solid bookkeeping with
-// a manual default to notice any leaking patterns in the core.
-//
-
-// What distinguishes an API value is that it has both the NODE_FLAG_CELL and
-// NODE_FLAG_ROOT bits set.
-//
-inline static REBOOL Is_Api_Value(const RELVAL *v) {
-    assert(v->header.bits & NODE_FLAG_CELL);
-    return LOGICAL(v->header.bits & NODE_FLAG_ROOT);
-}
-
-// !!! The return cell from this allocation is a trash cell which has had some
-// additional bits set.  This means it is not "canonized" trash that can be
-// detected as distinct from UTF-8 strings, so don't call IS_TRASH_DEBUG() or
-// Detect_Rebol_Pointer() on it until it has been further initialized.
-//
-// Ren-C manages by default.
-//
-inline static REBVAL *Alloc_Value(void)
-{
-    REBARR *a = Alloc_Singular_Array_Core(
-        NODE_FLAG_ROOT
-        | NODE_FLAG_MANAGED
-        | SERIES_FLAG_FIXED_SIZE
-    );
-
-    // Giving the cell itself NODE_FLAG_ROOT lets a REBVAL* be discerned as
-    // either an API handle or not.  The flag is not copied by Move_Value().
-    //
-    REBVAL *v = SINK(ARR_SINGLE(a));
-    v->header.bits |= NODE_FLAG_ROOT; // it's trash (can't use SET_VAL_FLAGS)
-
-    LINK(a).owner = (FS_TOP == NULL)
-        ? EMPTY_ARRAY
-        : CTX_VARLIST(Context_For_Frame_May_Reify_Managed(FS_TOP));
-    return v;
-}
-
-inline static void Free_Value(REBVAL *v)
-{
-    assert(Is_Api_Value(v));
-
-    REBARR *a = Singular_From_Cell(v);
-    GC_Kill_Series(SER(a));
-}
-
 
 //=//// SERIES-BACKED ALLOCATORS //////////////////////////////////////////=//
 //
@@ -570,18 +499,18 @@ void RL_rebShutdown(REBOOL clean)
     // nothing to do in the case of an "unclean" shutdown...yet.
 
     if (clean) {
-    #ifdef NDEBUG
+        Shutdown_Core();
+    }
+    else {
+      #ifdef NDEBUG
         // Only do the work above this line in an unclean shutdown
         return;
-    #else
+      #else
         // Run a clean shutdown anyway in debug builds--even if the
         // caller didn't need it--to see if it triggers any alerts.
         //
         Shutdown_Core();
-    #endif
-    }
-    else {
-        Shutdown_Core();
+      #endif
     }
 }
 
@@ -968,6 +897,16 @@ REBVAL *RL_rebLogic(long logic)
 {
     Enter_Api();
     return Init_Logic(Alloc_Value(), LOGICAL(logic));
+}
+
+
+//
+//  rebChar: RL_API
+//
+REBVAL *RL_rebChar(REBUNI codepoint)
+{
+    Enter_Api();
+    return Init_Char(Alloc_Value(), codepoint);
 }
 
 
@@ -1680,6 +1619,30 @@ REBVAL *RL_rebFile(const char *utf8)
     REBVAL *result = rebString(utf8); // Enter_Api() called
     VAL_RESET_HEADER(result, REB_FILE);
     return result;
+}
+
+
+//
+//  rebTag: RL_API
+//
+REBVAL *RL_rebTag(const char *utf8)
+{
+    REBVAL *result = rebString(utf8);
+    VAL_RESET_HEADER(result, REB_TAG);
+    return result;
+}
+
+
+//
+//  rebLock: RL_API
+//
+REBVAL *RL_rebLock(REBVAL *p1, const REBVAL *p2)
+{
+    assert(IS_END(p2)); // Not yet variadic...
+    UNUSED(p2);
+
+    Ensure_Value_Immutable(p1);
+    return p1;
 }
 
 

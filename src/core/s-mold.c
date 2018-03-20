@@ -604,7 +604,7 @@ REBOOL Form_Reduce_Throws(
 ) {
     assert(!IS_VOID(delimiter)); // use BLANK! to indicate no delimiting
     if (IS_BAR(delimiter))
-        delimiter = ROOT_NEWLINE_CHAR; // BAR! is synonymous to newline here
+        delimiter = NEWLINE_VALUE; // BAR! is synonymous to newline here
 
     DECLARE_MOLD (mo);
 
@@ -964,7 +964,7 @@ void Startup_Mold(REBCNT size)
 {
     TG_Mold_Stack = Make_Series(10, sizeof(void*));
 
-    Init_String(TASK_UNI_BUF, Make_Unicode(size));
+    TG_Uni_Buf = Make_Unicode(size);
 }
 
 
@@ -973,5 +973,9 @@ void Startup_Mold(REBCNT size)
 //
 void Shutdown_Mold(void)
 {
+    Free_Series(TG_Uni_Buf);
+    TG_Uni_Buf = NULL;
+
     Free_Series(TG_Mold_Stack);
+    TG_Mold_Stack = NULL;
 }
