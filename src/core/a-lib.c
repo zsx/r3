@@ -40,7 +40,8 @@
 //
 // (That was true of the original RL_API in R3-Alpha, but this later iteration
 // speaks in terms of actual REBVAL* cells--vs. creating a new type.  They are
-// just opaque pointers to cells whose lifetime is governed by the core.)
+// just opaque pointers to cells whose lifetime is either indefinite, or
+// tied to particular function FRAME!s.)
 //
 // Each exported routine here has a name RL_rebXxxYyy.  This is a name by
 // which it can be called internally from the codebase like any other function
@@ -92,12 +93,19 @@ inline static void Enter_Api(void) {
 
 //=//// API VALUE ALLOCATION //////////////////////////////////////////////=//
 //
-// API REBVALs live in "pairings", but aren't kept alive by references from
-// other values (the way that a pairing used by a PAIR! is kept alive by its
-// references in any array elements or other cells referring to that pairing).
-// The API value content is in the paired cell, with the PAIRING_KEY() serving
-// as a kind of "meta value" (e.g. a FRAME! that controls the lifetime of
-// the API value, or an INTEGER! reference count, etc.)
+// API REBVALs live in singular arrays (which fit inside a REBSER node, that
+// is the size of 2 REBVALs).  But they aren't kept alive by references from
+// other values, like the way that a REBARR used by a BLOCK! is kept alive.
+// They are kept alive by being roots (currently implemented with a flag
+// NODE_FLAG_ROOT, but it could also mean living in a distinct pool from
+// other series nodes).
+//
+// The API value content is in the single cell, with the ->misc holding the
+// REBCTX* of the FRAME! that controls its lifetime, or NULL.  The ->link
+// field (which is in the bytes prior to the value) holds a series with
+// SERIES_FLAG_ARRAY set, which lets a REBVAL* be distinguished from the
+// result of a rebMalloc(), as that pointer is preceded by a node pointer
+// without SERIES_FLAG_ARRAY set.
 //
 // The long term goal is to have diverse and sophisticated memory management
 // options for API handles.  They would default to automatic GC when the
@@ -124,24 +132,34 @@ inline static REBOOL Is_Api_Value(const RELVAL *v) {
 // detected as distinct from UTF-8 strings, so don't call IS_TRASH_DEBUG() or
 // Detect_Rebol_Pointer() on it until it has been further initialized.
 //
+// Ren-C manages by default.
+//
 inline static REBVAL *Alloc_Value(void)
 {
-    REBVAL *paired = Alloc_Pairing();
+    REBARR *a = Alloc_Singular_Array_Core(
+        NODE_FLAG_ROOT
+        | NODE_FLAG_MANAGED
+        | SERIES_FLAG_FIXED_SIZE
+    );
 
-    // Note the cell is trash (we're only allocating) so we can't use the
-    // SET_VAL_FLAGS macro.
+    // Giving the cell itself NODE_FLAG_ROOT lets a REBVAL* be discerned as
+    // either an API handle or not.  The flag is not copied by Move_Value().
     //
-    paired->header.bits |= NODE_FLAG_ROOT;
+    REBVAL *v = SINK(ARR_SINGLE(a));
+    v->header.bits |= NODE_FLAG_ROOT; // it's trash (can't use SET_VAL_FLAGS)
 
-    Init_Blank(PAIRING_KEY(paired)); // the meta-value of the API handle
-
-    return paired;
+    LINK(a).owner = (FS_TOP == NULL)
+        ? EMPTY_ARRAY
+        : CTX_VARLIST(Context_For_Frame_May_Reify_Managed(FS_TOP));
+    return v;
 }
 
 inline static void Free_Value(REBVAL *v)
 {
     assert(Is_Api_Value(v));
-    Free_Pairing(v);
+
+    REBARR *a = Singular_From_Cell(v);
+    GC_Kill_Series(SER(a));
 }
 
 
@@ -1707,56 +1725,61 @@ REBVAL *RL_rebFileW(const REBWCHAR *wstr)
 // memory if that were the case...so there should be some options for metrics
 // as a form of "leak detection" even so.
 //
-// While the API is being developed and used in core code, the default is to
-// be "unfriendly"...and you have to explicitly ask for management.
-//
 REBVAL *RL_rebManage(REBVAL *v)
 {
     Enter_Api();
 
     assert(Is_Api_Value(v));
-    assert(NOT(v->header.bits & CELL_FLAG_STACK));
 
+    REBARR *a = Singular_From_Cell(v);
+    assert(GET_SER_FLAG(a, NODE_FLAG_ROOT));
+
+    if (IS_ARRAY_MANAGED(a))
+        fail ("Attempt to rebManage() a handle that's already managed.");
+
+    SET_SER_FLAG(a, NODE_FLAG_MANAGED);
+    assert(LINK(a).owner == EMPTY_ARRAY);
     if (FS_TOP == NULL)
-        fail ("rebManage() temporarily disallowed in top level C for safety");
-
-    REBVAL *key = PAIRING_KEY(v);
-
-    v->header.bits |= CELL_FLAG_STACK;
-
-    // For this situation, the context must be reified.  This is because the
-    // way in which lifetime is expected to be managed is that though the
-    // frame is alive right now as a REBFRM*, it eventually will not be...and
-    // a GC sweep at that time will need something that isn't an invalid
-    // pointer to examine.
-    //
-    Init_Any_Context(
-        key,
-        REB_FRAME,
-        Context_For_Frame_May_Reify_Managed(FS_TOP)
-    );
+        LINK(a).owner = EMPTY_ARRAY;
+    else
+        LINK(a).owner = CTX_VARLIST(
+            Context_For_Frame_May_Reify_Managed(FS_TOP)
+        );
 
     return v;
-
 }
 
 
 //
 //  rebUnmanage: RL_API
 //
-// This "unmanages" an API handle.  It doesn't actually make the node flag
-// unmanaged (the managed bit on a value is how we discern API handles from
-// non-API handles, managed or not).  We just set the meta information
-// for the handle to blank.
+// This converts an API handle value to indefinite lifetime.
 //
 REBVAL *RL_rebUnmanage(REBVAL *v)
 {
     Enter_Api();
 
-    REBVAL *key = PAIRING_KEY(v);
-    assert(IS_FRAME(key));
+    assert(Is_Api_Value(v));
 
-    Init_Blank(key);
+    REBARR *a = Singular_From_Cell(v);
+    assert(GET_SER_FLAG(a, NODE_FLAG_ROOT));
+
+    if (NOT(IS_ARRAY_MANAGED(a)))
+        fail ("Attempt to rebUnmanage() a handle with indefinite lifetime.");
+
+    // It's not safe to convert the average series that might be referred to
+    // from managed to unmanaged, because you don't know how many references
+    // might be in cells.  But the singular array holding API handles has
+    // pointers to its cell being held by client C code only.  It's at their
+    // own risk to do this, and not use those pointers after a free.
+    //
+    CLEAR_SER_FLAG(a, NODE_FLAG_MANAGED);
+    assert(
+        LINK(a).owner == EMPTY_ARRAY // freed when program exits
+        || GET_SER_FLAG(LINK(a).owner, ARRAY_FLAG_VARLIST)
+    );
+    LINK(a).owner = EMPTY_ARRAY;
+
     return v;
 }
 
@@ -1813,22 +1836,6 @@ void RL_rebFail(const void *p, const void *p2)
 
     assert(Detect_Rebol_Pointer(p2) == DETECTED_AS_END);
 
-    // !!! There needs to be some sort of story on unmanaged API handles in
-    // terms of how they get cleaned up w.r.t. errors.  For now, this is one
-    // case where we know we need to make sure the value gets cleaned up
-    // when this stack level goes away...so tie the value's lifetime to the
-    // topmost frame in effect.
-    //
-    if (Detect_Rebol_Pointer(p) == DETECTED_AS_VALUE) {
-        const REBVAL *v = cast(const REBVAL*, p);
-        if (
-            (v->header.bits & (NODE_FLAG_ROOT | CELL_FLAG_STACK))
-            == NODE_FLAG_ROOT
-        ){
-            rebManage(m_cast(REBVAL*, v));
-        }
-    }
-
     rebElide("fail", p, p2); // should not return...should DO an ERROR!
 
     panic ("FAIL was called, but continued running!");
@@ -1840,7 +1847,7 @@ void RL_rebFail(const void *p, const void *p2)
 //      #noreturn
 //  ]
 //
-// Calls PANIC via rebRun(), but is a separate entry point in order to have
+// Calls PANIC via rebElide(), but is a separate entry point in order to have
 // an attribute saying it doesn't return.
 //
 void RL_rebPanic(const void *p, const void *end)
@@ -1849,7 +1856,7 @@ void RL_rebPanic(const void *p, const void *end)
     assert(Detect_Rebol_Pointer(end) == DETECTED_AS_END); // !!! TBD: variadic
     UNUSED(end);
 
-    rebRun(rebEval(NAT_VALUE(panic)), p, END);
+    rebElide(rebEval(NAT_VALUE(panic)), p, END);
 
     // !!! Should there be a special bit or dispatcher used on the PANIC and
     // PANIC-VALUE functions that ensures they exit?  If it were a dispatcher
@@ -1864,7 +1871,7 @@ void RL_rebPanic(const void *p, const void *end)
 //      #noreturn
 //  ]
 //
-// Calls PANIC-VALUE via rebRun(), but is a separate entry point in order to
+// Calls PANIC-VALUE via rebElide(), but is a separate entry point in order to
 // have an attribute saying it doesn't return.
 //
 void RL_rebPanicValue(const void *p, const void *end)
@@ -1873,7 +1880,7 @@ void RL_rebPanicValue(const void *p, const void *end)
     assert(Detect_Rebol_Pointer(end) == DETECTED_AS_END); // !!! TBD: variadic
     UNUSED(end);
 
-    rebRun(rebEval(NAT_VALUE(panic_value)), p, END);
+    rebElide(rebEval(NAT_VALUE(panic_value)), p, END);
 
     // !!! Should there be a special bit or dispatcher used on the PANIC and
     // PANIC-VALUE functions that ensures they exit?  If it were a dispatcher

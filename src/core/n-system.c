@@ -450,6 +450,7 @@ REBNATIVE(test)
     REBVAL *temp = rebRun("print mold trap [foo: does [foo] foo]", END);
 
     Move_Value(D_OUT, temp);
+    rebUnmanage(temp);
     rebRelease(temp);
 
     return R_OUT;

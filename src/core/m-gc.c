@@ -950,38 +950,31 @@ static void Mark_Root_Series(void)
             if (NOT(s->header.bits & NODE_FLAG_ROOT))
                 continue;
 
-            if (s->header.bits & NODE_FLAG_CELL) {
+            if (NOT(s->info.bits & SERIES_INFO_HAS_DYNAMIC)) {
                 //
-                // Root cells are API pairings (not series), and don't use the
-                // NODE_FLAG_MANAGED/NODE_FLAG_MARKED...because they are
-                // referenced from C code pointers directly, never from any
-                // other cells in the transitive closure.  (OTOH, a pairing
-                // used by PAIR! will be referred to by its value cell -but-
-                // it will not be a root.)
+                // Singular roots hold API handles.  They are referenced from
+                // C code, they should never wind up referenced from values.
                 //
-                assert(NOT_SER_FLAG(s, NODE_FLAG_MANAGED));
-                assert(NOT_SER_FLAG(s, NODE_FLAG_MARKED));
-                REBVAL *paired = cast(REBVAL*, s);
-                REBVAL *key = PAIRING_KEY(paired);
-
-                // If an API cell is marked CELL_FLAG_STACK, that means its
-                // lifetime is tied to the execution of a stack frame.  When
-                // the frame is done executing, it will no longer preserve
-                // that API handle.
-                //
-                if (paired->header.bits & CELL_FLAG_STACK) {
-                    assert(IS_FRAME(key));
-
-                    if (Is_Context_Running_Or_Pending(VAL_CONTEXT(key))) {
+                assert(NOT(s->header.bits & NODE_FLAG_MARKED));
+                if (
+                    GET_SER_FLAG(s, NODE_FLAG_MANAGED)
+                    && GET_SER_INFO(LINK(s).owner, SERIES_INFO_INACCESSIBLE)
+                ){
+                    if (NOT_SER_INFO(LINK(s).owner, FRAME_INFO_FAILED)) {
                         //
-                        // !!! Does it actually need to check for pending?
-                        // Could it be set up such that you can't make an
-                        // owning frame that's in a pending state?
+                        // Long term, it is likely that implicit managed-ness
+                        // will allow users to leak API handles.  It will
+                        // always be more efficient to not do that, so having
+                        // the code be strict for now is better.
+                        //
+                      #if !defined(NDEBUG)
+                        printf("handle not rebReleased(), not legal ATM\n");
+                      #endif
+                        panic (s);
                     }
-                    else {
-                        Free_Pairing(paired);
-                        continue;
-                    }
+
+                    GC_Kill_Series(s);
+                    continue;
                 }
 
                 // Pick up its dependencies deeply.  Note that ENDs are
@@ -989,20 +982,25 @@ static void Mark_Root_Series(void)
                 // the pairing as the OUT slot (since it is memory guaranteed
                 // not to relocate)
                 //
-                if (NOT_END(key)) {
+                RELVAL *v = ARR_SINGLE(ARR(s));
+                if (NOT_END(v)) {
                   #ifdef DEBUG_UNREADABLE_BLANKS
-                    if (NOT(IS_UNREADABLE_DEBUG(key)))
+                    if (NOT(IS_UNREADABLE_DEBUG(v)))
                   #endif
-                        if (NOT(IS_VOID(key)))
-                            Queue_Mark_Value_Deep(key);
+                        if (NOT(IS_VOID(v)))
+                            Queue_Mark_Value_Deep(v);
                 }
-                if (NOT_END(paired)) {
-                  #ifdef DEBUG_UNREADABLE_BLANKS
-                    if (NOT(IS_UNREADABLE_DEBUG(paired)))
-                  #endif
-                        if (NOT(IS_VOID(paired)))
-                            Queue_Mark_Value_Deep(paired);
-                }
+
+                // While the API handle counts as a reference to keeping the
+                // frame alive, we know it's not inaccessible.  That means
+                // it's on the stack.  There should be no reason to explicitly
+                // mark LINK(s).owner, it should be marked anyway.
+                //
+                // However, if managed, currently this has to mark the node
+                // as in use else it will be freed.
+                //
+                if (s->header.bits & NODE_FLAG_MANAGED)
+                    s->header.bits |= NODE_FLAG_MARKED;
             }
             else {
                 // All root *series* must be managed
@@ -1099,7 +1097,7 @@ static void Mark_Natives(void)
     for (n = 0; n < Num_Natives; ++n)
         Queue_Mark_Value_Deep(&Natives[n]);
 
-   Propagate_All_GC_Marks();
+    Propagate_All_GC_Marks();
 }
 
 

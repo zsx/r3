@@ -423,6 +423,23 @@
     FLAGIT_LEFT(9)
 
 
+//=//// FRAME_INFO_FAILED /////////////////////////////////////////////////=//
+//
+// In the specific case of a frame being freed due to a failure, this mark
+// is put on the context node.  What this allows is for the system to account
+// for which nodes are being GC'd due to lack of a rebRelease(), as opposed
+// to those being GC'd due to failure.
+//
+// What this means is that the system can use managed handles by default
+// while still letting "rigorous" code track cases where it made use of the
+// GC facility vs. doing explicit tracking.  Essentially, it permits a kind
+// of valgrind/address-sanitizer way of looking at a codebase vs. just taking
+// for granted that it will GC things.
+//
+#define FRAME_INFO_FAILED \
+    FLAGIT_LEFT(10)
+
+
 //=//// STRING_INFO_CANON /////////////////////////////////////////////////=//
 //
 // This is used to indicate when a SERIES_FLAG_UTF8_STRING series represents
@@ -435,7 +452,7 @@
 // holding an index during binding.
 //
 #define STRING_INFO_CANON \
-    FLAGIT_LEFT(10)
+    FLAGIT_LEFT(11)
 
 
 //=//// SERIES_INFO_SHARED_KEYLIST ////////////////////////////////////////=//
@@ -451,7 +468,7 @@
 // the GC would have to clean up.
 //
 #define SERIES_INFO_SHARED_KEYLIST \
-    FLAGIT_LEFT(11)
+    FLAGIT_LEFT(12)
 
 
 // ^-- STOP AT FLAGIT_LEFT(15) --^
@@ -461,7 +478,7 @@
 // flags need to stop at FLAGIT_LEFT(15).
 //
 #ifdef CPLUSPLUS_11
-    static_assert(11 < 16, "SERIES_INFO_XXX too high");
+    static_assert(12 < 16, "SERIES_INFO_XXX too high");
 #endif
 
 
@@ -582,9 +599,19 @@ union Reb_Series_Link {
     // that is "trashed" in the debug build when the series is created, and
     // hopefully it will lead to the other fields reading garbage (vs. zero)
     //
-#if !defined(NDEBUG)
+  #if !defined(NDEBUG)
     void *trash;
-#endif
+  #endif
+
+    // API handles use "singular" format arrays (see notes on that), which
+    // lay out the link field in the bytes preceding the REBVAL* payload.
+    // Because the API tries to have routines that work across arbitrary
+    // rebMalloc() memory as well as individual cells, the bytes preceding
+    // the pointer handed out to the client are examined to determine which
+    // it is.  If it's an array-type series, it is either the varlist of
+    // the owning frame *or* the EMPTY_ARRAY (to avoid a NULL check)
+    //
+    REBARR *owner;
 
     // Ordinary source series use their ->link field to point to an
     // interned file name string from which the code was loaded.  If a
@@ -702,9 +729,9 @@ union Reb_Series_Misc {
     //
     // Used to preload bad data in the debug build; see notes on link.trash
     //
-#if !defined(NDEBUG)
+  #if !defined(NDEBUG)
     void *trash;
-#endif
+  #endif
 
     // Ordinary source series store the line number here.  It probably
     // could have some bits taken out of it, vs. being a full 32-bit

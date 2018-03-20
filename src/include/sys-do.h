@@ -118,17 +118,8 @@ inline static void Push_Frame_Core(REBFRM *f)
     //
   #ifdef STRESS_CHECK_DO_OUT_POINTER
     REBNOD *containing = Try_Find_Containing_Node_Debug(f->out);
-
-    if (containing && NOT(containing->header.bits & NODE_FLAG_CELL)) {
-        if (GET_SER_FLAG(containing, SERIES_FLAG_FIXED_SIZE)) {
-            //
-            // Currently it's considered OK to be writing into a fixed size
-            // series, for instance the durable portion of a function's
-            // arg storage.  It's assumed that the memory will not move
-            // during the course of the argument evaluation.
-            //
-        }
-        else {
+    if (containing != NULL && NOT(containing->header.bits & NODE_FLAG_CELL)) {
+        if (NOT_SER_FLAG(containing, SERIES_FLAG_DONT_RELOCATE)) {
             printf("Request for ->out location in movable series memory\n");
             panic (containing);
         }

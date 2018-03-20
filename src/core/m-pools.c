@@ -1490,7 +1490,13 @@ void Remake_Series(REBSER *s, REBCNT units, REBYTE wide, REBUPT flags)
 //
 void GC_Kill_Series(REBSER *s)
 {
-    assert(!IS_FREE_NODE(s));
+  #if !defined(NDEBUG)
+    if (IS_FREE_NODE(s)) {
+        printf("Freeing already freed node.\n");
+        panic (s);
+    }
+  #endif
+
     assert(NOT(s->header.bits & NODE_FLAG_CELL)); // use Free_Paired
 
     if (GET_SER_FLAG(s, SERIES_FLAG_UTF8_STRING))
