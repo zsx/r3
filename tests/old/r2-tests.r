@@ -173,11 +173,6 @@
     a-value: first ['a/b]
     a-value == to path! :a-value
 ]
-; ops are word-active
-[
-    a-value: get '+
-    3 == a-value 1 2
-]
 [
     a-value: make struct! [] none
     same? third :a-value third a-value
@@ -416,49 +411,11 @@
 [#"^(fe)" = add #"^(ff)" #"^(ff)"]
 ; tuple
 ; string
-["^(03)^(00)" and+ "^(02)^(00)" = "^(02)^(00)"]
-; functions/math/arccosine.r
-; char
-[#"^(ff)" = complement #"^@"]
-[#"^@" = complement #"^(ff)"]
-[#"^(fe)" = complement #"^(01)"]
-[#"^(01)" = complement #"^(fe)"]
-; tuple
-; string
-["^(ff)" = complement "^@"]
-["^@" = complement "^(ff)"]
-["^(fe)" = complement "^(01)"]
-["^(01)" = complement "^(fe)"]
-; bitset
-[
-    (make bitset! #{FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF})
-        = complement make bitset! #{0000000000000000000000000000000000000000000000000000000000000000}
-]
-[
-    (make bitset! #{0000000000000000000000000000000000000000000000000000000000000000})
-        = complement make bitset! #{FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF}
-]
 [-2147483648x-2147483648 = negate -2147483648x-2147483648]
 ; money
-[
-    (make bitset! #{FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF})
-        = negate make bitset! #{0000000000000000000000000000000000000000000000000000000000000000}
-]
-[
-    (make bitset! #{0000000000000000000000000000000000000000000000000000000000000000})
-        = negate make bitset! #{FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF}
-]
-; char
-[not negative? #"^@"]
-[not negative? #"^a"]
-[not negative? #"^(ff)"]
 ; money
 [false = not make hash! []]
 [false = not make list! []]
-; char
-[not positive? #"^@"]
-[positive? #"^a"]
-[positive? #"^(ff)"]
 ; money
 [error? try [round/even 2147483648.0]]
 [error? try [round/even 9.2233720368547799e18]]
@@ -476,15 +433,7 @@
 [-1x-1 = subtract 2147483647x2147483647 -2147483648x-2147483648]
 [-2147483648x-2147483648 = subtract 2147483647x2147483647 -1x-1]
 [2147483646x2147483646 = subtract 2147483647x2147483647 1x1]
-[#"^(00)" = subtract #"^(00)" #"^(00)"]
-[#"^(ff)" = subtract #"^(00)" #"^(01)"]
-[#"^(01)" = subtract #"^(00)" #"^(ff)"]
-[#"^(01)" = subtract #"^(01)" #"^(00)"]
-[#"^(00)" = subtract #"^(01)" #"^(01)"]
-[#"^(02)" = subtract #"^(01)" #"^(ff)"]
-[#"^(ff)" = subtract #"^(ff)" #"^(00)"]
-[#"^(fe)" = subtract #"^(ff)" #"^(01)"]
-[#"^(00)" = subtract #"^(ff)" #"^(ff)"]
+
 ; tuple
 [error? try [find none 1]]
 [

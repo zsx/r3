@@ -45,7 +45,7 @@ REBOOL Reduce_Any_Array_Throws(
     REBVAL *out,
     REBVAL *any_array,
     REBFLGS flags
-) {
+){
     assert(
         NOT(flags & REDUCE_FLAG_KEEP_BARS)
         == LOGICAL(flags & REDUCE_FLAG_DROP_BARS)
@@ -118,7 +118,7 @@ REBOOL Reduce_Any_Array_Throws(
 //  {Evaluates expressions and returns multiple results.}
 //
 //      return: [<opt> any-value!]
-//      value [<opt> any-value!]
+//      value [any-value!] ;-- !!! Red allows void, should it be legal?
 //          {If BLOCK!, expressions are reduced, otherwise single value.}
 //      /into
 //          {Output results into a series with no intermediate storage}
@@ -130,9 +130,6 @@ REBNATIVE(reduce)
     INCLUDE_PARAMS_OF_REDUCE;
 
     REBVAL *value = ARG(value);
-
-    if (IS_VOID(value))
-        return R_VOID; // !!! Should this be allowed?  (Red allows it)
 
     if (IS_BLOCK(value)) {
         if (REF(into))

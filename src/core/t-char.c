@@ -184,24 +184,36 @@ void MF_Char(REB_MOLD *mo, const RELVAL *v, REBOOL form)
 //
 REBTYPE(Char)
 {
-    REBCNT chr = VAL_CHAR(D_ARG(1));
-    REBINT arg;
+    // Don't use a REBUNI for chr, because it does signed math and then will
+    // detect overflow.
+    //
+    REBI64 chr = cast(REBI64, VAL_CHAR(D_ARG(1)));
+    REBI64 arg;
 
     switch (action) {
 
-    case SYM_ADD:
+    case SYM_ADD: {
         arg = Math_Arg_For_Char(D_ARG(2), action);
-        chr += cast(REBUNI, arg);
-        break;
+        chr += arg;
+        break; }
 
-    case SYM_SUBTRACT:
+    case SYM_SUBTRACT: {
         arg = Math_Arg_For_Char(D_ARG(2), action);
-        chr -= cast(REBUNI, arg);
+
+        // Rebol2 and Red return CHAR! values for subtraction from another
+        // CHAR! (though Red checks for overflow and errors on something like
+        // `subtract #"^(00)" #"^(01)"`, vs returning #"^(FF)").
+        //
+        // R3-Alpha chose to return INTEGER! and gave a signed difference, so
+        // the above would give -1.
+        //
         if (IS_CHAR(D_ARG(2))) {
-            Init_Integer(D_OUT, chr);
+            Init_Integer(D_OUT, chr - arg);
             return R_OUT;
         }
-        break;
+
+        chr -= arg;
+        break; }
 
     case SYM_MULTIPLY:
         arg = Math_Arg_For_Char(D_ARG(2), action);
@@ -264,9 +276,10 @@ REBTYPE(Char)
         fail (Error_Illegal_Action(REB_CHAR, action));
     }
 
-    if ((chr >> 16) != 0 && (chr >> 16) != 0xffff)
+    if (chr < 0 || chr > 0xffff) // DEBUG_UTF8_EVERYWHERE
         fail (Error_Type_Limit_Raw(Get_Type(REB_CHAR)));
-    Init_Char(D_OUT, chr);
+
+    Init_Char(D_OUT, cast(REBUNI, chr));
     return R_OUT;
 }
 

@@ -142,6 +142,7 @@
 %functions/apply.test.reb
 %functions/chain.test.reb
 %functions/enclose.test.reb
+%functions/enfix.test.reb
 %functions/hijack.test.reb
 %functions/invisible.test.reb
 %functions/redo.test.reb

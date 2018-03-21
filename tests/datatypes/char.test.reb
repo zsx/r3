@@ -143,7 +143,25 @@
 [#"^(00)" = make char! 0]
 [#"^(00)" = to char! 0]
 [{#"a"} = mold #"a"]
-; minimum
-[char? #"^(00)"]
-; maximum
-[char? #"^(ff)"]
+
+[char? #"^(00)"] ;-- minimmum codepoint
+
+[char? #"^(ff)"] ;-- no longer the maximum
+
+[0 = subtract #"^(00)" #"^(00)"]
+[-1 = subtract #"^(00)" #"^(01)"]
+[-255 = subtract #"^(00)" #"^(ff)"]
+[1 = subtract #"^(01)" #"^(00)"]
+[0 = subtract #"^(01)" #"^(01)"]
+[-254 = subtract #"^(01)" #"^(ff)"]
+[255 = subtract #"^(ff)" #"^(00)"]
+[254 = subtract #"^(ff)" #"^(01)"]
+[0 = subtract #"^(ff)" #"^(ff)"]
+
+[
+    e: trap [#"^(00)" - 1]
+    e/id = 'type-limit
+][
+    e: trap [#"^(00)" + -1]
+    e/id = 'type-limit
+]
