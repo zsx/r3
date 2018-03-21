@@ -106,3 +106,7 @@
 ][
     error? trap [eval (proc [x [<opt>]] []) end 1 2 3]
 ]
+
+[
+    [3 11] = reduce [1 + 2 elide 3 + 4 5 + 6]
+]

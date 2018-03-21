@@ -121,6 +121,8 @@ static void Do_Core_Shared_Checks_Debug(REBFRM *f) {
     assert(f == FS_TOP);
     assert(DSP == f->dsp_orig);
 
+    assert(NOT(f->flags.bits & DO_FLAG_FINAL_DEBUG));
+
     if (f->source.array != NULL) {
         assert(NOT(IS_POINTER_TRASH_DEBUG(f->source.array)));
         assert(
@@ -286,6 +288,8 @@ void Do_Core_Exit_Checks_Debug(REBFRM *f) {
         if (NOT(THROWN(f->out)))
             ASSERT_VALUE_MANAGED(f->out);
     }
+
+    f->flags.bits |= DO_FLAG_FINAL_DEBUG;
 }
 
 #endif

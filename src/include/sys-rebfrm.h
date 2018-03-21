@@ -252,6 +252,22 @@
     FLAGIT_LEFT(15)
 
 
+#if !defined(NDEBUG)
+
+//=//// DO_FLAG_FINAL_DEBUG ///////////////////////////////////////////////=//
+//
+// It is assumed that each run through a frame will re-initialize the do
+// flags, and if a frame's memory winds up getting reused (e.g. by successive
+// calls in a reduce) that code is responsible for resetting the DO_FLAG_XXX
+// each time.  To make sure this is the case, this is set on each exit from
+// Do_Core() and then each entry checks to make sure it is not present.
+//
+
+#define DO_FLAG_FINAL_DEBUG \
+    FLAGIT_LEFT(16)
+
+#endif
+
 
 // Currently the rightmost two bytes of the Reb_Frame->flags are not used,
 // so the flags could theoretically go up to 31.  It could hold something
@@ -259,7 +275,7 @@
 // information in a platform aligned position of the frame.
 //
 #ifdef CPLUSPLUS_11
-    static_assert(15 < 32, "DO_FLAG_XXX too high");
+    static_assert(16 < 32, "DO_FLAG_XXX too high");
 #endif
 
 

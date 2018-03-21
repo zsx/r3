@@ -609,7 +609,8 @@ inline static REBOOL Do_Next_In_Frame_Throws(
     REBFRM *f
 ){
     assert(f->eval_type == REB_0); // see notes in Push_Frame_At()
-    assert(NOT(f->flags.bits & DO_FLAG_TO_END));
+    assert(NOT(f->flags.bits & (DO_FLAG_TO_END | DO_FLAG_NO_LOOKAHEAD)));
+    REBUPT prior_flags = f->flags.bits;
 
     f->out = out;
     (*PG_Do)(f); // should already be pushed
@@ -620,6 +621,12 @@ inline static REBOOL Do_Next_In_Frame_Throws(
     // it has to protect the frame as another running type.
     //
     f->eval_type = REB_0;
+
+    // The & on the following line is purposeful.  See Init_Endlike_Header.
+    // DO_FLAG_NO_LOOKAHEAD may be set by an operation like ELIDE.
+    //
+    (&f->flags)->bits = prior_flags;
+
     return THROWN(out);
 }
 
