@@ -585,19 +585,6 @@ switch*: redescribe [
     specialize 'switch [only: true]
 )
 
-trap?: redescribe [
-    {Variation of TRAP which returns TRUE if an error traps, FALSE if not}
-](
-    specialize 'trap [?: true]
-)
-
-catch?: redescribe [
-    {Variation of CATCH which returns TRUE if a throw is caught, FALSE if not}
-](
-    specialize 'catch [?: true]
-)
-
-
 skip*: redescribe [
     {Variant of SKIP that returns BLANK! instead of clipping to series bounds}
 ](

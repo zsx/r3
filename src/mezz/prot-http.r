@@ -315,7 +315,7 @@ check-response: function [port] [
         if quote (txt) <> last body-of :net-log [ ; net-log is in active state
             print "Dumping Webserver headers and body"
             net-log/S info
-            if trap? [
+            if error? trap [
                 body: to string! conn/data
                 dump body
             ][

@@ -2175,11 +2175,6 @@ REBVAL *Scan_To_Stack(SCAN_STATE *ss) {
             panic ("Invalid TOKEN in Scanner.");
         }
 
-        if (ss->newline_pending) {
-            ss->newline_pending = FALSE;
-            SET_VAL_FLAG(DS_TOP, VALUE_FLAG_LINE);
-        }
-
         // Check for end of path:
         if (ss->mode_char == '/') {
             if (*ep != '/')
@@ -2248,6 +2243,16 @@ REBVAL *Scan_To_Stack(SCAN_STATE *ss) {
             INIT_VAL_ARRAY(DS_TOP, array);
             VAL_INDEX(DS_TOP) = 0;
             ss->token = TOKEN_PATH;
+        }
+
+        // Set the newline on the new value, indicating molding should put a
+        // line break *before* this value (needs to be done after recursion to
+        // process paths or other arrays...because the newline belongs on the
+        // whole array...not the first element of it).
+        //
+        if (ss->newline_pending) {
+            ss->newline_pending = FALSE;
+            SET_VAL_FLAG(DS_TOP, VALUE_FLAG_LINE);
         }
 
         // If we get to this point, it means that the value came from UTF-8

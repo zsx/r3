@@ -909,7 +909,7 @@ import: function [
         "Don't export to the user context"
 ][
     if tag? module [
-        if trap? [
+        if error? trap [
             module: first tmp: select load rebol/locale/library/modules module
         ][
             cause-error 'access 'cannot-open reduce

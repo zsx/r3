@@ -844,8 +844,6 @@ return_defaulted:
 //          "Handle thrown case with code"
 //      handler [block! function!]
 //          "If FUNCTION!, spec matches [value name]"
-//      /?
-//         "Instead of result or catch, return LOGIC! of if a catch occurred"
 //  ]
 //
 REBNATIVE(catch)
@@ -854,7 +852,7 @@ REBNATIVE(catch)
 // it (you have to CATCH/ANY/QUIT).  Currently the label for quitting is the
 // NATIVE! function value for QUIT.
 {
-    INCLUDE_PARAMS_OF_CATCH; // ? is renamed as "q"
+    INCLUDE_PARAMS_OF_CATCH;
 
     // /ANY would override /NAME, so point out the potential confusion
     //
@@ -931,8 +929,6 @@ REBNATIVE(catch)
         return R_OUT_IS_THROWN;
     }
 
-    if (REF(q)) return R_FALSE;
-
     return R_OUT;
 
 was_caught:
@@ -955,8 +951,6 @@ was_caught:
             if (Do_Any_Array_At_Throws(D_OUT, ARG(handler)))
                 return R_OUT_IS_THROWN;
 
-            if (REF(q)) return R_TRUE;
-
             return R_OUT;
         }
         else if (IS_FUNCTION(handler)) {
@@ -976,8 +970,6 @@ was_caught:
                 return R_OUT_IS_THROWN;
             }
 
-            if (REF(q)) return R_TRUE;
-
             return R_OUT;
         }
     }
@@ -985,8 +977,6 @@ was_caught:
     // If no handler, just return the caught thing
     //
     CATCH_THROWN(D_OUT, D_OUT);
-
-    if (REF(q)) return R_TRUE;
 
     return R_OUT;
 }

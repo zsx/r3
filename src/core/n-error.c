@@ -40,12 +40,11 @@
 // This is the code which is protected by the exception mechanism.  See the
 // rebRescue() API for more information.
 //
-static REBVAL *Trap_Native_Core(REBFRM *frame_) {
+static REBVAL *Trap_Dangerous(REBFRM *frame_) {
     INCLUDE_PARAMS_OF_TRAP;
 
     UNUSED(REF(with));
     UNUSED(ARG(handler));
-    UNUSED(REF(q));
 
     const REBVAL *condition = END; // only allow 0-arity functions
     const REBOOL only = REF(with); // voids verbatim only if handler given
@@ -71,33 +70,21 @@ static REBVAL *Trap_Native_Core(REBFRM *frame_) {
 //          "Handle error case with more code (overrides voiding behavior)"
 //      handler [block! function!]
 //          "If FUNCTION!, spec allows [error [error!]]"
-//      /?
-//          "Instead of result or error, return LOGIC! of if a trap occurred"
 //  ]
 //
 REBNATIVE(trap)
 {
-    INCLUDE_PARAMS_OF_TRAP; // ? is renamed as "q"
+    INCLUDE_PARAMS_OF_TRAP;
 
-    REBVAL *error = rebRescue(cast(REBDNG*, &Trap_Native_Core), frame_);
+    REBVAL *error = rebRescue(cast(REBDNG*, &Trap_Dangerous), frame_);
     UNUSED(ARG(code)); // gets used by the above call, via the frame_ pointer
 
     if (error == NULL) {
-        //
-        // Even if the protected execution in Trap_Core didn't have an error,
-        // it might have thrown.
-        //
-        if (THROWN(D_OUT))
+        if (THROWN(D_OUT)) // though code didn't fail(), it may have thrown
             return R_OUT_IS_THROWN;
 
-        if (REF(q))
-            return R_FALSE;
-
-        // If there is no handler for errors, then "voidify" a non-raised
-        // error so that ERROR! always means *raised* error.
-        //
-        if (NOT(REF(with)) && IS_ERROR(D_OUT))
-            return R_VOID;
+        if (NOT(REF(with)) && IS_ERROR(D_OUT)) // code may evaluate to ERROR!
+            return R_VOID; // ...but void it so ERROR! *always* means raised
 
         return R_OUT;
     }
@@ -105,29 +92,16 @@ REBNATIVE(trap)
     assert(IS_ERROR(error));
 
     if (REF(with)) {
-        //
-        // The handler may fail() which would leak the error.  We could
-        // rebManage() it so it would be freed in that case, but probably
-        // just as cheap to copy it and release it.
-        //
-        // !!! The BLOCK! case doesn't even use the `condition` parameter,
-        // so it could release it without moving.
-        //
-        Move_Value(D_CELL, error);
-        rebRelease(error);
-
-        const REBOOL only = TRUE; // return voids as-is
-        if (Run_Branch_Throws(D_OUT, D_CELL, ARG(handler), only))
+        const REBOOL only = TRUE; // return voids as-is from error handler
+        if (Run_Branch_Throws(D_OUT, error, ARG(handler), only)) {
+            rebRelease(error);
             return R_OUT_IS_THROWN;
+        }
     }
-    else {
+    else
         Move_Value(D_OUT, error);
-        rebRelease(error);
-    }
 
-    if (REF(q))
-        return R_TRUE;
-
+    rebRelease(error); // released automatically if branch above fails
     return R_OUT;
 }
 
