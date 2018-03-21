@@ -1,4 +1,5 @@
 ; functions/context/use.r
+
 ; local word test
 [
     a: 1
@@ -10,8 +11,11 @@
     error? try [use 'a [a: 2]]
     a = 1
 ]
+
 ; initialization (lack of)
 [a: 10 all [use [a] [void? :a] a = 10]]
+[use [a] [not set? 'a]]
+
 ; BREAK out of USE
 [
     blank? loop 1 [

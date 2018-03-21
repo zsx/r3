@@ -2267,7 +2267,8 @@ REBVAL *Scan_To_Stack(SCAN_STATE *ss) {
         //
         SET_VAL_FLAG(DS_TOP, VALUE_FLAG_EVAL_FLIP);
 
-        // Added for load/next
+        // Added for TRANSCODE/NEXT (LOAD/NEXT is deprecated, see #1703)
+        //
         if (LOGICAL(ss->opts & SCAN_FLAG_ONLY) || just_once)
             goto array_done;
     }

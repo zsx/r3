@@ -21,7 +21,7 @@
         20 = data/b
         20 = select data 'b
         20 = select* data 'b
-        void? :a/c
+        void? :data/c
         blank? select data 'c
         void? select* data 'c
     ]

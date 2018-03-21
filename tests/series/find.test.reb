@@ -1,5 +1,8 @@
 ; functions/series/find.r
-[blank? find blank 1]
+[
+    #473
+    blank? find blank 1
+]
 [blank? find [] 1]
 [
     blk: [1]

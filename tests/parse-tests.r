@@ -164,3 +164,30 @@
 ; INTO is not legal if a string parse is already running
 ;
 [error? trap [parse "aa" [into ["a" "a"]]]]
+
+
+; Should return the same series type as input (Rebol2 did not do this)
+[
+    a-value: first ['a/b]
+    parse a-value [b-value:]
+    same? a-value b-value
+][
+    a-value: first [()]
+    parse a-value [b-value:]
+    same? a-value b-value
+][
+    a-value: 'a/b
+    parse a-value [b-value:]
+    same? a-value b-value
+][
+    a-value: first [a/b:]
+    parse a-value [b-value:]
+    same? a-value b-value
+]
+
+; This test works in Rebol2 even if it starts `i: 0`, presumably a bug.
+[
+    i: 1
+    parse "a" [any [(i: i + 1 j: if i = 2 [[end skip]]) j]]
+    i == 2
+]

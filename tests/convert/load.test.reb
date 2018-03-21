@@ -11,8 +11,12 @@
     a = load mold a
 ]
 [error? try [load "1xyz#"]]
-; load/next
+
+; LOAD/NEXT removed, see #1703
+;
 [error? try [load/next "1"]]
+[[1 #{}] = transcode/next to binary! "1"]
+
 ; bug#1122
 [
     any [

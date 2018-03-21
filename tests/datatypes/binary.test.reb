@@ -35,3 +35,9 @@
 ; case sensitivity
 ; bug#1459
 [lesser? #{0141} #{0161}]
+
+[
+    a: make binary! 0
+    insert a #"^(00)"
+    a == #{00}
+]

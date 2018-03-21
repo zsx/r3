@@ -1,4 +1,10 @@
 ; functions/context/bind.r
+
+[
+    e: trap [do to block! ":a"]
+    e/id = 'not-bound
+]
+
 ; bug#50
 [blank? context of to word! "zzz"]
 ; BIND works 'as expected' in object spec

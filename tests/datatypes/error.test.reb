@@ -134,3 +134,15 @@
 [error? make error! [type: 'internal id: 'bad-sys-func]]
 [error? make error! [type: 'internal id: 'not-done]]
 [error? make error! [type: 'internal id: 'bad-utf8]]
+
+; are error reports for do and do/next consistent?
+[
+    val1: trap [do [1 / 0]]
+    val2: trap [do/next [1 / 0] 'pos]
+    val1/near = val2/near
+]
+
+[
+    e: trap [1 / 0]
+    e/id = 'zero-divide
+]

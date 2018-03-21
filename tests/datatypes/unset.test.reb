@@ -7,3 +7,10 @@
 
 [error? trap [a: () a]]
 [not error? trap [set/only 'a ()]]
+
+[
+    a-value: 10
+    unset 'a-value
+    e: trap [a-value]
+    e/id = 'no-value
+]

@@ -96,3 +96,24 @@
         ]
     ]
 ]
+
+
+; REPEAT in Rebol2 with an ANY-SERIES! argument acted like a FOR-EACH on that
+; series.  This is redundant with FOR-EACH.
+;
+; R3-Alpha changed the semantics to be like a FOR-NEXT (e.g. FORALL) where you
+; could specify the loop variable instead of insisting your loop variable be
+; the data you are iterating.
+;
+; Red forbids ANY-SERIES! as the argument of what to iterate over.
+;
+; https://trello.com/c/CjEfA0ef
+[
+    out: copy ""
+    repeat i "abc" [append out first i]
+    out = "abc"
+][
+    out: copy []
+    repeat i [1 2 3] [append out first i]
+    out = [1 2 3]
+]

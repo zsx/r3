@@ -67,3 +67,14 @@
     ]
     f 1
 ]
+
+; mutating the loop variable of a REPEAT affects the loop (Red keeps its own
+; internal state, overwritten each body call) https://trello.com/c/V4NKWh5E
+[
+    sum: 0
+    repeat i 10 [
+        sum: me + 1
+        i: 10
+    ]
+    sum = 1
+]
