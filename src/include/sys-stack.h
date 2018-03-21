@@ -98,15 +98,15 @@
 #define DSP \
     DS_Index
 
-// DS_AT accesses value at given stack location.  Test that it's not an END
-// and that it's a cell, but, don't use the IS_END() test because that does
-// not tolerate trash.
+// DS_AT accesses value at given stack location.  It is allowed to point at
+// a stack location that is an end, e.g. DS_AT(dsp + 1), because that location
+// may be used as the start of a copy which is ultimately of length 0.
 //
 inline static REBVAL *DS_AT(REBDSP d) {
     REBVAL *v = DS_Movable_Base + d;
     assert(
-        v->header.bits & NODE_FLAG_CELL
-        && NOT(v->header.bits & NODE_FLAG_END)
+        ((v->header.bits & NODE_FLAG_CELL) && (d <= DSP + 1))
+        || ((v->header.bits & NODE_FLAG_END) && (d == DSP + 1))
     );
     return v;
 }

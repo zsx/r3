@@ -529,7 +529,7 @@ static void Queue_Mark_Opt_Value_Deep(const RELVAL *v)
         // if unmarked...so it can stealthily participate in the marking
         // process, as long as the bit is cleared at the end.
         //
-        REBSER *pairing = cast(REBSER*, PAIRING_KEY(v->payload.pair));
+        REBSER *pairing = cast(REBSER*, v->payload.pair);
         pairing->header.bits |= NODE_FLAG_MARKED; // read via REBSER
         break; }
 
