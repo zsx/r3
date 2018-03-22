@@ -1556,7 +1556,7 @@ REBTYPE(Struct)
         return R_OUT; }
 
     case SYM_REFLECT: {
-        FFI_INCLUDE_PARAMS_OF_REFLECT;
+        INCLUDE_PARAMS_OF_REFLECT;
 
         UNUSED(ARG(value));
         REBSYM property = VAL_WORD_SYM(ARG(property));

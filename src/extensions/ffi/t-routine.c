@@ -901,7 +901,7 @@ static void callback_dispatcher_core(struct Reb_Callback_Invocation *inv)
 
     REBCNT i;
     for (i = 0; i < inv->cif->nargs; ++i, ++elem)
-        ffi_to_rebol(SINK(elem), RIN_ARG_SCHEMA(inv->rin, i), args[i]);
+        ffi_to_rebol(SINK(elem), RIN_ARG_SCHEMA(inv->rin, i), inv->args[i]);
 
     TERM_ARRAY_LEN(code, 1 + inv->cif->nargs);
     MANAGE_ARRAY(code); // DO requires managed arrays (guarded while running)
@@ -923,8 +923,6 @@ static void callback_dispatcher_core(struct Reb_Callback_Invocation *inv)
             param // parameter used for symbol in error only
         );
     }
-
-    return NULL;
 }
 
 
