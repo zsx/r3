@@ -429,12 +429,6 @@
 
 [not equiv? to decimal! #{3FB9999999999999} to decimal! #{3FB999999999999A}]
 
-; bug#2086
-[
-    bind next block: [a a] use [a] ['a]
-    same? 'a first block
-]
-
 [
     o: make object! [a: _]
     same? context of in o 'self context-of in o 'a

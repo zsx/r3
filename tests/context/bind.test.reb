@@ -40,3 +40,8 @@
 [not head? bind next [1] 'rebol]
 ; bug#892, bug#216
 [y: 'x eval func [<local> x] [x: true get bind y 'x]]
+
+[#2086 (
+    bind next block: [a a] use [a] ['a]
+    same? 'a first block
+)]

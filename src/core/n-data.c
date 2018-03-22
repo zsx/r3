@@ -246,19 +246,11 @@ REBNATIVE(bind)
         fail (Error_Not_In_Context_Raw(v));
     }
 
-    // Copy block if necessary (/copy)
-    //
-    // !!! NOTE THIS IS IGNORING THE INDEX!  If you ask to bind, it should
-    // bind forward only from the index you specified, leaving anything
-    // ahead of that point alone.  Not changing it now when finding it
-    // because there could be code that depends on the existing (mis)behavior
-    // but it should be followed up on.
-    //
-    Move_Value(D_OUT, v);
+    assert(ANY_ARRAY(v));
 
-    REBARR *array;
+    RELVAL *at;
     if (REF(copy)) {
-        array = Copy_Array_Core_Managed(
+        REBARR *copy = Copy_Array_Core_Managed(
             VAL_ARRAY(v),
             VAL_INDEX(v), // at
             VAL_SPECIFIER(v),
@@ -267,13 +259,16 @@ REBNATIVE(bind)
             ARRAY_FLAG_FILE_LINE, // flags
             TS_ARRAY // types to copy deeply
         );
-        INIT_VAL_ARRAY(D_OUT, array); // warning: macro copies args
+        at = ARR_HEAD(copy);
+        Init_Any_Array(D_OUT, VAL_TYPE(v), copy);
     }
-    else
-        array = VAL_ARRAY(v);
+    else {
+        at = VAL_ARRAY_AT(v); // only affects binding from current index
+        Move_Value(D_OUT, v);
+    }
 
     Bind_Values_Core(
-        ARR_HEAD(array),
+        at,
         context,
         bind_types,
         add_midstream_types,
