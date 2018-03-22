@@ -103,7 +103,6 @@
 %control/do.test.reb
 %control/either.test.reb
 %control/else.test.reb
-%control/exit.test.reb
 %control/for.test.reb
 %control/forall.test.reb
 %control/for-each.test.reb
@@ -111,6 +110,7 @@
 %control/forskip.test.reb
 %control/halt.test.reb
 %control/if.test.reb
+%control/leave.test.reb
 %control/loop.test.reb
 %control/map-each.test.reb
 %control/reduce.test.reb
