@@ -569,24 +569,7 @@
     a == b
 ]
 
-[
-    ; The results of decoding lossless encodings should be identical.
-    bmp-img: decode 'bmp read %fixtures/rebol-logo.bmp
-    gif-img: decode 'gif read %fixtures/rebol-logo.gif
-    png-img: decode 'gif read %fixtures/rebol-logo.png
-    all [
-        bmp-img == gif-img
-        bmp-img == png-img
-    ]
-]
-
 [[<b> "hello" </b>] == decode 'markup "<b>hello</b>"]
-
-; GIF encoding is not yet implemented
-[out: encode 'gif decode 'gif src: read %fixtures/rebol-logo.gif out == src]
-[out: encode 'png decode 'png src: read %fixtures/rebol-logo.png out == src]
-; JPEG encoding is not yet implemented
-[out: encode 'jpeg decode 'jpeg src: read %fixtures/rebol-logo.jpeg out == src]
 
 ; bug#1986
 ["aβc" = dehex "a%ce%b2c"]
