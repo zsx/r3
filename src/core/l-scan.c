@@ -187,7 +187,7 @@ const REBYTE Lex_Map[256] =
     /* 7B {   */    LEX_DELIMIT|LEX_DELIMIT_LEFT_BRACE,
     /* 7C |   */    LEX_SPECIAL|LEX_SPECIAL_BAR,
     /* 7D }   */    LEX_DELIMIT|LEX_DELIMIT_RIGHT_BRACE,
-    /* 7E ~   */    LEX_WORD,  //LEX_SPECIAL|LEX_SPECIAL_TILDE,
+    /* 7E ~   */    LEX_WORD, // !!! once belonged to LEX_SPECIAL
     /* 7F DEL */    LEX_DEFAULT,
 
     /* Odd Control Chars */
@@ -798,7 +798,11 @@ static REBCNT Prescan_Token(SCAN_STATE *ss)
             break;
 
         case LEX_CLASS_WORD:
-            // !!! Comment said "flags word char (for nums)"...meaning?
+            //
+            // If something is in LEX_CLASS_SPECIAL it gets set in the flags
+            // that are returned.  But if any member of LEX_CLASS_WORD is
+            // found, then a flag will be set indicating that also.
+            //
             SET_LEX_FLAG(flags, LEX_SPECIAL_WORD);
             while (IS_LEX_WORD_OR_NUMBER(*cp)) cp++;
             break;
@@ -2730,7 +2734,6 @@ const REBYTE *Scan_Issue(REBVAL *out, const REBYTE *cp, REBCNT len)
                 || LEX_SPECIAL_PERIOD == c
                 || LEX_SPECIAL_PLUS == c
                 || LEX_SPECIAL_MINUS == c
-                || LEX_SPECIAL_TILDE == c
                 || LEX_SPECIAL_BAR == c
                 || LEX_SPECIAL_BLANK == c
                 || LEX_SPECIAL_COLON == c

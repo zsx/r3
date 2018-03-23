@@ -551,76 +551,301 @@ REBNATIVE(enbase)
 
 
 //
+//  enhex: native [
+//
+//  "Converts string to use URL-style hex encoding (%XX)"
+//
+//      return: [any-string!]
+//          "See http://en.wikipedia.org/wiki/Percent-encoding"
+//      string [any-string!]
+//          "String to encode, all non-ASCII or illegal URL bytes encoded"
+//  ]
+//
+REBNATIVE(enhex)
+{
+    INCLUDE_PARAMS_OF_ENHEX;
+
+    // The details of what ASCII characters must be percent encoded
+    // are contained in RFC 3896, but a summary is here:
+    //
+    // https://stackoverflow.com/a/7109208/
+    //
+    // Everything but: A-Z a-z 0-9 - . _ ~ : / ? # [ ] @ ! $ & ' ( ) * + , ; =
+    //
+  #if !defined(NDEBUG)
+    const char *no_encode =
+        "ABCDEFGHIJKLKMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789" \
+            "-._~:/?#[]@!$&'()*+,;=";
+  #endif
+
+    REBCNT len = VAL_LEN_AT(ARG(string));
+
+    DECLARE_MOLD (mo);
+    Push_Mold (mo);
+
+    // !!! For now, we conservatively assume that the mold buffer might need
+    // 12x as many characters as the input.  This is based on the worst-case
+    // scenario, that each single codepoint might need 4 bytes of UTF-8 data
+    // that are turned into %XX%XX%XX%XX in the output stream.
+    //
+    // It's not that big a deal since the mold buffer sits around with a large
+    // capacity anyway, so it probably has enough for the short encodings this
+    // does already.  But after the UTF-8 everywhere conversion, molding logic
+    // is smarter and expands the buffer on-demand so routines like this don't
+    // need to preallocate it.
+    //
+    Expand_Series(mo->series, mo->start, len * 12);
+
+    REBUNI *dp = UNI_AT(mo->series, mo->start); // ^-- Expand_Series may move!
+
+    REBSER *s = VAL_SERIES(ARG(string));
+
+    REBCNT i = VAL_INDEX(ARG(string));
+    for (; i < len; ++i) {
+        REBUNI c = GET_ANY_CHAR(s, i);
+
+        REBYTE encoded[4];
+        REBCNT encoded_size;
+
+        if (c > 0x80) // all non-ASCII characters *must* be percent encoded
+            encoded_size = Encode_UTF8_Char(encoded, c);
+        else {
+            // "Everything else must be url-encoded".  Rebol's LEX_MAP does
+            // not have a bit for this in particular, though maybe it could
+            // be retooled to help more with this.  For now just use it to
+            // speed things up a little.
+
+            encoded[0] = cast(REBYTE, c);
+            encoded_size = 1;
+
+            switch (GET_LEX_CLASS(c)) {
+            case LEX_CLASS_DELIMIT:
+                switch (GET_LEX_VALUE(c)) {
+                case LEX_DELIMIT_LEFT_PAREN:
+                case LEX_DELIMIT_RIGHT_PAREN:
+                case LEX_DELIMIT_LEFT_BRACKET:
+                case LEX_DELIMIT_RIGHT_BRACKET:
+                case LEX_DELIMIT_SLASH:
+                case LEX_DELIMIT_SEMICOLON:
+                    goto leave_as_is;
+
+                case LEX_DELIMIT_SPACE: // includes control characters
+                case LEX_DELIMIT_END: // 00 null terminator
+                case LEX_DELIMIT_LINEFEED:
+                case LEX_DELIMIT_RETURN: // e.g. ^M
+                case LEX_DELIMIT_LEFT_BRACE:
+                case LEX_DELIMIT_RIGHT_BRACE:
+                case LEX_DELIMIT_DOUBLE_QUOTE:
+                    goto needs_encoding;
+
+                case LEX_DELIMIT_UTF8_ERROR: // not for c < 0x80
+                default:
+                    panic ("Internal LEX_DELIMIT table error");
+                }
+                goto leave_as_is;
+
+            case LEX_CLASS_SPECIAL:
+                switch (GET_LEX_VALUE(c)) {
+                case LEX_SPECIAL_AT:
+                case LEX_SPECIAL_COLON:
+                case LEX_SPECIAL_APOSTROPHE:
+                case LEX_SPECIAL_PLUS:
+                case LEX_SPECIAL_MINUS:
+                case LEX_SPECIAL_BLANK:
+                case LEX_SPECIAL_PERIOD:
+                case LEX_SPECIAL_COMMA:
+                case LEX_SPECIAL_POUND:
+                case LEX_SPECIAL_DOLLAR:
+                    goto leave_as_is;
+
+                default:
+                    goto needs_encoding; // what is LEX_SPECIAL_WORD?
+                }
+                goto leave_as_is;
+
+            case LEX_CLASS_WORD:
+                if (
+                    (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+                    c == '?' || c == '!' || c == '&'
+                    || c == '*' || c == '=' || c == '~'
+                ){
+                    goto leave_as_is; // this is all that's leftover
+                }
+                goto needs_encoding;
+
+            case LEX_CLASS_NUMBER:
+                goto leave_as_is; // 0-9 needs no encoding.
+            }
+
+        leave_as_is:;
+          #if !defined(NDEBUG)
+            assert(strchr(no_encode, c) != NULL);
+          #endif
+            *dp++ = c;
+            continue;
+        }
+
+    needs_encoding:;
+      #if !defined(NDEBUG)
+        if (c < 0x80)
+           assert(strchr(no_encode, c) == NULL);
+      #endif
+
+        REBCNT n;
+        for (n = 0; n < encoded_size; ++n) {
+            *dp++ = '%';
+
+            // Use uppercase hex digits, per RFC 3896 2.1, which is also
+            // consistent with JavaScript's encodeURIComponent()
+            //
+            // https://tools.ietf.org/html/rfc3986#section-2.1
+            //
+            *dp++ = Hex_Digits[(encoded[n] & 0xf0) >> 4];
+            *dp++ = Hex_Digits[encoded[n] & 0xf];
+        }
+    }
+
+    *dp = '\0';
+
+    Init_Any_Series(
+        D_OUT,
+        VAL_TYPE(ARG(string)),
+        Pop_Molded_String_Len(
+            mo,
+            cast(REBCNT, dp - UNI_AT(mo->series, mo->start)) // generated size
+        )
+    );
+
+    return R_OUT;
+}
+
+
+//
 //  dehex: native [
 //
-//  "Converts URL-style hex encoded (%xx) strings."
+//  "Converts URL-style encoded strings, %XX is interpreted as UTF-8 byte."
 //
-//      value [any-string!] "The string to dehex"
+//      return: [any-string!]
+//          "Decoded string, with the same string type as the input."
+//      string [any-string!]
+//          "See http://en.wikipedia.org/wiki/Percent-encoding"
 //  ]
 //
 REBNATIVE(dehex)
 {
     INCLUDE_PARAMS_OF_DEHEX;
 
-    REBCNT len = VAL_LEN_AT(ARG(value));
-    REBUNI uni;
-    REBSER *ser;
+    REBCNT len = VAL_LEN_AT(ARG(string));
 
-    if (VAL_BYTE_SIZE(ARG(value))) {
-        REBYTE *bp = VAL_BIN_AT(ARG(value));
-        REBYTE *dp = Reset_Buffer(BYTE_BUF, len);
+    DECLARE_MOLD (mo);
+    Push_Mold(mo);
 
-        for (; len > 0; len--) {
-            if (*bp == '%' && len > 2 && Scan_Hex2(bp + 1, &uni, FALSE)) {
-                *dp++ = cast(REBYTE, uni);
-                bp += 3;
-                len -= 2;
-            }
-            else *dp++ = *bp++;
+    // Conservatively assume no %NNs, and output is same length as input.
+    //
+    Expand_Series(mo->series, mo->start, len);
+
+    REBUNI *dp = UNI_AT(mo->series, mo->start); // ^-- Expand_Series may move!
+
+    // RFC 3986 says the encoding/decoding must use UTF-8.  This temporary
+    // buffer is used to hold up to 4 bytes (and a terminator) that need
+    // UTF-8 decoding--the maximum one UTF-8 encoded codepoint may have.
+    //
+    REBYTE scan[5];
+    REBSIZ scan_size = 0;
+
+    REBSER *s = VAL_SERIES(ARG(string));
+
+    REBCNT i = VAL_INDEX(ARG(string));
+
+    REBUNI c = GET_ANY_CHAR(s, i);
+    while (i < len) {
+
+        if (c != '%') {
+            *dp++ = c;
+            ++i;
         }
+        else {
+            if (i + 2 >= len)
+               fail ("Percent decode has less than two codepoints after %");
 
-        *dp = '\0';
-        ser = Copy_String_Slimming(BYTE_BUF, 0, dp - BIN_HEAD(BYTE_BUF));
-    }
-    else {
-        REBUNI *up = VAL_UNI_AT(ARG(value));
+            REBYTE lex1 = Lex_Map[GET_ANY_CHAR(s, i + 1)];
+            REBYTE lex2 = Lex_Map[GET_ANY_CHAR(s, i + 2)];
+            i += 3;
 
-        DECLARE_MOLD (mo);
+            // If class LEX_WORD or LEX_NUMBER, there is a value contained in
+            // the mask which is the value of that "digit".  So A-F and
+            // a-f can quickly get their numeric values.
+            //
+            REBYTE d1 = lex1 & LEX_VALUE;
+            REBYTE d2 = lex2 & LEX_VALUE;
 
-        Push_Mold(mo);
-
-        // Do a conservative expansion, assuming there are no %NNs in the
-        // series and the output string will be the same length as input.
-        // Note expand series may change the pointer, so UNI_AT must be after.
-        //
-        Expand_Series(mo->series, mo->start, len);
-
-        REBUNI *dp = UNI_AT(mo->series, mo->start);
-
-        for (; len > 0; len--) {
             if (
-                *up == '%'
-                && len > 2
-                && Scan_Hex2(cast(REBYTE*, up + 1), dp, TRUE)
-            ) {
-                dp++;
-                up += 3;
-                len -= 2;
+                lex1 < LEX_WORD || (d1 == 0 && lex1 < LEX_NUMBER)
+                || lex2 < LEX_WORD || (d2 == 0 && lex2 < LEX_NUMBER)
+            ){
+                fail ("Percent must be followed by 2 hex digits, e.g. %XX");
             }
-            else *dp++ = *up++;
+
+            // !!! We might optimize here for ASCII codepoints, but would
+            // need to consider it a "flushing point" for the scan buffer,
+            // in order to not gloss over incomplete UTF-8 sequences.
+            //
+            REBYTE b = (d1 << 4) + d2;
+            scan[scan_size++] = b;
         }
 
-        *dp = '\0';
+        c = GET_ANY_CHAR(s, i); // may be '\0', guaranteed to be if `i == len`
 
-        // The delta in dp from the original pointer position tells us the
-        // actual size after the %NNs have been accounted for.
+        // If our scanning buffer is full (and hence should contain at *least*
+        // one full codepoint) or there are no more UTF-8 bytes coming (due
+        // to end of string or the next input not a %XX pattern), then try
+        // to decode what we've got.
         //
-        ser = Pop_Molded_String_Len(
-            mo, cast(REBCNT, dp - UNI_AT(mo->series, mo->start))
-        );
+        if (scan_size > 0 && (c != '%' || scan_size == 4)) {
+            assert(i == len ? LOGICAL(c == '\0') : TRUE);
+
+        decode_codepoint:
+            scan[scan_size] = '\0';
+            const REBYTE *next; // goto would cross initialization
+            if (scan[0] < 0x80) {
+                *dp = scan[0];
+                next = &scan[1];
+            }
+            else {
+                next = Back_Scan_UTF8_Char(dp, scan, &scan_size);
+                if (next == NULL)
+                    fail ("Bad UTF-8 sequence in %XX of dehex");
+            }
+            ++dp;
+            --scan_size; // one less (see why it's called "Back_Scan")
+
+            // Slide any residual UTF-8 data to the head of the buffer
+            //
+            REBCNT n;
+            for (n = 0; n < scan_size; ++n) {
+                ++next; // pre-increment (see why it's called "Back_Scan")
+                scan[n] = *next;
+            }
+
+            // If we still have bytes left in the buffer and no more bytes
+            // are coming, this is the last chance to decode those bytes,
+            // keep going.
+            //
+            if (scan_size != 0 && c != '%')
+                goto decode_codepoint;
+        }
     }
 
-    Init_Any_Series(D_OUT, VAL_TYPE(ARG(value)), ser);
+    *dp = '\0';
+
+    Init_Any_Series(
+        D_OUT,
+        VAL_TYPE(ARG(string)),
+        Pop_Molded_String_Len(
+            mo,
+            cast(REBCNT, dp - UNI_AT(mo->series, mo->start)) // generated size
+        )
+    );
 
     return R_OUT;
 }

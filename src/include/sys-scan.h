@@ -138,9 +138,12 @@ enum LEX_CLASS_ENUM {
 #define IS_LEX_NOT_DELIMIT(c)           (Lex_Map[(REBYTE)c] >= LEX_SPECIAL)
 #define IS_LEX_WORD_OR_NUMBER(c)        (Lex_Map[(REBYTE)c] >= LEX_WORD)
 
-/*
-**  Special Chars (encoded in the LEX_VALUE field)
-*/
+//
+//  Special Chars (encoded in the LEX_VALUE field)
+//
+// !!! This used to have "LEX_SPECIAL_TILDE" for "7E ~ - complement number",
+// but that was removed at some point and it was made a legal word character.
+//
 enum LEX_SPECIAL_ENUM {             /* The order is important! */
     LEX_SPECIAL_AT,                 /* 40 @ - email */
     LEX_SPECIAL_PERCENT,            /* 25 % - file name */
@@ -151,7 +154,6 @@ enum LEX_SPECIAL_ENUM {             /* The order is important! */
     LEX_SPECIAL_GREATER,            /* 3E > - compare or end tag */
     LEX_SPECIAL_PLUS,               /* 2B + - positive number */
     LEX_SPECIAL_MINUS,              /* 2D - - date, negative number */
-    LEX_SPECIAL_TILDE,              /* 7E ~ - complement number */
     LEX_SPECIAL_BAR,                /* 7C | - expression barrier */
     LEX_SPECIAL_BLANK,              /* 5F _ - blank */
 
@@ -160,7 +162,14 @@ enum LEX_SPECIAL_ENUM {             /* The order is important! */
     LEX_SPECIAL_COMMA,              /* 2C , - decimal number */
     LEX_SPECIAL_POUND,              /* 23 # - hex number */
     LEX_SPECIAL_DOLLAR,             /* 24 $ - money */
-    LEX_SPECIAL_WORD,               /* SPECIAL - used for word chars (for nums) */
+
+    // LEX_SPECIAL_WORD is not a LEX_VALUE() of anything in LEX_CLASS_SPECIAL,
+    // it is used to set a flag by Prescan_Token().
+    //
+    // !!! Comment said "for nums"
+    //
+    LEX_SPECIAL_WORD,
+
     LEX_SPECIAL_MAX
 };
 

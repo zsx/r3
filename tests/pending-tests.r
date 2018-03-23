@@ -547,15 +547,6 @@
 
 [[<b> "hello" </b>] == decode 'markup "<b>hello</b>"]
 
-; bug#1986
-["aβc" = dehex "a%ce%b2c"]
-
-; bug#1986
-[(to-string #{61CEB262}) = dehex "a%ce%b2c"]
-
-; bug#1986
-[#{61CEB262} = to-binary dehex "a%ce%b2c"]
-
 ; system/clipboard.r
 ; empty clipboard
 [
