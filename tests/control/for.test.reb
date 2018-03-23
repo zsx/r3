@@ -190,3 +190,51 @@
 ; FOR should not bind 'self
 ; bug#1529
 [same? 'self for i 1 1 1 ['self]]
+
+; bug#1136
+[
+    e: trap [
+        num: 0
+        for i 9223372036854775807 9223372036854775807 1 [
+            num: num + 1
+            either num > 1 [break] [true]
+        ]
+    ]
+    error? e and (e/id = 'overflow)
+][
+    e: trap [
+        num: 0
+        for i -9223372036854775808 -9223372036854775808 -1 [
+            num: num + 1
+            either num > 1 [break] [true]
+        ]
+    ]
+    error? e and (e/id = 'overflow)
+]
+
+; bug#1994
+[
+    e: trap [
+        num: 0
+        for i 9223372036854775807 9223372036854775807 9223372036854775807 [
+            num: num + 1
+            if num <> 1 [break]
+            true
+        ]
+    ]
+    error? e and (e/id = 'overflow)
+][
+    e: trap [
+        num: 0
+        for i -9223372036854775808 -9223372036854775808 -9223372036854775808 [
+            num: num + 1
+            if num <> 1 [break]
+            true
+        ]
+    ]
+    error? e and (e/id = 'overflow)
+]
+
+; bug#1993
+[equal? (type of for i 1 2 0 [break]) (type of for i 2 1 0 [break])]
+[equal? (type of for i -1 -2 0 [break]) (type of for i -2 -1 0 [break])]

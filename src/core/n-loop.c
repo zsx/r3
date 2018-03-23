@@ -185,15 +185,27 @@ static REB_R Loop_Integer_Common(
     const REBVAL *body,
     REBI64 start,
     REBI64 end,
-    REBI64 incr
-) {
-    assert(IS_END(out));
+    REBI64 bump
+){
+    assert(IS_END(out)); // so we can detect if written
 
+    if (start == end)
+        return R_VOID;
+
+    // A value cell exposed to the user is used to hold the state.  This means
+    // if they change `var` during the loop, it affects the iteration.  Hence
+    // it must be checked for changing to a non-integer form.
+    //
     VAL_RESET_HEADER(var, REB_INTEGER);
+    REBI64 *state = &VAL_INT64(var);
+    *state = start;
 
-    while ((incr > 0) ? start <= end : start >= end) {
-        VAL_INT64(var) = start;
-
+    // As per #1993, start relative to end determines the "direction" of the
+    // FOR loop.  (R3-Alpha used the sign of the bump, which meant it did not
+    // have a clear plan for what to do with 0.)
+    //
+    const REBOOL counting_up = LOGICAL(start < end); // equal checked above
+    while (counting_up ? *state <= end : *state >= end) {
         if (Do_Any_Array_At_Throws(out, body)) {
             REBOOL stop;
             if (Catching_Break_Or_Continue(out, &stop)) {
@@ -205,12 +217,10 @@ static REB_R Loop_Integer_Common(
         }
 
     next_iteration:
-        if (!IS_INTEGER(var))
+        if (NOT(IS_INTEGER(var)))
             fail (Error_Invalid_Type(VAL_TYPE(var)));
 
-        start = VAL_INT64(var);
-
-        if (REB_I64_ADD_OF(start, incr, &start))
+        if (REB_I64_ADD_OF(*state, bump, state))
             fail (Error_Overflow_Raw());
     }
 
@@ -227,8 +237,8 @@ static REB_R Loop_Number_Common(
     const REBVAL *body,
     REBVAL *start,
     REBVAL *end,
-    REBVAL *incr
-) {
+    REBVAL *bump
+){
     assert(IS_END(out));
 
     REBDEC s;
@@ -247,19 +257,28 @@ static REB_R Loop_Number_Common(
     else
         fail (Error_Invalid(end));
 
-    REBDEC i;
-    if (IS_INTEGER(incr))
-        i = cast(REBDEC, VAL_INT64(incr));
-    else if (IS_DECIMAL(incr) || IS_PERCENT(incr))
-        i = VAL_DECIMAL(incr);
+    REBDEC b;
+    if (IS_INTEGER(bump))
+        b = cast(REBDEC, VAL_INT64(bump));
+    else if (IS_DECIMAL(bump) || IS_PERCENT(bump))
+        b = VAL_DECIMAL(bump);
     else
-        fail (Error_Invalid(incr));
+        fail (Error_Invalid(bump));
 
+    if (s == e)
+        return R_VOID; // only return after checking all args, incl. bump!
+
+    // As in Loop_Integer_Common(), the state is actually in a cell; so each
+    // loop iteration it must be checked to ensure it's still a decimal...
+    //
     VAL_RESET_HEADER(var, REB_DECIMAL);
+    REBDEC *state = &VAL_DECIMAL(var);
+    *state = s;
 
-    for (; (i > 0.0) ? s <= e : s >= e; s += i) {
-        VAL_DECIMAL(var) = s;
-
+    // As per #1993, see notes in Loop_Integer_Common()
+    //
+    const REBOOL counting_up = LOGICAL(s < e); // equal checked above
+    while (counting_up ? *state <= e : *state >= e) {
         if (Do_Any_Array_At_Throws(out, body)) {
             REBOOL stop;
             if (Catching_Break_Or_Continue(out, &stop)) {
@@ -271,10 +290,10 @@ static REB_R Loop_Number_Common(
         }
 
     next_iteration:
-        if (!IS_DECIMAL(var))
+        if (NOT(IS_DECIMAL(var)))
             fail (Error_Invalid_Type(VAL_TYPE(var)));
 
-        s = VAL_DECIMAL(var);
+        *state += b;
     }
 
     return R_OUT_VOID_IF_UNWRITTEN_TRUTHIFY;
@@ -1351,6 +1370,9 @@ REBNATIVE(repeat)
     }
 
     assert(IS_INTEGER(value));
+    REBI64 n = VAL_INT64(value);
+    if (n < 1)
+        return R_VOID; // Loop_Integer from 1 to 0 with bump of 1 is infinite
 
     return Loop_Integer_Common(D_OUT, var, ARG(body), 1, VAL_INT64(value), 1);
 }
