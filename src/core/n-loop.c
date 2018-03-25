@@ -189,9 +189,6 @@ static REB_R Loop_Integer_Common(
 ){
     assert(IS_END(out)); // so we can detect if written
 
-    if (start == end)
-        return R_VOID;
-
     // A value cell exposed to the user is used to hold the state.  This means
     // if they change `var` during the loop, it affects the iteration.  Hence
     // it must be checked for changing to a non-integer form.
@@ -199,6 +196,21 @@ static REB_R Loop_Integer_Common(
     VAL_RESET_HEADER(var, REB_INTEGER);
     REBI64 *state = &VAL_INT64(var);
     *state = start;
+
+    // Run only once if start is equal to end...edge case.
+    //
+    if (start == end) {
+        if (Do_Any_Array_At_Throws(out, body)) {
+            REBOOL stop;
+            if (Catching_Break_Or_Continue(out, &stop)) {
+                if (stop)
+                    return R_BLANK;
+                return R_OUT_VOID_IF_UNWRITTEN_TRUTHIFY;
+            }
+            return R_OUT_IS_THROWN;
+        }
+        return R_OUT_VOID_IF_UNWRITTEN_TRUTHIFY;
+    }
 
     // As per #1993, start relative to end determines the "direction" of the
     // FOR loop.  (R3-Alpha used the sign of the bump, which meant it did not
@@ -265,15 +277,27 @@ static REB_R Loop_Number_Common(
     else
         fail (Error_Invalid(bump));
 
-    if (s == e)
-        return R_VOID; // only return after checking all args, incl. bump!
-
     // As in Loop_Integer_Common(), the state is actually in a cell; so each
     // loop iteration it must be checked to ensure it's still a decimal...
     //
     VAL_RESET_HEADER(var, REB_DECIMAL);
     REBDEC *state = &VAL_DECIMAL(var);
     *state = s;
+
+    // Run only once if start is equal to end...edge case.
+    //
+    if (s == e) {
+        if (Do_Any_Array_At_Throws(out, body)) {
+            REBOOL stop;
+            if (Catching_Break_Or_Continue(out, &stop)) {
+                if (stop)
+                    return R_BLANK;
+                return R_OUT_VOID_IF_UNWRITTEN_TRUTHIFY;
+            }
+            return R_OUT_IS_THROWN;
+        }
+        return R_OUT_VOID_IF_UNWRITTEN_TRUTHIFY;
+    }
 
     // As per #1993, see notes in Loop_Integer_Common()
     //

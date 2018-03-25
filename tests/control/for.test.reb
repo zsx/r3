@@ -44,11 +44,16 @@
     for i b: [1 2 3] back tail of b 1 [append out i]
     out = [1 2 3 2 3 3]
 ]
-; zero repetition
+; zero as end target, infinite loop unless i is changed, or interrupted
 [
-    success: true
-    for i 1 0 1 [success: false]
-    success
+    count: 0
+    for i 1 0 1 [
+        count: me + 1
+        if count > 1023 [
+            break ;-- close enough to infinite :-) assume infinite loop
+        ]
+    ]
+    count = 1024
 ]
 ; zero repetition block test
 [
@@ -195,7 +200,7 @@
 [
     e: trap [
         num: 0
-        for i 9223372036854775807 9223372036854775807 1 [
+        for i 9223372036854775806 9223372036854775807 2 [
             num: num + 1
             either num > 1 [break] [true]
         ]
@@ -204,7 +209,7 @@
 ][
     e: trap [
         num: 0
-        for i -9223372036854775808 -9223372036854775808 -1 [
+        for i -9223372036854775807 -9223372036854775808 -2 [
             num: num + 1
             either num > 1 [break] [true]
         ]
@@ -216,7 +221,7 @@
 [
     e: trap [
         num: 0
-        for i 9223372036854775807 9223372036854775807 9223372036854775807 [
+        for i 9223372036854775806 9223372036854775807 9223372036854775807 [
             num: num + 1
             if num <> 1 [break]
             true
@@ -226,7 +231,7 @@
 ][
     e: trap [
         num: 0
-        for i -9223372036854775808 -9223372036854775808 -9223372036854775808 [
+        for i -9223372036854775807 -9223372036854775808 -9223372036854775808 [
             num: num + 1
             if num <> 1 [break]
             true
