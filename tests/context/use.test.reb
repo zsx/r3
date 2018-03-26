@@ -46,3 +46,11 @@
     ]
     1 = f
 ]
+
+; USE shares mechanics with FOR-EACH and hence does not allow expansion.
+; This particular nuance with 'SELF from #2076 thus no longer arises
+[
+    o: context of use [x] ['x]
+    e: trap [append o 'self]
+    error? e and (e/id = 'locked-series)
+]

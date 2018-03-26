@@ -75,7 +75,14 @@
 ;; !!! EXPAND!
 ;;
 
+[
+    #1613
+
+    ; !!! Note that returning a WORD! from a function ending in ? is not seen
+    ; as a good practice, and will likely change.
+    ;
+    'file = exists? http://www.rebol.com/index.html
+]
+
 [not error? trap [read http://example.com]]
 [not error? trap [read https://example.com]]
-
-

@@ -65,12 +65,13 @@
     f1: does [while [if cycle? [return 1] cycle?] [cycle?: false 2]]
     1 = f1
 ]
-; EXIT/FROM the IF should stop the loop
+; UNWIND the IF should stop the loop
 [
     cycle?: true
     f1: does [if 1 < 2 [while [cycle?] [cycle?: false unwind :if] 2]]
     void? f1
 ]
+
 [  ; bug#1519
     cycle?: true
     f1: does [
@@ -80,6 +81,25 @@
     ]
     void? f1
 ]
+
+; CONTINUE out of a condition continues any enclosing loop (it does not mean
+; continue the WHILE whose condition it appears in)
+[
+    n: 1
+    sum: 0
+    while [n < 10] [
+        n: n + 1
+        if n = 0 [
+            while [continue] [
+                fail "inner WHILE body should not run"
+            ]
+            fail "code after inner WHILE should not run"
+        ]
+        sum: sum + 1
+    ]
+    sum = 9
+]
+
 ; THROW should stop the loop
 [1 = catch [cycle?: true while [cycle?] [throw 1 cycle?: false]]]
 [  ; bug#1519

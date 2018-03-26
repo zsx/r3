@@ -146,3 +146,20 @@
     e: trap [1 / 0]
     e/id = 'zero-divide
 ]
+
+; #60, #1135
+; This tests the NEAR positioning, though really only a few elements of
+; the array are mirrored into the error.  This happens to go to the limit of
+; 3, and shows that the infix expression start was known to the error.
+[
+    e1: trap [1 / 0]
+    e2: trap [2 / 0]
+
+    did all [
+        e1/id = 'zero-divide
+        e2/id = 'zero-divide
+        [1 / 0] = copy/part e1/near 3
+        [2 / 0] = copy/part e2/near 3
+        e1 <> e2
+    ]
+]

@@ -150,3 +150,30 @@
         o-big-c/fun-255 = 332640
     ]
 ]
+
+; object cloning
+; bug#2050
+[
+    o: make object! [n: 'o b: reduce [func [] [n]]]
+    p: make o [n: 'p]
+    (o/b)/1 = 'o
+]
+
+; bug#2076
+[
+    o: make object! [x: 10]
+    e: trap [append o [self: 1]]
+    error? e and (e/id = 'hidden)
+]
+
+[
+    #187
+    o: make object! [self]
+    [] = words of o
+]
+
+[
+    #1553
+    o: make object! [a: _]
+    same? context of in o 'self context-of in o 'a
+]

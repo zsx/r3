@@ -156,3 +156,13 @@
 ]
 ; bug#1977
 [f: func [/r] [1] error? try [f/r/%]]
+
+; path evaluation order
+[
+    a: 1x2
+    did all [
+        b: a/(a: [3 4] 1)
+        b = 1
+        a = [3 4]
+    ]
+]

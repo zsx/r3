@@ -10,3 +10,15 @@
 ["%%2520" = mold to file! "%20"]
 ; bug#1241
 [file? %"/c/Program Files (x86)"]
+
+[
+    #1675
+    files: read %./
+    elide (mold files) ; once upon a time this MOLD crashed periodically
+    block? files
+][
+    #675
+    files: read %fixtures/
+    elide (mold files)
+    block? files
+]

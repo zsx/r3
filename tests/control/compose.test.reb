@@ -46,3 +46,11 @@
     blk: [(compose blk)]
     error? try blk
 ]
+
+; #1906
+[
+    b: copy [] insert/dup b 1 32768 compose b
+    sum: 0
+    for-each i b [sum: me + i]
+    sum = 32768
+]

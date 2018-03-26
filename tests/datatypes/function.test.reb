@@ -376,3 +376,17 @@
     error? trap [function [/test /test] []]
 ]
 
+; /LOCAL is an ordinary refinement in Ren-C
+[
+    a-value: func [/local a] [a]
+    1 == a-value/local 1
+]
+
+; bug#539
+[
+    f: proc [] [
+        use [x] [leave] ;-- https://github.com/metaeducation/ren-c/issues/755
+        42
+    ]
+    void? f
+]

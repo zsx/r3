@@ -276,7 +276,7 @@
 [not same? 9223372036854775807 1]
 #64bit
 [not same? 9223372036854775807 9223372036854775806]
-; "decimal tolerance"
+; #1134 "decimal tolerance"
 [not same? to decimal! #{3FD3333333333333} to decimal! #{3FD3333333333334}]
 ; symmetry
 [

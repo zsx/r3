@@ -41,7 +41,14 @@
 ; bug#892, bug#216
 [y: 'x eval func [<local> x] [x: true get bind y 'x]]
 
-[#2086 (
+[
+    #2086
     bind next block: [a a] use [a] ['a]
     same? 'a first block
-)]
+]
+
+[
+    #1893
+    word: eval func [x] ['x] 1
+    same? word bind 'x word)]
+]

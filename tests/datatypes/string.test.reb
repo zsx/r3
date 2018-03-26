@@ -147,3 +147,12 @@
 ["ahoj" = #[string! "ahoj"]]
 ["1" = to string! 1]
 [{""} = mold ""]
+
+
+; bug#854
+[
+    a: <0>
+    b: make tag! 0
+    insert b first a
+    a == b
+]

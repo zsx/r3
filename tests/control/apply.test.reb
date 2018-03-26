@@ -12,6 +12,8 @@
 [error? try [r3-alpha-apply func [a] [a] [1 2]]]
 [error? try [r3-alpha-apply/only func [a] [a] [1 2]]]
 
+[error? r3-alpha-apply :make [error! ""]]
+
 [true = r3-alpha-apply func [/a] [a] [true]]
 [false == r3-alpha-apply func [/a] [a] [false]]
 [false == r3-alpha-apply func [/a] [a] []]
@@ -138,10 +140,9 @@
     ]
 ]
 
-; The system should be able to preserve the binding of a definitional return
-; when a `MAKE FRAME! :RETURN` is used.  The FRAME! value itself holds the
-; binding, even though the keylist only identifies the underlying native.
-; FUNCTION-OF can also extract the binding from the FRAME! and put it together
-; with the .phase field.
+; MAKE FRAME! :RETURN should preserve binding in the FUNCTION OF the frame
 ;
 [1 == eval does [r3-alpha-apply :return [1] 2]]
+
+[false == r3-alpha-apply/only func [/a] [a] [#[false]]]
+[group! == r3-alpha-apply/only :type-of [()]]
