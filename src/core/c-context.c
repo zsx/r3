@@ -1339,8 +1339,13 @@ REBCNT Find_Canon_In_Context(REBCTX *context, REBSTR *canon, REBOOL always)
 
     REBCNT n;
     for (n = 1; n <= len; n++, key++) {
-        if (canon == VAL_KEY_CANON(key))
-            return (!always && GET_VAL_FLAG(key, TYPESET_FLAG_HIDDEN)) ? 0 : n;
+        if (canon == VAL_KEY_CANON(key)) {
+            if (GET_VAL_FLAG(key, TYPESET_FLAG_UNBINDABLE)) {
+                if (NOT(always))
+                    return 0;
+            }
+            return n;
+        }
     }
 
     // !!! Should this be changed to NOT_FOUND?

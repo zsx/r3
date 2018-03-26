@@ -478,15 +478,18 @@ REBVAL *Init_Any_Context_Core(
 //
 //  Partial1: C
 //
-// Process the /part (or /skip) and other length modifying arguments.
+// Process the /PART (or /SKIP) and other length modifying arguments.
 //
 // Adjusts the value's index if necessary, and returns the length indicated.
 // Hence if a negative limit is passed in, it will adjust value to the
 // position that negative limit would seek to...and save the length of
 // the span to get to the original index.
 //
-void Partial1(REBVAL *value, const REBVAL *limit, REBCNT *span)
-{
+void Partial1(
+    REBVAL *value, // Note: Might be modified, see above!
+    const REBVAL *limit,
+    REBCNT *span // 32-bit, see #853
+){
     REBOOL is_series = ANY_SERIES(value);
 
     if (IS_VOID(limit)) { // use current length of the target value
@@ -504,7 +507,7 @@ void Partial1(REBVAL *value, const REBVAL *limit, REBCNT *span)
 
     REBI64 len;
     if (IS_INTEGER(limit) || IS_DECIMAL(limit))
-        len = Int32(limit);
+        len = Int32(limit); // will error if out of range; see #853
     else {
         if (
             !is_series

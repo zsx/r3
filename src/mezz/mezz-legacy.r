@@ -439,7 +439,7 @@ try: func [
 ;         value: b
 ;         only: true
 ;         dup: true
-;         count: true
+;         count: 2
 ;     ]
 ;
 ; For most usages this is better, though it has the downside of becoming tied
