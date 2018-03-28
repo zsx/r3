@@ -446,11 +446,20 @@ host-console: function [
             ]
             return instruction
         ]
-        if block? prior and (not find directives #no-unskin-if-error) [
-            print "** UNSAFE ERROR ENCOUNTERED IN CONSOLE SKIN"
-            print "** REVERTING TO DEFAULT SKIN"
-            system/console: make console! []
-            print mold prior ;-- Might help debug to see what was running
+        if block? prior [
+            case [
+                find directives #host-console-error [
+                    print "** HOST-CONSOLE FUNCTION! ITSELF RAISED ERROR"
+                    print "** SAFE RECOVERY NOT LIKELY, BUT TRYING ANYWAY"
+                ]
+                not find directives #no-unskin-if-error [
+                    print "** UNSAFE ERROR ENCOUNTERED IN CONSOLE SKIN"
+                ]
+            ] also [
+                print "** REVERTING TO DEFAULT SKIN"
+                system/console: make console! []
+                print mold prior ;-- Might help debug to see what was running
+            ]
         ]
         append instruction [<needs-prompt>]
         return instruction

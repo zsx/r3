@@ -499,9 +499,12 @@ int main(int argc, char *argv_ansi[])
     REBINT Save_Trace_Level = Trace_Level;
     REBINT Save_Trace_Depth = Trace_Depth;
 
+    REBOOL no_recover = FALSE; // allow one try at HOST-CONSOLE internal error
+
     while (TRUE) {
         assert(NOT(ctrl_c_enabled)); // not while HOST-CONSOLE is on the stack
 
+    recover:;
         REBVAL *trapped = rebTrap(
             rebEval(host_console), // HOST-CONSOLE function (run it)
             code, // GROUP! or BLOCK! executed prior (blank if first run)
@@ -510,12 +513,30 @@ int main(int argc, char *argv_ansi[])
             END
         );
 
-        if (rebDid("lib/error?", trapped, END))
-            rebPanic (trapped, END); // unsafe code should run in a GROUP!
-
         rebRelease(code);
         rebRelease(result);
         rebRelease(status);
+
+        if (rebDid("lib/error?", trapped, END)) {
+            //
+            // If the HOST-CONSOLE function has any of its own implementation
+            // that could raise an error (or act as an uncaught throw) it
+            // *should* be returned as a BLOCK!.  This way the "console skin"
+            // can be reset to the default.  If HOST-CONSOLE itself fails
+            // (e.g. a typo in the implementation) there's probably not much
+            // use in trying again...but give it a chance rather than just
+            // crash.  Pass it back something that looks like an instruction
+            // it might have generated (a BLOCK!) asking itself to crash.
+
+            if (no_recover)
+                rebPanic(trapped, END);
+
+            code = rebRun("[#host-console-error]", END);
+            status = trapped;
+            result = rebVoid();
+            no_recover = TRUE; // no second chances until user code runs
+            goto recover;
+        }
 
         code = trapped;
 
@@ -530,6 +551,11 @@ int main(int argc, char *argv_ansi[])
         // Same for Trace_Level seen by PARSE.
         //
         if (NOT(is_console_instruction)) {
+            //
+            // If they made it to a user mode instruction, re-enable recovery.
+            //
+            no_recover = FALSE;
+
             PG_Do = saved_do_hook;
             PG_Apply = saved_apply_hook;
             Trace_Level = Save_Trace_Level;
