@@ -502,6 +502,44 @@ REBNATIVE(redo)
 }
 
 
+static REBVAL *Do_All_Dangerous(REBFRM *f)
+{
+    while (FRM_HAS_MORE(f)) {
+        if (IS_BAR(f->value)) {
+            //
+            // BAR! is handled explicitly, because you might have f->value as
+            // the BAR! in `| asdf`, call into the evaluator and get an error,
+            // yet then come back and still have f->value positioned at the
+            // BAR!.  This comes from how child frames and optimizations work.
+            // Hence it's not easy to know where to skip forward to in case
+            // of an error.
+            //
+            // !!! Review if the invariant of Do_Next_In_Frame_Throws()
+            // should be changed.  So far, this is the only routine affected,
+            // because no other functions try and "resume" a throwing/failing
+            // frame--as that's not generically possible unless you skip to
+            // the next BAR!, as this routine does.
+            //
+            Init_Void(f->out);
+            Fetch_Next_In_Frame(f);
+            continue;
+        }
+
+        if (Do_Next_In_Frame_Throws(f->out, f)) {
+            //
+            // We can't just fail (Error_No_Catch_For_Throw()) here, because
+            // it's necessary to distinguish when the code in this frame threw
+            // from when the code raised that error.  Let caller check THROWN.
+            //
+            assert(THROWN(f->out));
+            return NULL;
+        }
+    }
+
+    return NULL;
+}
+
+
 //
 //  do-all: native [
 //
@@ -520,139 +558,63 @@ REBNATIVE(do_all)
 {
     INCLUDE_PARAMS_OF_DO_ALL;
 
-    // Holds either an error value that is raised, or the thrown value.
-    //
-    DECLARE_LOCAL (arg_or_error);
-    SET_END(arg_or_error);
-    PUSH_GUARD_VALUE(arg_or_error);
-
-    // If arg_or_error is not end, but thrown_name is an end, a throw tried
-    // to propagate, but was caught...but if thrown_name is an end and the
-    // arg_or_error is also not, it is an error which tried to propagate.
-    //
-    DECLARE_LOCAL (thrown_name);
-    SET_END(thrown_name);
-    PUSH_GUARD_VALUE(thrown_name);
+    REBVAL *previous = NULL;
+    REBOOL thrown = FALSE;
 
     DECLARE_FRAME (f);
     Push_Frame(f, ARG(block));
-
-    // The trap must be pushed *after* the frame has been pushed, so that
-    // when a fail() happens it won't pop the running frame.
-    //
-    struct Reb_State state;
-    REBCTX *error;
-
-repush:
-    PUSH_TRAP(&error, &state);
-
-    // The first time through the following code 'error' will be NULL, but...
-    // `fail` can longjmp here, so 'error' won't be NULL *if* that happens!
-
-    if (error) {
-        if (NOT_END(arg_or_error)) { // already a throw or fail pending!
-            DECLARE_LOCAL (arg1);
-            if (IS_END(thrown_name)) {
-                assert(IS_ERROR(arg_or_error));
-                Move_Value(arg1, arg_or_error);
-            }
-            else {
-                CONVERT_NAME_TO_THROWN(thrown_name, arg_or_error);
-                Init_Error(arg1, Error_No_Catch_For_Throw(thrown_name));
-            }
-
-            DECLARE_LOCAL (arg2);
-            Init_Error(arg2, error);
-
-            fail (Error_Multiple_Do_Errors_Raw(arg1, arg2));
-        }
-
-        Recover_Frame(f); // Frames otherwise not ready to use after a FAIL
-
-        assert(IS_END(thrown_name));
-        Init_Error(arg_or_error, error);
-
-        while (FRM_HAS_MORE(f) && NOT(IS_BAR(f->value)))
-            Fetch_Next_In_Frame(f);
-
-        goto repush;
-    }
+    f->out = D_OUT;
 
     Init_Void(D_OUT); // default return result of DO-ALL []
 
-    while (FRM_HAS_MORE(f)) {
-        if (IS_BAR(f->value)) {
-            //
-            // BAR! is handled explicitly, because you might have f->value as
-            // the BAR! in `| asdf`, call into the evaluator and get an error,
-            // yet then come back and still have f->value positioned at the
-            // BAR!.  This comes from how child frames and optimizations work.
-            // Hence it's not easy to know where to skip forward to in case
-            // of an error.
-            //
-            // !!! Review if the invariant of Do_Next_In_Frame_Throws()
-            // should be changed.  So far, this is the only routine affected,
-            // because no other functions try and "resume" a throwing/failing
-            // frame--as that's not generically possible unless you skip to
-            // the next BAR!, as this routine does.
-            //
-            Init_Void(D_OUT);
-            Fetch_Next_In_Frame(f);
-            continue;
-        }
+resume:
+    REBVAL *error = rebRescue(cast(REBDNG*, &Do_All_Dangerous), f);
 
-        if (Do_Next_In_Frame_Throws(D_OUT, f)) {
-            if (NOT_END(arg_or_error)) { // already a throw or fail pending!
-                DECLARE_LOCAL (arg1);
-                if (IS_END(thrown_name)) {
-                    assert(IS_ERROR(arg_or_error));
-                    Move_Value(arg1, arg_or_error);
-                }
-                else {
-                    CONVERT_NAME_TO_THROWN(thrown_name, arg_or_error);
-                    Init_Error(arg1, Error_No_Catch_For_Throw(thrown_name));
-                }
-
-                DECLARE_LOCAL (arg2);
-                Init_Error(arg2, Error_No_Catch_For_Throw(D_OUT));
-
-                // We're still inside the pushed trap for this throw.  Have
-                // to drop the trap to avoid transmitting the error to the
-                // `if (error)` longjmp branch above!
-                //
-                DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
-
-                fail (Error_Multiple_Do_Errors_Raw(arg1, arg2));
-            }
-
-            CATCH_THROWN(arg_or_error, D_OUT);
-            Move_Value(thrown_name, D_OUT); // THROWN cleared by CATCH_THROWN
-
-            while (FRM_HAS_MORE(f) && NOT(IS_BAR(f->value)))
-                Fetch_Next_In_Frame(f);
-        }
+    // Convert a thrown value to an error, remembering it was actually thrown
+    //
+    if (THROWN(f->out)) {
+        assert(error == NULL);
+        thrown = TRUE;
+        error = Init_Error(Alloc_Value(), Error_No_Catch_For_Throw(f->out));
     }
+
+    // If error (or a throw we just converted to one), resume if we can
+    //
+    if (error != NULL) {
+        if (previous != NULL)
+            fail (Error_Multiple_Do_Errors_Raw(previous, error));
+
+        previous = error;
+
+        Recover_Frame(f); // Frames otherwise not ready to use after a FAIL
+        while (FRM_HAS_MORE(f) && NOT(IS_BAR(f->value)))
+            Fetch_Next_In_Frame(f);
+
+        goto resume;
+    }
+
+    if (thrown) {
+        //
+        // !!! In theory we could propagate a throw here vs. treating it as
+        // an error, by extracting the throw's /NAME and the value from the
+        // error we created above.  DO-ALL is not currently being used, so
+        // just treating it as an error is easier for now.
+
+        /*
+            // extract thrown_name and thrown_arg from `previous`, release it
+            //
+            Move_Value(D_OUT, thrown_name);
+            CONVERT_NAME_TO_THROWN(D_OUT, thrown_arg);
+            return R_OUT_IS_THROWN;
+        */
+    }
+
+    if (previous != NULL)
+        rebFail (previous, END);
 
     Drop_Frame(f);
 
-    DROP_TRAP_SAME_STACKLEVEL_AS_PUSH(&state);
-
-    DROP_GUARD_VALUE(thrown_name); // no GC (via Do_Core()) after this point
-    DROP_GUARD_VALUE(arg_or_error);
-
-    if (IS_END(arg_or_error)) { // no throws or errors tried to propagate
-        assert(IS_END(thrown_name));
-        return R_OUT;
-    }
-
-    if (NOT_END(thrown_name)) { // throw tried propagating, re-throw it
-        Move_Value(D_OUT, thrown_name);
-        CONVERT_NAME_TO_THROWN(D_OUT, arg_or_error);
-        return R_OUT_IS_THROWN;
-    }
-
-    assert(IS_ERROR(arg_or_error));
-    fail (VAL_CONTEXT(arg_or_error)); // error tried propagating, re-raise it
+    return R_OUT;
 }
 
 
@@ -677,7 +639,7 @@ REBNATIVE(apply)
     REBSTR *opt_label;
     Get_If_Word_Or_Path_Arg(D_OUT, &opt_label, applicand);
     if (!IS_FUNCTION(D_OUT))
-        fail (applicand);
+        fail (Error_Invalid(applicand));
     Move_Value(applicand, D_OUT);
 
     return Apply_Def_Or_Exemplar(

@@ -83,7 +83,7 @@
 [blank? attempt [catch/quit [] fail make error! ""]]
 
 
-; DO-ALL is a sort of CATCH/TRAP hybrid.
+; DO-ALL traps up to one error and propagates it
 ;
 [
     x: _
@@ -91,21 +91,7 @@
         error? trap [do-all [
             x: 10
                 |
-            fail "some error"
-                |
-            x: 20
-        ]]
-        x = 20
-    ]
-]
-
-[
-    x: _
-    did all [
-        30 = catch [do-all [
-            x: 10
-                |
-            throw 30
+            fail "some error" ;-- !!! once supported throw, might do so again
                 |
             x: 20
         ]]
