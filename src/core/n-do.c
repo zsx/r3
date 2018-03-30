@@ -567,7 +567,7 @@ REBNATIVE(do_all)
 
     Init_Void(D_OUT); // default return result of DO-ALL []
 
-resume:
+resume:;
     REBVAL *error = rebRescue(cast(REBDNG*, &Do_All_Dangerous), f);
 
     // Convert a thrown value to an error, remembering it was actually thrown
