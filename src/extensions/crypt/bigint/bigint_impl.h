@@ -31,7 +31,7 @@
 #ifndef BIGINT_IMPL_HEADER
 #define BIGINT_IMPL_HEADER
 
-#include <stdint.h>
+#include "pstdint.h" // Portable <stdint.h>
 
 // !!! Ren-C addition to build under Visual Studio without warnings.
 //

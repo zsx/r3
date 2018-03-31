@@ -28,7 +28,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <stdint.h>  // uint{8,16,32}_t
+#include "pstdint.h" // Portable <stdint.h>, uint{8,16,32}_t
 
 /**************************************************************************
  * AES declarations

@@ -28,7 +28,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <stdint.h>
+#include "pstdint.h" // Portable <stdint.h>, uint{8,16,32}_t
 
 /**************************************************************************
  * RC4 declarations
