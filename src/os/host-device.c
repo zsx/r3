@@ -348,7 +348,7 @@ int OS_Do_Device(REBREQ *req, REBCNT command)
     if (result > 0) Attach_Request(&dev->pending, req);
     else if (dev->pending) {
         Detach_Request(&dev->pending, req); // often a no-op
-        if (result == DR_ERROR && LOGICAL(req->flags & RRF_ALLOC)) {
+        if (result == DR_ERROR && DID(req->flags & RRF_ALLOC)) {
             // not on stack
             Signal_Device(req, EVT_ERROR);
         }
@@ -419,7 +419,7 @@ int OS_Poll_Devices(void)
         dev = Devices[d];
         if (
             dev != NULL
-            && (dev->pending || LOGICAL(dev->flags & RDO_AUTO_POLL))
+            && (dev->pending || DID(dev->flags & RDO_AUTO_POLL))
         ){
             // If there is a custom polling function, use it:
             if (dev->commands[RDC_POLL]) {
@@ -457,7 +457,7 @@ int OS_Quit_Devices(int flags)
         REBDEV *dev = Devices[d];
         if (
             dev != NULL
-            && LOGICAL(dev->flags & RDF_INIT)
+            && DID(dev->flags & RDF_INIT)
             && dev->commands[RDC_QUIT] != NULL
         ){
             dev->commands[RDC_QUIT](cast(REBREQ*, dev));

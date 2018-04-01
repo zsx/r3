@@ -157,7 +157,7 @@ struct Reb_Binder {
 
 
 inline static void INIT_BINDER(struct Reb_Binder *binder) {
-    binder->high = TRUE; //LOGICAL(SPORADICALLY(2)); sporadic?
+    binder->high = TRUE; // !!! what about `DID(SPORADICALLY(2))` for testing?
 
 #if !defined(NDEBUG)
     binder->count = 0;

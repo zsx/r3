@@ -786,7 +786,7 @@ REBNATIVE(map_event)
     REBGOB *gob = cast(REBGOB*, VAL_EVENT_SER(val));
     REBXYF xy;
 
-    if (gob != NULL && LOGICAL(VAL_EVENT_FLAGS(val) & EVF_HAS_XY)) {
+    if (gob != NULL && DID(VAL_EVENT_FLAGS(val) & EVF_HAS_XY)) {
         xy.x = (REBD32)VAL_EVENT_X(val);
         xy.y = (REBD32)VAL_EVENT_Y(val);
         VAL_EVENT_SER(val) = cast(REBSER*, Map_Gob_Inner(gob, &xy));
@@ -1034,13 +1034,13 @@ REBTYPE(Gob)
             goto set_index;
 
         case SYM_HEAD_Q:
-            return R_FROM_BOOL(LOGICAL(index == 0));
+            return R_FROM_BOOL(DID(index == 0));
 
         case SYM_TAIL_Q:
-            return R_FROM_BOOL(LOGICAL(index >= tail));
+            return R_FROM_BOOL(DID(index >= tail));
 
         case SYM_PAST_Q:
-            return R_FROM_BOOL(LOGICAL(index > tail));
+            return R_FROM_BOOL(DID(index > tail));
 
         case SYM_INDEX:
             Init_Integer(D_OUT, index + 1);

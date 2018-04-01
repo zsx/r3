@@ -88,7 +88,7 @@
 #define P_POS               VAL_INDEX(P_INPUT_VALUE)
 
 #define P_FIND_FLAGS        VAL_INT64(&f->args_head[1])
-#define P_HAS_CASE          LOGICAL(P_FIND_FLAGS & AM_FIND_CASE)
+#define P_HAS_CASE          DID(P_FIND_FLAGS & AM_FIND_CASE)
 
 #define P_OUT (f->out)
 
@@ -1842,7 +1842,7 @@ REBNATIVE(subparse)
                         FETCH_NEXT_RULE_MAYBE_END(f);
                     }
 
-                    REBOOL is_thru = LOGICAL(cmd == SYM_THRU);
+                    REBOOL is_thru = DID(cmd == SYM_THRU);
 
                     if (IS_BLOCK(subrule))
                         i = To_Thru_Block_Rule(f, subrule, is_thru);

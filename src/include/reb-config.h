@@ -116,7 +116,7 @@ Special internal defines used by RT, not Host-Kit developers:
 
 #ifdef TO_WINDOWS
     #define OS_DIR_SEP '\\'         // file path separator (Thanks Bill.)
-    #define OS_CRLF TRUE            // uses CRLF as line terminator
+    #define OS_CRLF 1               // uses CRLF as line terminator
 
     #if (defined(_MSC_VER) && (_MSC_VER <= 1200))
         #define WEIRD_INT_64        // non-standard MSVC int64 declarations

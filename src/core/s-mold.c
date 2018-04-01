@@ -432,7 +432,7 @@ void Form_Array_At(
             if (wval)
                 item = wval;
         }
-        Mold_Or_Form_Value(mo, item, LOGICAL(wval == NULL));
+        Mold_Or_Form_Value(mo, item, DID(wval == NULL));
         n++;
         if (GET_MOLD_FLAG(mo, MOLD_FLAG_LINES)) {
             Append_Codepoint(mo->series, LF);

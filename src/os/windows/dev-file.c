@@ -222,7 +222,7 @@ DEVICE_CMD Open_File(REBREQ *req)
     if ((req->modes & (RFM_WRITE | RFM_APPEND)) != 0) {
         access |= GENERIC_WRITE;
         if (
-            LOGICAL(req->modes & RFM_NEW) ||
+            DID(req->modes & RFM_NEW) ||
             (req->modes & (RFM_READ | RFM_APPEND | RFM_SEEK)) == 0
         ){
             create = CREATE_ALWAYS;
@@ -231,7 +231,7 @@ DEVICE_CMD Open_File(REBREQ *req)
             create = OPEN_ALWAYS;
     }
 
-    attrib |= LOGICAL(req->modes & RFM_SEEK)
+    attrib |= DID(req->modes & RFM_SEEK)
         ? FILE_FLAG_RANDOM_ACCESS
         : FILE_FLAG_SEQUENTIAL_SCAN;
 

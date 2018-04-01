@@ -239,7 +239,7 @@ static REB_R Transport_Actor(
             // Connect for clients, bind for servers:
             //
             return R_FROM_BOOL (
-                LOGICAL((sock->state & (RSM_CONNECT | RSM_BIND)) != 0)
+                DID((sock->state & (RSM_CONNECT | RSM_BIND)) != 0)
             );
 
         default:
@@ -385,7 +385,7 @@ static REB_R Transport_Actor(
         REBCNT len = Get_Num_From_Arg(ARG(picker));
         if (
             len == 1
-            && LOGICAL(sock->modes & RST_LISTEN)
+            && DID(sock->modes & RST_LISTEN)
             && sock->common.data != NULL
         ){
             Accept_New_Port(SINK(D_OUT), port, DEVREQ_NET(sock));

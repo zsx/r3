@@ -728,10 +728,8 @@ REBNATIVE(hijack)
     REBARR *hijacker_paramlist = VAL_FUNC_PARAMLIST(hijacker);
 
     if (
-        LOGICAL(
-            FUNC_UNDERLYING(VAL_FUNC(hijacker))
-            == FUNC_UNDERLYING(VAL_FUNC(victim))
-        )
+        FUNC_UNDERLYING(VAL_FUNC(hijacker))
+        == FUNC_UNDERLYING(VAL_FUNC(victim))
     ){
         // Should the underlying functions of the hijacker and victim match,
         // that means any ADAPT or CHAIN or SPECIALIZE of the victim can

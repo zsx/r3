@@ -2119,13 +2119,13 @@ static REBNATIVE(set_env)
     REBOOL success;
 
     if (IS_BLANK(value)) {
-        success = SetEnvironmentVariable(key, NULL);
+        success = DID(SetEnvironmentVariable(key, NULL));
     }
     else {
         assert(IS_STRING(value));
 
         WCHAR *val = rebSpellingOfAllocW(NULL, value);
-        success = SetEnvironmentVariable(key, val);
+        success = DID(SetEnvironmentVariable(key, val));
         rebFree(val);
     }
 

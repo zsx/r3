@@ -1114,7 +1114,7 @@ REBNATIVE(aliases_q)
     INCLUDE_PARAMS_OF_ALIASES_Q;
 
     return R_FROM_BOOL(
-        LOGICAL(VAL_SERIES(ARG(value1)) == VAL_SERIES(ARG(value2)))
+        DID(VAL_SERIES(ARG(value1)) == VAL_SERIES(ARG(value2)))
     );
 }
 
@@ -1309,7 +1309,7 @@ REBNATIVE(nothing_q)
     INCLUDE_PARAMS_OF_NOTHING_Q;
 
     return R_FROM_BOOL(
-        LOGICAL(IS_BLANK(ARG(value)) || IS_VOID(ARG(value)))
+        DID(IS_BLANK(ARG(value)) || IS_VOID(ARG(value)))
     );
 }
 

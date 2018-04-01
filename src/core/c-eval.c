@@ -1709,6 +1709,7 @@ reevaluate:;
 
         case R_UNHANDLED: // internal use only, shouldn't be returned
             assert(FALSE);
+            break;
 
         default:
             assert(FALSE);

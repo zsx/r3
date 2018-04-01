@@ -216,7 +216,7 @@ static REB_R Loop_Integer_Common(
     // FOR loop.  (R3-Alpha used the sign of the bump, which meant it did not
     // have a clear plan for what to do with 0.)
     //
-    const REBOOL counting_up = LOGICAL(start < end); // equal checked above
+    const REBOOL counting_up = DID(start < end); // equal checked above
     while (counting_up ? *state <= end : *state >= end) {
         if (Do_Any_Array_At_Throws(out, body)) {
             REBOOL stop;
@@ -301,7 +301,7 @@ static REB_R Loop_Number_Common(
 
     // As per #1993, see notes in Loop_Integer_Common()
     //
-    const REBOOL counting_up = LOGICAL(s < e); // equal checked above
+    const REBOOL counting_up = DID(s < e); // equal checked above
     while (counting_up ? *state <= e : *state >= e) {
         if (Do_Any_Array_At_Throws(out, body)) {
             REBOOL stop;

@@ -315,7 +315,7 @@ REBNATIVE(decode_gif)
 
         if (c != ',') continue;
 
-        interlaced = LOGICAL(cp[8] & 0x40);
+        interlaced = DID(cp[8] & 0x40);
         local_colormap = cp[8] & 0x80;
 
         w = LSBFirstOrder(cp[4],cp[5]);

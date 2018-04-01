@@ -1233,7 +1233,7 @@ void ODBC_Column_To_Rebol_Value(
         //
         if (col->column_size != 1)
             fail ("BIT(n) fields are only supported for n = 1");
-        Init_Logic(out, LOGICAL(*cast(unsigned char*, col->buffer)));
+        Init_Logic(out, DID(*cast(unsigned char*, col->buffer) != 0));
         break;
 
     case SQL_BINARY:

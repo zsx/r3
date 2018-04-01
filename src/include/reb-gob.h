@@ -239,14 +239,14 @@ typedef struct gob_window {             // Maps gob to window
 #define SET_GOB_FLAG(g,f) \
     cast(void, (g)->header.bits |= (f))
 #define GET_GOB_FLAG(g,f) \
-    LOGICAL((g)->header.bits & (f))
+    DID((g)->header.bits & (f))
 #define CLR_GOB_FLAG(g,f) \
     cast(void, (g)->header.bits &= ~(f))
 
 #define SET_GOB_STATE(g,f) \
     cast(void, (g)->state |= (f))
 #define GET_GOB_STATE(g,f) \
-    LOGICAL((g)->state & (f))
+    DID((g)->state & (f))
 #define CLR_GOB_STATE(g,f) \
     cast(void, (g)->state &= ~(f))
 

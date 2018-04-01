@@ -230,7 +230,7 @@ REBOOL Check_Bit(REBSER *bset, REBCNT c, REBOOL uncased)
 retry:
     i = n >> 3;
     if (i < tail)
-        flag = LOGICAL(BIN_HEAD(bset)[i] & (1 << (7 - ((n) & 7))));
+        flag = DID(BIN_HEAD(bset)[i] & (1 << (7 - ((n) & 7))));
 
     // Check uppercase if needed:
     if (uncased && !flag) {
@@ -599,7 +599,7 @@ REBTYPE(Bitset)
 
         case SYM_TAIL_Q:
             // Necessary to make EMPTY? work:
-            return R_FROM_BOOL(LOGICAL(VAL_LEN_HEAD(value) == 0));
+            return R_FROM_BOOL(DID(VAL_LEN_HEAD(value) == 0));
 
         default:
             break;

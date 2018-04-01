@@ -319,7 +319,7 @@
 
 
 #define IS_KIND_INERT(k) \
-    LOGICAL((k) >= REB_BLOCK)
+    DID((k) >= REB_BLOCK)
 
 
 struct Reb_Frame_Source {

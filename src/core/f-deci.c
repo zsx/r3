@@ -79,8 +79,9 @@ inline static REBINT m_cmp(REBINT n, const REBCNT a[], const REBCNT b[]) {
 
 inline static REBOOL m_is_zero(REBINT n, const REBCNT a[]) {
     REBINT i;
-    for (i = 0; (i < n) && (a[i] == 0); i++);
-    return LOGICAL(i == n);
+    for (i = 0; (i < n) && (a[i] == 0); i++)
+        NOOP;
+    return DID(i == n);
 }
 
 /* unnormalized powers of ten */
@@ -175,7 +176,7 @@ inline static REBINT min_shift_right(const REBCNT a[6]) {
 
 /* Finds out if deci a is zero */
 REBOOL deci_is_zero(const deci a) {
-    return LOGICAL((a.m0 == 0) && (a.m1 == 0) && (a.m2 == 0));
+    return DID((a.m0 == 0) && (a.m1 == 0) && (a.m2 == 0));
 }
 
 /* Changes the sign of a deci value */
@@ -447,7 +448,7 @@ REBOOL deci_is_equal(deci a, deci b) {
     if ((ta == 3) || ((ta == 2) && (sa[0] % 2 == 1))) m_add_1 (sa, 1);
     else if ((tb == 3) || ((tb == 2) && (sb[0] % 2 == 1))) m_add_1 (sb, 1);
 
-    return LOGICAL(
+    return DID(
         (m_cmp (3, sa, sb) == 0) && ((a.s == b.s) || m_is_zero (3, sa))
     );
 }
@@ -469,15 +470,18 @@ REBOOL deci_is_lesser_or_equal(deci a, deci b) {
     sb[2] = b.m2;
     sb[3] = 0;
 
-    if (a.s && !b.s) return TRUE;
-    if (!a.s && b.s) return LOGICAL(m_is_zero (3, sa) && m_is_zero (3, sb));
+    if (a.s && !b.s)
+        return TRUE;
+    if (!a.s && b.s)
+        return DID(m_is_zero (3, sa) && m_is_zero (3, sb));
+
     make_comparable (sa, &ea, &ta, sb, &eb, &tb);
 
     /* round */
     if ((ta == 3) || ((ta == 2) && (sa[0] % 2 == 1))) m_add_1 (sa, 1);
     else if ((tb == 3) || ((tb == 2) && (sb[0] % 2 == 1))) m_add_1 (sb, 1);
 
-    return LOGICAL(
+    return DID(
         a.s ? (m_cmp (3, sa, sb) >= 0) : (m_cmp (3, sa, sb) <= 0)
     );
 }
@@ -1422,7 +1426,7 @@ deci deci_sign(deci a) {
 
 REBOOL deci_is_same(deci a, deci b) {
     if (deci_is_zero (a)) return deci_is_zero (b);
-    return LOGICAL(
+    return DID(
         (a.m0 == b.m0)
         && (a.m1 == b.m1)
         && (a.m2 == b.m2)

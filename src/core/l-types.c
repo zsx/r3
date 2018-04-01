@@ -42,7 +42,7 @@
 //
 
 #define return_NULL \
-    do { Init_Unreadable_Blank(out); return NULL; } while (TRUE)
+    do { Init_Unreadable_Blank(out); return NULL; } while (1)
 
 
 //

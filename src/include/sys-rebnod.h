@@ -311,7 +311,7 @@ struct Reb_Node {
 
 #ifdef NDEBUG
     #define IS_FREE_NODE(p) \
-        LOGICAL(cast(struct Reb_Node*, (p))->header.bits & NODE_FLAG_FREE)
+        DID(cast(struct Reb_Node*, (p))->header.bits & NODE_FLAG_FREE)
 #else
     // In the debug build, add in an extra check that the left 8 bits of any
     // freed nodes match FREED_SERIES_BYTE or TRASH_CELL_BYTE.  This is

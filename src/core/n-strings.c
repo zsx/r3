@@ -802,7 +802,7 @@ REBNATIVE(dehex)
         // to decode what we've got.
         //
         if (scan_size > 0 && (c != '%' || scan_size == 4)) {
-            assert(i == len ? LOGICAL(c == '\0') : TRUE);
+            assert(i == len ? DID(c == '\0') : TRUE);
 
         decode_codepoint:
             scan[scan_size] = '\0';

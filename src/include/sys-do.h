@@ -64,7 +64,7 @@
 // !!! Find a better place for this!
 //
 inline static REBOOL IS_QUOTABLY_SOFT(const RELVAL *v) {
-    return LOGICAL(IS_GROUP(v) || IS_GET_WORD(v) || IS_GET_PATH(v));
+    return DID(IS_GROUP(v) || IS_GET_WORD(v) || IS_GET_PATH(v));
 }
 
 
@@ -1074,7 +1074,7 @@ inline static REBOOL Do_Va_Throws(
     // Note: va_end() is handled by Do_Va_Core (one way or another)
 
     assert(indexor == THROWN_FLAG || indexor == END_FLAG);
-    return LOGICAL(indexor == THROWN_FLAG);
+    return DID(indexor == THROWN_FLAG);
 }
 
 
@@ -1124,7 +1124,7 @@ inline static REBOOL Apply_Only_Throws(
         || indexor == END_FLAG
         || (NOT(fully) && indexor == VA_LIST_FLAG)
     );
-    return LOGICAL(indexor == THROWN_FLAG);
+    return DID(indexor == THROWN_FLAG);
 }
 
 
@@ -1134,7 +1134,7 @@ inline static REBOOL Do_At_Throws(
     REBCNT index,
     REBSPC *specifier
 ){
-    return LOGICAL(
+    return DID(
         THROWN_FLAG == Do_Array_At_Core(
             out,
             NULL,
@@ -1172,7 +1172,7 @@ inline static REBOOL Eval_Value_Core_Throws(
     const RELVAL *value,
     REBSPC *specifier
 ){
-    return LOGICAL(
+    return DID(
         THROWN_FLAG == Do_Array_At_Core(
             out,
             value,

@@ -1403,7 +1403,7 @@ void Remake_Series(REBSER *s, REBCNT units, REBYTE wide, REBUPT flags)
     //
     assert((flags & ~(NODE_FLAG_NODE | SERIES_FLAG_POWER_OF_2)) == 0);
 
-    REBOOL preserve = LOGICAL(flags & NODE_FLAG_NODE);
+    REBOOL preserve = DID(flags & NODE_FLAG_NODE);
 
     REBCNT len_old = SER_LEN(s);
     REBYTE wide_old = SER_WIDE(s);

@@ -86,13 +86,13 @@ static inline void CATCH_THROWN(REBVAL *arg_out, REBVAL *thrown) {
 #define FS_TOP (TG_Frame_Stack + 0) // avoid assignment to FS_TOP via + 0
 
 #define FRM_IS_VALIST(f) \
-    LOGICAL((f)->source.vaptr != NULL)
+    DID((f)->source.vaptr != NULL)
 
 #define FRM_AT_END(f) \
-    LOGICAL((f)->value == NULL)
+    DID((f)->value == NULL)
 
 #define FRM_HAS_MORE(f) \
-    LOGICAL((f)->value != NULL)
+    DID((f)->value != NULL)
 
 inline static REBARR *FRM_ARRAY(REBFRM *f) {
     assert(!FRM_IS_VALIST(f));
@@ -238,7 +238,7 @@ inline static REBOOL Is_Function_Frame(REBFRM *f) {
         // Do not count as a function frame unless its gotten to the point
         // of pushing arguments.
         //
-        return LOGICAL(f->phase != NULL);
+        return DID(f->phase != NULL);
     }
     return FALSE;
 }

@@ -49,7 +49,7 @@ REBOOL Is_Port_Open(REBCTX *port)
         return FALSE;
 
     REBREQ *req = cast(REBREQ*, VAL_BIN_AT(state));
-    return LOGICAL(req->flags & RRF_OPEN);
+    return DID(req->flags & RRF_OPEN);
 }
 
 
@@ -510,7 +510,7 @@ REBOOL Redo_Func_Throws(REBFRM *f, REBFUN *func_new)
         fail ("Function frame proxying did not consume all arguments");
     }
 
-    return LOGICAL(indexor == THROWN_FLAG);
+    return DID(indexor == THROWN_FLAG);
 }
 
 

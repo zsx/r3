@@ -262,7 +262,7 @@ DEVICE_CMD Read_IO(REBREQ *req)
         DWORD len = MIN(req->length, BUF_SIZE);
 
         DWORD total;
-        REBOOL ok = ReadFile(Std_Inp, req->common.data, len, &total, 0);
+        BOOL ok = ReadFile(Std_Inp, req->common.data, len, &total, 0);
         if (NOT(ok)) {
             req->error = GetLastError();
             return DR_ERROR;
@@ -328,7 +328,7 @@ DEVICE_CMD Read_IO(REBREQ *req)
 #endif
 
     DWORD total;
-    REBOOL ok = ReadConsoleW(
+    BOOL ok = ReadConsoleW(
         Std_Inp,
         Std_Buf,
         BUF_SIZE - 1,

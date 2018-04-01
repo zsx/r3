@@ -108,7 +108,7 @@ REBOOL almost_equal(REBDEC a, REBDEC b, REBCNT max_diff) {
     int_diff = ua.i - ub.i;
     if (int_diff < 0) int_diff = -int_diff;
 
-    return LOGICAL(cast(REBU64, int_diff) <= max_diff);
+    return DID(cast(REBU64, int_diff) <= max_diff);
 }
 
 
@@ -179,7 +179,7 @@ void MAKE_Decimal(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
             arg, MAX_SCAN_DECIMAL, &len, FALSE
         );
 
-        if (NULL == Scan_Decimal(out, bp, len, LOGICAL(kind != REB_PERCENT)))
+        if (NULL == Scan_Decimal(out, bp, len, DID(kind != REB_PERCENT)))
             goto bad_make;
 
         d = VAL_DECIMAL(out); // may need to divide if percent, fall through

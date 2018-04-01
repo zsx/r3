@@ -76,13 +76,13 @@ REB_R Series_Common_Action_Maybe_Unhandled(
             return R_OUT;
 
         case SYM_HEAD_Q:
-            return R_FROM_BOOL(LOGICAL(index == 0));
+            return R_FROM_BOOL(DID(index == 0));
 
         case SYM_TAIL_Q:
-            return R_FROM_BOOL(LOGICAL(index >= tail));
+            return R_FROM_BOOL(DID(index >= tail));
 
         case SYM_PAST_Q:
-            return R_FROM_BOOL(LOGICAL(index > tail));
+            return R_FROM_BOOL(DID(index > tail));
 
         case SYM_FILE: {
             REBSER *s = VAL_SERIES(value);

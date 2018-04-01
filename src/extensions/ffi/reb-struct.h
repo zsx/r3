@@ -507,5 +507,5 @@ extern void MF_Struct(REB_MOLD *mo, const RELVAL *v, REBOOL form);
 extern REB_R Routine_Dispatcher(REBFRM *f);
 
 inline static REBOOL IS_FUNCTION_RIN(const RELVAL *v)
-    { return LOGICAL(VAL_FUNC_DISPATCHER(v) == &Routine_Dispatcher); }
+    { return DID(VAL_FUNC_DISPATCHER(v) == &Routine_Dispatcher); }
 

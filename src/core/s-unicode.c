@@ -754,7 +754,7 @@ REBINT What_UTF(const REBYTE *bp, REBCNT len)
 //
 REBOOL Legal_UTF8_Char(const REBYTE *str, REBCNT len)
 {
-    return LOGICAL(isLegalUTF8Sequence(str, str + len));
+    return DID(isLegalUTF8Sequence(str, str + len));
 }
 
 
@@ -1093,7 +1093,7 @@ REBSER *Decode_UTF_String(const REBYTE *bp, REBCNT len, REBINT utf)
             cast(REBUNI*, Reset_Buffer(ser, (len / 2) + 1)),
             bp,
             len,
-            LOGICAL(utf < 0),
+            DID(utf < 0),
             TRUE
         );
     }
@@ -1125,7 +1125,7 @@ REBCNT Length_As_UTF8(const void *p, REBCNT len, REBFLGS opts)
 {
     REBCNT size = 0;
     REBCNT c;
-    REBOOL unicode = LOGICAL(opts & OPT_ENC_UNISRC);
+    REBOOL unicode = DID(opts & OPT_ENC_UNISRC);
 
     const REBYTE *bp = unicode ? NULL : cast(const REBYTE *, p);
     const REBUNI *up = unicode ? cast(const REBUNI *, p) : NULL;
@@ -1134,7 +1134,7 @@ REBCNT Length_As_UTF8(const void *p, REBCNT len, REBFLGS opts)
         c = unicode ? *up++ : *bp++;
         if (c < (UTF32)0x80) {
 #ifdef TO_WINDOWS
-            if (LOGICAL(opts & OPT_ENC_CRLF) && c == LF)
+            if (DID(opts & OPT_ENC_CRLF) && c == LF)
                 size++; // since we will add a CR to it
 #endif
             size++;
@@ -1209,7 +1209,7 @@ REBCNT Encode_UTF8(
     const REBYTE *bp = cast(const REBYTE*, src);
     const REBUNI *up = cast(const REBUNI*, src);
     REBCNT cnt;
-    REBOOL unicode = LOGICAL(opts & OPT_ENC_UNISRC);
+    REBOOL unicode = DID(opts & OPT_ENC_UNISRC);
 
     if (len) cnt = *len;
     else cnt = unicode ? Strlen_Uni(up) : LEN_BYTES(bp);
@@ -1218,7 +1218,7 @@ REBCNT Encode_UTF8(
         c = unicode ? *up++ : *bp++;
         if (c < 0x80) {
 #if defined(TO_WINDOWS)
-            if (LOGICAL(opts & OPT_ENC_CRLF) && c == LF) {
+            if (DID(opts & OPT_ENC_CRLF) && c == LF) {
                 // If there's not room, don't try to output CRLF
                 if (2 > max) {bp--; up--; break;}
                 *dst++ = CR;

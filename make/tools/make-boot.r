@@ -343,14 +343,14 @@ for-each-record type boot-types [
     ;
     if n != 0 [
         ;
-        ; Emit the IS_INTEGER() / etc. test for the datatype.  Use LOGICAL()
+        ; Emit the IS_INTEGER() / etc. test for the datatype.  Use DID()
         ; so that `REBOOL b = IS_INTEGER(value);` passes the tests in the
         ; build guaranteeing all REBOOL are 1 or 0, despite the fact that
         ; there are other values that C considers "truthy".
         ;
         e-types/emit-line [
             {#define IS_} (uppercase to-c-name type/name) "(v)" space
-            "LOGICAL(VAL_TYPE(v)==REB_" (uppercase to-c-name type/name) ")"
+            "DID(VAL_TYPE(v)==REB_" (uppercase to-c-name type/name) ")"
         ]
 
         append new-types to-word adjoin form type/name "!"

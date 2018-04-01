@@ -110,7 +110,7 @@ void Prin_OS_String(const void *p, REBCNT len, REBFLGS opts)
     REBYTE buffer[BUF_SIZE]; // on stack
     REBYTE *buf = &buffer[0];
     REBCNT len2;
-    const REBOOL unicode = LOGICAL(opts & OPT_ENC_UNISRC);
+    const REBOOL unicode = DID(opts & OPT_ENC_UNISRC);
 
     const REBYTE *bp = unicode ? NULL : cast(const REBYTE *, p);
     const REBUNI *up = unicode ? cast(const REBUNI *, p) : NULL;
@@ -602,8 +602,6 @@ pick:
             fmt = cs_cast(Grab_Int(cb_cast(fmt), &pad));
             goto pick;
 
-        case 'D':
-            assert(FALSE); // !!! was identical code to "d"...why "D"?
         case 'd':
             // All va_arg integer arguments will be coerced to platform 'int'
             cp = Form_Int_Pad(
@@ -642,7 +640,7 @@ pick:
             Mold_Or_Form_Value(
                 mo,
                 va_arg(*vaptr, const REBVAL*),
-                LOGICAL(desc == 'v')
+                DID(desc == 'v')
             );
 
             // !!! This used to "filter out ctrl chars", which isn't a bad

@@ -293,7 +293,7 @@
                 f && (f & (f - 1)) == 0, // only one bit is set
                 "use ANY_VAL_FLAGS() or ALL_VAL_FLAGS() to test multiple bits"
             );
-            return LOGICAL(v->header.bits & f);
+            return DID(v->header.bits & f);
         }
         #define GET_VAL_FLAG(v,f) \
             GET_VAL_FLAG_cplusplus<f>(v)
@@ -302,14 +302,14 @@
             SET_VAL_FLAGS((v), (f))
 
         #define GET_VAL_FLAG(v, f) \
-            LOGICAL((v)->header.bits & (f))
+            DID((v)->header.bits & (f))
     #endif
 
     #define ANY_VAL_FLAGS(v,f) \
-        LOGICAL(((v)->header.bits & (f)) != 0)
+        DID(((v)->header.bits & (f)) != 0)
 
     #define ALL_VAL_FLAGS(v,f) \
-        LOGICAL(((v)->header.bits & (f)) == (f))
+        DID(((v)->header.bits & (f)) == (f))
 
     #define CLEAR_VAL_FLAGS(v,f) \
         ((v)->header.bits &= ~(f))
@@ -359,19 +359,19 @@
     inline static REBOOL GET_VAL_FLAG(const RELVAL *v, REBUPT f) {
         enum Reb_Kind kind = VAL_TYPE_RAW(v);
         CHECK_VALUE_FLAGS_EVIL_MACRO_DEBUG(f);
-        return LOGICAL(v->header.bits & f);
+        return DID(v->header.bits & f);
     }
 
     inline static REBOOL ANY_VAL_FLAGS(const RELVAL *v, REBUPT f) {
         enum Reb_Kind kind = VAL_TYPE_RAW(v);
         CHECK_VALUE_FLAGS_EVIL_MACRO_DEBUG(f);
-        return LOGICAL((v->header.bits & f) != 0);
+        return DID((v->header.bits & f) != 0);
     }
 
     inline static REBOOL ALL_VAL_FLAGS(const RELVAL *v, REBUPT f) {
         enum Reb_Kind kind = VAL_TYPE_RAW(v);
         CHECK_VALUE_FLAGS_EVIL_MACRO_DEBUG(f);
-        return LOGICAL((v->header.bits & f) == f);
+        return DID((v->header.bits & f) == f);
     }
 
     inline static void CLEAR_VAL_FLAGS(RELVAL *v, REBUPT f) {
@@ -724,7 +724,7 @@ inline static void SET_END_Core(
 
 #ifdef NDEBUG
     #define IS_END(v) \
-        LOGICAL((v)->header.bits & NODE_FLAG_END)
+        DID((v)->header.bits & NODE_FLAG_END)
 
     // Warning: Only use on valid non-END REBVAL -or- on global END value
     //
@@ -831,7 +831,7 @@ inline static void SET_END_Core(
 inline static REBOOL IS_RELATIVE(const RELVAL *v) {
     if (Not_Bindable(v)) // uses VAL_TYPE_RAW(), don't check unreadable blank
         return FALSE;
-    return LOGICAL(v->extra.binding->header.bits & ARRAY_FLAG_PARAMLIST);
+    return DID(v->extra.binding->header.bits & ARRAY_FLAG_PARAMLIST);
 }
 
 #if defined(__cplusplus) && __cplusplus >= 201103L
@@ -929,7 +929,7 @@ inline static RELVAL *REL(REBVAL *v) {
     c_cast(const REBVAL*, &PG_Void_Cell[0])
 
 #define IS_VOID(v) \
-    LOGICAL(VAL_TYPE(v) == REB_MAX_VOID)
+    DID(VAL_TYPE(v) == REB_MAX_VOID)
 
 #ifdef NDEBUG
     inline static REBVAL *Init_Void(RELVAL *out) {
@@ -1058,13 +1058,13 @@ inline static RELVAL *REL(REBVAL *v) {
             VALUE_FLAG_FALSEY | BLANK_FLAG_UNREADABLE_DEBUG)
 
     inline static REBOOL IS_BLANK_RAW(const RELVAL *v) {
-        return LOGICAL(VAL_TYPE_RAW(v) == REB_BLANK);
+        return DID(VAL_TYPE_RAW(v) == REB_BLANK);
     }
 
     inline static REBOOL IS_UNREADABLE_DEBUG(const RELVAL *v) {
         if (NOT(VAL_TYPE_RAW(v) == REB_BLANK))
             return FALSE;
-        return LOGICAL(v->header.bits & BLANK_FLAG_UNREADABLE_DEBUG);
+        return DID(v->header.bits & BLANK_FLAG_UNREADABLE_DEBUG);
     }
 
     // "Sinking" a value is like trashing it in the debug build at the moment
@@ -1408,7 +1408,7 @@ inline static REBVAL *Init_Percent(RELVAL *out, REBDEC d) {
 // so this adds that and gets rid of IS_NUMBER()
 //
 inline static REBOOL ANY_NUMBER(const RELVAL *v) {
-    return LOGICAL(
+    return DID(
         VAL_TYPE(v) == REB_INTEGER
         || VAL_TYPE(v) == REB_DECIMAL
         || VAL_TYPE(v) == REB_PERCENT

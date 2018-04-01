@@ -39,7 +39,7 @@ static const REBYTE Debase64[128] =
     #define BIN_ERROR   (REBYTE)0x80
     #define BIN_SPACE   (REBYTE)0x40
     #define BIN_VALUE   (REBYTE)0x3f
-    #define IS_BIN_SPACE(c) LOGICAL(Debase64[c] & BIN_SPACE)
+    #define IS_BIN_SPACE(c) DID(Debase64[c] & BIN_SPACE)
 
     /* Control Chars */
     BIN_ERROR,BIN_ERROR,BIN_ERROR,BIN_ERROR,    /* 80 */

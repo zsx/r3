@@ -48,42 +48,42 @@ REBOL [
         // associated baggage that VAL_TYPE() carries over VAL_TYPE_RAW()
 
         #define IS_ANY_VALUE(v) \
-            LOGICAL(VAL_TYPE(v) != REB_MAX_VOID)
+            DID(VAL_TYPE(v) != REB_MAX_VOID)
 
         #define ANY_SCALAR(v) \
-            LOGICAL(VAL_TYPE(v) >= REB_LOGIC && VAL_TYPE(v) <= REB_DATE)
+            DID(VAL_TYPE(v) >= REB_LOGIC && VAL_TYPE(v) <= REB_DATE)
 
         #define ANY_SERIES(v) \
-            LOGICAL(VAL_TYPE(v) >= REB_PATH && VAL_TYPE(v) <= REB_VECTOR)
+            DID(VAL_TYPE(v) >= REB_PATH && VAL_TYPE(v) <= REB_VECTOR)
 
         #define ANY_STRING(v) \
-            LOGICAL(VAL_TYPE(v) >= REB_STRING && VAL_TYPE(v) <= REB_TAG)
+            DID(VAL_TYPE(v) >= REB_STRING && VAL_TYPE(v) <= REB_TAG)
 
         #define ANY_BINSTR(v) \
-            LOGICAL(VAL_TYPE(v) >= REB_BINARY && VAL_TYPE(v) <= REB_TAG)
+            DID(VAL_TYPE(v) >= REB_BINARY && VAL_TYPE(v) <= REB_TAG)
 
         inline static REBOOL ANY_ARRAY_KIND(enum Reb_Kind k) {
-            return LOGICAL(k >= REB_PATH && k <= REB_BLOCK);
+            return DID(k >= REB_PATH && k <= REB_BLOCK);
         }
 
         #define ANY_ARRAY(v) \
             ANY_ARRAY_KIND(VAL_TYPE(v))
 
         inline static REBOOL ANY_WORD_KIND(enum Reb_Kind k) {
-            return LOGICAL(k >= REB_WORD && k <= REB_ISSUE);
+            return DID(k >= REB_WORD && k <= REB_ISSUE);
         }
 
         #define ANY_WORD(v) \
             ANY_WORD_KIND(VAL_TYPE(v))
 
         #define ANY_PATH(v) \
-            LOGICAL(VAL_TYPE(v) >= REB_PATH && VAL_TYPE(v) <= REB_LIT_PATH)
+            DID(VAL_TYPE(v) >= REB_PATH && VAL_TYPE(v) <= REB_LIT_PATH)
 
         #define ANY_EVAL_BLOCK(v) \
-            LOGICAL(VAL_TYPE(v) == REB_BLOCK || VAL_TYPE(v) == REB_GROUP)
+            DID(VAL_TYPE(v) == REB_BLOCK || VAL_TYPE(v) == REB_GROUP)
 
         inline static REBOOL ANY_CONTEXT_KIND(enum Reb_Kind k) {
-            return LOGICAL(k >= REB_OBJECT && k <= REB_PORT);
+            return DID(k >= REB_OBJECT && k <= REB_PORT);
         }
 
         #define ANY_CONTEXT(v) \

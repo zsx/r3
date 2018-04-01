@@ -187,8 +187,8 @@ void Set_Vector_Row(REBSER *ser, const REBVAL *blk)
     REBI64 i = 0;
     REBDEC f = 0;
 
-    REBOOL non_integer = LOGICAL(MISC(ser).vect_info.non_integer);
-    REBOOL sign = LOGICAL(MISC(ser).vect_info.sign);
+    REBOOL non_integer = DID(MISC(ser).vect_info.non_integer);
+    REBOOL sign = DID(MISC(ser).vect_info.sign);
     REBCNT bits = MISC(ser).vect_info.bits;
 
     if (IS_BLOCK(blk)) {
@@ -242,8 +242,8 @@ REBARR *Vector_To_Array(const REBVAL *vect)
 
     REBYTE *data = SER_DATA_RAW(ser);
 
-    REBOOL non_integer = LOGICAL(MISC(ser).vect_info.non_integer);
-    REBOOL sign = LOGICAL(MISC(ser).vect_info.sign);
+    REBOOL non_integer = DID(MISC(ser).vect_info.non_integer == 1);
+    REBOOL sign = DID(MISC(ser).vect_info.sign == 1);
     REBCNT bits = MISC(ser).vect_info.bits;
 
     RELVAL *val = ARR_HEAD(array);
@@ -270,13 +270,13 @@ REBARR *Vector_To_Array(const REBVAL *vect)
 REBINT Compare_Vector(const RELVAL *v1, const RELVAL *v2)
 {
     REBSER *ser1 = VAL_SERIES(v1);
-    REBOOL non_integer1 = LOGICAL(MISC(ser1).vect_info.non_integer);
-    REBOOL sign1 = LOGICAL(MISC(ser1).vect_info.sign);
+    REBOOL non_integer1 = DID(MISC(ser1).vect_info.non_integer == 1);
+    REBOOL sign1 = DID(MISC(ser1).vect_info.sign == 1);
     REBCNT bits1 = MISC(ser1).vect_info.bits;
 
     REBSER *ser2 = VAL_SERIES(v2);
-    REBOOL non_integer2 = LOGICAL(MISC(ser2).vect_info.non_integer);
-    REBOOL sign2 = LOGICAL(MISC(ser2).vect_info.sign);
+    REBOOL non_integer2 = DID(MISC(ser2).vect_info.non_integer == 1);
+    REBOOL sign2 = DID(MISC(ser2).vect_info.sign == 1);
     REBCNT bits2 = MISC(ser2).vect_info.bits;
 
     if (non_integer1 != non_integer2)
@@ -325,7 +325,7 @@ void Shuffle_Vector(REBVAL *vect, REBOOL secure)
     // We can do it as INTS, because we just deal with the bits:
 
     const REBOOL non_integer = FALSE;
-    REBOOL sign = LOGICAL(MISC(ser).vect_info.sign);
+    REBOOL sign = DID(MISC(ser).vect_info.sign == 1);
     REBCNT bits = MISC(ser).vect_info.bits;
 
     REBCNT n;
@@ -352,8 +352,8 @@ void Set_Vector_Value(REBVAL *var, REBSER *series, REBCNT index)
 {
     REBYTE *data = SER_DATA_RAW(series);
 
-    REBOOL non_integer = LOGICAL(MISC(series).vect_info.non_integer);
-    REBOOL sign = LOGICAL(MISC(series).vect_info.sign);
+    REBOOL non_integer = DID(MISC(series).vect_info.non_integer == 1);
+    REBOOL sign = DID(MISC(series).vect_info.sign == 1);
     REBCNT bits = MISC(series).vect_info.bits;
 
     if (non_integer) {
@@ -588,8 +588,8 @@ void Pick_Vector(REBVAL *out, const REBVAL *value, const REBVAL *picker) {
 
     REBYTE *vp = SER_DATA_RAW(vect);
 
-    REBOOL non_integer = LOGICAL(MISC(vect).vect_info.non_integer);
-    REBOOL sign = LOGICAL(MISC(vect).vect_info.sign);
+    REBOOL non_integer = DID(MISC(vect).vect_info.non_integer == 1);
+    REBOOL sign = DID(MISC(vect).vect_info.sign == 1);
     REBCNT bits = MISC(vect).vect_info.bits;
 
     if (non_integer) {
@@ -626,8 +626,8 @@ void Poke_Vector_Fail_If_Read_Only(
 
     REBYTE *vp = SER_DATA_RAW(vect);
 
-    REBOOL non_integer = LOGICAL(MISC(vect).vect_info.non_integer);
-    REBOOL sign = LOGICAL(MISC(vect).vect_info.sign);
+    REBOOL non_integer = DID(MISC(vect).vect_info.non_integer == 1);
+    REBOOL sign = DID(MISC(vect).vect_info.sign == 1);
     REBCNT bits = MISC(vect).vect_info.bits;
 
     REBI64 i;
@@ -775,8 +775,8 @@ void MF_Vector(REB_MOLD *mo, const RELVAL *v, REBOOL form)
         n = VAL_INDEX(v);
     }
 
-    REBOOL non_integer = LOGICAL(MISC(vect).vect_info.non_integer);
-    REBOOL sign = LOGICAL(MISC(vect).vect_info.sign);
+    REBOOL non_integer = DID(MISC(vect).vect_info.non_integer == 1);
+    REBOOL sign = DID(MISC(vect).vect_info.sign == 1);
     REBCNT bits = MISC(vect).vect_info.bits;
 
     if (NOT(form)) {

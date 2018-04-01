@@ -116,7 +116,7 @@ static REBOOL Set_Sock_Options(SOCKET sock)
     flags = fcntl(sock, F_GETFL, 0);
     flags |= O_NONBLOCK;
     //else flags &= ~O_NONBLOCK;
-    return LOGICAL(fcntl(sock, F_SETFL, flags) >= 0);
+    return DID(fcntl(sock, F_SETFL, flags) >= 0);
 #endif
 }
 

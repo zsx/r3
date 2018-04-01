@@ -51,7 +51,7 @@
 
 inline static REBOOL IS_WORD_UNBOUND(const RELVAL *v) {
     assert(ANY_WORD(v));
-    return LOGICAL(v->extra.binding == UNBOUND);
+    return DID(v->extra.binding == UNBOUND);
 }
 
 #define IS_WORD_BOUND(v) \

@@ -160,7 +160,7 @@ DEVICE_CMD Write_Clipboard(REBREQ *req)
     EmptyClipboard();
 
     REBCNT err = !SetClipboardData(
-        LOGICAL(req->flags & RRF_WIDE) ? CF_UNICODETEXT : CF_TEXT,
+        DID(req->flags & RRF_WIDE) ? CF_UNICODETEXT : CF_TEXT,
         data
     );
 

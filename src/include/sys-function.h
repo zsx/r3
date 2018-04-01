@@ -275,7 +275,7 @@ inline static REBOOL IS_FUNCTION_INTERPRETED(const RELVAL *v) {
     // be able to treat functions as "black boxes" and not know which of
     // the dispatchers they run on...with only the dispatch itself caring.
     //
-    return LOGICAL(
+    return DID(
         VAL_FUNC_DISPATCHER(v) == &Noop_Dispatcher
         || VAL_FUNC_DISPATCHER(v) == &Unchecked_Dispatcher
         || VAL_FUNC_DISPATCHER(v) == &Voider_Dispatcher
@@ -284,19 +284,19 @@ inline static REBOOL IS_FUNCTION_INTERPRETED(const RELVAL *v) {
 }
 
 inline static REBOOL IS_FUNCTION_ACTION(const RELVAL *v)
-    { return LOGICAL(VAL_FUNC_DISPATCHER(v) == &Action_Dispatcher); }
+    { return DID(VAL_FUNC_DISPATCHER(v) == &Action_Dispatcher); }
 
 inline static REBOOL IS_FUNCTION_SPECIALIZER(const RELVAL *v)
-    { return LOGICAL(VAL_FUNC_DISPATCHER(v) == &Specializer_Dispatcher); }
+    { return DID(VAL_FUNC_DISPATCHER(v) == &Specializer_Dispatcher); }
 
 inline static REBOOL IS_FUNCTION_CHAINER(const RELVAL *v)
-    { return LOGICAL(VAL_FUNC_DISPATCHER(v) == &Chainer_Dispatcher); }
+    { return DID(VAL_FUNC_DISPATCHER(v) == &Chainer_Dispatcher); }
 
 inline static REBOOL IS_FUNCTION_ADAPTER(const RELVAL *v)
-    { return LOGICAL(VAL_FUNC_DISPATCHER(v) == &Adapter_Dispatcher); }
+    { return DID(VAL_FUNC_DISPATCHER(v) == &Adapter_Dispatcher); }
 
 inline static REBOOL IS_FUNCTION_HIJACKER(const RELVAL *v)
-    { return LOGICAL(VAL_FUNC_DISPATCHER(v) == &Hijacker_Dispatcher); }
+    { return DID(VAL_FUNC_DISPATCHER(v) == &Hijacker_Dispatcher); }
 
 
 // Native values are stored in an array at boot time.  This is a convenience

@@ -135,12 +135,12 @@ static inline void Mark_Rebser_Only(REBSER *s)
 }
 
 static inline REBOOL Is_Rebser_Marked_Or_Pending(REBSER *rebser) {
-    return LOGICAL(rebser->header.bits & NODE_FLAG_MARKED);
+    return DID(rebser->header.bits & NODE_FLAG_MARKED);
 }
 
 static inline REBOOL Is_Rebser_Marked(REBSER *rebser) {
     // ASSERT_NO_GC_MARKS_PENDING(); // overkill check, but must be true
-    return LOGICAL(rebser->header.bits & NODE_FLAG_MARKED);
+    return DID(rebser->header.bits & NODE_FLAG_MARKED);
 }
 
 static inline void Unmark_Rebser(REBSER *rebser) {
@@ -1899,7 +1899,7 @@ static void Queue_Mark_Event_Deep(const RELVAL *value)
     // FIXME: This test is not in parallel to others.
     if (
         VAL_EVENT_TYPE(value) == EVT_DROP_FILE
-        && LOGICAL(VAL_EVENT_FLAGS(value) & EVF_COPIED)
+        && DID(VAL_EVENT_FLAGS(value) & EVF_COPIED)
     ){
         assert(FALSE);
         Queue_Mark_Array_Deep(ARR(VAL_EVENT_SER(m_cast(RELVAL*, value))));

@@ -36,7 +36,7 @@
 // build will trip it up.  We substitute in normal definitions for this
 // file.  See explanations of this test in %reb-c.h for more information.
 //
-#undef STRICT_BOOL_COMPILER_TEST
+#undef DEBUG_STRICT_BOOL
 
 #include "reb-c.h"
 #include "reb-ext.h"        // includes reb-defs.h

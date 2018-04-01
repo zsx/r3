@@ -57,7 +57,7 @@ REBDEC Round_Dec(REBDEC dec, REBCNT flags, REBDEC scale)
     if (scale < ldexp(fabs(dec), -53))
         return dec; // scale is "negligible"
 
-    REBOOL v = LOGICAL(scale >= 1.0);
+    REBOOL v = DID(scale >= 1.0);
 
     int e;
     if (v) {

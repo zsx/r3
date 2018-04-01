@@ -472,7 +472,7 @@ enum REB_Mold_Opts {
     ((mo)->opts |= (f))
 
 #define GET_MOLD_FLAG(mo,f) \
-    LOGICAL((mo)->opts & (f))
+    DID((mo)->opts & (f))
 
 #define NOT_MOLD_FLAG(mo,f) \
     NOT((mo)->opts & (f))
@@ -759,7 +759,7 @@ inline static void SET_SIGNAL(REBFLGS f) {
 }
 
 #define GET_SIGNAL(f) \
-    LOGICAL(Eval_Signals & (f))
+    DID(Eval_Signals & (f))
 
 #define CLR_SIGNAL(f) \
     cast(void, Eval_Signals &= ~(f))

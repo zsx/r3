@@ -316,14 +316,14 @@ DEVICE_CMD Open_File(REBREQ *req)
     if ((req->modes & (RFM_WRITE | RFM_APPEND)) != 0) {
         modes = O_BINARY | O_RDWR | O_CREAT;
         if (
-            LOGICAL(req->modes & RFM_NEW) ||
+            DID(req->modes & RFM_NEW) ||
             (req->modes & (RFM_READ | RFM_APPEND | RFM_SEEK)) == 0
         ){
             modes |= O_TRUNC;
         }
     }
 
-    //modes |= LOGICAL(req->modes & RFM_SEEK) ? O_RANDOM : O_SEQUENTIAL;
+    //modes |= DID(req->modes & RFM_SEEK) ? O_RANDOM : O_SEQUENTIAL;
 
     int access = 0;
     if (req->modes & RFM_READONLY)

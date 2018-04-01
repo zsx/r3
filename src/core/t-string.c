@@ -162,7 +162,7 @@ static REBCNT find_string(
                 VAL_BIN_AT(target),
                 target_len,
                 NOT(flags & AM_FIND_CASE),
-                LOGICAL(flags & AM_FIND_MATCH)
+                DID(flags & AM_FIND_MATCH)
             );
         }
         else {
@@ -187,7 +187,7 @@ static REBCNT find_string(
             VAL_BIN_AT(target),
             target_len,
             uncase, // "don't treat case insensitively"
-            LOGICAL(flags & AM_FIND_MATCH)
+            DID(flags & AM_FIND_MATCH)
         );
     }
     else if (IS_CHAR(target)) {
@@ -403,7 +403,7 @@ void MAKE_String(REBVAL *out, enum Reb_Kind kind, const REBVAL *def) {
         RELVAL *any_binstr = VAL_ARRAY_AT(def);
         if (!ANY_BINSTR(any_binstr))
             goto bad_make;
-        if (IS_BINARY(any_binstr) != LOGICAL(kind == REB_BINARY))
+        if (IS_BINARY(any_binstr) != DID(kind == REB_BINARY))
             goto bad_make;
 
         RELVAL *index = VAL_ARRAY_AT(def) + 1;
@@ -1035,18 +1035,18 @@ void MF_Binary(REB_MOLD *mo, const RELVAL *v, REBOOL form)
     switch (Get_System_Int(SYS_OPTIONS, OPTIONS_BINARY_BASE, 16)) {
     default:
     case 16: {
-        const REBOOL brk = LOGICAL(len > 32);
+        const REBOOL brk = DID(len > 32);
         out = Encode_Base16(NULL, v, brk);
         break; }
 
     case 64: {
-        const REBOOL brk = LOGICAL(len > 64);
+        const REBOOL brk = DID(len > 64);
         Append_Unencoded(mo->series, "64");
         out = Encode_Base64(NULL, v, brk);
         break; }
 
     case 2: {
-        const REBOOL brk = LOGICAL(len > 8);
+        const REBOOL brk = DID(len > 8);
         Append_Codepoint(mo->series, '2');
         out = Encode_Base2(NULL, v, brk);
         break; }

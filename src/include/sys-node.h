@@ -54,7 +54,7 @@
 
 #ifdef NDEBUG
     inline static REBOOL IS_CELL(REBNOD *node) {
-        return LOGICAL(node->header.bits & NODE_FLAG_CELL);
+        return DID(node->header.bits & NODE_FLAG_CELL);
     }
 
     inline static REBOOL NOT_CELL(REBNOD *node) {
@@ -66,7 +66,7 @@
     // for the function call in debug builds, so only check in release builds.
     //
     #define IS_CELL(node) \
-        LOGICAL((node)->header.bits & NODE_FLAG_CELL)
+        DID((node)->header.bits & NODE_FLAG_CELL)
 
     #define NOT_CELL(node) \
         NOT((node)->header.bits & NODE_FLAG_CELL)

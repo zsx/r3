@@ -145,7 +145,7 @@ void Do_Core_Measured(REBFRM * const f)
     // In order to measure single steps, we convert a DO_FLAG_TO_END request
     // into a sequence of DO/NEXT operations, and loop them.
     //
-    REBOOL was_do_to_end = LOGICAL(f->flags.bits & DO_FLAG_TO_END);
+    REBOOL was_do_to_end = DID(f->flags.bits & DO_FLAG_TO_END);
     f->flags.bits &= ~DO_FLAG_TO_END;
 
     while (TRUE) {
@@ -192,13 +192,12 @@ REB_R Apply_Core_Measured(REBFRM * const f)
 {
     REBMAP *m = VAL_MAP(Root_Stats_Map);
 
-    REBOOL is_first_phase = LOGICAL(f->phase == f->original);
+    REBOOL is_first_phase = DID(f->phase == f->original);
 
     // We can only tell if it's the last phase *before* the apply; because if
     // we check *after* it may change to become the last and need R_REDO_XXX.
     //
-    REBOOL is_last_phase
-        = LOGICAL(FUNC_UNDERLYING(f->phase) == f->phase);
+    REBOOL is_last_phase = DID(FUNC_UNDERLYING(f->phase) == f->phase);
 
     if (is_first_phase) {
         //
@@ -366,6 +365,7 @@ REB_R Apply_Core_Measured(REBFRM * const f)
 
         case R_UNHANDLED: // internal use only, shouldn't be returned
             assert(FALSE);
+            break;
 
         default:
             assert(FALSE);

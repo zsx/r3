@@ -1805,7 +1805,7 @@ REBVAL *Scan_To_Stack(SCAN_STATE *ss) {
     if (C_STACK_OVERFLOWING(&mo))
         Fail_Stack_Overflow();
 
-    const REBOOL just_once = LOGICAL(ss->opts & SCAN_FLAG_NEXT);
+    const REBOOL just_once = DID(ss->opts & SCAN_FLAG_NEXT);
     if (just_once)
         ss->opts &= ~SCAN_FLAG_NEXT; // e.g. recursion loads one entire BLOCK!
 
@@ -2273,7 +2273,7 @@ REBVAL *Scan_To_Stack(SCAN_STATE *ss) {
 
         // Added for TRANSCODE/NEXT (LOAD/NEXT is deprecated, see #1703)
         //
-        if (LOGICAL(ss->opts & SCAN_FLAG_ONLY) || just_once)
+        if (DID(ss->opts & SCAN_FLAG_ONLY) || just_once)
             goto array_done;
     }
 
@@ -2429,7 +2429,7 @@ static REBARR *Scan_Child_Array(SCAN_STATE *ss, REBYTE mode_char)
 //
 static REBARR *Scan_Full_Array(SCAN_STATE *ss, REBYTE mode_char)
 {
-    REBOOL saved_only = LOGICAL(ss->opts & SCAN_FLAG_ONLY);
+    REBOOL saved_only = DID(ss->opts & SCAN_FLAG_ONLY);
     ss->opts &= ~SCAN_FLAG_ONLY;
 
     REBARR *array = Scan_Child_Array(ss, mode_char);

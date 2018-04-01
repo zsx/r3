@@ -60,7 +60,7 @@ static REB_R DNS_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
         switch (property) {
         case SYM_OPEN_Q:
-            return R_FROM_BOOL(LOGICAL(sock->flags & RRF_OPEN));
+            return R_FROM_BOOL(DID(sock->flags & RRF_OPEN));
 
         default:
             break;

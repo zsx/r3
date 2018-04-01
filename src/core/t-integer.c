@@ -192,7 +192,7 @@ void Value_To_Int64(REBVAL *out, const REBVAL *value, REBOOL no_sign)
         // default signedness interpretation to high-bit of first byte, but
         // override if the function was called with `no_sign`
         //
-        negative = no_sign ? FALSE : LOGICAL(*bp >= 0x80);
+        negative = no_sign ? FALSE : DID(*bp >= 0x80);
 
         // Consume any leading 0x00 bytes (or 0xFF if negative)
         //

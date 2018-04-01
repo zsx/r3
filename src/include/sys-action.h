@@ -168,11 +168,11 @@ inline static REB_R R_OUT_Q(REBOOL q) {
 // Specially chosen 0 and 1 values for R_FALSE and R_TRUE enable this. 
 //
 inline static REB_R R_FROM_BOOL(REBOOL b) {
-#ifdef STRICT_BOOL_COMPILER_TEST
+  #ifdef DEBUG_STRICT_BOOL
     return b ? R_TRUE : R_FALSE;
-#else
+  #else
     return cast(REB_R, b);
-#endif
+  #endif
 }
 
 // R3-Alpha's concept was that all words got persistent integer values, which
@@ -193,10 +193,10 @@ inline static REB_R R_FROM_BOOL(REBOOL b) {
         enum REBOL_Symbols n;
         OPT_REBSYM (const REBSYM& sym);
         REBOOL operator==(enum REBOL_Symbols other) const {
-            return LOGICAL(n == other);
+            return DID(n == other);
         }
         REBOOL operator!=(enum REBOL_Symbols other) const {
-            return LOGICAL(n != other);
+            return DID(n != other);
         }
 
         REBOOL operator==(OPT_REBSYM &&other) const;
@@ -217,25 +217,25 @@ inline static REB_R R_FROM_BOOL(REBOOL b) {
         }
         REBOOL operator>=(enum REBOL_Symbols other) const {
             assert(other != SYM_0);
-            return LOGICAL(n >= other);
+            return DID(n >= other);
         }
         REBOOL operator<=(enum REBOL_Symbols other) const {
             assert(other != SYM_0);
-            return LOGICAL(n <= other);
+            return DID(n <= other);
         }
         REBOOL operator>(enum REBOL_Symbols other) const {
             assert(other != SYM_0);
-            return LOGICAL(n > other);
+            return DID(n > other);
         }
         REBOOL operator<(enum REBOL_Symbols other) const {
             assert(other != SYM_0);
-            return LOGICAL(n < other);
+            return DID(n < other);
         }
         REBOOL operator==(enum REBOL_Symbols other) const {
-            return LOGICAL(n == other);
+            return DID(n == other);
         }
         REBOOL operator!=(enum REBOL_Symbols other) const {
-            return LOGICAL(n != other);
+            return DID(n != other);
         }
         REBOOL operator==(REBSYM &other) const; // could be SYM_0!
         void operator!=(REBSYM &other) const; // could be SYM_0!
@@ -251,7 +251,7 @@ inline static REB_R R_FROM_BOOL(REBOOL b) {
 
 inline static REBOOL SAME_SYM_NONZERO(REBSYM a, REBSYM b) {
     assert(a != SYM_0 && b != SYM_0);
-    return LOGICAL(cast(REBCNT, a) == cast(REBCNT, b));
+    return DID(cast(REBCNT, a) == cast(REBCNT, b));
 }
 
 // NATIVE! function

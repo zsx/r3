@@ -896,7 +896,7 @@ REBVAL *RL_rebBlank(void)
 REBVAL *RL_rebLogic(long logic)
 {
     Enter_Api();
-    return Init_Logic(Alloc_Value(), LOGICAL(logic));
+    return Init_Logic(Alloc_Value(), DID(logic));
 }
 
 

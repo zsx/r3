@@ -96,5 +96,5 @@ int OS_Get_Current_Dir(REBCHR **path)
 //
 REBOOL OS_Set_Current_Dir(REBCHR *path)
 {
-    return LOGICAL(chdir(path) == 0);
+    return DID(chdir(path) == 0);
 }

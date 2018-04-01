@@ -43,7 +43,7 @@ static REBOOL Same_Func(const RELVAL *val, const RELVAL *arg)
         // paramlist, but the binding is different in the REBVAL instances
         // in order to know where to "exit from".
 
-        return LOGICAL(VAL_BINDING(val) == VAL_BINDING(arg));
+        return DID(VAL_BINDING(val) == VAL_BINDING(arg));
     }
 
     return FALSE;

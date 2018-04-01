@@ -433,32 +433,28 @@
 // anyone who needs logics to be 0 or 1 must inject code to enforce that
 // translation, which the optimizer cannot leave out.
 // 
-// This code takes advantage of the custom definition with a mode to build in
+// This code takes advantage of the custom definition with DEBUG_STRICT_BOOL
 // that makes assignments to REBOOL reject integers entirely.  It still
 // allows testing via if() and the logic operations, but merely disables
 // direct assignments or passing integers as parameters to bools:
 //
-//     REBOOL b = 1 > 2;            // illegal: 1 > 2 is 0 (integer) in C
-//     REBOOL b = LOGICAL(1 > 2);   // Ren-C legal form of assignment
+//     REBOOL b = 1 > 2;        // illegal: 1 > 2 is 0 (integer) in C
+//     REBOOL b = DID(1 > 2);   // Ren-C legal form of assignment
 //
-// The macro LOGICAL() lets you convert any truthy C value to a REBOOL, and
-// NOT() lets you do the inverse.  This is better than what was previously
-// used often, a (REBOOL)cast_of_expression.  And it makes it much safer to
-// use ordinary `&` operations to test for flags, more succinctly even:
+// The macro DID() lets you convert any truthy C value to a REBOOL, and NOT()
+// lets you do the inverse.  This is better than what was previously used
+// often, a (REBOOL)cast_of_expression.  And it makes it much safer to use
+// ordinary `&` operations to test for flags, more succinctly even:
 //
 //     REBOOL b = GET_FLAG(flags, SOME_FLAG_ORDINAL);
 //     REBOOL b = !GET_FLAG(flags, SOME_FLAG_ORDINAL);
 //
 // vs.
 //
-//     REBOOL b = LOGICAL(flags & SOME_FLAG_BITWISE); // same
-//     REBOOL b = NOT(flags & SOME_FLAG_BITWISE);     // 5 less chars
+//     REBOOL b = DID(flags & SOME_FLAG_BITWISE); // 4 fewer chars
+//     REBOOL b = NOT(flags & SOME_FLAG_BITWISE); // 5 fewer chars
 //
 // (Bitwise vs. ordinal also permits initializing options by just |'ing them.)
-//
-// The compile-time checks for enforcing this don't lead to a working binary
-// being built.  Hence the source will get out of sync with the check, so a
-// CI build should be added to confirm STRICT_BOOL_COMPILER_TEST works.
 //
 
 #ifndef HAS_BOOL
@@ -471,54 +467,45 @@
     typedef int BOOL;
 #endif
 
-#ifdef STRICT_BOOL_COMPILER_TEST
-    //
-    // Force type errors on direct assignments of integers to booleans or
-    // vice-versa (leading to a broken executable in the process).  Although
-    // this catches some errors that wouldn't be caught otherwise, it notably
-    // does not notice when a literal 0 is passed to a REBOOL, because that
-    // is a valid pointer value.  However, this case is tested for by the
-    // enum method of declaration in ordinary non-Windows builds.
-    //
-    // Use a #define and not a typedef so it can be selectively overridden.
-    //
-    typedef struct Bool_Dummy { int dummy; } * DUMMYBOOL;
-    #define REBOOL DUMMYBOOL
-    #define FALSE cast(struct Bool_Dummy*, 0x6466AE99)
-    #define TRUE cast(struct Bool_Dummy*, 0x0421BD75)
+#ifdef DEBUG_STRICT_BOOL
+  #ifndef CPLUSPLUS_11
+    #error "DEBUG_STRICT_BOOL only written for C++11"
+  #endif
 
-    #ifdef CPLUSPLUS_11
-        //
-        // In the C++ build, we can help reduce confusion by making sure that
-        // LOGICAL and NOT are only applied to integral types.  Using it on
-        // pointers to test for NULL is somewhat unclear for readability
-        // at the callsite, and one doesn't want it on floating point.
-        //
-        // Note: This winds up taking a significant percentage of the time
-        // if used in all C++ debug builds, so only enforce it when doing the
-        // full STRICT_BOOL_COMPILER_TEST
-        //
-        template <typename T>
-        inline static REBOOL LOGICAL(T x) {
-            static_assert(
-                std::is_same<T, REBOOL>::value || std::is_integral<T>::value,
-                "LOGICAL(x) can only be used on integral types"
-            );
-            return x ? TRUE : FALSE;
-        }
-        template <typename T>
-        inline static REBOOL NOT(T x) {
-            static_assert(
-                std::is_same<T, REBOOL>::value || std::is_integral<T>::value,
-                "NOT(x) can only be used on integral types"
-            );
-            return x ? FALSE : TRUE;
-        }
-    #else
-        // dummy substitutions
-        #define LOGICAL(x) cast(struct Bool_Dummy*, 0x10200304)
-        #define NOT(x) cast(struct Bool_Dummy*, 0x03041020)
-    #endif
+    // To do this test in MSVC, you need /wd4190, /wd4647, /wd4805
+
+    class REBOOL {
+        int one_or_zero;
+    public:
+        REBOOL () = default;
+    private:
+        REBOOL (int i) : one_or_zero (i) {}
+    public:
+        operator bool() const { return one_or_zero; }
+        static REBOOL make_false() { return REBOOL{0}; }
+        static REBOOL make_true() { return REBOOL{1}; }
+    };
+    #undef FALSE
+    #undef TRUE
+    #define FALSE REBOOL::make_false()
+    #define TRUE REBOOL::make_true()
+
+    template <typename T>
+    inline static REBOOL DID(T x) {
+        static_assert(
+            std::is_same<T, REBOOL>::value || std::is_integral<T>::value,
+            "DID(x) can only be used on integral types"
+        );
+        return x ? TRUE : FALSE;
+    }
+    template <typename T>
+    inline static REBOOL NOT(T x) {
+        static_assert(
+            std::is_same<T, REBOOL>::value || std::is_integral<T>::value,
+            "NOT(x) can only be used on integral types"
+        );
+        return x ? FALSE : TRUE;
+    }
 #else
     #if (defined(FALSE) && (!FALSE)) && (defined(TRUE) && TRUE)
 
@@ -549,7 +536,7 @@
         //
         // The tradeoff is worth it, but interferes with the hardcoded Windows
         // definitions of TRUE as 1 and FALSE as 0.  So only use it outside
-        // of Windows.
+        // of Windows, but still use #define so they can be overridden.
         //
         #ifdef TO_WINDOWS
             #define FALSE 0
@@ -557,7 +544,9 @@
 
             typedef BOOL REBOOL;
         #else
-            typedef enum {FALSE = 0, TRUE = !FALSE} REBOOL;
+            typedef enum {REBOOL_FALSE = 0, REBOOL_TRUE = 1} REBOOL;
+            #define FALSE REBOOL_FALSE
+            #define TRUE REBOOL_TRUE
         #endif
 
     #else
@@ -566,7 +555,7 @@
         #error "Bad TRUE and FALSE definitions in compiler environment"
     #endif
 
-    #define LOGICAL(x) \
+    #define DID(x) \
         ((x) ? TRUE : FALSE)
     #define NOT(x) \
         ((x) ? FALSE : TRUE)
@@ -800,14 +789,14 @@
 
         template<class T>
         inline static REBOOL IS_POINTER_TRASH_DEBUG(T* p) {
-            return LOGICAL(
+            return DID(
                 p == reinterpret_cast<T*>(static_cast<uintptr_t>(0xDECAFBAD))
             );
         }
 
         template<class T>
         inline static REBOOL IS_CFUNC_TRASH_DEBUG(T* p) {
-            return LOGICAL(
+            return DID(
                 p == reinterpret_cast<T*>(static_cast<uintptr_t>(0xDECAFBAD))
             );
         }
@@ -819,10 +808,10 @@
             ((p) = cast(CFUNC*, cast(uintptr_t, 0xDECAFBAD)))
             
         #define IS_POINTER_TRASH_DEBUG(p) \
-            LOGICAL((p) == cast(void*, cast(uintptr_t, 0xDECAFBAD)))
+            DID((p) == cast(void*, cast(uintptr_t, 0xDECAFBAD)))
 
         #define IS_CFUNC_TRASH_DEBUG(p) \
-            LOGICAL((p) == cast(CFUNC*, cast(uintptr_t, 0xDECAFBAD)))
+            DID((p) == cast(CFUNC*, cast(uintptr_t, 0xDECAFBAD)))
     #endif
 #endif
 

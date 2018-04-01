@@ -44,8 +44,10 @@ REBINT CT_Money(const RELVAL *a, const RELVAL *b, REBINT mode)
         g = deci_is_lesser_or_equal(
             VAL_MONEY_AMOUNT(b), VAL_MONEY_AMOUNT(a)
         );
-        if (mode == -1) e = LOGICAL(e || g);
-        else e = LOGICAL(g && !e);
+        if (mode == -1)
+            e = DID(e || g);
+        else
+            e = DID(g && !e);
     }
     return e ? 1 : 0;
 }

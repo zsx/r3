@@ -36,7 +36,7 @@ inline static void *LIB_FD(REBLIB *l) {
 }
 
 inline static REBOOL IS_LIB_CLOSED(REBLIB *l) {
-    return LOGICAL(LINK(l).fd == NULL);
+    return DID(LINK(l).fd == NULL);
 }
 
 inline static REBCTX *VAL_LIBRARY_META(const RELVAL *v) {

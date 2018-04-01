@@ -48,7 +48,7 @@ REBOOL Reduce_Any_Array_Throws(
 ){
     assert(
         NOT(flags & REDUCE_FLAG_KEEP_BARS)
-        == LOGICAL(flags & REDUCE_FLAG_DROP_BARS)
+        == DID(flags & REDUCE_FLAG_DROP_BARS)
     ); // only one should be true, but caller should be explicit of which
 
     REBDSP dsp_orig = DSP;

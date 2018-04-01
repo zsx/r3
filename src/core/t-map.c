@@ -139,7 +139,7 @@ REBINT Find_Key_Hashed(
                 if (
                     !cased && uncased == len
                     && 0 == Compare_String_Vals(
-                        val, key, LOGICAL(!IS_BINARY(key))
+                        val, key, NOT(IS_BINARY(key))
                     )
                 ) {
                     uncased = hash;
@@ -358,7 +358,7 @@ REB_R PD_Map(REBPVS *pvs, const REBVAL *picker, const REBVAL *opt_setval)
 
     // Use case sensitivity when setting only
     //
-    REBOOL cased = LOGICAL(opt_setval != NULL);
+    REBOOL cased = DID(opt_setval != NULL);
 
     REBINT n = Find_Map_Entry(
         VAL_MAP(pvs->out),
@@ -719,7 +719,7 @@ REBTYPE(Map)
             return R_OUT;
 
         case SYM_TAIL_Q:
-            return R_FROM_BOOL(LOGICAL(Length_Map(map) == 0));
+            return R_FROM_BOOL(DID(Length_Map(map) == 0));
 
         default:
             break;

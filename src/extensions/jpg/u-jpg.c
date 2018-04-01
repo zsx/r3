@@ -36,7 +36,6 @@ extern void jpeg_load(char *buffer, int nbytes, char *output);
 // else to not need these dependencies...and %reb-host.h inclusion could
 // be moved to the bottom of the file.
 //
-#undef STRICT_BOOL_COMPILER_TEST
 #include "reb-c.h"
 
 

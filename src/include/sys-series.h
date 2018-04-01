@@ -193,13 +193,13 @@
     cast(void, (SER(s)->header.bits &= ~cast(REBUPT, (f))))
 
 #define GET_SER_FLAG(s,f) \
-    LOGICAL(SER(s)->header.bits & (f)) // no single-flag check at present
+    DID(SER(s)->header.bits & (f)) // no single-flag check at present
 
 #define ANY_SER_FLAGS(s,f) \
-    LOGICAL(SER(s)->header.bits & (f))
+    DID(SER(s)->header.bits & (f))
 
 #define ALL_SER_FLAGS(s,f) \
-    LOGICAL((SER(s)->header.bits & (f)) == (f))
+    DID((SER(s)->header.bits & (f)) == (f))
 
 #define NOT_SER_FLAG(s,f) \
     NOT(SER(s)->header.bits & (f))
@@ -222,13 +222,13 @@
     cast(void, (SER(s)->info.bits &= ~cast(REBUPT, f)))
 
 #define GET_SER_INFO(s,f) \
-    LOGICAL(SER(s)->info.bits & (f)) // no single-flag check at present
+    DID(SER(s)->info.bits & (f)) // no single-flag check at present
 
 #define ANY_SER_INFOS(s,f) \
-    LOGICAL(SER(s)->info.bits & (f))
+    DID(SER(s)->info.bits & (f))
 
 #define ALL_SER_INFOS(s,f) \
-    LOGICAL((SER(s)->info.bits & (f)) == (f))
+    DID((SER(s)->info.bits & (f)) == (f))
 
 #define NOT_SER_INFO(s,f) \
     NOT(SER(s)->info.bits & (f))
@@ -427,7 +427,7 @@ inline static void TERM_SEQUENCE_LEN(REBSER *s, REBCNT len) {
 //
 
 inline static REBOOL IS_SERIES_MANAGED(REBSER *s) {
-    return LOGICAL(s->header.bits & NODE_FLAG_MANAGED);
+    return DID(s->header.bits & NODE_FLAG_MANAGED);
 }
 
 #define MANAGE_SERIES(s) \

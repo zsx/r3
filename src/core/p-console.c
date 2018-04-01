@@ -51,7 +51,7 @@ static REB_R Console_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
 
         switch (property) {
         case SYM_OPEN_Q:
-            return R_FROM_BOOL(LOGICAL(req->flags & RRF_OPEN));
+            return R_FROM_BOOL(DID(req->flags & RRF_OPEN));
 
         default:
             break;

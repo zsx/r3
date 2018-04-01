@@ -783,7 +783,7 @@ REB_R Context_Common_Action_Maybe_Unhandled(
             return R_OUT;
 
         case SYM_TAIL_Q: // !!! Should this be legal?
-            Init_Logic(D_OUT, LOGICAL(CTX_LEN(c) == 0));
+            Init_Logic(D_OUT, DID(CTX_LEN(c) == 0));
             return R_OUT;
 
         case SYM_WORDS:

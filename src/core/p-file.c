@@ -116,7 +116,7 @@ void Ret_Query_File(REBCTX *port, struct devreq_file *file, REBVAL *ret)
     Init_Object(ret, context);
     Init_Word(
         CTX_VAR(context, STD_FILE_INFO_TYPE),
-        LOGICAL(req->modes & RFM_DIR) ? Canon(SYM_DIR) : Canon(SYM_FILE)
+        DID(req->modes & RFM_DIR) ? Canon(SYM_DIR) : Canon(SYM_FILE)
     );
     Init_Integer(
         CTX_VAR(context, STD_FILE_INFO_SIZE), file->size
@@ -344,20 +344,16 @@ static REB_R File_Actor(REBFRM *frame_, REBCTX *port, REBSYM action)
             return R_OUT;
 
         case SYM_HEAD_Q:
-            return R_FROM_BOOL(LOGICAL(file->index == 0));
+            return R_FROM_BOOL(DID(file->index == 0));
 
         case SYM_TAIL_Q:
-            return R_FROM_BOOL(
-                LOGICAL(file->index >= file->size)
-            );
+            return R_FROM_BOOL(DID(file->index >= file->size));
 
         case SYM_PAST_Q:
-            return R_FROM_BOOL(
-                LOGICAL(file->index > file->size)
-            );
+            return R_FROM_BOOL(DID(file->index > file->size));
 
         case SYM_OPEN_Q:
-            return R_FROM_BOOL(LOGICAL(req->flags & RRF_OPEN));
+            return R_FROM_BOOL(DID(req->flags & RRF_OPEN));
 
         default:
             break;

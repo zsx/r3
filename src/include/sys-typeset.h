@@ -214,7 +214,7 @@ enum Reb_Param_Class {
 #define VAL_TYPESET_BITS(v) ((v)->payload.typeset.bits)
 
 #define TYPE_CHECK(v,n) \
-    LOGICAL(VAL_TYPESET_BITS(v) & FLAGIT_KIND(n))
+    DID(VAL_TYPESET_BITS(v) & FLAGIT_KIND(n))
 
 #define TYPE_SET(v,n) \
     ((VAL_TYPESET_BITS(v) |= FLAGIT_KIND(n)), NOOP)

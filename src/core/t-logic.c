@@ -85,9 +85,9 @@ REBNATIVE(nand_q)
 {
     INCLUDE_PARAMS_OF_NAND_Q;
 
-    return R_FROM_BOOL(LOGICAL(
-        IS_TRUTHY(ARG(value1)) && IS_TRUTHY(ARG(value2))
-    ));
+    return R_FROM_BOOL(
+        DID(IS_TRUTHY(ARG(value1)) && IS_TRUTHY(ARG(value2)))
+    );
 }
 
 
@@ -140,9 +140,9 @@ REBNATIVE(or_q)
 {
     INCLUDE_PARAMS_OF_OR_Q;
 
-    return R_FROM_BOOL(LOGICAL(
-        IS_TRUTHY(ARG(value1)) || IS_TRUTHY(ARG(value2))
-    ));
+    return R_FROM_BOOL(
+        DID(IS_TRUTHY(ARG(value1)) || IS_TRUTHY(ARG(value2)))
+    );
 }
 
 
@@ -161,9 +161,9 @@ REBNATIVE(xor_q)
 
     // Note: no boolean ^^ in C; normalize to booleans and check unequal
     //
-    return R_FROM_BOOL(LOGICAL(
-        !IS_TRUTHY(ARG(value1)) != !IS_TRUTHY(ARG(value2))
-    ));
+    return R_FROM_BOOL(
+        DID(!IS_TRUTHY(ARG(value1)) != !IS_TRUTHY(ARG(value2)))
+    );
 }
 
 
@@ -256,17 +256,17 @@ REBTYPE(Logic)
 
     case SYM_INTERSECT:
         val2 = Math_Arg_For_Logic(D_ARG(2));
-        val1 = LOGICAL(val1 && val2);
+        val1 = DID(val1 && val2);
         break;
 
     case SYM_UNION:
         val2 = Math_Arg_For_Logic(D_ARG(2));
-        val1 = LOGICAL(val1 || val2);
+        val1 = DID(val1 || val2);
         break;
 
     case SYM_DIFFERENCE:
         val2 = Math_Arg_For_Logic(D_ARG(2));
-        val1 = LOGICAL(!val1 != !val2);
+        val1 = DID(!val1 != !val2);
         break;
 
     case SYM_COMPLEMENT:

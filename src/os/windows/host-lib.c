@@ -176,7 +176,7 @@ int OS_Get_Current_Dir(REBCHR **path)
 //
 REBOOL OS_Set_Current_Dir(REBCHR *path)
 {
-    return SetCurrentDirectory(path);
+    return DID(SetCurrentDirectory(path));
 }
 
 

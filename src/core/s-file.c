@@ -61,7 +61,7 @@ REBSER *To_REBOL_Path(const void *p, REBCNT len, REBFLGS flags)
     REBSER *dst;
     REBCNT n;
     REBCNT i;
-    REBOOL unicode = LOGICAL(flags & PATH_OPT_UNI_SRC);
+    REBOOL unicode = DID(flags & PATH_OPT_UNI_SRC);
 
     const REBYTE *bp = unicode ? NULL : cast(const REBYTE *, p);
 
@@ -79,7 +79,7 @@ REBSER *To_REBOL_Path(const void *p, REBCNT len, REBFLGS flags)
     //
     assert(
         (flags & PATH_OPT_FORCE_UNI_DEST)
-            ? LOGICAL(flags & PATH_OPT_UNI_SRC)
+            ? DID(flags & PATH_OPT_UNI_SRC)
             : TRUE
     );
 

@@ -138,7 +138,7 @@ REBOOL Match_Sub_Path(REBSER *s1, REBSER *s2)
 
     // a/b matches: a/b, a/b/, a/b/c
     c2 = GET_ANY_CHAR(s2, n);
-    return LOGICAL(
+    return DID(
             n >= len  // all chars matched
             &&  // Must be at end or at dir sep:
             (c1 == '/' || c1 == '\\'
@@ -493,7 +493,7 @@ REBCNT Find_Str_Char(
     //
     REBUNI casings[2];
 
-    if (LOGICAL(flags & AM_FIND_CASE)) { // case-*sensitive*
+    if (DID(flags & AM_FIND_CASE)) { // case-*sensitive*
         casings[0] = uni;
         casings[1] = uni;
     }
@@ -526,7 +526,7 @@ REBCNT Find_Str_Char(
     // try that uses memory range functions/etc, and if "/skip 0" were the
     // replacement for match it would have to be handled separately anyway.
     //
-    if (LOGICAL(flags & AM_FIND_MATCH)) {
+    if (DID(flags & AM_FIND_MATCH)) {
         REBUNI single = GET_ANY_CHAR(series, index_orig);
         if (single == casings[0] || single == casings[1])
             goto return_index;
