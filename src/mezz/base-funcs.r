@@ -617,24 +617,15 @@ match: redescribe [
     ]
 )
 
-match?: redescribe [
-    {Check value using tests (match types, TRUE? or FALSE?, filter function)}
-    ; return: [logic!] ;-- blocks for type changes not supported yet
-    ;    {TRUE if match, FALSE if no match (use MATCH to pass through value)}
-](
-    adapt chain [
-        specialize 'either-test [
-            branch: [] ; return void on test failure
-            only: true
-        ]
-            |
-        :any-value?
-    ][
-        if void? :value [ ; !!! TBD: filter this via REDESCRIBE when possible
-            fail "Cannot use MATCH? on void values (try using EITHER-TEST)"
-        ]
-    ]
-)
+; Variant of PARSE which returns the input on success or a BLANK!.  May need
+; a better name.  Also may have some overlap with MATCH.  See #2165
+;
+parse-match: enclose 'parse func [f [frame!]] [
+    all [
+        ensure logic! do f
+        f/input
+     ]
+]
 
 ensure: redescribe [
     {Pass through value if it matches test, otherwise trigger a FAIL}
