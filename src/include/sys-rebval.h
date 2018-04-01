@@ -454,32 +454,31 @@ struct Reb_Function {
     // for the function can be found (although this value is archetypal, and
     // loses the `binding` property--which must be preserved other ways)
     //
+    // See LINK().facade for a description of how the paramlist's link field
+    // is used to calculate FUNC_FACADE() and FUNC_UNDERLYING().
+    //
     // The `misc.meta` field of the paramlist holds a meta object (if any)
     // that describes the function.  This is read by help.
     //
     REBARR *paramlist;
 
-    // `body_holder` is an optimized "singular" REBSER, the size of exactly
-    // one value.  This is because the information for a function body is an
-    // array in the majority of function instances, and also because it can
-    // standardize the native dispatcher code in the REBARR's series "misc"
-    // field.  This gives two benefits: no need for a switch on the function's
-    // type to figure out the dispatcher, and also to move the dispatcher out
-    // of the REBVAL itself into something that can be revectored or "hooked"
-    // for all instances of the function.
+    // `body_holder` is a "singular" REBSER, which is big enough to hold one
+    // value cell and two pointers.  One pointers is the MISC().dispatcher,
+    // which is the C code that gets called by Do_Core() to run the function.
+    // The function can then interpret the value cell, e.g.:
     //
     // PLAIN FUNCTIONS: body is a BLOCK!, the body of the function, obviously
-    // NATIVES: body is "equivalent code for native" (if any) in help
     // ACTIONS: body is a WORD! for the verb of the action (OPEN, APPEND, etc)
-    // SPECIALIZATIONS: body is a 1-element array containing a FRAME!
-    // CALLBACKS: body a HANDLE! (REBRIN*)
-    // ROUTINES: body a HANDLE! (REBRIN*)
+    // SPECIALIZATIONS: body is a FRAME!
+    // ROUTINES/CALLBACKS: body is a stylized array (REBRIN*)
     //
-    // The `link.underlying` field of the body_holder may point to the
-    // specialization whose frame should be used to set the default values
-    // for the arguments during a call.  Or it will point directly to the
-    // function whose paramlist should be used in the frame pushed.  This is
-    // different in hijackers, adapters, and chainers.
+    // Since plain natives only need the C function, the body is optionally
+    // used to store a block of Rebol code that is equivalent to the native,
+    // for illustrative purposes.  (a "fake" answer for SOURCE)
+    //
+    // By storing the function dispatcher in the body_holder series node
+    // instead of in the value cell itself, it also means the dispatcher can
+    // be HIJACKed--or otherwise hooked to affect all instances of a function.
     //
     REBARR *body_holder;
 };

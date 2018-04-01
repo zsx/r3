@@ -1010,7 +1010,7 @@ reevaluate:;
                 // sense.  But if it's arity-2 (e.g. multiple variadic taps)
                 // does that make any sense?
                 //
-                // It may be too wacky to worry about, and SET/LOOKBACK should
+                // It may be too wacky to worry about, and SET/ENFIX should
                 // just prohibit it.
                 //
                 assert(NOT_VAL_FLAG(f->param, TYPESET_FLAG_VARIADIC));

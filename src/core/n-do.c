@@ -43,8 +43,9 @@
 //
 //  eval: native [
 //
-//  {(Special) Process received value *inline* as the evaluator loop would.}
+//  {Process received value *inline* as the evaluator loop would.}
 //
+//      return: [<opt> any-value!]
 //      value [<opt> any-value!]
 //          {BLOCK! passes-thru, FUNCTION! runs, SET-WORD! assigns...}
 //      expressions [<opt> any-value! <...>]

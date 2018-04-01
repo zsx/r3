@@ -481,7 +481,7 @@ struct Reb_Frame {
     //
     // There is a lookahead step to see if the next item in an array is a
     // WORD!.  If so it is checked to see if that word is a "lookback word"
-    // (e.g. one that was SET/LOOKBACK to serve as an infix function).
+    // (e.g. one that refers to a FUNCTION! value set with SET/ENFIX).
     // Performing that lookup has the same cost as getting the variable value.
     // Considering that the value will need to be used anyway--infix or not--
     // the pointer is held in this field for WORD!s (and sometimes FUNCTION!)

@@ -279,7 +279,7 @@ found?: func [dummy:] [
 op?: func [dummy:] [
     fail/where [
         {OP? can't work in Ren-C because there are no "infix FUNCTION!s"}
-        {"infixness" is a property of a word binding, made via SET/LOOKBACK}
+        {"infixness" is a property of a word binding, made via SET/ENFIX}
         {See: ENFIXED? (which takes a WORD! parameter)}
     ] 'dummy
 ]

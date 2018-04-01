@@ -311,10 +311,9 @@ inline static REBOOL IS_FUNCTION_HIJACKER(const RELVAL *v)
 
 
 
-// Gets a system function with tolerance of it not being a function.
-//
-// (Extraction of a feature that formerly was part of a dedicated dual
-// function to Apply_Func_Throws (Do_Sys_Func_Throws())
+// The %sys-xxx.r Rebol files contain service routines in Rebol that are known
+// to the system, and can be called by from C as "helpers".  They are
+// identified by enumerated type values as SYS_CTX_XXX
 //
 inline static REBVAL *Sys_Func(REBCNT inum)
 {

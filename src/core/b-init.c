@@ -334,9 +334,9 @@ REBNATIVE(action)
 // The `action` native is searched for explicitly by %make-natives.r and put
 // in second place for initialization (after the `native` native).
 //
-// It is designed to be a lookback binding that quotes its first argument,
+// It is designed to be an enfix function that quotes its first argument,
 // so when you write FOO: ACTION [...], the FOO: gets quoted to be the verb.
-// The SET/LOOKBACK is done by the bootstrap, after the natives are loaded.
+// The SET/ENFIX is done by the bootstrap, after the natives are loaded.
 {
     INCLUDE_PARAMS_OF_ACTION;
 
@@ -417,7 +417,7 @@ static void Add_Lib_Keys_R3Alpha_Cant_Make(void)
         ">=", // greater than or equal to
         "=<",
 
-        "<>", // may ultimately be targeted for empty tag in Ren-C
+        "<>", // not equal (the chosen meaning, as opposed to "empty tag")
 
         "->", // FUNCTION-style lambda ("reaches in")
         "<-", // FUNC-style lambda ("reaches out"),
@@ -426,17 +426,15 @@ static void Add_Lib_Keys_R3Alpha_Cant_Make(void)
         "<|", // Evaluate to previous expression, but do rest (like ALSO)
 
         "/",
-        "//", // is remainder in R3-Alpha, not ideal
 
         NULL
     };
 
-    REBINT i = 0;
-    while (names[i]) {
+    REBCNT i;
+    for (i = 0; names[i] != NULL; ++i) {
         REBSTR *str = Intern_UTF8_Managed(cb_cast(names[i]), strlen(names[i]));
         REBVAL *val = Append_Context(Lib_Context, NULL, str);
         Init_Void(val); // functions will fill in (no-op, since void already)
-        ++i;
     }
 }
 
@@ -516,7 +514,7 @@ static void Shutdown_Function_Meta_Shim(void) {
 // creating a NATIVE native by hand, and then run code that would call that
 // native for each function.  Ren-C depends on having the native table
 // initialized to run the evaluator (for instance to test functions against
-// the EXIT native's FUNC signature in definitional returns).  So it
+// the UNWIND native's FUNC signature in definitional returns).  So it
 // "fakes it" just by calling a C function for each item...and there is no
 // actual "native native".
 //
@@ -642,7 +640,7 @@ static REBARR *Startup_Natives(REBARR *boot_natives)
         REBVAL *var = Append_Context(Lib_Context, name, 0);
         Move_Value(var, &Natives[n]);
 
-        // Do special case SET/LOOKBACK=TRUE so that SOME-ACTION: ACTION [...]
+        // Do special case SET/ENFIX so that SOME-ACTION: ACTION [...]
         // allows ACTION to see the SOME-ACTION symbol, and know to use it.
         //
         if (VAL_WORD_SYM(name) == SYM_ACTION) {
