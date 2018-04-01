@@ -81,20 +81,3 @@
 [error? try [catch/quit [] fail make error! ""]]
 ; bug#851
 [blank? attempt [catch/quit [] fail make error! ""]]
-
-
-; DO-ALL traps up to one error and propagates it
-;
-[
-    x: _
-    did all [
-        error? trap [do-all [
-            x: 10
-                |
-            fail "some error" ;-- !!! once supported throw, might do so again
-                |
-            x: 20
-        ]]
-        x = 20
-    ]
-]

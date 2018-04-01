@@ -307,21 +307,6 @@ inline static void Drop_Frame(REBFRM *f)
     Drop_Frame_Core(f);
 }
 
-// The experimental native DO-ALL tries to recover a frame that experienced
-// a FAIL.  This captures what things one needs to reset to make that work.
-//
-inline static void Recover_Frame(REBFRM *f)
-{
-    assert(f == FS_TOP);
-    f->eval_type = REB_0;
-    f->phase = NULL;
-
-    TRASH_POINTER_IF_DEBUG(f->opt_label);
-  #if defined(DEBUG_FRAME_LABELS)
-    TRASH_POINTER_IF_DEBUG(f->label_utf8);
-  #endif
-}
-
 
 // Ordinary Rebol internals deal with REBVAL* that are resident in arrays.
 // But a va_list can contain UTF-8 string components or special instructions
