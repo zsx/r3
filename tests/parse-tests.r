@@ -197,5 +197,5 @@
 [
     "abc" = parse-match "abc" ["a" "b" "c"]
 ][
-    blank? parse-match "abc" ["a" "b" "d"] 
+    blank? parse-match "abc" ["a" "b" "d"]
 ]

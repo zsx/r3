@@ -50,5 +50,5 @@
 [
     #1893
     word: eval func [x] ['x] 1
-    same? word bind 'x word)]
+    same? word bind 'x word
 ]

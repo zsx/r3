@@ -159,7 +159,7 @@ REBI64 Random_Range(REBI64 r, REBOOL secure)
     if (secure)
         m = UINT64_MAX - (UINT64_MAX - s + 1) % s;
     else
-        m = MM - MM % s - 1; 
+        m = MM - MM % s - 1;
 
     REBU64 u;
     do {
