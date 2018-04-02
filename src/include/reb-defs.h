@@ -44,6 +44,31 @@
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
+// REBYTE unsigned 8-bit value
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Using unsigned characters is good for conveying information is not limited
+// to textual data.  It provides type-checking that helps discern between
+// single-codepoint null terminated data (on which you might legitimately
+// use `strlen()`, for instance) and something like UTF-8 data.
+//
+// Note: uint8_t might seem like an equally appropriate choice for REBYTE, if
+// not better.  But in 99% of cases they will be the same.  In the 1% where
+// they might be different, the entire difference would likely be that
+// uint8_t would not offer the strict aliasing exemption of char types:
+//
+// https://stackoverflow.com/a/16138470/211160
+//
+// Hence it's better to use unsigned char, so the compiler doesn't assume that
+// a REBYTE isn't pointing to the same address as another type, leading to
+// cache problems (e.g. if you try to read the first byte of an integer)
+//
+typedef unsigned char REBYTE;
+
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
 // REBOL NUMERIC TYPES ("REBXXX")
 //
 //=////////////////////////////////////////////////////////////////////////=//
@@ -70,19 +95,48 @@ typedef uintptr_t REBUPT; // unsigned counterpart of void*
 
 typedef uintptr_t REBFLGS; // platform-pointer-size unsigned for bit flags
 
-// Using unsigned characters is good for conveying information is not limited
-// to textual data.  It provides type-checking that helps discern between
-// single-codepoint null terminated data (on which you might legitimately
-// use `strlen()`, for instance) and something like UTF-8 data.
-//
-typedef uint8_t REBYTE; // unsigned byte data
-
 // !!! Review this choice from R3-Alpha:
 //
 // https://stackoverflow.com/q/1153548/
 //
 #define MIN_D64 ((double)-9.2233720368547758e18)
 #define MAX_D64 ((double) 9.2233720368547758e18)
+
+
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// "WIDE" CHARACTER DEFINITION (UCS2)
+//
+//=////////////////////////////////////////////////////////////////////////=//
+//
+// Consensus about the wchar_t datatype is generally that it's a pre-Unicode
+// abstraction that should be avoided unless you absolutely need it.  It
+// varies in size by platform...though it is standardized to 2 bytes in size
+// on Windows, where there is `#define WCHAR wchar_t`
+//
+// Some APIs (such as unixodbc) use UCS2 for wide character handling in order
+// to be compatible with Windows, vs. using the native wchar_t type.  It thus
+// defines SQLWCHAR as an unsigned short integer (itself not *guaranteed* to
+// be 16-bits in size).  However, such a definition cannot be used if
+// compiling as C++ and be compatible with Windows's #define:
+//
+// https://stackoverflow.com/q/1238609
+//
+// The primary focus of Ren-C is on UTF-8, but it does grudgingly provide
+// some UCS2 APIs.  To avoid duplicating a u16-based "UCS2" API and a wchar_t
+// API, the API is exposed as being REBWCHAR based, which does a #define
+// based on the platform.
+//
+// *** However, don't use REBWCHAR in client code.  If the client code is
+// on Windows, use WCHAR.  If it's in a unixodbc client use SQLWCHAR.  In
+// general, try and use UTF8 if you possibly can. ***
+//
+
+#ifdef TO_WINDOWS
+    #define REBWCHAR wchar_t
+#else
+    #define REBWCHAR uint16_t
+#endif
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -133,7 +187,18 @@ typedef uint16_t REBUNI;
 // Because the Reb_Series structure includes a Reb_Value by value, it
 // must be included *after* %sys-value.h
 //
-#ifdef REB_DEF
+#if !defined(REB_DEF)
+    //
+    // The %reb-xxx.h files define structures visible to host code (client)
+    // which don't also require pulling in all of the %sys-xxx.h files and
+    // dependencies.  Some of these definitions are shared with the core,
+    // and mention things like REBVAL.  When building as core that's fine,
+    // but when building as host this will be undefined unless something
+    // is there.  Define as a void so that it can point at it, but not know
+    // anything else about it (including size).
+    //
+    typedef void REBVAL;
+#else
     struct Reb_Cell;
 
     #if !defined(CPLUSPLUS_11)
@@ -241,22 +306,6 @@ typedef uint16_t REBUNI;
     //
     #define END \
         ((const REBVAL*)&PG_End_Node) // sizeof(REBVAL) but not NODE_FLAG_CELL
-#else
-    // The %reb-xxx.h files define structures visible to host code (client)
-    // which don't also require pulling in all of the %sys-xxx.h files and
-    // dependencies.  Some of these definitions are shared with the core,
-    // and mention things like REBVAL.  When building as core that's fine,
-    // but when building as host this will be undefined unless something
-    // is there.  Define as a void so that it can point at it, but not know
-    // anything else about it (including size).
-    //
-    // Note: R3-Alpha allowed stack instantiation of values as "RXIARG".  But
-    // the Ren-C API version of REBVAL* needs to know where all the values are
-    // so they can be GC managed, since external clients are not expected to
-    // know how to do that.  Hence the values are opaque.
-    //
-    typedef void REBVAL;
-    typedef void REBFRM;
 #endif
 
 

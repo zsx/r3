@@ -564,43 +564,6 @@
 
 //=////////////////////////////////////////////////////////////////////////=//
 //
-// "WIDE" CHARACTER DEFINITION (UCS2)
-//
-//=////////////////////////////////////////////////////////////////////////=//
-//
-// Consensus about the wchar_t datatype is generally that it's a pre-Unicode
-// abstraction that should be avoided unless you absolutely need it.  It
-// varies in size by platform...though it is standardized to 2 bytes in size
-// on Windows, where there is `#define WCHAR wchar_t`
-//
-// Some APIs (such as unixodbc) use UCS2 for wide character handling in order
-// to be compatible with Windows, vs. using the native wchar_t type.  It thus
-// defines SQLWCHAR as an unsigned short integer (itself not *guaranteed* to
-// be 16-bits in size).  However, such a definition cannot be used if
-// compiling as C++ and be compatible with Windows's #define:
-//
-// https://stackoverflow.com/q/1238609
-//
-// The primary focus of Ren-C is on UTF-8, but it does grudgingly provide
-// some UCS2 APIs.  To avoid duplicating a u16-based "UCS2" API and a wchar_t
-// API, the API is exposed as being REBWCHAR based, which does a #define
-// based on the platform.
-//
-// *** However, don't use REBWCHAR in client code.  If the client code is
-// on Windows, use WCHAR.  If it's in a unixodbc client use SQLWCHAR.  In
-// general, try and use UTF8 if you possibly can. ***
-//
-
-#ifdef TO_WINDOWS
-    #define REBWCHAR wchar_t
-#else
-    #define REBWCHAR uint16_t
-#endif
-
-
-
-//=////////////////////////////////////////////////////////////////////////=//
-//
 // C FUNCTION TYPE (__cdecl)
 //
 //=////////////////////////////////////////////////////////////////////////=//
@@ -969,11 +932,8 @@
 // * `char[4]` or `char[8]` can't generally be assigned in one instruction
 //
 
-#if defined(__LP64__) || defined(__LLP64__)
-    #define PLATFORM_BITS 64
-#else
-    #define PLATFORM_BITS 32
-#endif
+#define PLATFORM_BITS \
+    (sizeof(uintptr_t) * 8)
 
 #if defined(ENDIAN_BIG) // Byte w/most significant bit first
 
@@ -1037,40 +997,44 @@
 // But in addition to big endian platforms being kind of rare, it's not clear
 // that would be faster than a byte operation, especially with optimization.
 //
+// `unsigned char` is used below, as opposed to `uint8_t`, to coherently
+// access the bytes despite being written via a `uintptr_t`, due to the strict
+// aliasing exemption for character types.
+//
 
 #define LEFT_8_BITS(flags) \
-    (((const uint8_t*)&flags)[0]) // reminder: 8 is faster
+    (((const unsigned char*)&flags)[0]) // 8 is faster
 
 #define LEFT_N_BITS(flags,n) /* n <= 8 */ \
-    (((const uint8_t*)&flags)[0] >> (8 - (n)))
+    (((const unsigned char*)&flags)[0] >> (8 - (n)))
 
 #define RIGHT_N_BITS(flags,n) /* n <= 8 */ \
-    (((const uint8_t*)&flags)[sizeof(uintptr_t) - 1] & ((1 << (n)) - 1))
+    (((const unsigned char*)&flags)[sizeof(uintptr_t) - 1] & ((1 << (n)) - 1))
 
 #define RIGHT_8_BITS(flags) \
-    (((const uint8_t*)&flags)[sizeof(uintptr_t) - 1]) // reminder: 8 is faster
+    (((const unsigned char*)&flags)[sizeof(uintptr_t) - 1]) // 8 is faster
 
 #define CLEAR_N_RIGHT_BITS(flags,n) /* n <= 8 */ \
-    (((uint8_t*)&flags)[sizeof(uintptr_t) - 1] &= ~((1 << (n)) - 1))
+    (((unsigned char*)&flags)[sizeof(uintptr_t) - 1] &= ~((1 << (n)) - 1))
 
 #define CLEAR_8_RIGHT_BITS(flags) \
-    (((uint8_t*)&flags)[sizeof(uintptr_t) - 1] = 0) // reminder: 8 is faster
+    (((unsigned char*)&flags)[sizeof(uintptr_t) - 1] = 0) // 8 is faster
 
 #define MID_N_BITS(flags,n) /* n <= 8 */ \
-    (((const uint8_t*)&flags)[sizeof(uintptr_t) - 2] & ((1 << (n)) - 1))
+    (((const unsigned char*)&flags)[sizeof(uintptr_t) - 2] & ((1 << (n)) - 1))
 
 #define MID_8_BITS(flags) \
-    (((const uint8_t*)&flags)[sizeof(uintptr_t) - 2]) // reminder: 8 is faster
+    (((const unsigned char*)&flags)[sizeof(uintptr_t) - 2]) // 8 is faster
 
 #define CLEAR_N_MID_BITS(flags,n) /* n <= 8 */ \
-    (((uint8_t*)&flags)[sizeof(uintptr_t) - 2] &= ~((1 << (n)) - 1))
+    (((unsigned char*)&flags)[sizeof(uintptr_t) - 2] &= ~((1 << (n)) - 1))
 
 #define CLEAR_8_MID_BITS(flags) \
-    (((uint8_t*)&flags)[sizeof(uintptr_t) - 2] = 0) // reminder: 8 is faster
+    (((unsigned char*)&flags)[sizeof(uintptr_t) - 2] = 0) // 8 is faster
 
 #define CLEAR_16_RIGHT_BITS(flags) \
-    (((uint8_t*)&flags)[sizeof(uintptr_t) - 1] = \
-        ((uint8_t*)&flags)[sizeof(uintptr_t) - 2] = 0)
+    (((unsigned char*)&flags)[sizeof(uintptr_t) - 1] = \
+        ((unsigned char*)&flags)[sizeof(uintptr_t) - 2] = 0)
 
 
 //=////////////////////////////////////////////////////////////////////////=//
@@ -1119,53 +1083,66 @@
      */
     #define s_cast(b)       ((char *)(b))
     #define cs_cast(b)      ((const char *)(b))
-    #define b_cast(s)       ((uint8_t *)(s))
-    #define cb_cast(s)      ((const uint8_t *)(s))
+    #define b_cast(s)       ((unsigned char *)(s))
+    #define cb_cast(s)      ((const unsigned char *)(s))
 
     #define LEN_BYTES(s) \
         strlen((const char*)(s))
+
     #define COPY_BYTES(d,s,n) \
         strncpy((char*)(d), (const char*)(s), (n))
+
     #define COMPARE_BYTES(l,r) \
         strcmp((const char*)(l), (const char*)(r))
-    #define APPEND_BYTES_LIMIT(d,s,m) \
-        strncat((char*)d, (const char*)s, MAX((m) - strlen((char*)d) - 1, 0))
+
+    inline static unsigned char *APPEND_BYTES_LIMIT(
+        unsigned char *dest, const unsigned char *src, size_t max
+    ){
+        size_t len = LEN_BYTES(dest);
+        return b_cast(strncat(
+            s_cast(dest), cs_cast(src), MAX(max - len - 1, 0)
+        ));
+    }
 #else
     /* We want to ensure the input type is what we thought we were flipping,
      * particularly not the already-flipped type.  Instead of type_traits, 4
      * functions check in both C and C++ (here only during Debug builds):
      */
-    inline static uint8_t *b_cast(char *s)
-        { return (uint8_t*)s; }
+    inline static unsigned char *b_cast(char *s)
+        { return (unsigned char*)s; }
 
-    inline static const uint8_t *cb_cast(const char *s)
-        { return (const uint8_t*)s; }
+    inline static const unsigned char *cb_cast(const char *s)
+        { return (const unsigned char*)s; }
 
-    inline static char *s_cast(uint8_t *s)
+    inline static char *s_cast(unsigned char *s)
         { return (char*)s; }
 
-    inline static const char *cs_cast(const uint8_t *s)
+    inline static const char *cs_cast(const unsigned char *s)
         { return (const char*)s; }
 
-    // Debug build uses inline function stubs to ensure you pass in uint8_t *
+    // Debug build uses inline functions to ensure you pass in unsigned char *
     //
-    inline static uint8_t *COPY_BYTES(
-        uint8_t *dest, const uint8_t *src, size_t count
+    inline static unsigned char *COPY_BYTES(
+        unsigned char *dest, const unsigned char *src, size_t count
     ){
         return b_cast(strncpy(s_cast(dest), cs_cast(src), count));
     }
 
-    inline static size_t LEN_BYTES(const uint8_t *str)
+    inline static size_t LEN_BYTES(const unsigned char *str)
         { return strlen(cs_cast(str)); }
 
-    inline static int COMPARE_BYTES(const uint8_t *lhs, const uint8_t *rhs)
-        { return strcmp(cs_cast(lhs), cs_cast(rhs)); }
-
-    inline static uint8_t *APPEND_BYTES_LIMIT(
-        uint8_t *dest, const uint8_t *src, size_t max
+    inline static int COMPARE_BYTES(
+        const unsigned char *lhs, const unsigned char *rhs
     ){
+        return strcmp(cs_cast(lhs), cs_cast(rhs));
+    }
+
+    inline static unsigned char *APPEND_BYTES_LIMIT(
+        unsigned char *dest, const unsigned char *src, size_t max
+    ){
+        size_t len = LEN_BYTES(dest);
         return b_cast(strncat(
-            s_cast(dest), cs_cast(src), MAX(max - LEN_BYTES(dest) - 1, 0)
+            s_cast(dest), cs_cast(src), MAX(max - len - 1, 0)
         ));
     }
 #endif
