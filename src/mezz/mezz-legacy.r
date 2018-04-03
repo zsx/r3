@@ -610,6 +610,29 @@ make: function [
 ]
 
 
+; R3-Alpha gave BLANK! when a refinement argument was not provided,
+; while Ren-C enforces this as being void (with voids not possible
+; to pass to refinement arguments otherwise).  This is some userspace
+; code to convert a frame to that policy.
+;
+blankify-refinement-args: procedure [f [frame!]] [
+    seen-refinement: false
+    for-each w (words of function-of f) [
+        case [
+            refinement? w [
+                seen-refinement: true
+                if not f/(to-word w) [
+                    f/(to-word w): _ ;-- turn LOGIC! false to a BLANK!
+                ]
+            ]
+            seen-refinement [ ;-- turn any voids into BLANK!s
+                f/(to-word w): to-value :f/(to-word w)
+            ]
+        ]
+    ]
+]
+
+
 ; To invoke this function, use `do <r3-legacy>` instead of calling it
 ; directly, as that will be a no-op in older Rebols.  Notice the word
 ; is defined in sys-base.r, as it needs to be visible pre-Mezzanine
@@ -618,7 +641,7 @@ make: function [
 ; So it's a good case study of how one can get a very large number of
 ; locals if using FUNCTION.  Study.
 ;
-set 'r3-legacy* func [<local> if-flags] [
+set 'r3-legacy* func [<local>] [
 
     if r3-legacy-mode [return blank]
 
@@ -626,25 +649,9 @@ set 'r3-legacy* func [<local> if-flags] [
     ; test for the functionality is needed, as these flags may be expired
     ; at different times on a case-by-case basis.
     ;
-    ; (We don't flip these switches until after the above functions have been
-    ; created, so that the shims can use Ren-C features like word-valued
-    ; refinements/etc.)
-    ;
     do in system/options [
-        lit-word-decay: true
-        broken-case-semantics: true
-        exit-functions-only: true
-        refinements-blank: true
-        no-switch-evals: true
-        no-switch-fallthrough: true
         forever-64-bit-ints: true
-        print-forms-everything: true
         break-with-overrides: true
-        none-instead-of-voids: true
-        dont-exit-natives: true
-        paren-instead-of-group: true
-        get-will-get-anything: true
-        no-reduce-nested-print: true
         unlocked-source: true
     ]
 
@@ -677,6 +684,14 @@ set 'r3-legacy* func [<local> if-flags] [
         none!: (:blank!)
         none?: (:blank?)
 
+        ; TRUE? and FALSE? were considered misleading, and DID and NOT should
+        ; be used for testing for "truthiness" and "falsiness", while testing
+        ; equality directly to TRUE and FALSE should be used if that's what
+        ; is actually meant.  TO-LOGIC is also available.
+        ;
+        true? (:did)
+        false? (:not)
+
         ; The bizarre VALUE? function would look up words, return TRUE if they
         ; were set and FALSE if not.  All other values it returned TRUE.  The
         ; parameter was not optional, so you couldn't say `value? ()`.
@@ -698,21 +713,9 @@ set 'r3-legacy* func [<local> if-flags] [
         ][
             case [
                 not word [type of :value]
-
-                not set? 'value [
-                    quote unset! ;-- https://trello.com/c/rmsTJueg
-                ]
-
-                blank? :value [
-                    quote none! ;-- https://trello.com/c/vJTaG3w5
-                ]
-
-                all [
-                    group? :value
-                    system/options/paren-instead-of-group
-                ][
-                    quote paren! ;-- https://trello.com/c/ANlT44nH
-                ]
+                not set? 'value [quote unset!] ;-- https://trello.com/c/rmsTJueg
+                blank? :value [quote none!] ;-- https://trello.com/c/vJTaG3w5
+                group? :value [quote paren!] ;-- https://trello.com/c/ANlT44nH
             ] else [
                 to-word type of :value
             ]
@@ -725,7 +728,6 @@ set 'r3-legacy* func [<local> if-flags] [
             not blank? :value
         ])
 
-
         ; SET had a refinement called /ANY which doesn't communicate as well
         ; in the Ren-C world as ONLY.  ONLY marks an operation as being
         ; fundamental and not doing "extra" stuff (e.g. APPEND/ONLY is the
@@ -734,8 +736,7 @@ set 'r3-legacy* func [<local> if-flags] [
         ; Note: R3-Alpha had a /PAD option, which was the inverse of /SOME.
         ; If someone needs it, they can adapt this routine as needed.
         ;
-        lib-set: :set ; overwriting lib/set for now
-        set: function [
+        set: (function [
             {Sets word, path, words block, or context to specified value(s).}
 
             return: [<opt> any-value!]
@@ -744,8 +745,6 @@ set 'r3-legacy* func [<local> if-flags] [
                 {Word, block of words, path, or object to be set (modified)}
             value [<opt> any-value!]
                 "Value or block of values"
-            /only
-                {If target and value are blocks, set each item to same value}
             /any
                 "Deprecated legacy synonym for /only"
             /some
@@ -758,30 +757,27 @@ set 'r3-legacy* func [<local> if-flags] [
             set_SOME: some
             some: :lib/some
 
-            apply 'lib-set [
+            apply 'set [
                 target: either any-context? target [words of target] [target]
                 value: :value
-                only: set_ANY or (only)
+                only: set_ANY
                 some: set_SOME
                 enfix: enfix
             ]
-        ]
+        ])
 
         ; This version of get supports the legacy /ANY switch.
         ;
-        ; Historical GET in Rebol allowed any type that wasn't UNSET!.  If you
-        ; said something like `get 1` this would be passed through as `1`.
-        ; Both Ren-C and Red have removed that feature, it is not carried
-        ; forward in legacy at this time.
+        ; R3-Alpha's GET allowed any type, so GET 3 would fall through to
+        ; just returning 3.  This behavior is not in Rebol2, nor is it
+        ; in Red...which only support ANY-WORD!, OBJECT!, or NONE!
+        ; Hence it is not carried forward in legacy at this time.
         ;
-        lib-get: :get
-        get: function [
+        get: (function [
             {Gets the value of a word or path, or values of a context.}
             return: [<opt> any-value!]
             source [blank! any-word! any-path! any-context! block!]
                 "Word, path, context to get"
-            /only
-                "Return void if no value instead of blank"
             /any
                 "Deprecated legacy synonym for /ONLY"
         ][
@@ -799,25 +795,17 @@ set 'r3-legacy* func [<local> if-flags] [
                 ; code but is expressible more flexibily in usermode getting
                 ; the WORDS-OF block, covering things like hidden fields etc.
 
-                apply 'lib-get [
+                apply 'get [
                     source: words of source
-                    opt: any_GET or (opt_GET) ;-- will error if voids found
+                    only: any_GET
                 ]
             ][
-                apply 'lib-get [
+                apply 'get [
                     source: source
-                    opt: any_GET or (opt_GET)
+                    only: any_GET
                 ]
             ]
-        ]
-
-        ; These words do NOT inherit the infixed-ness, and you simply cannot
-        ; set things infix through a plain set-word.  We have to do this
-        ; after the words are appended to the object, below.
-        ;
-        and: _
-        or: _
-        xor: _
+        ])
 
         apply: (:r3-alpha-apply)
 
@@ -825,23 +813,9 @@ set 'r3-legacy* func [<local> if-flags] [
         ; word PAREN! (not the word GROUP!)
         ;
         to: (adapt 'to [
-            if all [
-                :value = group!
-                system/options/paren-instead-of-group
-                find any-word! type
-            ][
+            if :value = group! and (find any-word! type) [
                 value: "paren!" ;-- twist it into a string conversion
             ]
-        ])
-
-        ; Not contentious, but trying to excise this ASAP
-        funct: (:function)
-
-        op?: (func [
-            "OP? <r3-legacy> behavior which just always returns FALSE"
-            value [<opt> any-value!]
-        ][
-            false
         ])
 
         ; R3-Alpha and Rebol2's DO was effectively variadic.  If you gave it
@@ -893,9 +867,9 @@ set 'r3-legacy* func [<local> if-flags] [
                         fail ["bad param type" params/1]
                     ]
                 ]
-                lib/do code
+                do code
             ][
-                apply :lib/do [
+                apply 'do [
                     source: :source
                     if args: args [
                         arg: :arg
@@ -908,7 +882,7 @@ set 'r3-legacy* func [<local> if-flags] [
         ])
 
         ; Ren-C's default is a "lookback" that can see the SET-WORD! to its
-        ; left and examine it.  `x: default 10` instead of `default 'x 10`,
+        ; left and examine it.  `x: default [10]` instead of `default 'x 10`,
         ; with the same effect.
         ;
         default: (func [
@@ -917,7 +891,19 @@ set 'r3-legacy* func [<local> if-flags] [
                 "The word (use :var for word! values)"
             value "The value" ; void not allowed on purpose
         ][
-            unless all [set? word | not blank? get word] [set word :value] :value
+            unless all [set? word | not blank? get word] [set word :value]
+            :value
+        ])
+
+        ; This old form of ALSO has been supplanted by ELIDE, which is more
+        ; generically useful and is more clear.
+        ;
+        also: (func [
+            return: [<opt> any-value!]
+            returned [<opt> any-value!]
+            discarded [<opt> any-value!]
+        ][
+            :returned
         ])
 
         ; Ren-C removed the "simple parse" functionality, which has been
@@ -955,7 +941,7 @@ set 'r3-legacy* func [<local> if-flags] [
                     split input to-bitset rules
                 ]
             ] else [
-                lib/parse/(all [case_PARSE 'case]) input rules
+                parse/(all [case_PARSE 'case]) input rules
             ]
         ])
 
@@ -988,6 +974,7 @@ set 'r3-legacy* func [<local> if-flags] [
         foreach: (function [
             "Evaluates a block for value(s) in a series w/<r3-legacy> 'extra'."
 
+            return: [<opt> any-value!]
             'vars [word! block!]
                 "Word or block of words to set each time (local)"
             data [any-series! any-context! map! blank!]
@@ -997,13 +984,13 @@ set 'r3-legacy* func [<local> if-flags] [
         ][
             if any [
                 not block? vars
-                lib/for-each item vars [
+                for-each item vars [
                     if set-word? item [break/with false]
                     true
                 ]
             ][
                 ; a normal FOREACH
-                return lib/for-each :vars data body
+                return for-each :vars data body
             ]
 
             ; Otherwise it's a weird FOREACH.  So handle a block containing at
@@ -1048,9 +1035,22 @@ set 'r3-legacy* func [<local> if-flags] [
         ][
             unless block? :value [return :value]
 
-            apply :lib/reduce [
+            apply 'reduce [
                 | value: :value
                 | if into: into [target: :target]
+            ]
+        ])
+
+        append: (adapt 'append [
+            if map? series [
+                if block? :value [
+                    ;
+                    ; MAP! in Ren-C must have locked keys, but R3-Alpha did
+                    ; not have a LOCK.  When they append blocks, lock the
+                    ; key elements for them.
+                    ;
+                    for-each [k v] value [lock k]
+                ]
             ]
         ])
 
@@ -1109,37 +1109,13 @@ set 'r3-legacy* func [<local> if-flags] [
         quit: (function [
             {Stop evaluating and return control to command shell or calling script.}
 
-            /with
-                {Yield a result (mapped to an integer if given to shell)}
-            value [any-value!]
-                "See: http://en.wikipedia.org/wiki/Exit_status"
             /return
                 "(deprecated synonym for /WITH)"
-            return-value
+            value
         ][
-            apply 'lib/quit [
-                with: with or (return)
-                value: case [with [value] return [return-value]]
-            ]
-        ])
-
-        ; R3-Alpha gave BLANK! when a refinement argument was not provided,
-        ; while Ren-C enforces this as being void (with voids not possible
-        ; to pass to refinement arguments otherwise).  This is some userspace
-        ; code to convert it.
-        ;
-        blankify-refinement-args: (procedure [f [frame!]] [
-            seen-refinement: false
-            for-each (quote any-word:) words of function-of f [
-                if refinement? any-word [
-                    if not seen-refinement [seen-refinement: true]
-                    frame/(to-word any-word):
-                        to-value :frame/(to-word any-word)
-                    continue
-                ]
-                if not seen-refinement [continue]
-                frame/(to-word any-word):
-                    to-value :frame/(to-word any-word)
+            apply 'quit [
+                with: ensure logic! return
+                value: :value
             ]
         ])
 
@@ -1165,11 +1141,13 @@ set 'r3-legacy* func [<local> if-flags] [
                 replace/all spec [[any-type!]] [[<opt> any-value!]]
             ]
 
-            lib/func compose [
+            func compose [
                 return: [<opt> any-value!]
                 (spec)
+                <local> exit
             ] compose [
-                blankify-refinement-args frame-of 'return
+                blankify-refinement-args context of 'return
+                exit: make function! [[] [unwind context of 'return]]
                 (body)
             ]
         ])
@@ -1201,13 +1179,18 @@ set 'r3-legacy* func [<local> if-flags] [
 
             if block? :object [object: has object]
 
-            lib/function compose [
+            function compose [
                 return: [<opt> any-value!]
                 (spec)
                 (if with [reduce [<in> object]])
                 (if extern [<with>])
                 (:words)
-            ] body
+                ;-- <local> exit, picked up by function
+            ] compose [
+                blankify-refinement-args context of 'return
+                exit: make function! [[] [unwind context of 'return]]
+                (body)
+            ]
         ])
 
         ; In Ren-C, HAS is the arity-1 parallel to OBJECT as arity-2 (similar
@@ -1245,7 +1228,7 @@ set 'r3-legacy* func [<local> if-flags] [
             /only
                 "Values are kept as-is"
         ][
-            apply :lib/construct [
+            apply 'construct [
                 | spec: either with [object] [[]]
                 | body: spec
 
@@ -1257,18 +1240,6 @@ set 'r3-legacy* func [<local> if-flags] [
             ]
         ])
 
-        ; There were several different strata of equality checks, and one was
-        ; EQUIV? as well as NOT-EQUIV?.  With changes to make comparisons
-        ; inside the system indifferent to binding (unless SAME? is used),
-        ; these have been shaken up instead focusing on getting more
-        ; foundational comparisons working.  Red does not have EQUIV?, for
-        ; example, and few could tell you what it was.
-        ;
-        ; These aren't the same but may work in some cases.  :-/
-        ;
-        equiv?: (:equal?)
-        not-equiv?: (:not-equal?)
-
         ; BREAK/RETURN had a lousy name to start with (return from what?), but
         ; was axed to give loops a better interface contract:
         ;
@@ -1276,7 +1247,6 @@ set 'r3-legacy* func [<local> if-flags] [
         ;
         ; New features of WITH: https://trello.com/c/cOgdiOAD
         ;
-        lib-break: :break ; overwriting lib/break for now
         break: (func [
             {Exit the current iteration of a loop and stop iterating further.}
 
@@ -1297,21 +1267,23 @@ set 'r3-legacy* func [<local> if-flags] [
                 ]
             ]
 
-            lib-break
+            break
         ])
+
+        ; The APPEND to the context expects `KEY: VALUE2 KEY2: VALUE2`, which
+        ; is why COMPOSE is being used.  `and: (enfix tighten :intersect)`
+        ; can't work, because ENFIX needs to quote left and is blocked.
+        ;
+        and: _
+        or: _
+        xor: _
     ]
 
     ; In the object appending model above, can't use ENFIX or SET/ENFIX...
     ;
-    system/contexts/user/and: enfix tighten :and+
-    system/contexts/user/or: enfix tighten :or+
-    system/contexts/user/xor: enfix tighten :xor+
-
-    if-flags: func [flags [block!] body [block!]] [
-        for-each flag flags [
-            if system/options/(flag) [return do body]
-        ]
-    ]
+    system/contexts/user/and: enfix tighten :intersect
+    system/contexts/user/or: enfix tighten :union
+    system/contexts/user/xor: enfix tighten :difference
 
     ; The Ren-C invariant for control constructs that don't run their cases
     ; is to return VOID, not a "NONE!" (BLANK!) as in R3-Alpha.  We assume
@@ -1321,15 +1293,13 @@ set 'r3-legacy* func [<local> if-flags] [
     ;
     ; So make a lot of things like `first: (chain [:first :to-value])`
     ;
-    if-flags [none-instead-of-voids] [
-        for-each word [
-            if unless either case
-            while for-each loop repeat forall forskip
-        ][
-            append system/contexts/user compose [
-                (to-set-word word)
-                (chain compose [(to-get-word word) :to-value])
-            ]
+    for-each word [
+        if unless either case
+        while for-each loop repeat forall forskip
+    ][
+        append system/contexts/user compose [
+            (to-set-word word)
+            (chain compose [(to-get-word word) :to-value])
         ]
     ]
 
@@ -1342,7 +1312,6 @@ set 'r3-legacy* func [<local> if-flags] [
     ; motivated individual could then make a compatibility construct, but
     ; probably would rather just change it so their code runs faster.  :-/
     ;
-    if-flags [no-switch-evals no-switch-fallthrough][
     append system/contexts/user compose [
         switch: (
             chain [
@@ -1364,7 +1333,7 @@ set 'r3-legacy* func [<local> if-flags] [
                 :to-value
             ]
         )
-    ]]
+    ]
 
     r3-legacy-mode: on
     return blank

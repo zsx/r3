@@ -72,12 +72,6 @@ void TO_Datatype(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
 void MF_Datatype(REB_MOLD *mo, const RELVAL *v, REBOOL form)
 {
     REBSTR *name = Canon(VAL_TYPE_SYM(v));
-#if !defined(NDEBUG)
-    if (LEGACY(OPTIONS_PAREN_INSTEAD_OF_GROUP)) {
-        if (VAL_TYPE_KIND(v) == REB_GROUP)
-            name = Canon(SYM_PAREN_X); // e_Xclamation point (PAREN!)
-    }
-#endif
     if (form)
         Emit(mo, "N", name);
     else

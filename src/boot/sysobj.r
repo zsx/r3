@@ -145,22 +145,9 @@ options: construct [] [  ; Options supplied to REBOL during startup
 
     ; Legacy Behaviors Options (paid attention to only by debug builds)
 
-    exit-functions-only: false
     forever-64-bit-ints: false
-    print-forms-everything: false
     break-with-overrides: false
-    dont-exit-natives: false
-    paren-instead-of-group: false
-    get-will-get-anything: false
-    no-reduce-nested-print: false
     unlocked-source: false
-
-    ; These option will only apply if the function which is currently executing
-    ; was created after legacy mode was enabled, and if refinements-blank is
-    ; set (because that's what marks functions as "legacy" or not")
-    ;
-    no-switch-evals: false
-    no-switch-fallthrough: false
 ]
 
 script: construct [] [

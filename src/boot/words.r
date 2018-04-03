@@ -38,16 +38,6 @@ datatypes
 ; !!! Kept for functionality of #[none] in the loader for <r3-legacy>
 none
 
-; For the moment, TO-WORD of a datatype is willing to canonize a datatype
-; as a word.  Long term, that specialization is not desirable because it
-; is effectively building keywords deep into the system.  Better would be
-; if datatypes could be communicated e.g. by #[()] for "groups" or "parens".
-;
-; Hardcoding in the GROUP! symbol is necessary for a legacy switch to be
-; willing to convert a "group!" into the word GROUP!
-;
-paren!
-
 ; The PICK* action was killed in favor of a native that uses the same logic
 ; as path processing.  Code still remains for processing PICK*, and ports or
 ; other mechanics may wind up using it...or path dispatch itself may be
