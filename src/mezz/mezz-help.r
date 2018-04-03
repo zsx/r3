@@ -158,6 +158,10 @@ dump: func [
     ]
 
     case [
+        tail? value [
+            fail "No argument provided to DUMP"
+        ]
+
         ; The reason this function is a quoting variadic is so that you can
         ; write `dump x: 1 + 2` and get `x: => 3`.  This is just a convenience
         ; to save typing over `blahblah: 1 + 2 dump blahblah`.

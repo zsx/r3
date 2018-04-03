@@ -267,7 +267,8 @@ REBNATIVE(wrap_callback)
     if (status != FFI_OK)
         fail ("FFI: Couldn't prep closure");
 
-    if (sizeof(void*) != sizeof(CFUNC*))
+    REBOOL check = TRUE; // avoid "conditional expression is constant"
+    if (check && sizeof(void*) != sizeof(CFUNC*))
         fail ("FFI does not work when void* size differs from CFUNC* size");
 
     // It's the FFI's fault for using the wrong type for the thunk.  Use a

@@ -1108,7 +1108,7 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
 // PROCESS FIELDS
 //
 
-    u64 offset = 0; // offset in data
+    uint64_t offset = 0; // offset in data
 
     REBINT raw_size = -1;
     REBUPT raw_addr = 0;
@@ -1190,7 +1190,8 @@ void MAKE_Struct(REBVAL *out, enum Reb_Kind kind, const REBVAL *arg) {
         if (dimension > UINT32_MAX)
             fail (Error_Size_Limit_Raw(out));
 
-        u64 step = cast(u64, FLD_WIDE(field)) * cast(u64, dimension);
+        uint64_t step =
+            cast(uint64_t, FLD_WIDE(field)) * cast(uint64_t, dimension);
 
         if (step > VAL_STRUCT_LIMIT)
             fail (Error_Size_Limit_Raw(out));

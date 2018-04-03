@@ -135,11 +135,14 @@ do*: function [
     ; position, or will cause an error.  No exceptions, not even for
     ; directories or media.  "Load of URL has no special block forms." <-- ???
     ;
-    ; !!! Should the header always be locked by LOAD?
+    ; !!! This used to LOCK the header, but the module processing wants to
+    ; do some manipulation to it.  Review.  In the meantime, in order to
+    ; allow mutation of the OBJECT! we have to actually TAKE the hdr out
+    ; of the returned result to avoid LOCKing it when the code array is locked
+    ; because even with series not at their head, LOCK NEXT CODE will lock it.
     ;
-    hdr: lock ensure [object! blank!] first code
+    hdr: ensure [object! blank!] take code
     is-module: 'module = select hdr 'type
-    code: next code
 
     either all [string? source | not is-module] [
         ;
