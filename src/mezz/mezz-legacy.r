@@ -633,6 +633,79 @@ blankify-refinement-args: procedure [f [frame!]] [
 ]
 
 
+r3-alpha-func: function [
+    {FUNC <r3-legacy>}
+    return: [function!]
+    spec [block!]
+    body [block!]
+][
+    ; R3-Alpha would tolerate blocks in the first position, but didn't do the
+    ; Rebol2 feature, e.g. `func [[throw catch] x y][...]`.
+    ;
+    if block? first spec [spec: next spec] ;-- skip Rebol2's [throw]
+
+    ; Also, ANY-TYPE! must be expressed as <OPT> ANY-VALUE! in Ren-C, since
+    ; typesets cannot contain no-type.
+    ;
+    if find spec [[any-type!]] [
+        spec: copy spec ;-- deep copy not needed
+        replace/all spec [[any-type!]] [[<opt> any-value!]]
+    ]
+
+    ; Policy requires a RETURN: annotation to say if one returns functions
+    ; or void in Ren-C--there was no such requirement in R3-Alpha.
+    ;
+    func compose [
+        return: [<opt> any-value!]
+        (spec)
+        <local> exit
+    ] compose [
+        blankify-refinement-args context of 'return
+        exit: make function! [[] [unwind context of 'return]]
+        (body)
+    ]
+]
+
+r3-alpha-function: function [
+    {FUNCTION <r3-legacy>}
+    return: [function!]
+    spec [block!]
+    body [block!]
+    /with
+        {Define or use a persistent object (self)}
+    object [object! block! map!]
+        {The object or spec}
+    /extern
+        {Provide explicit list of external words}
+    words [block!]
+        {These words are not local.}
+][
+    if block? first spec [spec: next spec] ;-- See comments in R3-ALPHA-FUNC
+
+    if find spec [[any-type!]] [ ;-- See comments in R3-ALPHA-FUNC
+        spec: copy spec ;-- deep copy not needed
+        replace/all spec [[any-type!]] [[<opt> any-value!]]
+    ]
+
+    if block? :object [object: has object]
+
+    ; The shift in Ren-C is to remove the refinements from FUNCTION, and put
+    ; everything into the spec...marked with <tags>
+    ;
+    function compose [
+        return: [<opt> any-value!]
+        (spec)
+        (with ?? <in>) (:object) ;-- <in> replaces functionality of /WITH
+        (extern ?? <with>) (:words) ;-- then <with> took over what /EXTERN was
+        ;-- <local> exit, picked up since using FUNCTION as generator
+    ] compose [
+        blankify-refinement-args context of 'return
+        exit: make function! [[] [unwind context of 'return]]
+        (body)
+    ]
+]
+
+
 ; To invoke this function, use `do <r3-legacy>` instead of calling it
 ; directly, as that will be a no-op in older Rebols.  Notice the word
 ; is defined in sys-base.r, as it needs to be visible pre-Mezzanine
@@ -689,8 +762,20 @@ set 'r3-legacy* func [<local>] [
         ; equality directly to TRUE and FALSE should be used if that's what
         ; is actually meant.  TO-LOGIC is also available.
         ;
-        true? (:did)
-        false? (:not)
+        true?: (:did)
+        false?: (:not)
+
+        ; R3-Alpha's comment wasn't "invisible", it always returned void.
+        ; Ren-C's is more clever: https://trello.com/c/dWQnsspG
+        ;
+        comment: (func [
+            {Ignores the argument value, but does no evaluation.}
+            return: [<opt>]
+            :discarded [block! any-string! binary! any-scalar!]
+                "Literal value to be ignored."
+        ][
+            ; no body
+        ])
 
         ; The bizarre VALUE? function would look up words, return TRUE if they
         ; were set and FALSE if not.  All other values it returned TRUE.  The
@@ -806,8 +891,6 @@ set 'r3-legacy* func [<local>] [
                 ]
             ]
         ])
-
-        apply: (:r3-alpha-apply)
 
         ; Adapt the TO ANY-WORD! case for GROUP! to give back the
         ; word PAREN! (not the word GROUP!)
@@ -1119,79 +1202,9 @@ set 'r3-legacy* func [<local>] [
             ]
         ])
 
-        ; R3-Alpha would tolerate blocks in the first position, which were
-        ; a feature in Rebol2.  e.g. `func [[throw catch] x y][...]`.  Ren-C
-        ; does not allow this.  Also, policy requires a RETURN: annotation to
-        ; say if one returns functions or void in Ren-C--there was no such
-        ; requirement in R3-Alpha.
-        ;
-        ; Also, ANY-TYPE! must be expressed as <OPT> ANY-VALUE! in Ren-C,
-        ; since typesets cannot contain no-type.
-        ;
-        func: (func [
-            {FUNC <r3-legacy>}
-            return: [function!]
-            spec [block!]
-            body [block!]
-        ][
-            if block? first spec [spec: next spec]
-
-            if find spec [[any-type!]] [
-                spec: copy/deep spec
-                replace/all spec [[any-type!]] [[<opt> any-value!]]
-            ]
-
-            func compose [
-                return: [<opt> any-value!]
-                (spec)
-                <local> exit
-            ] compose [
-                blankify-refinement-args context of 'return
-                exit: make function! [[] [unwind context of 'return]]
-                (body)
-            ]
-        ])
-
-        ; The shift in Ren-C is to remove the refinements from FUNCTION.
-        ; Previously /WITH is now handles as the tag <in>
-        ; /EXTERN then takes over the tag <with>
-        ;
-        function: (func [
-            {FUNCTION <r3-legacy>}
-            return: [function!]
-            spec [block!]
-            body [block!]
-            /with
-                {Define or use a persistent object (self)}
-            object [object! block! map!]
-                {The object or spec}
-            /extern
-                {Provide explicit list of external words}
-            words [block!]
-                {These words are not local.}
-        ][
-            if block? first spec [spec: next spec]
-
-            if find spec [[any-type!]] [
-                spec: copy/deep spec
-                replace/all spec [[any-type!]] [[<opt> any-value!]]
-            ]
-
-            if block? :object [object: has object]
-
-            function compose [
-                return: [<opt> any-value!]
-                (spec)
-                (if with [reduce [<in> object]])
-                (if extern [<with>])
-                (:words)
-                ;-- <local> exit, picked up by function
-            ] compose [
-                blankify-refinement-args context of 'return
-                exit: make function! [[] [unwind context of 'return]]
-                (body)
-            ]
-        ])
+        func: (:r3-alpha-func)
+        function: (:r3-alpha-function)
+        apply: (:r3-alpha-apply)
 
         ; In Ren-C, HAS is the arity-1 parallel to OBJECT as arity-2 (similar
         ; to the relationship between DOES and FUNCTION).  In Rebol2 and
@@ -1204,7 +1217,7 @@ set 'r3-legacy* func [<local>] [
             vars [block!] {List of words that are local to the function}
             body [block!] {The body block of the function}
         ][
-            func (head of insert copy vars /local) body
+            r3-alpha-func (head of insert copy vars /local) body
         ])
 
         ; CONSTRUCT is now the generalized arity-2 object constructor.  What
@@ -1268,6 +1281,36 @@ set 'r3-legacy* func [<local>] [
             ]
 
             break
+        ])
+
+        ; ++ and -- were labeled "new, hackish stuff" in R3-Alpha, and were
+        ; replaced by the more general ME and MY:
+        ;
+        ; https://trello.com/c/8Bmwvwya
+        ;
+        ++: (function [
+            {Increment an integer or series index. Return its prior value.}
+            'word [word!] "Integer or series variable"
+        ][
+            value: get word ;-- returned value
+            elide (set word case [
+                any-series? :value [next value]
+                integer? :value [value + 1]
+            ] else [
+                fail "++ only works on ANY-SERIES! or INTEGER!"
+            ])
+        ])
+        --: (function [
+            {Decrement an integer or series index. Return its prior value.}
+            'word [word!] "Integer or series variable"
+        ][
+            value: get word ;-- returned value
+            elide (set word case [
+                any-series? :value [next value]
+                integer? :value [value + 1]
+            ] else [
+                fail "-- only works on ANY-SERIES! or INTEGER!"
+            ])
         ])
 
         ; The APPEND to the context expects `KEY: VALUE2 KEY2: VALUE2`, which
