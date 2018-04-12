@@ -385,6 +385,7 @@ static REB_R Transport_Actor(
         REBCNT len = Get_Num_From_Arg(ARG(picker));
         if (
             len == 1
+            && NOT(sock->modes & RST_UDP)
             && DID(sock->modes & RST_LISTEN)
             && sock->common.data != NULL
         ){
