@@ -435,7 +435,7 @@ Reb_Print(
 
 								span_gen_type sg(sa,
 									rbuf_img_out,
-									rgba8(255,0,0,0),
+									m_background_color,
 									m_interpolator_linear
 									);
 
@@ -497,7 +497,7 @@ Reb_Print(
 											typedef agg::renderer_scanline_aa<ren_base_pre, span_gen_type> renderer_type;
 											typedef agg::renderer_scanline_bin<ren_base_pre, span_gen_type> renderer_bin_type;
 
-											span_gen_type sg(sa, rbuf_img_out, rgba8(255,0,0,255), m_interpolator_linear, filter);
+											span_gen_type sg(sa, rbuf_img_out, m_background_color, m_interpolator_linear, filter);
 
 											sg.blur(attr.img_filter_arg);
 
@@ -599,7 +599,7 @@ Reb_Print(
 
 												span_gen_normal sg(sa,
 														 rbuf_img_out,
-														 rgba8(255,0,0,0),
+														 m_background_color,
 														 m_interpolator_trans);
 												if (anti_aliased){
 													renderer_type ri(renb, sg);
@@ -675,7 +675,7 @@ Reb_Print(
 															typedef agg::renderer_scanline_aa<ren_base_pre, span_gen_normal> renderer_type;
 															typedef agg::renderer_scanline_bin<ren_base_pre, span_gen_normal> renderer_bin_type;
 															trans_perspective tr(vertices, vertices);
-															span_gen_normal sg(sa, rbuf_img_out, rgba8(255,0,0,255), m_interpolator_trans, filter);
+															span_gen_normal sg(sa, rbuf_img_out, m_background_color, m_interpolator_trans, filter);
 															if (anti_aliased){
 																renderer_type ri(renb_pre, sg);
 																render_scanlines(m_ras, m_u_sl, ri);
