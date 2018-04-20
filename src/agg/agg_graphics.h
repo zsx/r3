@@ -524,6 +524,8 @@ namespace agg
 		curved_dashed m_dash;
 		curved_dashed_stroked m_dashed_stroke;
 
+		rgba8 m_background_color;
+
 		//interpolators
 		interp_linear m_interpolator_linear;
 		trans_persp m_trans_perspective;

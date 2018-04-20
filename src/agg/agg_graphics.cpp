@@ -51,6 +51,7 @@ agg_graphics::agg_graphics(ren_buf* buf,int w, int h, int x, int y) :
 
 		m_arrow(m_stroke.markers(), m_ah),
 
+		m_background_color(255, 0, 0, 255),
 
 		//setup interpolators
 		m_interpolator_linear(m_img_mtx),
@@ -476,7 +477,7 @@ Reb_Print(
 											typedef agg::renderer_scanline_aa<ren_base_pre, span_gen_type> renderer_type;
 											typedef agg::renderer_scanline_bin<ren_base_pre, span_gen_type> renderer_bin_type;
 
-											span_gen_type sg(sa, rbuf_img_out, rgba8(255,0,0,255), m_interpolator_linear, filter);
+											span_gen_type sg(sa, rbuf_img_out, m_background_color, m_interpolator_linear, filter);
 
 											if (anti_aliased){
 												renderer_type ri(renb_pre, sg);
