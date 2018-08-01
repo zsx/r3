@@ -197,6 +197,15 @@ These are now obsolete (as of A107) and should be removed:
 #undef NO_GRAPHICS
 #endif
 
+#ifdef TO_OSX_X64					// OSX/X64
+#define TO_OSX
+#define ENDIAN_LITTLE
+#define HAS_LL_CONSTS
+#ifndef __LP64__
+#define __LP64__
+#endif
+#endif
+
 #ifdef TO_OSX					// OSX/PPC
 #define ENDIAN_BIG
 #define HAS_LL_CONSTS

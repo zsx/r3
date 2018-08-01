@@ -1,0 +1,27 @@
+MAKEFILE=makefile-osx-64
+TO_OS?= TO_OSX_X64
+OS_ID?= 0.2.40
+EXTRA_VIEW_CFLAGS=
+LIBFFI_A=libffi.$(MAKEFILE)/lib/libffi.a
+PKG_CONFIG=pkg-config
+
+MD=makefiles
+
+INCL=/opt/X11/include
+LDFLAGS=-L/opt/X11/lib
+
+include $(MD)/common-defs
+include $(MD)/linux-common-defs
+BIN_SUFFIX=
+
+HOST=$(HOST_COMMON) \
+	 $(HOST_POSIX)
+
+GFX=$(GFX_COMMON) \
+	$(GFX_LINUX)
+
+AGG=$(AGG_COMMON) \
+	$(AGG_LINUX)
+
+include $(MD)/common-targets
+include $(MD)/osx-common-targets

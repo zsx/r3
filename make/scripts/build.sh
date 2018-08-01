@@ -1,5 +1,5 @@
-#!/bin/sh
-#$0 [all|win-32|win-64|linux-32|linux-64] publish
+#!/bin/bash
+#$0 [all|win-32|win-64|linux-32|linux-64|osx-64] publish
 version=3.0.0
 BUILD_TIME=$(date +%Y-%m-%d/%H:%M:%S)
 
@@ -51,6 +51,12 @@ setup() {
 			NAME="r3-aarch64-view-$timestamp-$(revision)"
 			RELNAME="r3-aarch64-view-linux"
 			;;
+		osx-64)
+			EXE="r3-view-osx-64"
+			MK="makefile-osx-64"
+			NAME="r3-osx-64-view-$timestamp-$(revision)"
+			RELNAME="r3-osx-64-view-linux"
+			;;
 		*)
 			echo "unsupported platform $1"
 			exit 1
@@ -69,6 +75,7 @@ build() {
 	else
 		./autogen.sh
 	fi
+    mkdir $DIR/libffi.$MK
 	echo "CFLAGS: $CFLAGS"
 	if [ -z $HOST ]; then
 		if [ -z $CFLAGS ]; then
@@ -106,7 +113,7 @@ run() {
 }
 
 if [ $1 == "all" ]; then
-	for p in "win-32" "win-64" "linux-32" "linux-64"
+	for p in "win-32" "win-64" "linux-32" "linux-64" "osx-64"
 	#for p in "win-32" "linux-64"
 	do
 		run $p $2

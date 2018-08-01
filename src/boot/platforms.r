@@ -26,6 +26,7 @@ REBOL [
 	3 mac-misc
 	4 osx-ppc
 	5 osx-x86
+	40 osx-x64
 ]
 
 3 Windows [

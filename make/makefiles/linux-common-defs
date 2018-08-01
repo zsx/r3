@@ -15,10 +15,13 @@ GUI_CLIB=  -ldl -lm -lstdc++ -lfreetype -L../src/freetype-2.4.12/objs/.libs/ `$(
 # REBOL builds various include files:
 REBOL=	$(CD)r3-make-linux -qs
 
-HOST_LINUX = \
+HOST_POSIX = \
 	$(OBJ_DIR)/host-readline.o \
 	$(OBJ_DIR)/iso-639.o \
-	$(OBJ_DIR)/iso-3166.o \
+	$(OBJ_DIR)/iso-3166.o
+
+HOST_LINUX = \
+    ${HOST_POSIX} \
 	$(OBJ_DIR)/dev-signal.o \
 	$(OBJ_DIR)/p-signal.o \
 	$(OBJ_DIR)/file-chooser-gtk.o
