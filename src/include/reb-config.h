@@ -206,7 +206,7 @@ These are now obsolete (as of A107) and should be removed:
 #endif
 #endif
 
-#ifdef TO_OSX					// OSX/PPC
+#ifdef TO_OSX_PPC					// OSX/PPC
 #define ENDIAN_BIG
 #define HAS_LL_CONSTS
 #define OLD_COMPILER
