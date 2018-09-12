@@ -1269,4 +1269,6 @@ chk_neg:
 		default:
 			Trap_Arg(field);
 	}
+
+    return R_NONE;
 }

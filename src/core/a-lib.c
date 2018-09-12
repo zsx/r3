@@ -1072,7 +1072,7 @@ RL_API int RL_Callback(RXICBI *cbi)
 
 /***********************************************************************
 **
-*/ RL_API REBCNT RL_Restore_Aux_Pointer(REBCNT asp)
+*/ RL_API void RL_Restore_Aux_Pointer(REBCNT asp)
 /*
 ** Restore the auxiliary stack pointer
 ** 
@@ -1090,7 +1090,7 @@ RL_API int RL_Callback(RXICBI *cbi)
 
 /***********************************************************************
 **
-*/ RL_API REBCNT RL_Restore_And_Free_Aux_Pointer(REBCNT asp)
+*/ RL_API void RL_Restore_And_Free_Aux_Pointer(REBCNT asp)
 /*
 ** Restore the auxiliary stack pointer
 ** 

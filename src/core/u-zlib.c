@@ -1,5 +1,6 @@
 #include "sys-zlib.h"
 #include <stdlib.h>
+#include <stdio.h>
 
 #define BASE 65521L /* largest prime smaller than 65536 */
 #define NMAX 5552
@@ -2565,6 +2566,7 @@ local void gen_trees_header OF((void));
    /* Send a code of the given tree. c and tree must not have side effects */
 
 #else /* DEBUG */
+static int z_verbose = 0;
 #  define send_code(s, c, tree) \
      { if (z_verbose>2) fprintf(stderr,"\ncd %3d ",(c)); \
        send_bits(s, tree[c].Code, tree[c].Len); }

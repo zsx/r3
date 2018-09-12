@@ -107,8 +107,8 @@ void RSA_print(const RSA_CTX *ctx);
 /**************************************************************************
  * RNG declarations
  **************************************************************************/
-void get_random(int num_rand_bytes, uint8_t *rand_data);
-void get_random_NZ(int num_rand_bytes, uint8_t *rand_data);
+void get_random(size_t num_rand_bytes, uint8_t *rand_data);
+void get_random_NZ(size_t num_rand_bytes, uint8_t *rand_data);
 
 
 #ifdef __cplusplus

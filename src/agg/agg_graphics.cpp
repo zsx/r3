@@ -31,7 +31,7 @@
 
 extern "C" {
 	#include "../include/host-text-api.h"
-	void* Rich_Text;
+	extern void* Rich_Text;
 }
 #endif
 
@@ -214,15 +214,15 @@ Reb_Print(
 						double scx, scy;
 						attr.post_mtx.scaling(&scx, &scy);
 						REBXYF siz = {
-							(attr.coord_x3 - attr.coord_x2) * scx,
-							(attr.coord_y3 - attr.coord_y2) * scy
+							static_cast<float>((attr.coord_x3 - attr.coord_x2) * scx),
+							static_cast<float>((attr.coord_y3 - attr.coord_y2) * scy)
 						};
 						
 						attr.post_mtx.transform(&attr.coord_x2, &attr.coord_y2);
 						
 						REBXYF oft = {
-							attr.coord_x2,
-							attr.coord_y2
+							static_cast<float>(attr.coord_x2),
+							static_cast<float>(attr.coord_y2)
 						};
 
 						//store the current clip
@@ -853,15 +853,15 @@ Reb_Print(
 							rich_text* rt = (rich_text*)Rich_Text;
 
 							REBXYF siz = {
-								attr.coord_x3 - attr.coord_x2,
-								attr.coord_y3 - attr.coord_y2
+								static_cast<float>(attr.coord_x3 - attr.coord_x2),
+								static_cast<float>(attr.coord_y3 - attr.coord_y2)
 							};
 							
 							attr.post_mtx.transform(&attr.coord_x2, &attr.coord_y2);
 							
 							REBXYF oft = {
-								attr.coord_x2,
-								attr.coord_y2
+								static_cast<float>(attr.coord_x2),
+								static_cast<float>(attr.coord_y2)
 							};
 
                             rect cb = renb.clip_box();

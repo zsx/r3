@@ -48,6 +48,7 @@
     #include <windows.h>
     #include <wincrypt.h>
 #else
+    #include <unistd.h>
     #include <fcntl.h>
 #endif
 
@@ -61,7 +62,7 @@ static int rng_fd = -1;
 /**
  * Set a series of bytes with a random number. Individual bytes can be 0
  */
-void get_random(int num_rand_bytes, uint8_t *rand_data)
+void get_random(size_t num_rand_bytes, uint8_t *rand_data)
 {
 #ifdef TO_WIN32
     /* use Microsoft Crypto Libraries */
@@ -75,7 +76,7 @@ void get_random(int num_rand_bytes, uint8_t *rand_data)
 /**
  * Set a series of bytes with a random number. Individual bytes are not zero.
  */
-void get_random_NZ(int num_rand_bytes, uint8_t *rand_data)
+void get_random_NZ(size_t num_rand_bytes, uint8_t *rand_data)
 {
     int i;
     get_random(num_rand_bytes, rand_data);

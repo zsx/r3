@@ -806,7 +806,7 @@ static void set_wm_locale(Display *display,
 
 static int (*orig_error_handler)(Display *, XErrorEvent *);
 
-static int xdbe_error_handler(Display *d, XErrorEvent *e) {
+static void xdbe_error_handler(Display *d, XErrorEvent *e) {
 	global_x_info->has_double_buffer = 0;
 }
 

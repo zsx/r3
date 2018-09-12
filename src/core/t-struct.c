@@ -1063,4 +1063,6 @@ static void init_fields(REBVAL *ret, REBVAL *spec)
 
 is_arg_error:
 	Trap_Types(RE_EXPECT_VAL, REB_STRUCT, VAL_TYPE(arg));
+
+    return R_NONE; // Not needed, but Xcode complains 'Control may reach end of non-void function'
 }

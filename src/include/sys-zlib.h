@@ -1647,7 +1647,6 @@ void _tr_stored_block OF((deflate_state *s, charf *buf, ulg stored_len,
  * must not have side effects. _dist_code[256] and _dist_code[257] are never
  * used.
  */
-#ifndef DEBUG
 /* Inline versions of _tr_tally for speed: */
 #if defined(GEN_TREES_H) || !defined(STDC)
   extern uch _length_code[];
@@ -1673,9 +1672,4 @@ void _tr_stored_block OF((deflate_state *s, charf *buf, ulg stored_len,
     s->dyn_dtree[d_code(dist)].Freq++; \
     flush = (s->last_lit == s->lit_bufsize-1); \
   }
-#else
-# define _tr_tally_lit(s, c, flush) flush = _tr_tally(s, 0, c)
-# define _tr_tally_dist(s, distance, length, flush) \
-              flush = _tr_tally(s, distance, length) 
-#endif
 #endif
