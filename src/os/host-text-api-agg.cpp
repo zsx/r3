@@ -192,7 +192,7 @@ namespace agg
 
 	extern "C" void rt_newline(void* rt, REBINT index)
 	{
-		((rich_text*)rt)->rt_set_text((REBCHR*)"\n", TRUE);
+		((rich_text*)rt)->rt_set_text((REBCHR*)L"\n", FALSE);
 		((rich_text*)rt)->rt_push(index);
 	}
 
