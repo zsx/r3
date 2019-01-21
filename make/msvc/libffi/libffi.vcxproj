@@ -1,5 +1,5 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
       <Configuration>Debug</Configuration>
@@ -22,33 +22,34 @@
     <ProjectGuid>{793F0ABE-66E5-48C0-9690-3060FF08AFF5}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>libffi</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0.17134.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <CharacterSet>Unicode</CharacterSet>
-    <PlatformToolset>v120</PlatformToolset>
+    <PlatformToolset>v141</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <CharacterSet>Unicode</CharacterSet>
-    <PlatformToolset>v120</PlatformToolset>
+    <PlatformToolset>v141</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
-    <PlatformToolset>v120</PlatformToolset>
+    <PlatformToolset>v141</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
-    <PlatformToolset>v120</PlatformToolset>
+    <PlatformToolset>v141</PlatformToolset>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
@@ -157,7 +158,7 @@ ml.exe /c /Cx /coff /Fo $(Platform)/$(Configuration)/win64.obj $(Platform)/$(Con
 ml64.exe /c /Cx /Fo $(Platform)/$(Configuration)/win64.obj $(Platform)/$(Configuration)/win64_plain.asm</Command>
       <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">cl.exe /EP /I . /I "$(ProjectDir)\include\Win32" /I $(SolutionDir)..\libffi\src\x86 %(FullPath) &gt; $(Platform)/$(Configuration)/win64_plain.asm
 ml.exe /c /Cx /coff /Fo $(Platform)/$(Configuration)/win64.obj $(Platform)/$(Configuration)/win64_plain.asm</Command>
-	  <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">cl.exe /EP /I . /I "$(ProjectDir)\include\x64" /I $(SolutionDir)..\libffi\src\x86 %(FullPath) &gt; $(Platform)/$(Configuration)/win64_plain.asm 
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">cl.exe /EP /I . /I "$(ProjectDir)\include\x64" /I $(SolutionDir)..\libffi\src\x86 %(FullPath) &gt; $(Platform)/$(Configuration)/win64_plain.asm 
 ml64.exe /c /Cx /Fo $(Platform)/$(Configuration)/win64.obj $(Platform)/$(Configuration)/win64_plain.asm</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(Platform)/$(Configuration)/win64.obj</Outputs>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(Platform)/$(Configuration)/win64.obj</Outputs>
