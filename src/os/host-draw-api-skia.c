@@ -36,6 +36,8 @@
 **
 ***********************************************************************/
 
+#include "math.h" // for infinity
+
 #include "reb-host.h"
 #include "reb-series.h"
 #include "reb-skia.h"
@@ -252,7 +254,7 @@ void rebdrw_text(void* gr, REBINT mode, REBXYF* p1, REBXYF* p2, REBSER* block)
     rs_rt_reset(rt);
     rs_draw_text_pre_setup(gr, rt);
     rt_block_text(rt, block);
-	rs_draw_text(gr, p1->x, p1->y, p2->x, p2->y, rt);
+	rs_draw_text(gr, p1->x, p1->y, p2? p2->x : INFINITY, p2 ? p2->y : INFINITY, rt);
 }
 
 void rebdrw_transform(void* gr, REBDEC ang, REBXYF ctr, REBXYF sc, REBXYF oft)
