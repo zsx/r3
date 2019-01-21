@@ -36,8 +36,8 @@ strip-core: r3-core$(BIN_SUFFIX)
 	#-$(NM) -a r3-core$(BIN_SUFFIX)
 	#$(LS) r3-core$(BIN_SUFFIX)
 
-r3-view$(BIN_SUFFIX): prep-view prep-view-stamp $(OBJ_DIR) $(OBJS) $(HOST) $(CODECS) $(GFX) $(AGG)
-	$(CXX) -o r3-view$(BIN_SUFFIX) $(BIT) $(OBJS) $(HOST) $(CODECS) $(GFX) $(AGG) $(CLIB) $(GUI_CLIB)
+r3-view$(BIN_SUFFIX): prep-view prep-view-stamp $(OBJ_DIR) $(OBJS) $(HOST) $(CODECS) $(GFX) $(DRAW_SKIA)
+	$(CXX) -o r3-view$(BIN_SUFFIX) $(BIT) $(OBJS) $(HOST) $(CODECS) $(GFX) $(DRAW_SKIA) $(CLIB) $(GUI_CLIB) $(LIBREBSKIA)
 
 strip-view: r3-view$(BIN_SUFFIX)
 	$(STRIP) $<
@@ -484,6 +484,12 @@ $(OBJ_DIR)/agg_truetype_text.o:$S/agg/agg_truetype_text.cpp
 
 $(OBJ_DIR)/rich_text.o:     $S/agg/rich_text.cpp
 	$(CXX) $S/agg/rich_text.cpp $(HFLAGS_CPP) -o $(OBJ_DIR)/rich_text.o
+
+$(OBJ_DIR)/host-draw-api-skia.o: $S/os/host-draw-api-skia.c
+	$(CC) $S/os/host-draw-api-skia.c $(HFLAGS) -I$(HOME)/work/reb-skia.git/ -I$(HOME)/skia.git/include/core -I$(HOME)/skia.git/include/config -o $@
+
+$(OBJ_DIR)/host-text-api-skia.o: $S/os/host-text-api-skia.c
+	$(CC) $S/os/host-text-api-skia.c $(HFLAGS) -I$(HOME)/work/reb-skia.git/ -I$(HOME)/skia.git/include/core -I$(HOME)/skia.git/include/config -o $@
 
 clean:
 	@-rm -rf $(R3LIB) r3-core-host$(BIN_SUFFIX) r3-view-host$(BIN_SUFFIX) r3-core$(BIN_SUFFIX) r3-view$(BIN_SUFFIX) $(OBJ_DIR)/ 

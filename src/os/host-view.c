@@ -57,7 +57,7 @@
 
 extern void OS_Init_Windows(void);
 extern void rebdrw_to_image(REBYTE *image, REBINT w, REBINT h, REBSER *block);
-extern REBD32 OS_Get_Metrics(METRIC_TYPE type);
+//extern REBD32 OS_Get_Metrics(METRIC_TYPE type);
 extern void* Create_RichText();
 extern void* OS_Load_Cursor(void *cursor);
 extern void* OS_Image_To_Cursor(REBYTE* image, REBINT width, REBINT height);
@@ -300,13 +300,21 @@ REBINT Alloc_Window(REBGOB *gob) {
 	REBINT w,h,result;
 	REBSER* img;
 	void* cp;
+	REBGOB* parent;
+	REBGOB* topgob;
 
-	w = GOB_LOG_W_INT(gob);
-	h = GOB_LOG_H_INT(gob);
+	w = (REBINT)GOB_LOG_W(gob);
+	h = (REBINT)GOB_LOG_H(gob);
 	img = (REBSER*)RL_MAKE_IMAGE(w,h);
 
-	cp = rebcmp_create(Gob_Root, gob);
-	rebcmp_compose(cp, gob, gob, TRUE);
+	//search the window(or topmost) gob
+	topgob = gob;
+	while (GOB_PARENT(topgob) && GOB_PARENT(topgob) != Gob_Root
+		&& GOB_PARENT(topgob) != topgob) // avoid infinite loop
+		topgob = GOB_PARENT(topgob);
+
+	cp = rebcmp_create(Gob_Root, gob, NULL);
+	rebcmp_compose(cp, topgob, gob, TRUE);
 
 	//copy the composed result to image
 	memcpy((REBYTE *)RL_SERIES(img, RXI_SER_DATA), rebcmp_get_buffer(cp), w * h * 4);
@@ -331,6 +339,7 @@ REBINT Alloc_Window(REBGOB *gob) {
 **
 ***********************************************************************/
 {
+    REBINT display = 0;
     switch (cmd) {
         case CMD_GRAPHICS_SHOW:
         {
@@ -434,18 +443,17 @@ REBINT Alloc_Window(REBGOB *gob) {
             {
 
                 REBD32 x,y;
-                u32 w = RL_FIND_WORD(graphics_ext_words,RXA_WORD(frm, 1));
+                u32 w = RL_FIND_WORD(graphics_ext_words, RXA_WORD(frm, 1));
+
+                if (RXA_TYPE(frm, 5) == RXT_INTEGER) {
+                    display = RXA_INT32(frm, 5);
+                }
 
                 switch(w)
                 {
                     case W_GRAPHICS_SCREEN_SIZE:
-                        x = PHYS_COORD_X(OS_Get_Metrics(SM_SCREEN_WIDTH));
-                        y = PHYS_COORD_Y(OS_Get_Metrics(SM_SCREEN_HEIGHT));
-                        break;
-						
-					case W_GRAPHICS_VIRTUAL_SCREEN_SIZE:
-                        x = PHYS_COORD_X(OS_Get_Metrics(SM_VIRTUAL_SCREEN_WIDTH));
-                        y = PHYS_COORD_Y(OS_Get_Metrics(SM_VIRTUAL_SCREEN_HEIGHT));
+                        x = PHYS_COORD_X(OS_Get_Metrics(SM_SCREEN_WIDTH, display));
+                        y = PHYS_COORD_Y(OS_Get_Metrics(SM_SCREEN_HEIGHT, display));
                         break;
 						
                     case W_GRAPHICS_LOG_SIZE:
@@ -466,38 +474,48 @@ REBINT Alloc_Window(REBGOB *gob) {
 						
                     case W_GRAPHICS_TITLE_SIZE:
                         x = 0;
-                        y = PHYS_COORD_Y(OS_Get_Metrics(SM_TITLE_HEIGHT));
+                        y = PHYS_COORD_Y(OS_Get_Metrics(SM_TITLE_HEIGHT, display));
                         break;
 
                     case W_GRAPHICS_BORDER_SIZE:
-                        x = OS_Get_Metrics(SM_BORDER_WIDTH);
-                        y = OS_Get_Metrics(SM_BORDER_HEIGHT);
+                        x = OS_Get_Metrics(SM_BORDER_WIDTH, display);
+                        y = OS_Get_Metrics(SM_BORDER_HEIGHT, display);
                         break;
 
                     case W_GRAPHICS_BORDER_FIXED:
-                        x = OS_Get_Metrics(SM_BORDER_FIXED_WIDTH);
-                        y = OS_Get_Metrics(SM_BORDER_FIXED_HEIGHT);
+                        x = OS_Get_Metrics(SM_BORDER_FIXED_WIDTH, display);
+                        y = OS_Get_Metrics(SM_BORDER_FIXED_HEIGHT, display);
                         break;
 
                     case W_GRAPHICS_WINDOW_MIN_SIZE:
-                        x = OS_Get_Metrics(SM_WINDOW_MIN_WIDTH);
-                        y = OS_Get_Metrics(SM_WINDOW_MIN_HEIGHT);
+                        x = OS_Get_Metrics(SM_WINDOW_MIN_WIDTH, display);
+                        y = OS_Get_Metrics(SM_WINDOW_MIN_HEIGHT, display);
                         break;
 
                     case W_GRAPHICS_WORK_ORIGIN:
-                        x = OS_Get_Metrics(SM_WORK_X);
-                        y = OS_Get_Metrics(SM_WORK_Y);
+                        x = OS_Get_Metrics(SM_WORK_X, display);
+                        y = OS_Get_Metrics(SM_WORK_Y, display);
                         break;
 
                     case W_GRAPHICS_WORK_SIZE:
-                        x = PHYS_COORD_X(OS_Get_Metrics(SM_WORK_WIDTH));
-                        y = PHYS_COORD_Y(OS_Get_Metrics(SM_WORK_HEIGHT));
+                        x = PHYS_COORD_X(OS_Get_Metrics(SM_WORK_WIDTH, display));
+                        y = PHYS_COORD_Y(OS_Get_Metrics(SM_WORK_HEIGHT, display));
                         break;
 
 					case W_GRAPHICS_SCREEN_DPI:
-                        x = OS_Get_Metrics(SM_SCREEN_DPI_X);
-                        y = OS_Get_Metrics(SM_SCREEN_DPI_Y);
+                        x = OS_Get_Metrics(SM_SCREEN_DPI_X, display);
+                        y = OS_Get_Metrics(SM_SCREEN_DPI_Y, display);
                         break;
+
+                    case W_GRAPHICS_SCREEN_ORIGIN:
+                        x = OS_Get_Metrics(SM_SCREEN_X, display);
+                        y = OS_Get_Metrics(SM_SCREEN_Y, display);
+                        break;
+					case W_GRAPHICS_SCREEN_NUM:
+                        x = OS_Get_Metrics(SM_SCREEN_NUM, 0);
+                        RXA_INT64(frm, 1) = x;
+                        RXA_TYPE(frm, 1) = RXT_INTEGER;
+                        return RXR_VALUE;
 					default:
 						return RXR_BAD_ARGS;
                 }
@@ -516,14 +534,13 @@ REBINT Alloc_Window(REBGOB *gob) {
 
         case CMD_GRAPHICS_INIT:
             Gob_Root = (REBGOB*)RXA_SERIES(frm, 1); // system/view/screen-gob
-            Gob_Root->size.x = OS_Get_Metrics(SM_SCREEN_WIDTH);
-            Gob_Root->size.y = OS_Get_Metrics(SM_SCREEN_HEIGHT);
+            Gob_Root->size.x = OS_Get_Metrics(SM_SCREEN_WIDTH, display);
+            Gob_Root->size.y = OS_Get_Metrics(SM_SCREEN_HEIGHT, display);
 
-#if defined(AGG_WIN32_FONTS) || defined(AGG_FREETYPE)
             //Initialize text rendering context
             if (Rich_Text) Destroy_RichText(Rich_Text);
             Rich_Text = Create_RichText();
-#endif
+
             break;
 
         case CMD_GRAPHICS_INIT_WORDS:

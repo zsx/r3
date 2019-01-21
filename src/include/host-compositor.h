@@ -36,7 +36,7 @@
 **
 ***********************************************************************/
 
-extern void* rebcmp_create(REBGOB* rootGob, REBGOB* gob);
+extern void* rebcmp_create(REBGOB* rootGob, REBGOB* gob, void *win);
 
 extern void rebcmp_destroy(void* context);
 

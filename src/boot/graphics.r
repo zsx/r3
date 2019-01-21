@@ -27,6 +27,8 @@ words: [
 	log-size
 	phys-size
 	screen-dpi
+	screen-num
+    screen-origin
 	title-size
 	window-min-size
 	work-origin
@@ -88,6 +90,8 @@ gui-metric: command [
 	keyword [word!] "Available keywords: BORDER-FIXED, BORDER-SIZE, SCREEN-DPI, LOG-SIZE, PHYS-SIZE, SCREEN-SIZE, VIRTUAL-SCREEN-SIZE, TITLE-SIZE, WINDOW-MIN-SIZE, WORK-ORIGIN and WORK-SIZE."
 	/set
 		val "Value used to set specific setting(works only on 'writable' keywords)."
+    /display
+        idx [integer!] "Display index, starting with 0"
 ]
 
 show-soft-keyboard: command [

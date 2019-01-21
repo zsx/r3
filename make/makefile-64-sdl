@@ -1,0 +1,34 @@
+makefile=makefile-64
+TO_OS= TO_LINUX_X64
+OS_ID= 0.4.40
+EXTRA_VIEW_CFLAGS=-DUSE_GTK_FILECHOOSER
+#LIBFFI_A=libffi/lib/libffi.a
+LIBFFI_A=-lffi
+INCL=-I/usr/include/SDL2
+
+MD=makefiles
+
+include $(MD)/common-defs
+include $(MD)/linux-common-defs-sdl
+
+HOST=$(HOST_COMMON) \
+	 $(HOST_LINUX)
+
+GFX=$(GFX_COMMON) \
+	$(GFX_LINUX)
+
+AGG=$(AGG_COMMON) \
+	$(AGG_LINUX)
+
+LIBREBSKIA=$(HOME)/work/reb-skia.git/build-linux/librebskia.a \
+	$(HOME)/work/reb-skia.git/build-linux/libunibreak/lib/libunibreak.a \
+	$(HOME)/work/skia.git/out/Debug/libskia.a \
+	-lpthread -lEGL
+
+LIBREBSKIA=$(HOME)/work/reb-skia.git/build-linux-release/librebskia.a \
+	$(HOME)/work/reb-skia.git/build-linux-release/libunibreak/lib/libunibreak.a \
+	$(HOME)/work/skia.git/out/Release/libskia.a \
+	-lpthread -lEGL
+
+include $(MD)/common-targets
+include $(MD)/linux-common-targets-sdl

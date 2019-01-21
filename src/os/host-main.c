@@ -52,6 +52,8 @@
 #undef _WIN32_WINNT
 #define _WIN32_WINNT 0x0500
 #include <windows.h>
+#else
+#include <unistd.h> // for sleep
 #endif
 
 #define OS_LIB_TABLE		// include the host-lib dispatch table
@@ -62,6 +64,17 @@
 #ifdef CUSTOM_STARTUP
 #include "host-init.h"
 #endif
+
+#include "SDL.h"
+
+#ifdef TO_ANDROID
+#include <android/log.h>
+#define  LOG_TAG    "r3"
+#define  LOGD(...)  __android_log_print(ANDROID_LOG_DEBUG,LOG_TAG,__VA_ARGS__)
+#else
+#define  LOGD(...)  RL_Print(__VA_ARGS__)
+#endif
+
 
 /**********************************************************************/
 
@@ -95,11 +108,15 @@ extern void Open_StdIO(void);
 extern void Put_Str(char *buf);
 extern REBYTE *Get_Str();
 
+static int wait_for_debugger = 0;
+
 /* coverity[+kill] */
 void Host_Crash(REBYTE *reason) {
 	OS_Crash("REBOL Host Failure", reason);
 }
 
+
+extern void rs_draw_enable_trace(int);
 
 /***********************************************************************
 **
@@ -140,6 +157,11 @@ int main(int argc, char **argv)
 #ifdef TO_WIN32  // In Win32 get args manually:
 	// Fetch the win32 unicoded program arguments:
 	argv = (char **)CommandLineToArgvW(GetCommandLineW(), &argc);
+#else
+	while (wait_for_debugger) {
+		sleep(1);
+	}
+
 #endif
 
 	Host_Lib = &Host_Lib_Init;
@@ -149,7 +171,37 @@ int main(int argc, char **argv)
 		always_malloc = atoi(env_always_malloc);
 	}
 
+    if (SDL_Init(SDL_INIT_VIDEO|SDL_INIT_EVENTS) != 0) {
+        SDL_Log("Failed to initialize SDL: %s", SDL_GetError());
+    }
+
+	//SDL_LogSetAllPriority(SDL_LOG_PRIORITY_DEBUG);
+	SDL_LogSetAllPriority(SDL_LOG_PRIORITY_CRITICAL);
+
+    const char *rs_trace = getenv("R3_SKIA_TRACE");
+    if (rs_trace != NULL && atoi(rs_trace)) {
+        rs_draw_enable_trace(TRUE);
+    }
+
+#ifdef TO_ANDROID
+	SDL_RWops *script = SDL_RWFromFile("main.reb", "r");
+	if (script != NULL) {
+		embedded_size = SDL_RWsize(script);
+		if (embedded_size > 0) {
+			embedded_script = OS_Make(embedded_size);
+			if (SDL_RWread(script, embedded_script, embedded_size, 1) < 0) {
+				LOGD("failed to read the embedded script data: %s\n", SDL_GetError());
+				OS_Free(embedded_script);
+				embedded_size = 0;
+			}
+		}
+	} else {
+		LOGD("failed to open the embedded script: %s\n", SDL_GetError());
+	}
+#else
 	embedded_script = OS_Read_Embedded(&embedded_size);
+#endif
+	//LOGD("embedded_size: %lld\n", embedded_size);
 	Parse_Args(argc, (REBCHR **)argv, &Main_Args);
 
 	vers[0] = 5; // len
@@ -160,7 +212,7 @@ int main(int argc, char **argv)
 	Open_StdIO();  // also sets up interrupt handler
 
 	// Initialize the REBOL library (reb-lib):
-	if (!CHECK_STRUCT_ALIGN) Host_Crash("Incompatible struct alignment");
+	//if (!CHECK_STRUCT_ALIGN) Host_Crash("Incompatible struct alignment");
 	if (!Host_Lib) Host_Crash("Missing host lib");
 	// !!! Second part will become vers[2] < RL_REV on release!!!
 	if (vers[1] != RL_VER || vers[2] != RL_REV) Host_Crash("Incompatible reb-lib DLL");
@@ -169,7 +221,9 @@ int main(int argc, char **argv)
 	if (n == 2) Host_Crash("Host-lib wrong version/checksum");
 
 	//Initialize core extension commands
+	//LOGD("Initializing core ext\n");
 	Init_Core_Ext();
+	//LOGD("core ext Initialized\n");
 #ifdef EXT_LICENSING
 	Init_Licensing_Ext();
 #endif //EXT_LICENSING
@@ -230,12 +284,14 @@ int main(int argc, char **argv)
 	// Call sys/start function. If a compressed script is provided, it will be
 	// decompressed, stored in system/options/boot-host, loaded, and evaluated.
 	// Returns: 0: ok, -1: error, 1: bad data.
+	SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Starting up...\n");
 #ifdef CUSTOM_STARTUP
 	// For custom startup, you can provide compressed script code here:
 	n = RL_Start((REBYTE *)(&Reb_Init_Code[0]), REB_INIT_SIZE, embedded_script, (REBINT)embedded_size, 0); // TRUE on halt
 #else
 	n = RL_Start(0, 0, embedded_script, (REBINT)embedded_size, 0);
 #endif
+	SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Started up...\n");
 
 #ifdef TO_WIN32
 #ifdef ENCAP
@@ -252,7 +308,7 @@ int main(int argc, char **argv)
 		&& (
 			!Main_Args.script // no script was provided
 			|| n  < 0         // script halted or had error
-			|| (Main_Args.options & RO_HALT)  // --halt option
+			|| Main_Args.options & RO_HALT  // --halt option
 		)
 	){
 		n = 0;  // reset error code (but should be able to set it below too!)

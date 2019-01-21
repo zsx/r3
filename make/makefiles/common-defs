@@ -75,10 +75,8 @@ GFX_COMMON= \
 	$(OBJ_DIR)/host-window.o\
 	$(OBJ_DIR)/host-graphics.o\
 	$(OBJ_DIR)/host-draw.o\
-	$(OBJ_DIR)/host-draw-api.o\
 	$(OBJ_DIR)/host-compositor.o\
 	$(OBJ_DIR)/host-text.o\
-	$(OBJ_DIR)/host-text-api.o\
 	$(OBJ_DIR)/host-event.o
 
 AGG_COMMON= \
@@ -104,3 +102,10 @@ AGG_COMMON= \
 	$(OBJ_DIR)/agg_vpgen_segmentator.o\
 	$(OBJ_DIR)/agg_graphics.o\
 	$(OBJ_DIR)/agg_truetype_text.o
+AGG_API= \
+	$(OBJ_DIR)/host-draw-api.o\
+	$(OBJ_DIR)/host-text-api.o
+
+DRAW_SKIA= \
+    $(OBJ_DIR)/host-draw-api-skia.o \
+    $(OBJ_DIR)/host-text-api-skia.o

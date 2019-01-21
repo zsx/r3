@@ -105,6 +105,46 @@ static u32* text_ext_words;
 	return TRUE;
 }
 
+REBCNT Length_As_UTF8(REBUNI *src, REBCNT len, REBOOL uni, REBOOL ccr);
+REBCNT Encode_UTF8(REBYTE *dst, REBINT max, void *src, REBCNT *len, REBFLG uni, REBFLG ccr);
+
+/***********************************************************************
+**
+*/	REBOOL As_UTF8_Str(REBSER *series, REBYTE **string)
+/*
+**	Convert a string series to UTF8 chars.
+**  If the string series is empty the resulting string is set to NULL
+**
+**  Function returns:
+**      TRUE - if the resulting string needs to be deallocated by the caller code
+**      FALSE - if REBOL string is used (no dealloc needed)
+**
+**  Note: REBOL strings are allowed to contain nulls.
+**
+***********************************************************************/
+{
+	int res;
+	void *str;
+
+	if ((res = RL_Get_String(series, 0, &str)) == 0) {
+		*string = NULL;
+		return FALSE;
+	}
+
+    if (res < 0) {
+        // bytes
+        *string = str;
+        return FALSE;
+    } else {
+        REBCNT len = Length_As_UTF8(str, res, TRUE, FALSE);
+	    *string = OS_Make(len+1);
+        REBCNT olen = len;
+        Encode_UTF8(*string, len, str, &olen, TRUE, 0);
+        (*string)[len] = '\0';
+        return TRUE;
+    }
+}
+
 //**********************************************************************
 //** Text commands! dipatcher **************************************
 //**********************************************************************
@@ -141,7 +181,7 @@ static u32* text_ext_words;
             u32 *words, *w;
             REBSER *obj;
             REBCNT type;
-			REBXYF caret, highlightStart, highlightEnd = {0, 0};
+            REBXYF caret, highlightStart, highlightEnd;
             REBXYF *pcaret = 0, *phighlightStart = 0;
             obj = RXA_OBJECT(frm, 1);
 //Reb_Print("RXI_WORDS_OF_OBJECT() called\n");
@@ -475,15 +515,11 @@ static u32* text_ext_words;
 
     case CMD_TEXT_TEXT:
         {
-            REBCHR* str;
-#ifdef TO_WIN32
-			//Windows uses UTF16 wide chars
-			REBOOL dealloc = As_OS_Str(RXA_SERIES(frm, 1), &str);
-#else
-			//linux, android use UTF32 wide chars
-            REBOOL dealloc = As_UTF32_Str(RXA_SERIES(frm, 1), &str);
-#endif			
-            rt_text(ctx->envr, str, ctx->index + 2, dealloc);
+            REBYTE* str = NULL;
+            REBOOL dealloc = As_UTF8_Str(RXA_SERIES(frm, 1), &str);
+            if (str) {
+                rt_text_utf8(ctx->envr, str, 0, dealloc);
+            }
         }
         break;
 
