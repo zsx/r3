@@ -44,6 +44,9 @@
 
 extern void *Rich_Text;
 
+#define NOT_IMPLEMENTED \
+    printf("NOT IMPLEMENTED, %s, %s, %d\n", __FILE__, __func__, __LINE__)
+
 void rebdrw_add_vertex (void* gr, REBXYF p)
 {
 	rs_draw_add_vertex(gr, p.x, p.y);
@@ -61,7 +64,7 @@ void rebdrw_arc(void* gr, REBXYF c, REBXYF r, REBDEC ang1, REBDEC ang2, REBINT c
 
 void rebdrw_arrow(void* gr, REBXYF mode, REBCNT col)
 {
-	//rs_draw_arrow(gr, mode, color);
+	rs_draw_arrow(gr, mode.x, mode.y, col);
 }
 
 void rebdrw_begin_poly (void* gr, REBXYF p)
@@ -96,6 +99,7 @@ void rebdrw_curve4(void* gr, REBXYF p1, REBXYF p2, REBXYF p3, REBXYF p4)
 								
 REBINT rebdrw_effect(void* gr, REBPAR* p1, REBPAR* p2, REBSER* block)
 {
+    NOT_IMPLEMENTED;
 	return 0;
 }
 
@@ -111,6 +115,7 @@ void rebdrw_end_poly (void* gr)
 
 void rebdrw_end_spline (void* gr, REBINT step, REBINT closed)
 {
+    rs_draw_end_spline(gr, step, closed);
 }
 
 void rebdrw_fill_pen(void* gr, REBCNT col)
@@ -139,6 +144,9 @@ void rebdrw_gamma(void* gr, REBDEC gamma)
 
 void rebdrw_gradient_pen(void* gr, REBINT gradtype, REBINT mode, REBXYF oft, REBXYF range, REBDEC angle, REBXYF scale, REBSER* colors)
 {
+    NOT_IMPLEMENTED;
+    // TODO
+    //rs_draw_gradient_pen(gr, gradtype, mode, oft.x, range.x, angle, scale.x, scale.y, colors);
 }
 
 void rebdrw_invert_matrix(void* gr)
@@ -153,18 +161,47 @@ void rebdrw_image(void* gr, REBYTE* img, REBINT w, REBINT h,REBXYF offset)
 
 void rebdrw_image_filter(void* gr, REBINT type, REBINT mode, REBDEC blur)
 {
+    rs_draw_image_filter(gr, type, mode, blur);
 }
 
 void rebdrw_image_options(void* gr, REBCNT keyCol, REBINT border)
 {
+    rs_draw_image_options(gr, keyCol, border);
 }
 
 void rebdrw_image_pattern(void* gr, REBINT mode, REBXYF offset, REBXYF size)
 {
+    rs_draw_image_pattern(gr, mode, offset.x, offset.y, size.x, size.y);
 }
 
 void rebdrw_image_scale(void* gr, REBYTE* img, REBINT w, REBINT h, REBSER* points)
 {
+    RXIARG a;
+    REBXYF p[4];
+    REBCNT type;
+    REBCNT n, len = 0;
+
+    for (n = 0; type = RL_GET_VALUE(points, n, &a); n++) {
+        if (type == RXT_PAIR) {
+            p[len] = (REBXYF) RXI_LOG_PAIR(a);
+            if (++len == 4) break;
+        }
+    }
+
+    if (!len) return;
+    if (len == 1 && log_size.x == 1 && log_size.y == 1) {
+        rs_draw_image(gr, img, w, h, p[0].x, p[0].y);
+        return;
+    }
+
+    switch (len) {
+    case 2:
+        rs_draw_image_scale(gr, img, w, h, p[0].x, p[0].y, p[1].x, p[1].y);
+        break;
+    case 3:
+    case 4:
+        NOT_IMPLEMENTED;
+    }
 }
 
 void rebdrw_line(void* gr, REBXYF p1, REBXYF p2)
@@ -203,6 +240,24 @@ void rebdrw_line_width(void* gr, REBDEC width, REBINT mode)
 
 void rebdrw_matrix(void* gr, REBSER* mtx)
 {
+    RXIARG val;
+    REBCNT type;
+    REBCNT n;
+    float m[6];
+
+    for (n = 0; type = RL_GET_VALUE(mtx, n, &val), n < 6; n++) {
+        if (type == RXT_DECIMAL)
+            m[n] = val.dec64;
+        else if (type == RXT_INTEGER)
+            m[n] = val.int64;
+        else {
+            return;
+        }
+    }
+
+    if (n != 6) return;
+
+    rs_draw_matrix(gr, m[0], m[1], m[2], m[3], m[4], m[5]);
 }
 
 void rebdrw_pen(void* gr, REBCNT col)
@@ -212,6 +267,7 @@ void rebdrw_pen(void* gr, REBCNT col)
 
 void rebdrw_pen_image(void* gr, REBYTE* img, REBINT w, REBINT h)
 {
+    rs_draw_pen_image(gr, img, w, h);
 }
 
 void rebdrw_pop_matrix(void* gr)
@@ -226,6 +282,8 @@ void rebdrw_push_matrix(void* gr)
 
 void rebdrw_reset_gradient_pen(void* gr)
 {
+    NOT_IMPLEMENTED;
+    //rs_draw_reset_gradient_pen(gr);
 }
 
 void rebdrw_reset_matrix(void* gr)
@@ -331,6 +389,20 @@ void rebshp_qcurve(void* gr, REBINT rel, REBXYF p1, REBXYF p2)
 
 void rebdrw_to_image(REBYTE *image, REBINT w, REBINT h, REBSER *block)
 {
+    rs_draw_context_t *ctx = rs_draw_create_context_with_dimension(w, h);
+    rs_draw_begin_frame(ctx);
+
+	REBCEC cec;
+	cec.envr = ctx;
+	cec.block = block;
+	cec.index = 0;
+
+	RL_DO_COMMANDS(block, 0, &cec);
+
+    rs_draw_end_frame(ctx);
+
+    rs_draw_read_pixel(ctx, image);
+    rs_draw_free_context(ctx);
 }
 
 void rebdrw_gob_color(REBGOB *gob, rs_draw_context_t *ctx, REBXYI abs_oft, REBXYI clip_oft, REBXYI clip_siz)
@@ -351,6 +423,15 @@ void rebdrw_gob_color(REBGOB *gob, rs_draw_context_t *ctx, REBXYI abs_oft, REBXY
 
 void rebdrw_gob_image(REBGOB *gob, rs_draw_context_t *ctx, REBXYI abs_oft, REBXYI clip_oft, REBXYI clip_siz)
 {
+
+    struct rebol_series* img = (struct rebol_series*)GOB_CONTENT(gob);
+    int w = IMG_WIDE(img);
+    int h = IMG_HIGH(img);
+
+    rs_draw_reset_painters(ctx);
+
+    // TODO: set clip
+    rs_draw_image(ctx, IMG_DATA(img), w, h, abs_oft.x, abs_oft.y);
 }
 
 void rebdrw_gob_draw(REBGOB *gob, rs_draw_context_t *ctx, REBXYI abs_oft, REBXYI clip_oft, REBXYI clip_siz)
