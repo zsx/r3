@@ -41,9 +41,8 @@
 #include "reb-host.h"
 #include "SDL.h"
 
-#ifdef TO_LINUX
-#include <X11/Xlib.h>
-#include <X11/Xatom.h>
+#ifdef TO_WIN32
+#include <windows.h>
 #endif
 
 //***** Externs *****
@@ -347,6 +346,27 @@ static int get_work_area(Display *display, METRIC_TYPE type)
 		case SM_SCREEN_DPI_Y:
 			SDL_GetDisplayDPI(display, NULL, NULL, &dpi);
 			return dpi;
+		case SM_TITLE_HEIGHT:
+#ifdef TO_WIN32
+			return GetSystemMetrics(SM_CYCAPTION);
+#else
+			return 23;
+#endif
+
+#ifdef TO_WIN32
+		case SM_BORDER_WIDTH:
+			return GetSystemMetrics(SM_CXSIZEFRAME);
+		case SM_BORDER_HEIGHT:
+			return GetSystemMetrics(SM_CYSIZEFRAME);
+		case SM_BORDER_FIXED_WIDTH:
+			return GetSystemMetrics(SM_CXFIXEDFRAME);
+		case SM_BORDER_FIXED_HEIGHT:
+			return GetSystemMetrics(SM_CYFIXEDFRAME);
+		case SM_WINDOW_MIN_WIDTH:
+			return GetSystemMetrics(SM_CXMIN);
+		case SM_WINDOW_MIN_HEIGHT:
+			return GetSystemMetrics(SM_CYMIN);
+#endif
 	}
 	return 0;
 //#endif
