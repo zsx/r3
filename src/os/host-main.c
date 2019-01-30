@@ -175,8 +175,12 @@ int main(int argc, char **argv)
         SDL_Log("Failed to initialize SDL: %s", SDL_GetError());
     }
 
-	//SDL_LogSetAllPriority(SDL_LOG_PRIORITY_DEBUG);
-	SDL_LogSetAllPriority(SDL_LOG_PRIORITY_CRITICAL);
+	const char env_log_level = getenv("R3_SDL_LOG_LEVEL");
+	if (env_log_level != NULL) {
+		SDL_LogSetAllPriority(atoi(env_log_level));
+	} else {
+		SDL_LogSetAllPriority(SDL_LOG_PRIORITY_CRITICAL);
+	}
 
     const char *rs_trace = getenv("R3_SKIA_TRACE");
     if (rs_trace != NULL && atoi(rs_trace)) {
