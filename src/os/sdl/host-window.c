@@ -186,7 +186,8 @@ static void prepare_gl_env()
 	SDL_Window *win = NULL;
 	REBYTE *title;
 	REBYTE title_needs_free = FALSE;
-	Uint32 flags = SDL_WINDOW_OPENGL;
+	Uint32 flags = SDL_WINDOW_OPENGL
+				  | SDL_WINDOW_ALLOW_HIGHDPI;
 	REBGOB *parent_gob = GOB_PARENT(gob);
 
 	windex = Alloc_Window(gob);
