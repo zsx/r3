@@ -73,7 +73,8 @@ extern void Free_Window(REBGOB *gob);
 extern void* Find_Compositor(REBGOB *gob);
 extern REBINT Alloc_Window(REBGOB *gob);
 extern void Draw_Window(REBGOB *wingob, REBGOB *gob);
-extern REBINT As_UTF8_Str(REBSER *series, REBYTE **string);
+extern REBOOL As_UTF8_Str(REBSER *series, REBYTE **string);
+extern void OS_Free(void *);
 
 //***** Locals *****
 
@@ -83,7 +84,7 @@ static REBXYF Zero_Pair = {0, 0};
 //** OSAL Library Functions ********************************************
 //**********************************************************************
 
-static int prepare_gl_env()
+static void prepare_gl_env()
 {
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
@@ -183,7 +184,7 @@ static int prepare_gl_env()
 	REBINT h = GOB_LOG_H_INT(gob);
 
 	SDL_Window *win = NULL;
-	REBCHR *title;
+	REBYTE *title;
 	REBYTE title_needs_free = FALSE;
 	Uint32 flags = SDL_WINDOW_OPENGL;
 	REBGOB *parent_gob = GOB_PARENT(gob);
@@ -191,7 +192,7 @@ static int prepare_gl_env()
 	windex = Alloc_Window(gob);
 
 	if (IS_GOB_STRING(gob))
-        title_needs_free = As_UTF8_Str(GOB_CONTENT(gob), (REBCHR**)&title);
+        title_needs_free = As_UTF8_Str(GOB_CONTENT(gob), &title);
     else
         title = "REBOL Window";
 
@@ -211,7 +212,7 @@ static int prepare_gl_env()
 		flags |= SDL_WINDOW_MINIMIZED;
 	}
 
-	printf("Opening a window at: %dx%d, %dx%d, owner gob: 0x%p\n", x, y, w, h, parent_gob);
+	//printf("Opening a window at: %dx%d, %dx%d, owner gob: 0x%p\n", x, y, w, h, parent_gob);
 	if (parent_gob != NULL) {
 		if (!GET_GOB_FLAG(gob, GOBF_POPUP)) {
 			/* x, y are in parent gob coordinates */
@@ -256,6 +257,8 @@ static int prepare_gl_env()
 	SET_GOB_FLAG(gob, GOBF_WINDOW);
 	SET_GOB_FLAG(gob, GOBF_ACTIVE);
 	SET_GOB_STATE(gob, GOBS_OPEN);
+
+	return win;
 }
 
 /***********************************************************************
