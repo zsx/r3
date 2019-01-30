@@ -40,6 +40,7 @@
 #include "reb-host.h"
 #include <reb-skia.h>
 #include <host-text-api.h>
+#include "host-ext-text.h"
 
 typedef REBFNT font;
 typedef REBPRA para;
@@ -82,7 +83,7 @@ static REBPRA Vpara = {
 void* Rich_Text;
 
 REBINT As_OS_Str(REBSER *series, REBCHR **string);
-REBINT As_UTF8_Str(REBSER *series, REBCHR **string);
+REBOOL As_UTF8_Str(REBSER *series, REBYTE **string);
 
 void rt_block_text(void *richtext, REBSER *block)
 {
@@ -154,6 +155,12 @@ void rt_drop(void* rt, REBINT number)
 
 void rt_font(void* rt, font* font)
 {
+    if (font) {
+        rt_color(rt, *(rs_argb_t*)font->color);
+        rt_font_size(rt, font->size);
+        rt_italic(rt, font->italic);
+        rt_bold(rt, font->bold);
+    }
 }
 
 void rt_font_size(void* rt, REBINT size)
@@ -187,6 +194,22 @@ void rt_newline(void* rt, REBINT index)
 
 void rt_para(void* rt, para* para)
 {
+    if (para) {
+        switch (para->align) {
+        case W_TEXT_CENTER:
+            rt_center(rt);
+            break;
+        case W_TEXT_LEFT:
+            rt_left(rt);
+            break;
+        case W_TEXT_RIGHT:
+            rt_right(rt);
+            break;
+        default:
+            rt_left(rt);
+            break;
+        }
+    }
 }
 
 void rt_right(void* rt)
@@ -232,7 +255,7 @@ void rt_size_text(void* rt, REBGOB* gob, REBXYF* size)
 void rt_text(void* rt, REBCHR* text, REBINT index, REBCNT dealloc)
 {
 	char * utf8 = NULL;
-	int needs_free = As_UTF8_Str(text + index, &utf8);
+	REBOOL needs_free = As_UTF8_Str(text + index, &utf8);
 	rs_rt_text(rt, utf8);
 	if (needs_free) {
 		OS_Free(utf8);
