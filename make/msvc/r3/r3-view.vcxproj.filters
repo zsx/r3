@@ -360,9 +360,6 @@
     <ClCompile Include="..\..\..\src\os\host-view.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\src\os\win32\dev-clipboard.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\..\src\os\win32\dev-file.c">
       <Filter>Source Files</Filter>
     </ClCompile>

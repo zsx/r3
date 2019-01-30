@@ -129,8 +129,9 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>wsock32.lib;..\..\..\..\reb-skia.git\build\Debug\rebskia.lib;..\..\..\..\reb-skia.git\build\libunibreak\lib\unibreak.lib;..\..\..\..\angle.git\out\Debug\libEGL.dll.lib;..\..\..\..\angle.git\out\Debug\libGLESv2.dll.lib;..\..\..\..\SDL2-2.0.8\lib\x64\SDL2.lib;..\..\..\..\SDL2-2.0.8\lib\x64\SDL2main.lib;..\..\..\..\skia.git\out\Debug\skia.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>wsock32.lib;rebskia.lib;..\..\..\..\reb-skia.git\build\libunibreak\lib\unibreak.lib;libEGL.dll.lib;libGLESv2.dll.lib;SDL2.lib;SDL2main.lib;skia.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <StackReserveSize>4194300</StackReserveSize>
+      <AdditionalLibraryDirectories>..\..\..\..\reb-skia.git\build\Release\;..\..\..\..\SDL2-2.0.8\lib\x64;..\..\..\..\skia.git\out\Release</AdditionalLibraryDirectories>
     </Link>
     <ProjectReference>
       <LinkLibraryDependencies>true</LinkLibraryDependencies>
@@ -184,7 +185,8 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <StackReserveSize>4194300</StackReserveSize>
-      <AdditionalDependencies>wsock32.lib;..\..\..\..\reb-skia.git\build\Release\rebskia.lib;..\..\..\..\reb-skia.git\build\libunibreak\lib\unibreak.lib;..\..\..\..\angle.git\out\Release\libEGL.dll.lib;..\..\..\..\angle.git\out\Release\libGLESv2.dll.lib;..\..\..\..\SDL2-2.0.8\lib\x64\SDL2.lib;..\..\..\..\SDL2-2.0.8\lib\x64\SDL2main.lib;..\..\..\..\skia.git\out\Release\skia.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>wsock32.lib;rebskia.lib;..\..\..\..\reb-skia.git\build\libunibreak\lib\unibreak.lib;libEGL.dll.lib;libGLESv2.dll.lib;SDL2.lib;SDL2main.lib;skia.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>..\..\..\..\SDL2-2.0.8\lib\x64;..\..\..\..\skia.git\out\Release;..\..\..\..\reb-skia.git\build\Release\</AdditionalLibraryDirectories>
     </Link>
     <PreBuildEvent>
       <Command>prebuild64.bat</Command>
@@ -322,7 +324,6 @@
     <ClCompile Include="..\..\..\src\os\sdl\host-event.c" />
     <ClCompile Include="..\..\..\src\os\sdl\host-graphics.c" />
     <ClCompile Include="..\..\..\src\os\sdl\host-window.c" />
-    <ClCompile Include="..\..\..\src\os\win32\dev-clipboard.c" />
     <ClCompile Include="..\..\..\src\os\win32\dev-file.c" />
     <ClCompile Include="..\..\..\src\os\win32\dev-serial.c" />
     <ClCompile Include="..\..\..\src\os\win32\dev-stdio.c" />
