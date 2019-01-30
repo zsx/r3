@@ -368,6 +368,8 @@ failed:
 	//------------------------------
 	SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "composing ctx: %p, size: %dx%d\n", ctx, GOB_LOG_W_INT(gob), GOB_LOG_H_INT(gob));
 
+	SDL_GL_MakeCurrent(ctx->win, ctx->gl_ctx);
+
 	//calculate absolute offset of the gob
 	while (GOB_PARENT(parent_gob) && (max_depth-- > 0) && !GET_GOB_FLAG(parent_gob, GOBF_WINDOW))
 	{
