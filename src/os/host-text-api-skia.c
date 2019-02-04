@@ -80,7 +80,7 @@ static REBPRA Vpara = {
 		0,  //REBINT valign;
 };
 
-void* Rich_Text;
+extern void* Rich_Text;
 
 REBINT As_OS_Str(REBSER *series, REBCHR **string);
 REBOOL As_UTF8_Str(REBSER *series, REBYTE **string);
