@@ -116,6 +116,7 @@ static void prepare_gl_env()
     SDL_GL_SetAttribute(SDL_GL_ACCELERATED_VISUAL, 1);
 }
 
+void OS_Close_Window(REBGOB *gob);
 
 /***********************************************************************
 **
@@ -252,6 +253,11 @@ static void prepare_gl_env()
 
 	Gob_Windows[windex].win = win;
 	Gob_Windows[windex].compositor = rebcmp_create(Gob_Root, gob, win);
+    
+    if (Gob_Windows[windex].compositor == NULL) {
+        OS_Close_Window(gob);
+        return NULL;
+    }
 	CLEAR_GOB_STATE(gob);
 	SET_GOB_STATE(gob, GOBS_NEW);
 
