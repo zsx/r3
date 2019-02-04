@@ -96,5 +96,5 @@ extern void rt_underline(void* rt, REBINT state);
 
 extern void rt_offset_to_caret(void* rt, REBGOB *gob, REBXYF xy, REBINT *element, REBINT *position);
 extern void rt_caret_to_offset(void* rt, REBGOB *gob, REBXYF* xy, REBINT element, REBINT position);
-extern REBINT rt_gob_text(REBGOB *gob, REBYTE* buf, REBXYI abs_oft, REBXYI clip_oft, REBXYI clip_siz);
+extern void rt_gob_text(REBGOB *gob, REBYTE* buf, REBXYI abs_oft, REBXYI clip_oft, REBXYI clip_siz);
 extern void rt_block_text(void *rt, REBSER *block);

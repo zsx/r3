@@ -96,9 +96,9 @@ void rt_block_text(void *richtext, REBSER *block)
 	RL_DO_COMMANDS(block, 0, &ctx);
 }
 
-REBINT rt_gob_text(REBGOB *gob, REBYTE* ctx, REBXYI abs_oft, REBXYI clip_oft, REBXYI clip_siz)
+void rt_gob_text(REBGOB *gob, REBYTE* ctx, REBXYI abs_oft, REBXYI clip_oft, REBXYI clip_siz)
 {
-	if (GET_GOB_FLAG(gob, GOBF_WINDOW)) return 0; //don't render window title text
+	if (GET_GOB_FLAG(gob, GOBF_WINDOW)) return; //don't render window title text
 	rs_rich_text_t *rt = (rs_rich_text_t *)Rich_Text;
     rs_rt_reset(rt);
     rs_draw_text_pre_setup(ctx, rt);
