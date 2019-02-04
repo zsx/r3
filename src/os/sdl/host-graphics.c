@@ -92,7 +92,7 @@ extern void Init_Host_Event();
 **
 ***********************************************************************/
 {
-	return 0;
+	return NULL;
 }
 
 /***********************************************************************
@@ -105,187 +105,6 @@ extern void Init_Host_Event();
 {
 }
 
-#if 0
-#ifdef TO_LINUX
-
-static int get_work_area(Display *display, METRIC_TYPE type)
-{
-	   Atom     actual_type;
-	   int      actual_format;
-	   long     nitems;
-	   long     bytes;
-	   long     *data = NULL;
-	   int 		status;
-	   int 		index = 0;
-	   int		ret;
-	   Atom		XA_NET_WORKAREA = None;
-	   int fake_data[] = {0, 0, 1920, 1080};
-
-	   switch(type) {
-		   case SM_WORK_X:
-			   index = 0;
-			   break;
-		   case SM_WORK_Y:
-			   index = 1;
-			   break;
-		   case SM_WORK_WIDTH:
-			   index = 2;
-			   break;
-		   case SM_WORK_HEIGHT:
-			   index = 3;
-			   break;
-	   }
-
-	   XA_NET_WORKAREA = XInternAtom(display, "_NET_WORKAREA", True);
-	   if (XA_NET_WORKAREA == None) {
-		   return fake_data[index];
-	   }
-	   status = XGetWindowProperty(display,
-								   DefaultRootWindow(display),
-								   XA_NET_WORKAREA,
-								   0,
-								   (~0L),
-								   False,
-								   AnyPropertyType,
-								   &actual_type,
-								   &actual_format,
-								   &nitems,
-								   &bytes,
-								   (unsigned char**)&data);
-
-	   /*
-		  RL_Print("actual_type %d\n", actual_type);
-		  RL_Print("actual_format %d\n", actual_format);
-		  RL_Print("nitems %d\n", nitems);
-		  RL_Print("bytes %d\n", bytes);
-		  for (i=0; i < nitems; i++){
-		  RL_Print("data[%d] %d\n", i, data[i]);
-		  }
-		  */
-	   if (status != Success
-		   || data == NULL
-		   || actual_type != XA_CARDINAL
-		   || actual_format != 32
-		   || nitems < 4) {
-		   //RL_Print("Falling back...\n");
-		   if (data) {
-			   XFree(data);
-		   }
-		   return fake_data[index];
-	   }
-
-	   ret = data[index];
-	   XFree(data);
-	   return ret;
-}
-
-/***********************************************************************
-**
-*/	REBD32 X11_Get_Metrics(METRIC_TYPE type)
-/*
-**
-***********************************************************************/
-{
-       Screen *sc = NULL;
-	   Window root = 0;
-       int dot, mm;
-	   Atom     actual_type;
-	   int      actual_format;
-	   long     nitems;
-	   long     bytes;
-	   long     *data = NULL;
-	   int      status;
-	   int 		i;
-	   REBD32	ret;
-	   Atom		XA_NET_FRAME_EXTENTS = None;
-	   Display	*display = NULL;
-
-	   display = XOpenDisplay(NULL);
-
-       if (display == NULL){
-               return 0;
-       }
-	   root = DefaultRootWindow(display);
-       sc = XDefaultScreenOfDisplay(display);
-       switch(type) {
-               case SM_SCREEN_WIDTH:
-                       ret = XWidthOfScreen(sc);
-					   XCloseDisplay(display);
-					   return ret;
-               case SM_SCREEN_HEIGHT:
-                       ret = XHeightOfScreen(sc);
-					   XCloseDisplay(display);
-					   return ret;
-               case SM_WORK_X:
-               case SM_WORK_Y:
-               case SM_WORK_WIDTH:
-               case SM_WORK_HEIGHT:
-					   ret = get_work_area(display, type);
-					   XCloseDisplay(display);
-					   return ret;
-               case SM_TITLE_HEIGHT:
-					   XA_NET_FRAME_EXTENTS = XInternAtom(display, "_NET_FRAME_EXTENTS", True);
-					   if (XA_NET_FRAME_EXTENTS == None) {
-						   XCloseDisplay(display);
-						   return 20; //FIXME
-					   }
-					   status = XGetWindowProperty(display,
-												   RootWindowOfScreen(sc),
-												   XA_NET_FRAME_EXTENTS,
-												   0,
-												   (~0L),
-												   False,
-												   AnyPropertyType,
-												   &actual_type,
-												   &actual_format,
-												   &nitems,
-												   &bytes,
-												   (unsigned char**)&data);
-					   if (status != Success
-						   || data == NULL
-						   || actual_type != XA_CARDINAL
-						   || actual_format != 32
-						   || nitems != 4) {
-						   //RL_Print("status = %d, nitmes = %d\n", status, nitems);
-						   //Host_Crash("XGetWindowProperty failed in OS_Get_Metrics");
-						   XCloseDisplay(display);
-						   return 20; //FIXME
-					   }
-
-                       ret = data[2]; //left, right, top, bottom
-					   XFree(data);
-					   XCloseDisplay(display);
-					   return ret;
-               case SM_SCREEN_DPI_X:
-                       dot = XWidthOfScreen(sc);
-                       mm = XWidthMMOfScreen(sc);
-					   XCloseDisplay(display);
-                       return round(dot * 25.4 / mm);
-               case SM_SCREEN_DPI_Y:
-                       dot = XHeightOfScreen(sc);
-                       mm = XHeightMMOfScreen(sc);
-					   XCloseDisplay(display);
-                       return round(dot * 25.4 / mm);
-               case SM_BORDER_WIDTH:
-               case SM_BORDER_HEIGHT:
-               case SM_BORDER_FIXED_WIDTH:
-               case SM_BORDER_FIXED_HEIGHT:
-					   XCloseDisplay(display);
-					   return 5; //FIXME
-               case SM_WINDOW_MIN_WIDTH:
-					   XCloseDisplay(display);
-					   return 132; //FIXME; from windows
-               case SM_WINDOW_MIN_HEIGHT:
-					   XCloseDisplay(display);
-					   return 38; //FIXME; from windows
-               default:
-					   XCloseDisplay(display);
-					   Host_Crash("NOT implemented others in OS_Get_Metrics");
-                       return 0; //FIXME, not implemented 
-       }
-}
-#endif
-#endif
 
 /***********************************************************************
 **
@@ -298,77 +117,117 @@ static int get_work_area(Display *display, METRIC_TYPE type)
 	SDL_Rect rect;
 	SDL_DisplayMode mode;
 	float dpi;
-	//SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "number of screens: %d\n", SDL_GetNumVideoDisplays());
+    REBD32 ret = 0;
 
 	switch (type) {
 		case SM_SCREEN_NUM:
-			return SDL_GetNumVideoDisplays();
+			ret = SDL_GetNumVideoDisplays();
+			break;
 		case SM_SCREEN_WIDTH:
 			//SDL_GetDisplayBounds(0, &rect);
 			if (SDL_GetDisplayBounds(display, &rect)) {
 				SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "SDL_GetDisplayBounds failed: %s", SDL_GetError());
-				return 0;
+				ret = 0;
 			}
-			return rect.w;
+			ret = rect.w;
+			break;
 		case SM_SCREEN_HEIGHT:
 			if (SDL_GetDisplayBounds(display, &rect)) {
 				SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "SDL_GetDisplayBounds failed: %s", SDL_GetError());
-				return 0;
+				ret = 0;
 			}
 			//SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "screen height: %d\n", rect.h);
-			return rect.h;
+			ret = rect.h;
+			break;
 		case SM_SCREEN_X:
 			SDL_GetDisplayBounds(display, &rect);
-			return rect.x;
+			ret = rect.x;
+			break;
 		case SM_SCREEN_Y:
 			SDL_GetDisplayBounds(display, &rect);
-			return rect.y;
-
+			ret = rect.y;
+			break;
 		case SM_WORK_WIDTH:
 			if (SDL_GetDisplayUsableBounds(display, &rect)) {
 				SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "SDL_GetDisplayUsableBounds failed: %s", SDL_GetError());
-				return 0;
+				ret = 0;
 			}
-			return rect.w;
+			ret = rect.w;
+			break;
 		case SM_WORK_HEIGHT:
 			SDL_GetDisplayUsableBounds(display, &rect);
-			return rect.h;
+			ret = rect.h;
+			break;
 		case SM_WORK_X:
 			SDL_GetDisplayUsableBounds(display, &rect);
-			return rect.x;
+			ret = rect.x;
+			break;
 		case SM_WORK_Y:
 			SDL_GetDisplayUsableBounds(display, &rect);
-			return rect.y;
-
+			ret = rect.y;
+			break;
 		case SM_SCREEN_DPI_X:
 			SDL_GetDisplayDPI(display, NULL, &dpi, NULL);
-			return dpi;
+			ret = dpi;
+			break;
 		case SM_SCREEN_DPI_Y:
 			SDL_GetDisplayDPI(display, NULL, NULL, &dpi);
-			return dpi;
+			ret = dpi;
+			break;
 		case SM_TITLE_HEIGHT:
 #ifdef TO_WIN32
-			return GetSystemMetrics(SM_CYCAPTION);
+			ret = GetSystemMetrics(SM_CYCAPTION);
 #else
-			return 23;
+			ret = 23;
 #endif
+			break;
 
 #ifdef TO_WIN32
 		case SM_BORDER_WIDTH:
-			return GetSystemMetrics(SM_CXSIZEFRAME);
+			ret = GetSystemMetrics(SM_CXSIZEFRAME);
+			break;
 		case SM_BORDER_HEIGHT:
-			return GetSystemMetrics(SM_CYSIZEFRAME);
+			ret = GetSystemMetrics(SM_CYSIZEFRAME);
+			break;
 		case SM_BORDER_FIXED_WIDTH:
-			return GetSystemMetrics(SM_CXFIXEDFRAME);
+			ret = GetSystemMetrics(SM_CXFIXEDFRAME);
+			break;
 		case SM_BORDER_FIXED_HEIGHT:
-			return GetSystemMetrics(SM_CYFIXEDFRAME);
+			ret = GetSystemMetrics(SM_CYFIXEDFRAME);
+			break;
 		case SM_WINDOW_MIN_WIDTH:
-			return GetSystemMetrics(SM_CXMIN);
+			ret = GetSystemMetrics(SM_CXMIN);
+			break;
 		case SM_WINDOW_MIN_HEIGHT:
-			return GetSystemMetrics(SM_CYMIN);
+			ret = GetSystemMetrics(SM_CYMIN);
+			break;
+#else
+		case SM_WINDOW_MIN_WIDTH:
+		case SM_WINDOW_MIN_HEIGHT:
+		{
+			SDL_Window *win = SDL_CreateWindow("metric", 0, 0, 0, 0, SDL_WINDOW_HIDDEN);
+			int w = 0, h = 0;
+			if (win) {
+				SDL_GetWindowMinimumSize(win, &w, &h);
+				SDL_DestroyWindow(win);
+			}
+			if (h == 0) h = 39;
+			if (w == 0) w = 136;
+			ret = (type == SM_WINDOW_MIN_WIDTH)? w : h;
+		}
+			break;
+		case SM_BORDER_WIDTH:
+			ret = 4;
+			break;
+		case SM_BORDER_HEIGHT:
+			ret = 4;
+			break;
+
 #endif
 	}
-	return 0;
+	SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Metric: %d = %f\n", type, ret);
+
+	return ret;
 //#endif
 }
 

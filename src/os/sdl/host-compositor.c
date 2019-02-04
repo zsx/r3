@@ -186,7 +186,7 @@ typedef struct {
 	//Put backend specific code here
 	//------------------------------
 	
-	SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "creating ctx %p, gob %p, rootGob: %p (%ldx%ld)\n", ctx, gob, rootGob, GOB_LOG_W_INT(rootGob), GOB_LOG_H_INT(rootGob));
+	SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "creating ctx %p, gob %p, rootGob: %p (%d%d)\n", ctx, gob, rootGob, GOB_LOG_W_INT(rootGob), GOB_LOG_H_INT(rootGob));
 
 	ctx->gl_ctx = SDL_GL_CreateContext(ctx->win);
 	if (!ctx->gl_ctx) {
