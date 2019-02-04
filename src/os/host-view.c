@@ -62,6 +62,7 @@ extern void* Create_RichText();
 extern void* OS_Load_Cursor(void *cursor);
 extern void* OS_Image_To_Cursor(REBYTE* image, REBINT width, REBINT height);
 extern void OS_Show_Soft_Keyboard(void* win, REBINT x, REBINT y);
+REBD32 OS_Get_Metrics(METRIC_TYPE type, REBINT display);
 
 //***** Globals *****
 REBGOBWINDOWS *Gob_Windows;
