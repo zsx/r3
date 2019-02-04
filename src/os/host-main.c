@@ -175,7 +175,7 @@ int main(int argc, char **argv)
         SDL_Log("Failed to initialize SDL: %s", SDL_GetError());
     }
 
-	const char env_log_level = getenv("R3_SDL_LOG_LEVEL");
+	const char *env_log_level = getenv("R3_SDL_LOG_LEVEL");
 	if (env_log_level != NULL) {
 		SDL_LogSetAllPriority(atoi(env_log_level));
 	} else {
