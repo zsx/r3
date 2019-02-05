@@ -458,12 +458,14 @@ REBINT Alloc_Window(REBGOB *gob) {
                         break;
 						
                     case W_GRAPHICS_LOG_SIZE:
+#if 0
 						if (RXA_TYPE(frm, 3) == RXT_PAIR){
 							log_size.x = RXA_PAIR(frm, 3).x;
 							log_size.y = RXA_PAIR(frm, 3).y;
 							phys_size.x = 1 / log_size.x;
 							phys_size.y = 1 / log_size.y;
 						}
+#endif
 						x = log_size.x;
 						y = log_size.y;
                         break;
