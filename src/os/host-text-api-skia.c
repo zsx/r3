@@ -45,8 +45,8 @@
 typedef REBFNT font;
 typedef REBPRA para;
 
-static REBINT default_font_color = 0xff000000;
-static REBINT default_shadow_color = 0xff000000;
+static REBINT default_font_color = 0x00000000;
+static REBINT default_shadow_color = 0x00000000;
 static REBFNT Vfont = {
     "Arial",    //REBCHR *name;
     FALSE,      //REBCNT name_free;
@@ -156,7 +156,9 @@ void rt_drop(void* rt, REBINT number)
 void rt_font(void* rt, font* font)
 {
     if (font) {
-        rt_color(rt, *(rs_argb_t*)font->color);
+        if (*(rs_argb_t*)font->color & 0x00FFFFFF) {
+            rt_color(rt, *(rs_argb_t*)font->color);
+        }
         rt_font_size(rt, font->size);
         rt_italic(rt, font->italic);
         rt_bold(rt, font->bold);
