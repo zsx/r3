@@ -291,7 +291,7 @@ REBCNT Encode_UTF8(REBYTE *dst, REBINT max, void *src, REBCNT *len, REBFLG uni, 
                 {
                     case W_TEXT_NAME:
                         if (type == RXT_STRING){
-                            font->name_free = As_OS_Str(val.series, &(font->name));
+                            font->name_free = As_OS_Str(val.series, &(font->name)); //FIXME, free name
                         }
                         break;
 

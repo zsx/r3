@@ -160,6 +160,10 @@ void rt_font(void* rt, font* font)
         rt_font_size(rt, font->size);
         rt_italic(rt, font->italic);
         rt_bold(rt, font->bold);
+        if (font->name_free) {
+            OS_Free(font->name);
+            font->name_free = FALSE;
+        }
     }
 }
 
