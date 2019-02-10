@@ -131,7 +131,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalDependencies>wsock32.lib;rebskia.lib;..\..\..\..\reb-skia.git\build\libunibreak\lib\unibreak.lib;libEGL.dll.lib;libGLESv2.dll.lib;SDL2.lib;SDL2main.lib;skia.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <StackReserveSize>4194300</StackReserveSize>
-      <AdditionalLibraryDirectories>..\..\..\..\reb-skia.git\build\Release\;..\..\..\..\SDL2-2.0.8\lib\x64;..\..\..\..\skia.git\out\Release</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\..\..\..\reb-skia.git\build\Debug\;..\..\..\..\SDL2-2.0.8\lib\x64;..\..\..\..\skia.git\out\Debug</AdditionalLibraryDirectories>
     </Link>
     <ProjectReference>
       <LinkLibraryDependencies>true</LinkLibraryDependencies>
@@ -181,6 +181,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;TO_WIN32;REB_EXE;CUSTOM_STARTUP;FFI_BUILDING;WITH_OPENGLES;__LLP64__;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>..\..\..\src\include;..\..\..\..\SDL2-2.0.8\include;..\..\..\..\angle.git\include;..\..\..\..\reb-skia.git;..\..\..\make\msvc\libffi\include\x64;..\..\..\src\codecs;..\..\..\src\agg\util;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
