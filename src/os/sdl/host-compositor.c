@@ -389,10 +389,10 @@ failed:
 		ctx->absOffset.y = 0;
 	}
 
-	ctx->clip.x = abs_x;
-	ctx->clip.y = abs_y;
-	ctx->clip.w = GOB_LOG_W_INT(gob);
-	ctx->clip.h = GOB_LOG_H_INT(gob);
+	ctx->clip.x = 0;
+	ctx->clip.y = 0;
+	ctx->clip.w = GOB_LOG_W_INT(winGob);
+	ctx->clip.h = GOB_LOG_H_INT(winGob);
 
 	//handle newly added gob case
 	if (!GET_GOB_STATE(gob, GOBS_NEW)){
