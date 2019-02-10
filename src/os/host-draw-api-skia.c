@@ -408,17 +408,25 @@ void rebdrw_to_image(REBYTE *image, REBINT w, REBINT h, REBSER *block)
 void rebdrw_gob_color(REBGOB *gob, rs_draw_context_t *ctx, REBXYI abs_oft, REBXYI clip_oft, REBXYI clip_siz)
 {
     rs_draw_reset_painters(ctx);
-	rs_argb_t color = *(rs_argb_t*)&GOB_CONTENT(gob);
-    if (GOB_ALPHA(gob) == 255) {
-        rs_draw_box_color(ctx, clip_oft.x, clip_oft.y, clip_siz.x, clip_siz.y, 0, color);
-    } else {
-        // FIXME: replacing the alpha component in color with alpha in gob
-        // might not be the same as old r3-alpha
-        color &= 0x00FFFFFF;
-        color |= GOB_ALPHA(gob) << 24;
+	rs_draw_push_local(ctx, abs_oft.x, abs_oft.y,
+		clip_oft.x, clip_oft.y, clip_siz.x, clip_siz.y);
 
-        rs_draw_box_color(ctx, clip_oft.x, clip_oft.y, clip_siz.x, clip_siz.y, 0, color);
-    }
+	rs_argb_t color = *(rs_argb_t*)&GOB_CONTENT(gob);
+	if (GOB_ALPHA(gob) != 255) {
+		// FIXME: replacing the alpha component in color with alpha in gob
+		// might not be the same as old r3-alpha
+		color &= 0x00FFFFFF;
+		color |= GOB_ALPHA(gob) << 24;
+	}
+
+	rs_draw_box_color(ctx, clip_oft.x - abs_oft.x,
+		clip_oft.y - abs_oft.y,
+		clip_siz.x - abs_oft.x,
+		clip_siz.y - abs_oft.y,
+		0, color);
+
+
+	rs_draw_pop_local(ctx);
 }
 
 void rebdrw_gob_image(REBGOB *gob, rs_draw_context_t *ctx, REBXYI abs_oft, REBXYI clip_oft, REBXYI clip_siz)
@@ -430,8 +438,11 @@ void rebdrw_gob_image(REBGOB *gob, rs_draw_context_t *ctx, REBXYI abs_oft, REBXY
 
     rs_draw_reset_painters(ctx);
 
-    // TODO: set clip
-    rs_draw_image(ctx, IMG_DATA(img), w, h, abs_oft.x, abs_oft.y);
+	rs_draw_push_local(ctx, abs_oft.x, abs_oft.y,
+		clip_oft.x, clip_oft.y, clip_siz.x, clip_siz.y);
+
+    rs_draw_image(ctx, IMG_DATA(img), w, h, 0, 0);
+	rs_draw_pop_local(ctx);
 }
 
 void rebdrw_gob_draw(REBGOB *gob, rs_draw_context_t *ctx, REBXYI abs_oft, REBXYI clip_oft, REBXYI clip_siz)
@@ -440,7 +451,7 @@ void rebdrw_gob_draw(REBGOB *gob, rs_draw_context_t *ctx, REBXYI abs_oft, REBXYI
 	REBSER *block = (REBSER *)GOB_CONTENT(gob);
 
 	rs_draw_push_local(ctx, abs_oft.x, abs_oft.y,
-		clip_oft.x, clip_oft.y, clip_siz.x + clip_oft.x, clip_siz.y + clip_oft.y);
+		clip_oft.x, clip_oft.y, clip_siz.x, clip_siz.y);
     rs_draw_reset_painters(ctx);
 
 	cec.envr = ctx;
