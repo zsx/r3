@@ -43,6 +43,10 @@
 
 #include "SDL.h"
 
+#ifdef TO_WIN32
+#include <windows.h>
+#endif
+
 #if defined(WITH_OPENGLES)
 #include "GLES/gl.h"
 #include "GLES/glext.h"
@@ -238,7 +242,17 @@ void OS_Close_Window(REBGOB *gob);
 			}
 		}
 	}
-	win = SDL_CreateWindow(title, x, y, w, h, flags);
+
+    int offset_y = 0; // extra adjustment
+#ifdef TO_WIN32
+        // SDL_OpenWindow interpretes (x, y) as the top-left corner of the _client_ area
+        // while the passed in (x, y) is the top-left corner of the _window_
+    if (!GET_GOB_FLAG(gob, GOBF_FULLSCREEN) && !GET_GOB_FLAG(gob, GOBF_NO_TITLE)) {
+        offset_y = GetSystemMetrics(SM_CYCAPTION);
+    }
+#endif
+
+	win = SDL_CreateWindow(title, x, y + offset_y, w, h, flags);
 	if (title_needs_free)
 		OS_Free(title);
 
