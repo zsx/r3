@@ -106,6 +106,9 @@ static REBCNT keycode_to_char[] = {
 	SDLK_RETURN,	'\r', '\r',	'\r',	'\r',	'\r',
 	SDLK_RETURN2,	'\r', '\r',	'\r',	'\r',	'\r',
 	SDLK_TAB,	'\t',	'\t',	'\t',	'\t',	'\t',
+	SDLK_SPACE,	' ',	' ',	' ',	' ',	' ',
+	SDLK_LEFTBRACKET, '[', '{',	'[',	'{',	'[',
+	SDLK_RIGHTBRACKET, ']', '}',	']',	'}',	']',
 	0x0,		0,		0,		0,		0,		0,
 };
 
