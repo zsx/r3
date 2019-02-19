@@ -366,9 +366,14 @@ void rebshp_move(void* gr, REBCNT rel, REBXYF p)
 	rs_shape_move(gr, rel, p.x, p.y);
 }
 
-void rebshp_open(void* gr)
+void rebshp_begin(void* gr)
 {
-	rs_shape_open(gr);
+	rs_shape_begin(gr);
+}
+
+void rebshp_end(void* gr)
+{
+	rs_shape_end(gr);
 }
 
 void rebshp_vline(void* gr, REBCNT rel, REBDEC y)

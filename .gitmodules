@@ -1,3 +1,6 @@
 [submodule "src/libffi"]
 	path = src/libffi
 	url = git://github.com/atgreen/libffi.git
+[submodule "src/remotery"]
+	path = src/remotery
+	url = https://github.com/Celtoys/Remotery.git

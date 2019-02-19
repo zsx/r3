@@ -12,7 +12,8 @@ HOST_VIEW_FLAGS= $(CFLAGS) -Wno-pointer-sign -DREB_EXE $(BIT) -fvisibility=defau
 HFLAGS_FONT_CONFIG=`$(PKG_CONFIG) fontconfig --cflags`
 
 CLIB= -ldl -lm $(LIBFFI_A)
-GUI_CLIB=  -ldl -lm -lstdc++ -lfreetype -L../src/freetype-2.4.12/objs/.libs/ `$(PKG_CONFIG) freetype2 --libs` `$(PKG_CONFIG) fontconfig --libs` $(BIT) $(LDFLAGS) -lSDL2 -lGL -Wl,--as-needed
+#GUI_CLIB=  -ldl -lm -lstdc++ -lfreetype -L../src/freetype-2.4.12/objs/.libs/ `$(PKG_CONFIG) freetype2 --libs` `$(PKG_CONFIG) fontconfig --libs` $(BIT) $(LDFLAGS) -lSDL2 -lGL -Wl,--as-needed
+GUI_CLIB=  -ldl -lm -lstdc++ $(BIT) $(LDFLAGS) `$(PKG_CONFIG) fontconfig --libs`  `$(PKG_CONFIG) sdl2 --libs` -lOpenGL -Wl,--as-needed
 # REBOL builds various include files:
 REBOL=	$(CD)r3-make-linux -qs
 
