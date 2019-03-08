@@ -43,11 +43,13 @@ make-banner: func [
 sys/boot-banner: make-banner [
 	*
 	-
-	"REBOL 3.0"
+	"Atronix REBOL 3.1"
 	-
 	= Copyright: "2012 REBOL Technologies"
+    = "" "2013~2017 Atronix Engineering Inc."
+    = "" "2018-2019 Atronix Aquisition Corp."
 	= "" "All rights reserved."
-	= Website:  "www.REBOL.com"
+	= Website:  "www.atronixengineering.com"
 	-
 	= Version:  system/version
 	= Platform: system/platform
