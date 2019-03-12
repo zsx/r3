@@ -75,6 +75,7 @@
 #define  LOGD(...)  RL_Print(__VA_ARGS__)
 #endif
 
+#include <Remotery.h>
 
 /**********************************************************************/
 
@@ -117,6 +118,8 @@ void Host_Crash(REBYTE *reason) {
 
 
 extern void rs_draw_enable_trace(int);
+extern void rs_draw_debug_draw_clip(u32 color);
+extern void rs_draw_debug_local_clip(u32 color);
 
 /***********************************************************************
 **
@@ -171,9 +174,9 @@ int main(int argc, char **argv)
 		always_malloc = atoi(env_always_malloc);
 	}
 
-    if (SDL_Init(SDL_INIT_VIDEO|SDL_INIT_EVENTS) != 0) {
-        SDL_Log("Failed to initialize SDL: %s", SDL_GetError());
-    }
+	if (SDL_Init(SDL_INIT_VIDEO|SDL_INIT_EVENTS) != 0) {
+		SDL_Log("Failed to initialize SDL: %s", SDL_GetError());
+	}
 
 	const char *env_log_level = getenv("R3_SDL_LOG_LEVEL");
 	if (env_log_level != NULL) {
@@ -182,10 +185,27 @@ int main(int argc, char **argv)
 		SDL_LogSetAllPriority(SDL_LOG_PRIORITY_CRITICAL);
 	}
 
-    const char *rs_trace = getenv("R3_SKIA_TRACE");
-    if (rs_trace != NULL && atoi(rs_trace)) {
-        rs_draw_enable_trace(TRUE);
-    }
+	const char *rs_trace = getenv("R3_SKIA_TRACE");
+	if (rs_trace != NULL && atoi(rs_trace)) {
+		rs_draw_enable_trace(TRUE);
+	}
+	
+	const char *rs_debug_local_clip = getenv("R3_DEBUG_GOB_CLIP");
+	if (rs_debug_local_clip) {
+		u32 color = 0;
+		color = (u32)strtoul(rs_debug_local_clip, NULL, 0);
+		rs_draw_debug_local_clip(color);
+	}
+
+	const char *rs_debug_draw_clip = getenv("R3_DEBUG_DRAW_CLIP");
+	if (rs_debug_draw_clip) {
+		u32 color = 0;
+		color = (u32)strtoul(rs_debug_local_clip, NULL, 0);
+		rs_draw_debug_draw_clip(color);
+	}
+
+	Remotery* rmt;
+	rmt_CreateGlobalInstance(&rmt);
 
 #ifdef TO_ANDROID
 	SDL_RWops *script = SDL_RWFromFile("main.reb", "r");
@@ -311,7 +331,7 @@ int main(int argc, char **argv)
 		!(Main_Args.options & RO_CGI)
 		&& (
 			!Main_Args.script // no script was provided
-			|| n  < 0         // script halted or had error
+			|| n  < 0		 // script halted or had error
 			|| Main_Args.options & RO_HALT  // --halt option
 		)
 	){
@@ -332,6 +352,8 @@ int main(int argc, char **argv)
 	OS_Destroy_Graphics();
 #endif
 
+	rmt_DestroyGlobalInstance(rmt);
+	
 	// A QUIT does not exit this way, so the only valid return code is zero.
 	return 0;
 }

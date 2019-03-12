@@ -48,6 +48,8 @@
 #define INCLUDE_EXT_DATA
 #include "host-ext-graphics.h"
 
+#include <Remotery.h>
+
 //***** Constants *****
 
 #define MAX_WINDOWS 64
@@ -222,9 +224,11 @@ REBINT Alloc_Window(REBGOB *gob) {
 	ReleaseDC(GOB_HWIN(gob),paintDC);
 #else
 	//render and blit the GOB
+    rmt_BeginCPUSample(Draw_GOB, 0);
 	compositor = GOB_COMPOSITOR(wingob);
 	rebcmp_compose(compositor, wingob, gob, FALSE);
 	rebcmp_blit(compositor);
+    rmt_EndCPUSample();
 #endif
 }
 
@@ -285,6 +289,7 @@ REBINT Alloc_Window(REBGOB *gob) {
 			OS_Update_Window(gob); // Problem! We may not want this all the time.
 	}
 
+    
 	// Otherwise, composite and referesh the gob or all gobs:
 	Draw_Window(0, gob);  // 0 = window parent of gob
 }

@@ -141,16 +141,18 @@
 		C721CC192208B35C002AB8AC /* CoreFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C721CC152208B35C002AB8AC /* CoreFoundation.framework */; };
 		C721CC1A2208B35C002AB8AC /* CoreText.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C721CC162208B35C002AB8AC /* CoreText.framework */; };
 		C721CC1E2208B589002AB8AC /* libc++.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = C721CC1D2208B589002AB8AC /* libc++.tbd */; };
+		C78FAE3B22160E5100AD0A8B /* Remotery.c in Sources */ = {isa = PBXBuildFile; fileRef = C78FAE3822160E5100AD0A8B /* Remotery.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
-		07295A8C211357EB0080036A /* CopyFiles */ = {
+		07295A8C211357EB0080036A /* Copy Files */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
 			dstPath = /usr/share/man/man1/;
 			dstSubfolderSpec = 0;
 			files = (
 			);
+			name = "Copy Files";
 			runOnlyForDeploymentPostprocessing = 1;
 		};
 /* End PBXCopyFilesBuildPhase section */
@@ -300,6 +302,9 @@
 		C721CC1F2208BD9D002AB8AC /* libffi.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libffi.a; path = "../../libffi.makefile-osx-64/lib/libffi.a"; sourceTree = "<group>"; };
 		C721CC212208E159002AB8AC /* CoreAudio.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreAudio.framework; path = System/Library/Frameworks/CoreAudio.framework; sourceTree = SDKROOT; };
 		C721CC3E220A4402002AB8AC /* r3-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "r3-Info.plist"; sourceTree = "<group>"; };
+		C78FAE35221486AE00AD0A8B /* prebuild.sh */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.sh; path = prebuild.sh; sourceTree = "<group>"; };
+		C78FAE3822160E5100AD0A8B /* Remotery.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = Remotery.c; path = ../../../src/remotery/lib/Remotery.c; sourceTree = "<group>"; };
+		C78FAE3922160E5100AD0A8B /* Remotery.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = Remotery.h; path = ../../../src/remotery/lib/Remotery.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -321,6 +326,7 @@
 		07295A85211357EB0080036A = {
 			isa = PBXGroup;
 			children = (
+				C78FAE35221486AE00AD0A8B /* prebuild.sh */,
 				C721CC3E220A4402002AB8AC /* r3-Info.plist */,
 				07295A90211357EB0080036A /* src */,
 				07295A8F211357EB0080036A /* Products */,
@@ -339,6 +345,7 @@
 		07295A90211357EB0080036A /* src */ = {
 			isa = PBXGroup;
 			children = (
+				C78FAE3722160DD100AD0A8B /* Remotery */,
 				0778B91F21138491005C53D4 /* codecs */,
 				0778B81D211373AA005C53D4 /* core */,
 				0778B7C721135D10005C53D4 /* os */,
@@ -540,6 +547,15 @@
 			name = Frameworks;
 			sourceTree = "<group>";
 		};
+		C78FAE3722160DD100AD0A8B /* Remotery */ = {
+			isa = PBXGroup;
+			children = (
+				C78FAE3822160E5100AD0A8B /* Remotery.c */,
+				C78FAE3922160E5100AD0A8B /* Remotery.h */,
+			);
+			name = Remotery;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -547,9 +563,10 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 07295A95211357EB0080036A /* Build configuration list for PBXNativeTarget "r3" */;
 			buildPhases = (
+				C78FAE36221488F200AD0A8B /* Run Script */,
 				07295A8A211357EB0080036A /* Sources */,
 				07295A8B211357EB0080036A /* Frameworks */,
-				07295A8C211357EB0080036A /* CopyFiles */,
+				07295A8C211357EB0080036A /* Copy Files */,
 			);
 			buildRules = (
 			);
@@ -590,6 +607,27 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		C78FAE36221488F200AD0A8B /* Run Script */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Run Script";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Type a script or drag a script file from your workspace to insert its path.\n${SRCROOT}/prebuild.sh\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		07295A8A211357EB0080036A /* Sources */ = {
@@ -704,6 +742,7 @@
 				0778B8C5211373CB005C53D4 /* t-library.c in Sources */,
 				0778B8D0211373CB005C53D4 /* m-series.c in Sources */,
 				0778B8BF211373CB005C53D4 /* t-event.c in Sources */,
+				C78FAE3B22160E5100AD0A8B /* Remotery.c in Sources */,
 				0778B886211373CB005C53D4 /* n-system.c in Sources */,
 				0778B88D211373CB005C53D4 /* l-scan.c in Sources */,
 				C721CC0A2208A1E4002AB8AC /* host-event.c in Sources */,
@@ -850,10 +889,14 @@
 				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
 				DEVELOPMENT_TEAM = "";
 				"GCC_PREPROCESSOR_DEFINITIONS[arch=x86_64]" = (
+					"RMT_ENABLED=1",
+					"RMT_ASSUME_LITTLE_ENDIAN=1",
+					"RMT_USE_OPENGL=1",
 					TO_OSX_X64,
 					"$(inherited)",
 				);
 				HEADER_SEARCH_PATHS = (
+					../../../src/remotery/lib,
 					../../../src/include,
 					"../../libffi.makefile-osx-64/lib/libffi-3.1.1/include/",
 					../../../src/codecs,
@@ -901,8 +944,14 @@
 				CODE_SIGN_STYLE = Automatic;
 				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
 				DEVELOPMENT_TEAM = "";
-				"GCC_PREPROCESSOR_DEFINITIONS[arch=x86_64]" = TO_OSX_X64;
+				"GCC_PREPROCESSOR_DEFINITIONS[arch=x86_64]" = (
+					TO_OSX_X64,
+					"RMT_ENABLED=0",
+					"RMT_ASSUME_LITTLE_ENDIAN=1",
+					"RMT_USE_OPENGL=1",
+				);
 				HEADER_SEARCH_PATHS = (
+					../../../src/remotery/lib,
 					../../../src/include,
 					"../../libffi.makefile-osx-64/lib/libffi-3.1.1/include/",
 					../../../src/codecs,

@@ -4,7 +4,7 @@ CXX  ?= $(TOOLS)clang
 PKG_CONFIG ?= pkg-config
 
 INCL ?= .
-INC= $(INCL) -I$S/include/ -I$S/codecs/ -I../src/freetype-2.4.12/include `$(PKG_CONFIG) freetype2 --cflags` -Ilibffi.$(MAKEFILE)/lib/libffi-3.1.1/include/
+INC= $(INCL) -I$S/include/ -I$S/codecs/ -I../src/freetype-2.4.12/include `$(PKG_CONFIG) freetype2 --cflags` -Ilibffi.$(MAKEFILE)/lib/libffi-3.1.1/include/ -I../src/remotery/lib
 
 RAPI_FLAGS=  $(CFLAGS) $(BIT) -Wno-pointer-sign -fvisibility=default -fPIC -ffloat-store
 HOST_CORE_FLAGS= $(CFLAGS) -Wno-pointer-sign -DREB_CORE -DMIN_OS -DREB_EXE  $(BIT) -fvisibility=default  -D_FILE_OFFSET_BITS=64 -DCUSTOM_STARTUP -ffloat-store

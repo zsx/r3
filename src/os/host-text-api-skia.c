@@ -42,6 +42,8 @@
 #include <host-text-api.h>
 #include "host-ext-text.h"
 
+#include "Remotery.h"
+
 typedef REBFNT font;
 typedef REBPRA para;
 
@@ -98,13 +100,14 @@ void rt_block_text(void *richtext, REBSER *block)
 
 void rt_gob_text(REBGOB *gob, REBYTE* ctx, REBXYI abs_oft, REBXYI clip_oft, REBXYI clip_siz)
 {
-	if (GET_GOB_FLAG(gob, GOBF_WINDOW)) return; //don't render window title text
+	rmt_BeginCPUSample(rt_gob_text, RMTSF_Aggregate);
+	if (GET_GOB_FLAG(gob, GOBF_WINDOW)) goto end; //don't render window title text
 	rs_rich_text_t *rt = (rs_rich_text_t *)Rich_Text;
-    rs_rt_reset(rt);
-    rs_draw_text_pre_setup(ctx, rt);
+	rs_rt_reset(rt);
+	rs_draw_text_pre_setup(ctx, rt);
 
-    rs_draw_push_matrix(ctx);
-    rs_draw_reset_matrix(ctx);
+	rs_draw_push_matrix(ctx);
+	rs_draw_reset_matrix(ctx);
 
 	if (GOB_TYPE(gob) == GOBT_TEXT)
 		rt_block_text(rt, (REBSER *)GOB_CONTENT(gob));
@@ -113,7 +116,9 @@ void rt_gob_text(REBGOB *gob, REBYTE* ctx, REBXYI abs_oft, REBXYI clip_oft, REBX
 	}
 
 	rs_draw_text(ctx, abs_oft.x, abs_oft.y, clip_siz.x, clip_siz.y, rt);
-    rs_draw_pop_matrix(ctx);
+	rs_draw_pop_matrix(ctx);
+end:
+	rmt_EndCPUSample();
 }
 
 void* Create_RichText()
@@ -146,7 +151,7 @@ void rt_center(void* rt)
 
 void rt_color(void* rt, REBCNT color)
 {
-    rs_rt_color(rt, color);
+	rs_rt_color(rt, color);
 }
 
 void rt_drop(void* rt, REBINT number)
@@ -155,18 +160,18 @@ void rt_drop(void* rt, REBINT number)
 
 void rt_font(void* rt, font* font)
 {
-    if (font) {
-        if (*(rs_argb_t*)font->color & 0x00FFFFFF) {
-            rt_color(rt, *(rs_argb_t*)font->color);
-        }
-        rt_font_size(rt, font->size);
-        rt_italic(rt, font->italic);
-        rt_bold(rt, font->bold);
-        if (font->name_free) {
-            OS_Free(font->name);
-            font->name_free = FALSE;
-        }
-    }
+	if (font) {
+		if (*(rs_argb_t*)font->color & 0x00FFFFFF) {
+			rt_color(rt, *(rs_argb_t*)font->color);
+		}
+		rt_font_size(rt, font->size);
+		rt_italic(rt, font->italic);
+		rt_bold(rt, font->bold);
+		if (font->name_free) {
+			OS_Free(font->name);
+			font->name_free = FALSE;
+		}
+	}
 }
 
 void rt_font_size(void* rt, REBINT size)
@@ -200,22 +205,22 @@ void rt_newline(void* rt, REBINT index)
 
 void rt_para(void* rt, para* para)
 {
-    if (para) {
-        switch (para->align) {
-        case W_TEXT_CENTER:
-            rt_center(rt);
-            break;
-        case W_TEXT_LEFT:
-            rt_left(rt);
-            break;
-        case W_TEXT_RIGHT:
-            rt_right(rt);
-            break;
-        default:
-            rt_left(rt);
-            break;
-        }
-    }
+	if (para) {
+		switch (para->align) {
+		case W_TEXT_CENTER:
+			rt_center(rt);
+			break;
+		case W_TEXT_LEFT:
+			rt_left(rt);
+			break;
+		case W_TEXT_RIGHT:
+			rt_right(rt);
+			break;
+		default:
+			rt_left(rt);
+			break;
+		}
+	}
 }
 
 void rt_right(void* rt)
@@ -236,26 +241,28 @@ void rt_set_font_styles(font* font, u32 word){
 
 void rt_size_text(void* rt, REBGOB* gob, REBXYF* size)
 {
-    REBCHR* str;
-    REBOOL dealloc;
-    rs_rt_reset(rt);
-    //((rich_text*)rt)->rt_set_clip(0, 0, GOB_LOG_W_INT(gob), GOB_LOG_H_INT(gob));
-    if (GOB_TYPE(gob) == GOBT_TEXT) {
-        rt_block_text(rt, (REBSER *)GOB_CONTENT(gob));
-    }
-    else if (GOB_TYPE(gob) == GOBT_STRING) {
-        dealloc = As_UTF8_Str(GOB_CONTENT(gob), (REBCHR**)&str);
-        rs_rt_text(rt, str);
-        if (dealloc) {
-            OS_Free(str);
-        }
-    } else {
-        size->x = 0;
-        size->y = 0;
-        return;
-    }
+	rmt_BeginCPUSample(size_text, RMTSF_Aggregate);
+	REBCHR* str;
+	REBOOL dealloc;
+	rs_rt_reset(rt);
+	//((rich_text*)rt)->rt_set_clip(0, 0, GOB_LOG_W_INT(gob), GOB_LOG_H_INT(gob));
+	if (GOB_TYPE(gob) == GOBT_TEXT) {
+		rt_block_text(rt, (REBSER *)GOB_CONTENT(gob));
+	}
+	else if (GOB_TYPE(gob) == GOBT_STRING) {
+		dealloc = As_UTF8_Str(GOB_CONTENT(gob), (REBCHR**)&str);
+		rs_rt_text(rt, str);
+		if (dealloc) {
+			OS_Free(str);
+		}
+	} else {
+		size->x = 0;
+		size->y = 0;
+		return;
+	}
 
 	rs_rt_size_text(rt, GOB_LOG_W(gob), GOB_LOG_H(gob), &size->x, &size->y);
+	rmt_EndCPUSample();
 }
 
 void rt_text(void* rt, REBCHR* text, REBINT index, REBCNT dealloc)

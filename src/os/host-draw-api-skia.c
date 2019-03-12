@@ -42,10 +42,12 @@
 #include "reb-series.h"
 #include "reb-skia.h"
 
+#include "Remotery.h"
+
 extern void *Rich_Text;
 
 #define NOT_IMPLEMENTED \
-    printf("NOT IMPLEMENTED, %s, %s, %d\n", __FILE__, __func__, __LINE__)
+	printf("NOT IMPLEMENTED, %s, %s, %d\n", __FILE__, __func__, __LINE__)
 
 void rebdrw_add_vertex (void* gr, REBXYF p)
 {
@@ -96,10 +98,10 @@ void rebdrw_curve4(void* gr, REBXYF p1, REBXYF p2, REBXYF p3, REBXYF p4)
 {
 	rs_draw_curve4(gr, p1.x, p1.y, p2.x, p2.y, p3.x, p3.y, p4.x, p4.y);
 }
-								
+
 REBINT rebdrw_effect(void* gr, REBPAR* p1, REBPAR* p2, REBSER* block)
 {
-    NOT_IMPLEMENTED;
+	NOT_IMPLEMENTED;
 	return 0;
 }
 
@@ -115,7 +117,7 @@ void rebdrw_end_poly (void* gr)
 
 void rebdrw_end_spline (void* gr, REBINT step, REBINT closed)
 {
-    rs_draw_end_spline(gr, step, closed);
+	rs_draw_end_spline(gr, step, closed);
 }
 
 void rebdrw_fill_pen(void* gr, REBCNT col)
@@ -144,9 +146,9 @@ void rebdrw_gamma(void* gr, REBDEC gamma)
 
 void rebdrw_gradient_pen(void* gr, REBINT gradtype, REBINT mode, REBXYF oft, REBXYF range, REBDEC angle, REBXYF scale, REBSER* colors)
 {
-    NOT_IMPLEMENTED;
-    // TODO
-    //rs_draw_gradient_pen(gr, gradtype, mode, oft.x, range.x, angle, scale.x, scale.y, colors);
+	NOT_IMPLEMENTED;
+	// TODO
+	//rs_draw_gradient_pen(gr, gradtype, mode, oft.x, range.x, angle, scale.x, scale.y, colors);
 }
 
 void rebdrw_invert_matrix(void* gr)
@@ -156,52 +158,60 @@ void rebdrw_invert_matrix(void* gr)
 
 void rebdrw_image(void* gr, REBYTE* img, REBINT w, REBINT h,REBXYF offset)
 {
+	rmt_BeginCPUSample(draw_image, RMTSF_Aggregate);
 	rs_draw_image(gr, img, w, h, offset.x, offset.y);
+	rmt_EndCPUSample();
 }
 
 void rebdrw_image_filter(void* gr, REBINT type, REBINT mode, REBDEC blur)
 {
-    rs_draw_image_filter(gr, type, mode, blur);
+	rs_draw_image_filter(gr, type, mode, blur);
 }
 
 void rebdrw_image_options(void* gr, REBCNT keyCol, REBINT border)
 {
-    rs_draw_image_options(gr, keyCol, border);
+	rs_draw_image_options(gr, keyCol, border);
 }
 
 void rebdrw_image_pattern(void* gr, REBINT mode, REBXYF offset, REBXYF size)
 {
-    rs_draw_image_pattern(gr, mode, offset.x, offset.y, size.x, size.y);
+	rs_draw_image_pattern(gr, mode, offset.x, offset.y, size.x, size.y);
 }
 
 void rebdrw_image_scale(void* gr, REBYTE* img, REBINT w, REBINT h, REBSER* points)
 {
-    RXIARG a;
-    REBXYF p[4];
-    REBCNT type;
-    REBCNT n, len = 0;
+	RXIARG a;
+	REBXYF p[4];
+	REBCNT type;
+	REBCNT n, len = 0;
 
-    for (n = 0; type = RL_GET_VALUE(points, n, &a); n++) {
-        if (type == RXT_PAIR) {
-            p[len] = (REBXYF) RXI_LOG_PAIR(a);
-            if (++len == 4) break;
-        }
-    }
+	rmt_BeginCPUSample(draw_image_scale, RMTSF_Aggregate);
 
-    if (!len) return;
-    if (len == 1 && log_size.x == 1 && log_size.y == 1) {
-        rs_draw_image(gr, img, w, h, p[0].x, p[0].y);
-        return;
-    }
+	for (n = 0; type = RL_GET_VALUE(points, n, &a); n++) {
+		if (type == RXT_PAIR) {
+			p[len] = (REBXYF) RXI_LOG_PAIR(a);
+			if (++len == 4) break;
+		}
+	}
 
-    switch (len) {
-    case 2:
-        rs_draw_image_scale(gr, img, w, h, p[0].x, p[0].y, p[1].x, p[1].y);
-        break;
-    case 3:
-    case 4:
-        NOT_IMPLEMENTED;
-    }
+	if (!len) goto end;
+
+	if (len == 1 && log_size.x == 1 && log_size.y == 1) {
+		rs_draw_image(gr, img, w, h, p[0].x, p[0].y);
+		goto end;
+	}
+
+	switch (len) {
+	case 2:
+		rs_draw_image_scale(gr, img, w, h, p[0].x, p[0].y, p[1].x, p[1].y);
+		break;
+	case 3:
+	case 4:
+		NOT_IMPLEMENTED;
+	}
+
+end:
+	rmt_EndCPUSample();
 }
 
 void rebdrw_line(void* gr, REBXYF p1, REBXYF p2)
@@ -211,26 +221,26 @@ void rebdrw_line(void* gr, REBXYF p1, REBXYF p2)
 
 void rebdrw_line_cap(void* gr, REBINT mode)
 {
-    rs_draw_line_cap(gr,
-        mode == 0 ? RS_LINE_CAP_BUTT :
-        mode == 1 ? RS_LINE_CAP_SQUARE :
-        mode == 2 ? RS_LINE_CAP_ROUND :
-        mode);
+	rs_draw_line_cap(gr,
+		mode == 0 ? RS_LINE_CAP_BUTT :
+		mode == 1 ? RS_LINE_CAP_SQUARE :
+		mode == 2 ? RS_LINE_CAP_ROUND :
+		mode);
 }
 
 void rebdrw_line_join(void* gr, REBINT mode)
 {
-    rs_draw_line_join(gr,
-        mode == 0 ? RS_LINE_JOIN_MITER :
-        mode == 1 ? RS_LINE_JOIN_MITER : // FIXME: Rebol expects miter-bevel
-        mode == 2 ? RS_LINE_JOIN_ROUND :
-        mode == 3 ? RS_LINE_JOIN_BEVEL :
-        mode);
+	rs_draw_line_join(gr,
+		mode == 0 ? RS_LINE_JOIN_MITER :
+		mode == 1 ? RS_LINE_JOIN_MITER : // FIXME: Rebol expects miter-bevel
+		mode == 2 ? RS_LINE_JOIN_ROUND :
+		mode == 3 ? RS_LINE_JOIN_BEVEL :
+		mode);
 }
 
 void rebdrw_line_pattern(void* gr, REBCNT col, REBDEC* patterns)
 {
-    rs_draw_line_pattern(gr, col, patterns);
+	rs_draw_line_pattern(gr, col, patterns);
 }
 
 void rebdrw_line_width(void* gr, REBDEC width, REBINT mode)
@@ -240,24 +250,24 @@ void rebdrw_line_width(void* gr, REBDEC width, REBINT mode)
 
 void rebdrw_matrix(void* gr, REBSER* mtx)
 {
-    RXIARG val;
-    REBCNT type;
-    REBCNT n;
-    float m[6];
+	RXIARG val;
+	REBCNT type;
+	REBCNT n;
+	float m[6];
 
-    for (n = 0; type = RL_GET_VALUE(mtx, n, &val), n < 6; n++) {
-        if (type == RXT_DECIMAL)
-            m[n] = val.dec64;
-        else if (type == RXT_INTEGER)
-            m[n] = val.int64;
-        else {
-            return;
-        }
-    }
+	for (n = 0; type = RL_GET_VALUE(mtx, n, &val), n < 6; n++) {
+		if (type == RXT_DECIMAL)
+			m[n] = val.dec64;
+		else if (type == RXT_INTEGER)
+			m[n] = val.int64;
+		else {
+			return;
+		}
+	}
 
-    if (n != 6) return;
+	if (n != 6) return;
 
-    rs_draw_matrix(gr, m[0], m[1], m[2], m[3], m[4], m[5]);
+	rs_draw_matrix(gr, m[0], m[1], m[2], m[3], m[4], m[5]);
 }
 
 void rebdrw_pen(void* gr, REBCNT col)
@@ -267,7 +277,7 @@ void rebdrw_pen(void* gr, REBCNT col)
 
 void rebdrw_pen_image(void* gr, REBYTE* img, REBINT w, REBINT h)
 {
-    rs_draw_pen_image(gr, img, w, h);
+	rs_draw_pen_image(gr, img, w, h);
 }
 
 void rebdrw_pop_matrix(void* gr)
@@ -282,8 +292,8 @@ void rebdrw_push_matrix(void* gr)
 
 void rebdrw_reset_gradient_pen(void* gr)
 {
-    NOT_IMPLEMENTED;
-    //rs_draw_reset_gradient_pen(gr);
+	NOT_IMPLEMENTED;
+	//rs_draw_reset_gradient_pen(gr);
 }
 
 void rebdrw_reset_matrix(void* gr)
@@ -308,11 +318,13 @@ void rebdrw_skew(void* gr, REBXYF angle)
 
 void rebdrw_text(void* gr, REBINT mode, REBXYF* p1, REBXYF* p2, REBSER* block)
 {
+	rmt_BeginCPUSample(rebdrw_text, RMTSF_Aggregate);
 	rs_rich_text_t *rt = (rs_rich_text_t *)Rich_Text;
-    rs_rt_reset(rt);
-    rs_draw_text_pre_setup(gr, rt);
-    rt_block_text(rt, block);
+	rs_rt_reset(rt);
+	rs_draw_text_pre_setup(gr, rt);
+	rt_block_text(rt, block);
 	rs_draw_text(gr, p1->x, p1->y, p2? p2->x : INFINITY, p2 ? p2->y : INFINITY, rt);
+	rmt_EndCPUSample();
 }
 
 void rebdrw_transform(void* gr, REBDEC ang, REBXYF ctr, REBXYF sc, REBXYF oft)
@@ -394,8 +406,9 @@ void rebshp_qcurve(void* gr, REBINT rel, REBXYF p1, REBXYF p2)
 
 void rebdrw_to_image(REBYTE *image, REBINT w, REBINT h, REBSER *block)
 {
-    rs_draw_context_t *ctx = rs_draw_create_context_with_dimension(w, h);
-    rs_draw_begin_frame(ctx);
+	rmt_BeginCPUSample(draw_to_image, RMTSF_Aggregate);
+	rs_draw_context_t *ctx = rs_draw_create_context_with_dimension(w, h);
+	rs_draw_begin_frame(ctx);
 
 	REBCEC cec;
 	cec.envr = ctx;
@@ -404,15 +417,17 @@ void rebdrw_to_image(REBYTE *image, REBINT w, REBINT h, REBSER *block)
 
 	RL_DO_COMMANDS(block, 0, &cec);
 
-    rs_draw_end_frame(ctx);
+	rs_draw_end_frame(ctx);
 
-    rs_draw_read_pixel(ctx, image);
-    rs_draw_free_context(ctx);
+	rs_draw_read_pixel(ctx, image);
+	rs_draw_free_context(ctx);
+	rmt_EndCPUSample();
 }
 
 void rebdrw_gob_color(REBGOB *gob, rs_draw_context_t *ctx, REBXYI abs_oft, REBXYI clip_oft, REBXYI clip_siz)
 {
-    rs_draw_reset_painters(ctx);
+	rmt_BeginCPUSample(gob_color, RMTSF_Aggregate);
+	rs_draw_reset_painters(ctx);
 	rs_draw_push_local(ctx, abs_oft.x, abs_oft.y,
 		clip_oft.x, clip_oft.y, clip_siz.x, clip_siz.y);
 
@@ -432,32 +447,35 @@ void rebdrw_gob_color(REBGOB *gob, rs_draw_context_t *ctx, REBXYI abs_oft, REBXY
 
 
 	rs_draw_pop_local(ctx);
+	rmt_EndCPUSample();
 }
 
 void rebdrw_gob_image(REBGOB *gob, rs_draw_context_t *ctx, REBXYI abs_oft, REBXYI clip_oft, REBXYI clip_siz)
 {
+	rmt_BeginCPUSample(gob_image, RMTSF_Aggregate);
+	struct rebol_series* img = (struct rebol_series*)GOB_CONTENT(gob);
+	int w = IMG_WIDE(img);
+	int h = IMG_HIGH(img);
 
-    struct rebol_series* img = (struct rebol_series*)GOB_CONTENT(gob);
-    int w = IMG_WIDE(img);
-    int h = IMG_HIGH(img);
-
-    rs_draw_reset_painters(ctx);
+	rs_draw_reset_painters(ctx);
 
 	rs_draw_push_local(ctx, abs_oft.x, abs_oft.y,
 		clip_oft.x, clip_oft.y, clip_siz.x, clip_siz.y);
 
-    rs_draw_image(ctx, IMG_DATA(img), w, h, 0, 0);
+	rs_draw_image(ctx, IMG_DATA(img), w, h, 0, 0);
 	rs_draw_pop_local(ctx);
+	rmt_EndCPUSample();
 }
 
 void rebdrw_gob_draw(REBGOB *gob, rs_draw_context_t *ctx, REBXYI abs_oft, REBXYI clip_oft, REBXYI clip_siz)
 {
+	rmt_BeginCPUSample(gob_draw, RMTSF_Aggregate);
 	REBCEC cec;
 	REBSER *block = (REBSER *)GOB_CONTENT(gob);
 
 	rs_draw_push_local(ctx, abs_oft.x, abs_oft.y,
 		clip_oft.x, clip_oft.y, clip_siz.x, clip_siz.y);
-    rs_draw_reset_painters(ctx);
+	rs_draw_reset_painters(ctx);
 
 	cec.envr = ctx;
 	cec.block = block;
@@ -466,4 +484,6 @@ void rebdrw_gob_draw(REBGOB *gob, rs_draw_context_t *ctx, REBXYI abs_oft, REBXYI
 	RL_DO_COMMANDS(block, 0, &cec);
 
 	rs_draw_pop_local(ctx);
+	rmt_EndCPUSample();
 }
+

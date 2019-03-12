@@ -66,6 +66,8 @@
 #endif
 #endif // WITH_OPENGLES
 
+#include <Remotery.h>
+
 void* Find_Window(REBGOB *gob);
 
 //***** Macros *****
@@ -185,7 +187,7 @@ typedef struct {
 	//------------------------------
 	//Put backend specific code here
 	//------------------------------
-	
+
 	SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "creating ctx %p, gob %p, rootGob: %p (%d%d)\n", ctx, gob, rootGob, GOB_LOG_W_INT(rootGob), GOB_LOG_H_INT(rootGob));
 
 	ctx->gl_ctx = SDL_GL_CreateContext(ctx->win);
@@ -193,6 +195,8 @@ typedef struct {
 		SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Failed to create an OpenGL context: %s\n", SDL_GetError());
 		goto failed;
 	}
+
+	rmt_BindOpenGL();
 
 	const GLubyte *version = glGetString(GL_VERSION);
 	const GLubyte *vendor = glGetString(GL_VENDOR);
@@ -202,9 +206,9 @@ typedef struct {
 		"OpenGL version: %s\nVendor: %s\nRenderer: %s\n",
 		version, vendor, renderer);
 
-    if (SDL_GL_SetSwapInterval(0) < 0) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to set swap interval: %s\n", SDL_GetError());
-    }
+	if (SDL_GL_SetSwapInterval(0) < 0) {
+		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to set swap interval: %s\n", SDL_GetError());
+	}
 
 	ctx->draw_ctx = rs_draw_create_context(ctx->win);
 
@@ -248,6 +252,7 @@ failed:
 	REBRECT gob_clip;
 	SDL_Rect saved_clip = ctx->clip;
 	SDL_Rect gob_rect = {x, y, GOB_LOG_W(gob), GOB_LOG_H(gob)};
+	rmt_BeginCPUSample(cpu_process_gobs, RMTSF_Recursive);
 
 	//SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "processing ctx %p, gob %p\n", ctx, gob);
 	if (GET_GOB_STATE(gob, GOBS_NEW)){
@@ -305,7 +310,7 @@ failed:
 				//Put backend specific code here
 				//------------------------------
 				// or use the similar draw api call:
-                rt_gob_text(gob, ctx->draw_ctx, (REBXYI){x, y}, (REBXYI) { gob_clip.left, gob_clip.top }, (REBXYI) { gob_clip.right, gob_clip.bottom });
+				rt_gob_text(gob, ctx->draw_ctx, (REBXYI){x, y}, (REBXYI) { gob_clip.left, gob_clip.top }, (REBXYI) { gob_clip.right, gob_clip.bottom });
 				break;
 
 			case GOBT_EFFECT:
@@ -340,6 +345,8 @@ failed:
 	}
 
 	ctx->clip = saved_clip;
+
+	rmt_EndCPUSample();
 }
 
 /***********************************************************************
@@ -413,10 +420,26 @@ failed:
 	//{
 		ctx->Window_Buffer = rebcmp_get_buffer(ctx);
 
+		int viewport[4];
+		glGetIntegerv(GL_VIEWPORT, viewport);
+
+		int w, h;
+		SDL_GL_GetDrawableSize(ctx->win, &w, &h);
+
 		//redraw gobs
 		rs_draw_begin_frame(ctx->draw_ctx);
+
+		rmt_BeginCPUSample(cpu_process_gob, 0);
+		//rmt_BeginOpenGLSample(process_gob);
 		process_gobs(ctx, winGob);
+		//rmt_EndOpenGLSample();
+		rmt_EndCPUSample();
+
+		rmt_BeginCPUSample(cpu_end_frame, 0);
+		//rmt_BeginOpenGLSample(end_frame);
 		rs_draw_end_frame(ctx->draw_ctx);
+		//rmt_EndOpenGLSample();
+		rmt_EndCPUSample();
 
 		rebcmp_release_buffer(ctx);
 

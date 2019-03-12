@@ -70,6 +70,8 @@ HOST_COMMON =	$(OBJ_DIR)/host-main.o $(OBJ_DIR)/host-args.o $(OBJ_DIR)/host-devi
 
 CODECS = $(OBJ_DIR)/aes.o $(OBJ_DIR)/bigint.o $(OBJ_DIR)/dh.o $(OBJ_DIR)/lodepng.o $(OBJ_DIR)/rc4.o $(OBJ_DIR)/rsa.o
 
+REMOTERY = $(OBJ_DIR)/remotery.o
+
 GFX_COMMON= \
 	$(OBJ_DIR)/host-view.o\
 	$(OBJ_DIR)/host-window.o\
