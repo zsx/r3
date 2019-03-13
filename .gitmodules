@@ -3,4 +3,10 @@
 	url = git://github.com/atgreen/libffi.git
 [submodule "src/remotery"]
 	path = src/remotery
-	url = https://github.com/Celtoys/Remotery.git
+	url = git@10.21.2.8:szeng/remotery.git
+[submodule "src/skia"]
+	path = src/skia
+	url = git@10.21.2.8:szeng/skia.git
+[submodule "src/reb-skia"]
+	path = src/reb-skia
+	url = git@10.21.2.8:szeng/reb-skia.git

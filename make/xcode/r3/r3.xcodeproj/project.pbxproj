@@ -900,15 +900,15 @@
 					../../../src/include,
 					"../../libffi.makefile-osx-64/lib/libffi-3.1.1/include/",
 					../../../src/codecs,
-					"../../../../reb-skia.git/",
+					"../../../src/reb-skia/",
 					/usr/local/include/SDL2,
 				);
 				INFOPLIST_FILE = "r3-Info.plist";
 				LIBRARY_SEARCH_PATHS = (
 					"../../libffi.makefile-osx-64/lib",
-					"../../../../reb-skia.git/build-mac/Debug",
-					"../../../../reb-skia.git/build-mac/libunibreak/lib",
-					../../../../skia.git/out/Debug,
+					"../../../src/reb-skia/build-mac/Debug",
+					"../../../src/reb-skia/build-mac/libunibreak/lib",
+					../../../src/skia/out/Debug,
 					/usr/local/lib,
 				);
 				MACOSX_DEPLOYMENT_TARGET = 10.14;
@@ -955,15 +955,15 @@
 					../../../src/include,
 					"../../libffi.makefile-osx-64/lib/libffi-3.1.1/include/",
 					../../../src/codecs,
-					"../../../../reb-skia.git/",
+					"../../../src/reb-skia/",
 					/usr/local/include/SDL2,
 				);
 				INFOPLIST_FILE = "r3-Info.plist";
 				LIBRARY_SEARCH_PATHS = (
 					"../../libffi.makefile-osx-64/lib",
-					"../../../../reb-skia.git/build-mac/Release",
-					"../../../../reb-skia.git/build-mac/libunibreak/lib",
-					../../../../skia.git/out/Release,
+					"../../../src/reb-skia/build-mac/Release",
+					"../../../src/reb-skia/build-mac/libunibreak/lib",
+					../../../src/skia/out/Release,
 					/usr/local/lib,
 				);
 				MACOSX_DEPLOYMENT_TARGET = 10.14;
