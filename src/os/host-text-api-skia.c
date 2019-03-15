@@ -133,15 +133,18 @@ void Destroy_RichText(void* rt)
 
 void rt_anti_alias(void* rt, REBINT mode)
 {
-
+    rs_rt_anti_alias(rt, mode);
 }
 
 void rt_bold(void* rt, REBINT state)
 {
+    rs_rt_bold(rt, state);
 }
 
 void rt_caret(void* rt, REBXYF* caret, REBXYF* highlightStart, REBXYF highlightEnd)
 {
+    //rs_rt_caret(rt)
+    //rs_rt_highlight(rt,);
 }
 
 void rt_center(void* rt)
@@ -167,6 +170,7 @@ void rt_font(void* rt, font* font)
 		rt_font_size(rt, font->size);
 		rt_italic(rt, font->italic);
 		rt_bold(rt, font->bold);
+		rs_rt_set_font_name(rt, font->name);
 		if (font->name_free) {
 			OS_Free(font->name);
 			font->name_free = FALSE;
