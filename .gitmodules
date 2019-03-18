@@ -10,3 +10,6 @@
 [submodule "src/reb-skia"]
 	path = src/reb-skia
 	url = git@10.21.2.8:szeng/reb-skia.git
+[submodule "src/src/SDL"]
+	path = src/SDL
+	url = https://github.com/SDL-mirror/SDL.git
