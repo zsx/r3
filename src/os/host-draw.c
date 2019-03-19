@@ -448,6 +448,7 @@ static u32* shape_ext_words;
                         break;
                 }
                 rebdrw_line_pattern(ctx->envr, RXA_COLOR_TUPLE(frm, 1), pattern);
+                OS_Free(pattern);
             }
 
         }

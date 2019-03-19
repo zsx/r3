@@ -13,3 +13,6 @@
 [submodule "src/src/SDL"]
 	path = src/SDL
 	url = https://github.com/SDL-mirror/SDL.git
+[submodule "src/angle"]
+	path = src/angle
+	url = https://chromium.googlesource.com/angle/angle
