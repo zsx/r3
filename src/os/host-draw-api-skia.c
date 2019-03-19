@@ -428,6 +428,7 @@ void rebdrw_gob_color(REBGOB *gob, rs_draw_context_t *ctx, REBXYI abs_oft, REBXY
 {
 	rmt_BeginCPUSample(gob_color, RMTSF_Aggregate);
 	rs_draw_reset_painters(ctx);
+	rs_draw_reset_arrows(ctx);
 	rs_draw_push_local(ctx, abs_oft.x, abs_oft.y,
 		clip_oft.x, clip_oft.y, clip_siz.x, clip_siz.y);
 
@@ -458,6 +459,7 @@ void rebdrw_gob_image(REBGOB *gob, rs_draw_context_t *ctx, REBXYI abs_oft, REBXY
 	int h = IMG_HIGH(img);
 
 	rs_draw_reset_painters(ctx);
+	rs_draw_reset_arrows(ctx);
 
 	rs_draw_push_local(ctx, abs_oft.x, abs_oft.y,
 		clip_oft.x, clip_oft.y, clip_siz.x, clip_siz.y);
@@ -476,6 +478,7 @@ void rebdrw_gob_draw(REBGOB *gob, rs_draw_context_t *ctx, REBXYI abs_oft, REBXYI
 	rs_draw_push_local(ctx, abs_oft.x, abs_oft.y,
 		clip_oft.x, clip_oft.y, clip_siz.x, clip_siz.y);
 	rs_draw_reset_painters(ctx);
+	rs_draw_reset_arrows(ctx);
 
 	cec.envr = ctx;
 	cec.block = block;
