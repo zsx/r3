@@ -518,7 +518,7 @@ REBCNT Encode_UTF8(REBYTE *dst, REBINT max, void *src, REBCNT *len, REBFLG uni, 
             REBYTE* str = NULL;
             REBOOL dealloc = As_UTF8_Str(RXA_SERIES(frm, 1), &str);
             if (str) {
-                rt_text_utf8(ctx->envr, str, 0, dealloc);
+                rt_text_utf8(ctx->envr, str, ctx->index + 2, dealloc);
             }
         }
         break;

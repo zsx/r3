@@ -143,8 +143,8 @@ void rt_bold(void* rt, REBINT state)
 
 void rt_caret(void* rt, REBXYF* caret, REBXYF* highlightStart, REBXYF highlightEnd)
 {
-    //rs_rt_caret(rt)
-    //rs_rt_highlight(rt,);
+    if (caret) rs_rt_caret(rt, caret->x, caret->y - 1);
+    if (highlightStart) rs_rt_highlight(rt, highlightStart->x, highlightStart->y - 1, highlightEnd.y - 1);
 }
 
 void rt_center(void* rt)
@@ -205,6 +205,7 @@ void rt_left(void* rt)
 
 void rt_newline(void* rt, REBINT index)
 {
+    rs_rt_newline(rt);
 }
 
 void rt_para(void* rt, para* para)
@@ -255,7 +256,7 @@ void rt_size_text(void* rt, REBGOB* gob, REBXYF* size)
 	}
 	else if (GOB_TYPE(gob) == GOBT_STRING) {
 		dealloc = As_UTF8_Str(GOB_CONTENT(gob), (REBCHR**)&str);
-		rs_rt_text(rt, str);
+		rs_rt_text(rt, 0, str);
 		if (dealloc) {
 			OS_Free(str);
 		}
@@ -273,7 +274,7 @@ void rt_text(void* rt, REBCHR* text, REBINT index, REBCNT dealloc)
 {
 	char * utf8 = NULL;
 	REBOOL needs_free = As_UTF8_Str(text + index, &utf8);
-	rs_rt_text(rt, utf8);
+	rs_rt_text(rt, index, utf8);
 	if (needs_free) {
 		OS_Free(utf8);
 	}
@@ -284,7 +285,7 @@ void rt_text(void* rt, REBCHR* text, REBINT index, REBCNT dealloc)
 
 void rt_text_utf8(void *rt, REBYTE *text, REBINT index, REBCNT dealloc)
 {
-	rs_rt_text(rt, text + index);
+	rs_rt_text(rt, index, text);
 	if (dealloc) {
 		free(text);
 	}
