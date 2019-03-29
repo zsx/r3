@@ -175,6 +175,8 @@ void rt_font(void* rt, font* font)
 			OS_Free(font->name);
 			font->name_free = FALSE;
 		}
+        rs_rt_font_offset(rt, font->offset_x, font->offset_y);
+        rs_rt_font_space(rt, font->space_x, font->space_y);
 	}
 }
 
@@ -225,6 +227,17 @@ void rt_para(void* rt, para* para)
 			rt_left(rt);
 			break;
 		}
+        switch (para->valign) {
+            case W_TEXT_TOP:
+                rs_rt_top(rt);
+                break;
+            case W_TEXT_MIDDLE:
+                rs_rt_middle(rt);
+                break;
+            case W_TEXT_BOTTOM:
+                rs_rt_bottom(rt);
+                break;
+        }
 	}
 }
 
