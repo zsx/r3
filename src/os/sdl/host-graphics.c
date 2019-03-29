@@ -82,7 +82,61 @@ extern void Init_Host_Event();
 **
 ***********************************************************************/
 {
+    SDL_SetCursor(cursor);
 }
+
+#ifdef TO_WIN32
+static const void *cursors[] = {
+    IDC_HAND,           SDL_SYSTEM_CURSOR_HAND,
+    IDC_APPSTARTING,    SDL_SYSTEM_CURSOR_WAITARROW,
+    // IDC_HELP,
+    IDC_ARROW,          SDL_SYSTEM_CURSOR_ARROW,
+    IDC_CROSS,          SDL_SYSTEM_CURSOR_CROSSHAIR,
+    IDC_IBEAM,          SDL_SYSTEM_CURSOR_IBEAM,
+    IDC_NO,             SDL_SYSTEM_CURSOR_NO,
+    IDC_SIZEALL,        SDL_SYSTEM_CURSOR_SIZEALL,
+    IDC_SIZENESW,       SDL_SYSTEM_CURSOR_SIZENESW,
+    IDC_SIZENS,         SDL_SYSTEM_CURSOR_SIZENS,
+    IDC_SIZENWSE,       SDL_SYSTEM_CURSOR_SIZENWSE,
+    IDC_SIZEWE,         SDL_SYSTEM_CURSOR_SIZEWE,
+    //IDC_UPARROW,
+    IDC_WAIT,           SDL_SYSTEM_CURSOR_WAIT
+};
+#elif defined(TO_LINUX)
+static const void *cursors[] = {
+    60,         SDL_SYSTEM_CURSOR_HAND,
+    150,        SDL_SYSTEM_CURSOR_WAITARROW,
+    // IDC_HELP,
+    68,         SDL_SYSTEM_CURSOR_ARROW,
+    34,         SDL_SYSTEM_CURSOR_CROSSHAIR,
+    152,        SDL_SYSTEM_CURSOR_IBEAM,
+    24,         SDL_SYSTEM_CURSOR_NO,
+    120,        SDL_SYSTEM_CURSOR_SIZEALL,
+    0,          SDL_SYSTEM_CURSOR_SIZENESW,
+    116,        SDL_SYSTEM_CURSOR_SIZENS,
+    0,          SDL_SYSTEM_CURSOR_SIZENWSE,
+    108,        SDL_SYSTEM_CURSOR_SIZEWE,
+    //IDC_UPARROW,
+    150,        SDL_SYSTEM_CURSOR_WAIT
+};
+#else
+static const void *cursors[] = {
+    (void*)(60),     (void*)(SDL_SYSTEM_CURSOR_HAND),
+    (void*)(150),     (void*)(SDL_SYSTEM_CURSOR_WAITARROW),
+    // IDC_HELP,
+    (void*)(68),     (void*)(SDL_SYSTEM_CURSOR_ARROW),
+    (void*)(34),     (void*)(SDL_SYSTEM_CURSOR_CROSSHAIR),
+    (void*)(152),     (void*)(SDL_SYSTEM_CURSOR_IBEAM),
+    (void*)(24),     (void*)(SDL_SYSTEM_CURSOR_NO),
+    (void*)(120),     (void*)(SDL_SYSTEM_CURSOR_SIZEALL),
+    //(void*)(0),     (void*)(SDL_SYSTEM_CURSOR_SIZENESW),
+    (void*)(116),     (void*)(SDL_SYSTEM_CURSOR_SIZENS),
+    //(void*)(32642),     (void*)(SDL_SYSTEM_CURSOR_SIZENWSE),
+    (void*)(108),     (void*)(SDL_SYSTEM_CURSOR_SIZEWE),
+    //IDC_UPARROW,
+    (void*)(150),      (void*)(SDL_SYSTEM_CURSOR_WAIT)
+};
+#endif
 
 /***********************************************************************
 **
@@ -92,7 +146,18 @@ extern void Init_Host_Event();
 **
 ***********************************************************************/
 {
-	return NULL;
+    SDL_SystemCursor cid = (SDL_SystemCursor)cursor;
+    size_t i = 0;
+    for(; i < sizeof(cursors) / sizeof(cursors[0]); i += 2) {
+        if (cursors[i] == cursor) {
+            cid = (SDL_SystemCursor)cursors[i + 1];
+            break;
+        }
+    }
+    
+    if (cid >= SDL_NUM_SYSTEM_CURSORS) return NULL;
+    
+    return SDL_CreateSystemCursor(cid);
 }
 
 /***********************************************************************
@@ -103,6 +168,7 @@ extern void Init_Host_Event();
 **
 ***********************************************************************/
 {
+    SDL_FreeCursor(cursor);
 }
 
 
