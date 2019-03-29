@@ -393,7 +393,6 @@ static u32* shape_ext_words;
 				if (type == RXT_PAIR) {
 				    switch (++m){
                         case 1:
-                            rebshp_begin(ctx->envr); // FIXME: why is it staring a new shape?
                             break;
 				        case 2:
 							{
