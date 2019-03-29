@@ -37,7 +37,7 @@
 ***********************************************************************/
 
 typedef struct REBOL_FONT {
-	REBCHR *name;
+	REBYTE *name; //utf8 encoded font name
 	REBCNT name_free;
 	REBINT bold;
 	REBINT italic;
