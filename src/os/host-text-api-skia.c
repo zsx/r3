@@ -238,6 +238,11 @@ void rt_para(void* rt, para* para)
                 rs_rt_bottom(rt);
                 break;
         }
+
+        rs_rt_para_origin(rt, para->origin_x, para->origin_y);
+        rs_rt_para_margin(rt, para->margin_x, para->margin_y);
+        rs_rt_para_indent(rt, para->indent_x, para->indent_y);
+        rs_rt_para_scroll(rt, para->scroll_x, para->scroll_y);
 	}
 }
 
