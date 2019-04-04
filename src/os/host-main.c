@@ -172,6 +172,7 @@ int main(int argc, char **argv)
 	env_always_malloc = getenv("R3_ALWAYS_MALLOC");
 	if (env_always_malloc != NULL) {
 		always_malloc = atoi(env_always_malloc);
+        fprintf(stderr, "ALWAYS MALLOC\n");
 	}
 
 	if (SDL_Init(SDL_INIT_VIDEO|SDL_INIT_EVENTS) != 0) {

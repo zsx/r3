@@ -294,6 +294,8 @@ REBINT Alloc_Window(REBGOB *gob) {
 	Draw_Window(0, gob);  // 0 = window parent of gob
 }
 
+void rebcmp_read_pixel(void *ctx, void *img, size_t s);
+
 /***********************************************************************
 **
 */  REBSER* Gob_To_Image(REBGOB *gob)
@@ -309,8 +311,8 @@ REBINT Alloc_Window(REBGOB *gob) {
 	REBGOB* parent;
 	REBGOB* topgob;
 
-	w = (REBINT)GOB_LOG_W(gob);
-	h = (REBINT)GOB_LOG_H(gob);
+	w = (REBINT)GOB_LOG_W_INT(gob);
+	h = (REBINT)GOB_LOG_H_INT(gob);
 	img = (REBSER*)RL_MAKE_IMAGE(w,h);
 
 	//search the window(or topmost) gob
@@ -323,7 +325,7 @@ REBINT Alloc_Window(REBGOB *gob) {
 	rebcmp_compose(cp, topgob, gob, TRUE);
 
 	//copy the composed result to image
-	memcpy((REBYTE *)RL_SERIES(img, RXI_SER_DATA), rebcmp_get_buffer(cp), w * h * 4);
+	rebcmp_read_pixel(cp, (REBYTE *)RL_SERIES(img, RXI_SER_DATA), w * h * 4);
 
 	rebcmp_release_buffer(cp);
 	

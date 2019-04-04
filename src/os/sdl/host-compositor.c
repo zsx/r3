@@ -100,6 +100,15 @@ typedef struct {
 	void *draw_ctx;
 } REBCMP_CTX;
 
+void rebcmp_read_pixel(REBCMP_CTX *ctx, void *img, size_t s)
+{
+	int w = GOB_LOG_W_INT(ctx->Win_Gob);
+	int h = GOB_LOG_H_INT(ctx->Win_Gob);
+	if (s >= w * h * 4) {
+		rs_draw_read_pixel(ctx->draw_ctx, img);
+	}
+}
+
 /***********************************************************************
 **
 */ REBYTE* rebcmp_get_buffer(REBCMP_CTX* ctx)
@@ -190,27 +199,31 @@ typedef struct {
 
 	SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "creating ctx %p, gob %p, rootGob: %p (%d%d)\n", ctx, gob, rootGob, GOB_LOG_W_INT(rootGob), GOB_LOG_H_INT(rootGob));
 
-	ctx->gl_ctx = SDL_GL_CreateContext(ctx->win);
-	if (!ctx->gl_ctx) {
-		SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Failed to create an OpenGL context: %s\n", SDL_GetError());
-		goto failed;
+	if (ctx->win) {
+		ctx->gl_ctx = SDL_GL_CreateContext(ctx->win);
+		if (!ctx->gl_ctx) {
+			SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Failed to create an OpenGL context: %s\n", SDL_GetError());
+			goto failed;
+		}
+
+		//rmt_BindOpenGL();
+		/*
+		const GLubyte *version = glGetString(GL_VERSION);
+		const GLubyte *vendor = glGetString(GL_VENDOR);
+		const GLubyte *renderer = glGetString(GL_RENDERER);
+
+		SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION,
+			"OpenGL version: %s\nVendor: %s\nRenderer: %s\n",
+			version, vendor, renderer);
+		*/
+
+		if (SDL_GL_SetSwapInterval(0) < 0) {
+			SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to set swap interval: %s\n", SDL_GetError());
+		}
+		ctx->draw_ctx = rs_draw_create_context(ctx->win);
+	} else {
+		ctx->draw_ctx = rs_draw_create_context_with_dimension(w, h);
 	}
-
-	rmt_BindOpenGL();
-
-	const GLubyte *version = glGetString(GL_VERSION);
-	const GLubyte *vendor = glGetString(GL_VENDOR);
-	const GLubyte *renderer = glGetString(GL_RENDERER);
-
-	SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION,
-		"OpenGL version: %s\nVendor: %s\nRenderer: %s\n",
-		version, vendor, renderer);
-
-	if (SDL_GL_SetSwapInterval(0) < 0) {
-		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to set swap interval: %s\n", SDL_GetError());
-	}
-
-	ctx->draw_ctx = rs_draw_create_context(ctx->win);
 
 	//call resize to init buffer
 	rebcmp_resize_buffer(ctx, gob);
@@ -375,7 +388,9 @@ failed:
 	//------------------------------
 	SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "composing ctx: %p, size: %dx%d\n", ctx, GOB_LOG_W_INT(gob), GOB_LOG_H_INT(gob));
 
-	SDL_GL_MakeCurrent(ctx->win, ctx->gl_ctx);
+	if (ctx->win) {
+		SDL_GL_MakeCurrent(ctx->win, ctx->gl_ctx);
+	}
 
 	//calculate absolute offset of the gob
 	while (GOB_PARENT(parent_gob) && (max_depth-- > 0) && !GET_GOB_FLAG(parent_gob, GOBF_WINDOW))
@@ -423,9 +438,6 @@ failed:
 		int viewport[4];
 		glGetIntegerv(GL_VIEWPORT, viewport);
 
-		int w, h;
-		SDL_GL_GetDrawableSize(ctx->win, &w, &h);
-
 		//redraw gobs
 		rs_draw_begin_frame(ctx->draw_ctx);
 
@@ -445,7 +457,6 @@ failed:
 
 		ctx->Window_Buffer = NULL;
 	//}
-	SDL_GL_SwapWindow(ctx->win);
 
 	//update old GOB area
 	GOB_XO(gob) = GOB_LOG_X(gob);
@@ -466,5 +477,5 @@ failed:
 	//Put backend specific code here
 	//------------------------------
 	//
-	//SDL_GL_SwapWindow(ctx->win);
+	SDL_GL_SwapWindow(ctx->win);
 }
