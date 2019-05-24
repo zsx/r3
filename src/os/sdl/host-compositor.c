@@ -95,6 +95,7 @@ typedef struct {
 	REBGOB *Root_Gob;
 	REBXYF absOffset;
 	SDL_GLContext gl_ctx;
+	SDL_Surface surface;
 	SDL_Rect	clip;
 	SDL_Window *win;
 	void *draw_ctx;
@@ -181,57 +182,58 @@ void rebcmp_read_pixel(REBCMP_CTX *ctx, void *img, size_t s)
 **
 ***********************************************************************/
 {
-	//new compositor struct
-	REBCMP_CTX *ctx = (REBCMP_CTX*)OS_Make(sizeof(REBCMP_CTX));
-	int w = GOB_LOG_W_INT(gob);
-	int h = GOB_LOG_H_INT(gob);
+    //new compositor struct
+    REBCMP_CTX *ctx = (REBCMP_CTX*)OS_Make(sizeof(REBCMP_CTX));
+    int w = GOB_LOG_W_INT(gob);
+    int h = GOB_LOG_H_INT(gob);
 
-	memset(ctx, 0, sizeof(REBCMP_CTX));
+    memset(ctx, 0, sizeof(REBCMP_CTX));
 
-	//shortcuts
-	ctx->Root_Gob = rootGob;
-	ctx->Win_Gob = gob;
-	ctx->win = win;
+    //shortcuts
+    ctx->Root_Gob = rootGob;
+    ctx->Win_Gob = gob;
+    ctx->win = win;
 
-	//------------------------------
-	//Put backend specific code here
-	//------------------------------
+    //------------------------------
+    //Put backend specific code here
+    //------------------------------
 
-	SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "creating ctx %p, gob %p, rootGob: %p (%d%d)\n", ctx, gob, rootGob, GOB_LOG_W_INT(rootGob), GOB_LOG_H_INT(rootGob));
+    SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "creating ctx %p, gob %p, rootGob: %p (%d%d)\n", ctx, gob, rootGob, GOB_LOG_W_INT(rootGob), GOB_LOG_H_INT(rootGob));
 
-	if (ctx->win) {
-		ctx->gl_ctx = SDL_GL_CreateContext(ctx->win);
-		if (!ctx->gl_ctx) {
-			SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Failed to create an OpenGL context: %s\n", SDL_GetError());
-			goto failed;
-		}
+    if (ctx->win) {
+        ctx->gl_ctx = SDL_GL_CreateContext(ctx->win);
+        if (!ctx->gl_ctx) {
+            SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Failed to create an OpenGL context: %s\n", SDL_GetError());
+            //goto failed;
+            ctx->draw_ctx = rs_draw_create_context(ctx->win, FALSE);
+        } else {
+            //rmt_BindOpenGL();
+            /*
+            const GLubyte *version = glGetString(GL_VERSION);
+            const GLubyte *vendor = glGetString(GL_VENDOR);
+            const GLubyte *renderer = glGetString(GL_RENDERER);
 
-		//rmt_BindOpenGL();
-		/*
-		const GLubyte *version = glGetString(GL_VERSION);
-		const GLubyte *vendor = glGetString(GL_VENDOR);
-		const GLubyte *renderer = glGetString(GL_RENDERER);
+            SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION,
+                "OpenGL version: %s\nVendor: %s\nRenderer: %s\n",
+                version, vendor, renderer);
+            */
 
-		SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION,
-			"OpenGL version: %s\nVendor: %s\nRenderer: %s\n",
-			version, vendor, renderer);
-		*/
+            ctx->draw_ctx = rs_draw_create_context(ctx->win, TRUE);
+            if (SDL_GL_SetSwapInterval(0) < 0) {
+                SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to set swap interval: %s\n", SDL_GetError());
+            }
+        }
+    } else {
+        ctx->draw_ctx = rs_draw_create_context_with_dimension(w, h);
+    }
 
-		if (SDL_GL_SetSwapInterval(0) < 0) {
-			SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to set swap interval: %s\n", SDL_GetError());
-		}
-		ctx->draw_ctx = rs_draw_create_context(ctx->win);
-	} else {
-		ctx->draw_ctx = rs_draw_create_context_with_dimension(w, h);
-	}
-
-	//call resize to init buffer
-	rebcmp_resize_buffer(ctx, gob);
-	return ctx;
+    //call resize to init buffer
+    rebcmp_resize_buffer(ctx, gob);
+    return ctx;
 
 failed:
-	OS_Free(ctx);
-	return NULL;
+    OS_Free(ctx);
+    return NULL;
 }
 
 /***********************************************************************
@@ -388,7 +390,7 @@ failed:
 	//------------------------------
 	SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "composing ctx: %p, size: %dx%d\n", ctx, GOB_LOG_W_INT(gob), GOB_LOG_H_INT(gob));
 
-	if (ctx->win) {
+	if (ctx->win && ctx->gl_ctx) {
 		SDL_GL_MakeCurrent(ctx->win, ctx->gl_ctx);
 	}
 
@@ -435,8 +437,8 @@ failed:
 	//{
 		ctx->Window_Buffer = rebcmp_get_buffer(ctx);
 
-		int viewport[4];
-		glGetIntegerv(GL_VIEWPORT, viewport);
+		//int viewport[4];
+		//glGetIntegerv(GL_VIEWPORT, viewport);
 
 		//redraw gobs
 		rs_draw_begin_frame(ctx->draw_ctx);
@@ -476,6 +478,21 @@ failed:
 	//------------------------------
 	//Put backend specific code here
 	//------------------------------
-	//
-	SDL_GL_SwapWindow(ctx->win);
+    //
+    if (ctx->gl_ctx) {
+        SDL_GL_SwapWindow(ctx->win);
+    }
+    else {
+        SDL_Surface *screen = SDL_GetWindowSurface(ctx->win);
+        if (SDL_MUSTLOCK(screen)) {
+            SDL_LockSurface(screen);
+        }
+
+        rs_draw_render_to(ctx->draw_ctx, screen);
+
+        if (SDL_MUSTLOCK(screen)) {
+            SDL_UnlockSurface(screen);
+        }
+        SDL_UpdateWindowSurface(ctx->win);
+    }
 }
