@@ -201,9 +201,8 @@ static void Add_Event_Key(REBGOB *gob, REBINT id, REBINT key, REBINT flags)
 	RL_Event(&evt);	// returns 0 if queue is full
 }
 
-static REBFLG state_to_flags(REBFLG flags)
+static REBFLG state_to_flags(SDL_Keymod mod, REBFLG flags)
 {
-	SDL_Keymod mod = SDL_GetModState();
 	if (mod & KMOD_CTRL) {
 		flags |= 1 << EVF_CONTROL;
 	}
@@ -378,7 +377,8 @@ void dispatch (SDL_Event *evt)
 		case SDL_KEYUP:
 			if (!SDL_IsTextInputActive()) {
 				int i, key = -1;
-				int flags = state_to_flags(0);
+				SDL_Keymod mod = SDL_GetModState();
+				int flags = state_to_flags(mod, 0);
 				win = SDL_GetWindowFromID(evt->key.windowID);
 				if (!win) {
 					win = SDL_GetMouseFocus();
@@ -396,7 +396,6 @@ void dispatch (SDL_Event *evt)
 					} else {
 						for (i = 0; keycode_to_char[i] && keycode > keycode_to_char[i]; i += NUM_MAP_IN_A_ROW);
 						if (keycode == keycode_to_char[i]) {
-							SDL_Keymod mod = SDL_GetModState();
 							if (mod & KMOD_CTRL) {
 								key = keycode_to_char[i + 5];
 							} else if (mod & KMOD_SHIFT && mod & KMOD_CAPS) {
@@ -429,7 +428,7 @@ void dispatch (SDL_Event *evt)
 			win = SDL_GetWindowFromID(evt->button.windowID);
 			gob = SDL_GetWindowData(win, "GOB");
 			if (gob != NULL) {
-				REBFLG flags = state_to_flags(0);
+				REBFLG flags = state_to_flags(SDL_GetModState(), 0);
 				int id = 0;
 				if (evt->button.clicks == 2) {
 					flags |= 1 << EVF_DOUBLE;
@@ -458,7 +457,7 @@ void dispatch (SDL_Event *evt)
 			win = SDL_GetWindowFromID(evt->wheel.windowID);
 			gob = SDL_GetWindowData(win, "GOB");
 			if (gob != NULL) {
-				int flags = state_to_flags(0);
+				int flags = state_to_flags(SDL_GetModState(), 0);
 				const int nw_num_lines = 3;
 				xyd = (ROUND_TO_INT(PHYS_COORD_X(evt->wheel.x)) * nw_num_lines) + ((ROUND_TO_INT(PHYS_COORD_Y(evt->wheel.y)) * nw_num_lines)  << 16);
 				SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Wheel event, xyd: 0x%x, flags: 0x%x", xyd, flags);
@@ -469,7 +468,7 @@ void dispatch (SDL_Event *evt)
 			win = SDL_GetWindowFromID(evt->motion.windowID);
 			gob = SDL_GetWindowData(win, "GOB");
 			if (gob != NULL) {
-				int flags = state_to_flags(0);
+				int flags = state_to_flags(SDL_GetModState(), 0);
 				SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "motion event");
 				xyd = (ROUND_TO_INT(PHYS_COORD_X(evt->motion.x))) + (ROUND_TO_INT(PHYS_COORD_Y(evt->motion.y)) << 16);
 				Update_Event_XY(gob, EVT_MOVE, xyd, flags);
