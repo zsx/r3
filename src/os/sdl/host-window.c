@@ -90,6 +90,8 @@ static REBXYF Zero_Pair = {0, 0};
 
 static void prepare_gl_env()
 {
+    SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Setup the GL environment");
+
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
 
@@ -131,6 +133,7 @@ void OS_Close_Window(REBGOB *gob);
 ***********************************************************************/
 {
 	//rs_draw_enable_skia_trace();
+	SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Initializing the windowing system");
 
 	prepare_gl_env();
 }
@@ -218,7 +221,7 @@ void OS_Close_Window(REBGOB *gob);
 		flags |= SDL_WINDOW_MINIMIZED;
 	}
 
-	//printf("Opening a window at: %dx%d, %dx%d, owner gob: 0x%p\n", x, y, w, h, parent_gob);
+	SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Opening a window at: %dx%d, %dx%d, owner gob: 0x%p\n", x, y, w, h, parent_gob);
 	if (parent_gob != NULL) {
 		if (!GET_GOB_FLAG(gob, GOBF_POPUP)) {
 			/* x, y are in parent gob coordinates */
@@ -279,6 +282,7 @@ void OS_Close_Window(REBGOB *gob);
 	Gob_Windows[windex].compositor = rebcmp_create(Gob_Root, gob, win);
     
     if (Gob_Windows[windex].compositor == NULL) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create the compositor");
         OS_Close_Window(gob);
         return NULL;
     }

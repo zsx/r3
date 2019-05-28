@@ -483,6 +483,7 @@ failed:
         SDL_GL_SwapWindow(ctx->win);
     }
     else {
+        SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Blitting to the SDL surface");
         SDL_Surface *screen = SDL_GetWindowSurface(ctx->win);
         if (SDL_MUSTLOCK(screen)) {
             SDL_LockSurface(screen);
