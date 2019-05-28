@@ -253,8 +253,18 @@ void OS_Close_Window(REBGOB *gob);
 #endif
 
 	win = SDL_CreateWindow(title, x, y + offset_y, w, h, flags);
+	if (win == NULL) {
+		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create the window with OpenGL: %s", SDL_GetError());
+		flags &= ~SDL_WINDOW_OPENGL;
+		win = SDL_CreateWindow(title, x, y + offset_y, w, h, flags);
+	}
 	if (title_needs_free)
 		OS_Free(title);
+
+	if (win == NULL) {
+		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create the window: %s", SDL_GetError());
+		return NULL;
+	}
 
 	SDL_SetWindowData(win, "GOB", gob);
 
