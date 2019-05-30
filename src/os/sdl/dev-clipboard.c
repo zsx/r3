@@ -119,12 +119,13 @@
 	if (GET_FLAG(req->flags, RRF_WIDE)) {
 		src_len /= sizeof(REBUNI);
 		REBCNT len = Length_As_UTF8((REBUNI*)req->data, src_len, GET_FLAG(req->flags, RRF_WIDE), 0);
-		void *data = OS_Make(len);
+		char *data = OS_Make(len + 1);
 		if (data == NULL) {
 			return DR_ERROR;
 		}
 		REBCNT dst_len = src_len;
 		Encode_UTF8(data, len, req->data, &dst_len, TRUE, 0);
+		data[len] = '\0';
 		ret = SDL_SetClipboardText(data);
 		OS_Free(data);
 	} else {
