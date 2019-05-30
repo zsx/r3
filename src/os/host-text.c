@@ -181,7 +181,7 @@ REBCNT Encode_UTF8(REBYTE *dst, REBINT max, void *src, REBCNT *len, REBFLG uni, 
             u32 *words, *w;
             REBSER *obj;
             REBCNT type;
-            REBXYF caret, highlightStart, highlightEnd;
+            REBXYF caret, highlightStart, highlightEnd = { 0, 0 };
             REBXYF *pcaret = 0, *phighlightStart = 0;
             obj = RXA_OBJECT(frm, 1);
 //Reb_Print("RXI_WORDS_OF_OBJECT() called\n");
