@@ -8,12 +8,13 @@ INC= $(INCL) -I$S/include/ -I$S/codecs/ -I../src/freetype-2.4.12/include `$(PKG_
 
 RAPI_FLAGS=  $(CFLAGS) $(BIT) -Wno-pointer-sign -fvisibility=default -fPIC -ffloat-store
 HOST_CORE_FLAGS= $(CFLAGS) -Wno-pointer-sign -DREB_CORE -DMIN_OS -DREB_EXE  $(BIT) -fvisibility=default  -D_FILE_OFFSET_BITS=64 -DCUSTOM_STARTUP -ffloat-store
-HOST_VIEW_FLAGS= $(CFLAGS) -Wno-pointer-sign -DREB_EXE $(BIT) -fvisibility=default  -D_FILE_OFFSET_BITS=64 -DCUSTOM_STARTUP -ffloat-store $(EXTRA_VIEW_CFLAGS)
+HOST_VIEW_FLAGS= $(CFLAGS) -Wno-pointer-sign -DREB_EXE $(BIT) -fvisibility=default  -D_FILE_OFFSET_BITS=64 -DCUSTOM_STARTUP -ffloat-store $(EXTRA_VIEW_CFLAGS) -DRMT_ENABLED=0
 HFLAGS_FONT_CONFIG=`$(PKG_CONFIG) fontconfig --cflags`
 
 CLIB= -ldl -lm $(LIBFFI_A)
 #GUI_CLIB=  -ldl -lm -lstdc++ -lfreetype -L../src/freetype-2.4.12/objs/.libs/ `$(PKG_CONFIG) freetype2 --libs` `$(PKG_CONFIG) fontconfig --libs` $(BIT) $(LDFLAGS) -lSDL2 -lGL -Wl,--as-needed
-GUI_CLIB=  -ldl -lm -lstdc++ $(BIT) $(LDFLAGS) `$(PKG_CONFIG) fontconfig --libs`  `$(PKG_CONFIG) sdl2 --libs` -lOpenGL -Wl,--as-needed
+#GUI_CLIB=  -ldl -lm -lstdc++ $(BIT) $(LDFLAGS) `$(PKG_CONFIG) fontconfig --libs`  ../src/SDL/build-linux/libSDL2.a -lOpenGL -Wl,--as-needed
+GUI_CLIB=  -ldl -lm -lstdc++ $(BIT) $(LDFLAGS) `$(PKG_CONFIG) fontconfig --libs` `$(PKG_CONFIG) sdl2 --libs` -lOpenGL -Wl,--as-needed
 # REBOL builds various include files:
 REBOL=	$(CD)r3-make-linux -qs
 

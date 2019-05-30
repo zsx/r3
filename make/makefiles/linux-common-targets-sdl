@@ -50,4 +50,4 @@ $(OBJ_DIR)/host-event.o: $S/os/sdl/host-event.c
 	$(CC) $S/os/sdl/host-event.c $(HFLAGS) -o $(OBJ_DIR)/host-event.o
 
 $(OBJ_DIR)/host-compositor.o: $S/os/sdl/host-compositor.c
-	$(CC) $S/os/sdl/host-compositor.c $(HFLAGS) -I$(HOME)/work/reb-skia.git -o $(OBJ_DIR)/host-compositor.o
+	$(CC) $S/os/sdl/host-compositor.c $(HFLAGS) -I$S/reb-skia -o $(OBJ_DIR)/host-compositor.o
