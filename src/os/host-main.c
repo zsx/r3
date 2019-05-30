@@ -90,6 +90,7 @@ HINSTANCE App_Instance = 0;
 
 /* for memory allocation trouble shooting */
 unsigned int always_malloc = 0;
+enum SKIA_DRIVER r3_skia_driver = SKIA_DRIVER_AUTO;
 
 #ifndef REB_CORE
 extern void Init_Windows(void);
@@ -204,6 +205,17 @@ int main(int argc, char **argv)
 		color = (u32)strtoul(rs_debug_local_clip, NULL, 0);
 		rs_draw_debug_draw_clip(color);
 	}
+
+    const char *rs_driver = getenv("R3_SKIA_DRIVER");
+    if (rs_driver) {
+        if (SDL_strncasecmp(rs_driver, "CPU", 4) == 0) {
+            r3_skia_driver = SKIA_DRIVER_CPU;
+        } else if (SDL_strncasecmp(rs_driver, "OPENGL", 7) == 0) {
+           r3_skia_driver = SKIA_DRIVER_OPENGL;
+        } else {
+            r3_skia_driver = SKIA_DRIVER_AUTO;
+        }
+    }
 
 	Remotery* rmt;
 	rmt_CreateGlobalInstance(&rmt);

@@ -65,6 +65,9 @@
 
 #include "reb-skia.h"
 
+extern int r3_skia_driver;
+void Host_Crash(REBYTE *reason);
+
 //***** Constants *****
 
 void* Find_Window(REBGOB *gob);
@@ -194,8 +197,12 @@ void OS_Close_Window(REBGOB *gob);
 	SDL_Window *win = NULL;
 	REBYTE *title;
 	REBYTE title_needs_free = FALSE;
-	Uint32 flags = SDL_WINDOW_OPENGL
-				  | SDL_WINDOW_ALLOW_HIGHDPI;
+	Uint32 flags = SDL_WINDOW_ALLOW_HIGHDPI;
+
+    if (r3_skia_driver == SKIA_DRIVER_AUTO || r3_skia_driver == SKIA_DRIVER_OPENGL) {
+        flags |= SDL_WINDOW_OPENGL;
+    }
+
 	REBGOB *parent_gob = GOB_PARENT(gob);
 
 	windex = Alloc_Window(gob);
@@ -257,9 +264,13 @@ void OS_Close_Window(REBGOB *gob);
 
 	win = SDL_CreateWindow(title, x, y + offset_y, w, h, flags);
 	if (win == NULL) {
+        if (r3_skia_driver != SKIA_DRIVER_AUTO) {
+            Host_Crash("Can't create a window");
+        }
 		SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create the window with OpenGL: %s", SDL_GetError());
 		flags &= ~SDL_WINDOW_OPENGL;
 		win = SDL_CreateWindow(title, x, y + offset_y, w, h, flags);
+        r3_skia_driver = SKIA_DRIVER_CPU;
 	}
 	if (title_needs_free)
 		OS_Free(title);

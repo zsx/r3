@@ -77,6 +77,9 @@ void* Find_Window(REBGOB *gob);
 
 static REBXYF Zero_Pair = {0, 0};
 
+extern int r3_skia_driver;
+void Host_Crash(REBYTE *reason);
+
 typedef struct {
 	REBINT left;
 	REBINT top;
@@ -201,27 +204,37 @@ void rebcmp_read_pixel(REBCMP_CTX *ctx, void *img, size_t s)
     SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "creating ctx %p, gob %p, rootGob: %p (%d%d)\n", ctx, gob, rootGob, GOB_LOG_W_INT(rootGob), GOB_LOG_H_INT(rootGob));
 
     if (ctx->win) {
-        ctx->gl_ctx = SDL_GL_CreateContext(ctx->win);
-        if (!ctx->gl_ctx) {
-            SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Failed to create an OpenGL context: %s\n", SDL_GetError());
-            //goto failed;
-            ctx->draw_ctx = rs_draw_create_context(ctx->win, FALSE);
-        } else {
-            //rmt_BindOpenGL();
-            /*
-            const GLubyte *version = glGetString(GL_VERSION);
-            const GLubyte *vendor = glGetString(GL_VENDOR);
-            const GLubyte *renderer = glGetString(GL_RENDERER);
+        if (r3_skia_driver == SKIA_DRIVER_AUTO || r3_skia_driver == SKIA_DRIVER_OPENGL) {
+            ctx->gl_ctx = SDL_GL_CreateContext(ctx->win);
+            if (!ctx->gl_ctx) {
+                if (r3_skia_driver == SKIA_DRIVER_OPENGL) {
+                    Host_Crash("Failed to create the OpenGL context");
+                }
+                SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Failed to create an OpenGL context: %s\n", SDL_GetError());
+                r3_skia_driver = SKIA_DRIVER_CPU; // this makes it try to create a raster context later
+            } else {
+                //rmt_BindOpenGL();
+                /*
+                const GLubyte *version = glGetString(GL_VERSION);
+                const GLubyte *vendor = glGetString(GL_VENDOR);
+                const GLubyte *renderer = glGetString(GL_RENDERER);
 
-            SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION,
-                "OpenGL version: %s\nVendor: %s\nRenderer: %s\n",
-                version, vendor, renderer);
-            */
+                SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION,
+                    "OpenGL version: %s\nVendor: %s\nRenderer: %s\n",
+                    version, vendor, renderer);
+                */
 
-            ctx->draw_ctx = rs_draw_create_context(ctx->win, TRUE);
-            if (SDL_GL_SetSwapInterval(0) < 0) {
-                SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to set swap interval: %s\n", SDL_GetError());
+                r3_skia_driver = SKIA_DRIVER_OPENGL;
+
+                ctx->draw_ctx = rs_draw_create_context(ctx->win, TRUE);
+                if (SDL_GL_SetSwapInterval(0) < 0) {
+                    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to set swap interval: %s\n", SDL_GetError());
+                }
             }
+        }
+        
+        if (r3_skia_driver == SKIA_DRIVER_CPU) {
+            ctx->draw_ctx = rs_draw_create_context(ctx->win, FALSE);
         }
     } else {
         ctx->draw_ctx = rs_draw_create_context_with_dimension(w, h);
@@ -479,10 +492,9 @@ failed:
 	//Put backend specific code here
 	//------------------------------
     //
-    if (ctx->gl_ctx) {
+    if (r3_skia_driver == SKIA_DRIVER_OPENGL) {
         SDL_GL_SwapWindow(ctx->win);
-    }
-    else {
+    } else if (r3_skia_driver == SKIA_DRIVER_CPU) {
         SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Blitting to the SDL surface");
         SDL_Surface *screen = SDL_GetWindowSurface(ctx->win);
         if (SDL_MUSTLOCK(screen)) {
@@ -495,5 +507,7 @@ failed:
             SDL_UnlockSurface(screen);
         }
         SDL_UpdateWindowSurface(ctx->win);
+    } else {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Unknown SKIA Driver: %d", r3_skia_driver);
     }
 }

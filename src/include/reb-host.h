@@ -40,3 +40,9 @@
 
 #include "reb-gob.h"
 #include "reb-lib.h"
+
+enum SKIA_DRIVER {
+    SKIA_DRIVER_AUTO,
+    SKIA_DRIVER_OPENGL,
+    SKIA_DRIVER_CPU
+};
