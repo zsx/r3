@@ -26,7 +26,6 @@
 **
 ***********************************************************************/
 
-#include "Remotery.h"
 
 // Create this on your local stack frame or globally:
 typedef struct {		// State variables to save
@@ -49,7 +48,6 @@ typedef struct {		// State variables to save
 		(s).asp = SERIES_TAIL(AS_Series);\
 		(s).hold_tail = GC_Protect->tail;\
 		(s).error = 0;\
-		(s).remotery_sample = rmt_CurrentCPUSample(); \
 	} while(0)
 
 #define POP_STATE(s, g) do {\
@@ -58,7 +56,6 @@ typedef struct {		// State variables to save
 		DSF = (s).dsf;\
 		SERIES_TAIL(AS_Series) = (s).asp;\
 		GC_Protect->tail = (s).hold_tail;\
-		rmt_RestoreCPUSampleTo((s).remotery_sample);\
 	} while (0)
 
 // Do not restore prior state:
