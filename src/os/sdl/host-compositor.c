@@ -243,10 +243,6 @@ void rebcmp_read_pixel(REBCMP_CTX *ctx, void *img, size_t s)
     //call resize to init buffer
     rebcmp_resize_buffer(ctx, gob);
     return ctx;
-
-failed:
-    OS_Free(ctx);
-    return NULL;
 }
 
 /***********************************************************************
