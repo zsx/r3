@@ -1,3 +1,4 @@
+#include <assert.h>
 #include "reb-host.h"
 //#include <unistd.h>
 #include "host-lib.h"
@@ -201,17 +202,27 @@ static void Add_Event_Key(REBGOB *gob, REBINT id, REBINT key, REBINT flags)
 	RL_Event(&evt);	// returns 0 if queue is full
 }
 
-static REBFLG state_to_flags(SDL_Keymod mod, REBFLG flags)
+struct Modifiers {
+	char shift_down;
+	char ctrl_down;
+	char caps_down;
+};
+
+static struct Modifiers modifiers = {0, 0, 0 };
+
+static REBFLG state_to_flags(REBFLG flags)
 {
-	if (mod & KMOD_CTRL) {
+	if (modifiers.ctrl_down) {
 		flags |= 1 << EVF_CONTROL;
 	}
-	if (mod & KMOD_SHIFT) {
+	if (modifiers.shift_down) {
 		flags |= 1 << EVF_SHIFT;
 	}
 
 	return flags;
 }
+
+static int n_fingers = 0;
 
 void dispatch (SDL_Event *evt)
 {
@@ -223,284 +234,365 @@ void dispatch (SDL_Event *evt)
 
 	SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "event type: 0x%x\n", evt->type);
 	switch (evt->type) {
-		case SDL_QUIT:
-			SDL_Log("Quiting ...");
-			break;
-		case SDL_WINDOWEVENT:
-			switch (evt->window.event) {
-				case SDL_WINDOWEVENT_SHOWN:
-					SDL_Log("Window %d shown", evt->window.windowID);
-					win = SDL_GetWindowFromID(evt->window.windowID);
-					if (win) {
-						gob = SDL_GetWindowData(win, "GOB");
-						if (gob != NULL) {
-							if (GET_GOB_FLAG(gob, GOBF_HIDDEN)) {
-								CLR_GOB_FLAG(gob, GOBF_HIDDEN);
-							}
-							REBCMP_CTX *compositor = Find_Compositor(gob);
-							rebcmp_compose(compositor, gob, gob, FALSE);
-							rebcmp_blit(compositor);
-						}
-					}
-					break;
-				case SDL_WINDOWEVENT_HIDDEN:
-					SDL_Log("Window %d hidden", evt->window.windowID);
-					win = SDL_GetWindowFromID(evt->window.windowID);
-					if (win) {
-						gob = SDL_GetWindowData(win, "GOB");
-						if (gob != NULL && !GET_GOB_FLAG(gob, GOBF_HIDDEN)) {
-							SET_GOB_FLAG(gob, GOBF_HIDDEN);
-						}
-					}
-					break;
-				case SDL_WINDOWEVENT_EXPOSED:
-					SDL_Log("Window %d exposed", evt->window.windowID);
-					win = SDL_GetWindowFromID(evt->window.windowID);
-					if (win) {
-						gob = SDL_GetWindowData(win, "GOB");
-						if (gob != NULL) {
-							REBCMP_CTX *compositor = Find_Compositor(gob);
-							rebcmp_compose(compositor, gob, gob, FALSE);
-							rebcmp_blit(compositor);
-						}
-					}
-					break;
-				case SDL_WINDOWEVENT_MOVED:
-					SDL_Log("Window %d moved to %d,%d",
-							evt->window.windowID, evt->window.data1,
-							evt->window.data2);
-					win = SDL_GetWindowFromID(evt->window.windowID);
-					if (win) {
-						gob = SDL_GetWindowData(win, "GOB");
-						if (gob != NULL) {
-							gob->offset.x = ROUND_TO_INT(PHYS_COORD_X(evt->window.data1));
-							gob->offset.y = ROUND_TO_INT(PHYS_COORD_Y(evt->window.data2));
-							xyd = (ROUND_TO_INT((gob->offset.x))) + (ROUND_TO_INT(gob->offset.y) << 16);
-							Update_Event_XY(gob, EVT_OFFSET, xyd, 0);
-						}
-					}
-					break;
-				case SDL_WINDOWEVENT_RESIZED:
-				case SDL_WINDOWEVENT_SIZE_CHANGED:
-					SDL_Log("Window %d resized to %dx%d",
-							evt->window.windowID, evt->window.data1,
-							evt->window.data2);
-					win = SDL_GetWindowFromID(evt->window.windowID);
-					if (win) {
-						gob = SDL_GetWindowData(win, "GOB");
-						if (gob != NULL) {
-							gob->size.x = ROUND_TO_INT(PHYS_COORD_X(evt->window.data1));
-							gob->size.y = ROUND_TO_INT(PHYS_COORD_Y(evt->window.data2));
-							xyd = (ROUND_TO_INT((gob->size.x))) + (ROUND_TO_INT(gob->size.y) << 16);
-							SDL_Log("gob %p resized to %dx%d", gob, (int)gob->size.x, (int)gob->size.y);
-							Update_Event_XY(gob, EVT_RESIZE, xyd, 0);
-							Resize_Window(gob, TRUE);
-						}
-					}
-					break;
-					break;
-				case SDL_WINDOWEVENT_MINIMIZED:
-					SDL_Log("Window %d minimized", evt->window.windowID);
-					win = SDL_GetWindowFromID(evt->window.windowID);
-					if (win) {
-						gob = SDL_GetWindowData(win, "GOB");
-						if (gob != NULL && !GET_GOB_FLAG(gob, GOBF_MINIMIZE)) {
-							SET_GOB_FLAG(gob, GOBF_MINIMIZE);
-							CLR_GOB_FLAGS(gob, GOBF_RESTORE, GOBF_MAXIMIZE);
-							CLR_GOB_FLAG(gob, GOBF_FULLSCREEN);
-						}
-					}
-					break;
-				case SDL_WINDOWEVENT_MAXIMIZED:
-					SDL_Log("Window %d maximized", evt->window.windowID);
-					win = SDL_GetWindowFromID(evt->window.windowID);
-					if (win) {
-						gob = SDL_GetWindowData(win, "GOB");
-						if (gob != NULL && !GET_GOB_FLAG(gob, GOBF_MAXIMIZE)) {
-							SET_GOB_FLAG(gob, GOBF_MAXIMIZE);
-							CLR_GOB_FLAGS(gob, GOBF_RESTORE, GOBF_MINIMIZE);
-							CLR_GOB_FLAG(gob, GOBF_FULLSCREEN);
-						}
-					}
-					break;
-				case SDL_WINDOWEVENT_RESTORED:
-					SDL_Log("Window %d restored", evt->window.windowID);
-					win = SDL_GetWindowFromID(evt->window.windowID);
-					if (win) {
-						gob = SDL_GetWindowData(win, "GOB");
-						if (gob != NULL && !GET_GOB_FLAG(gob, GOBF_RESTORE)) {
-							SET_GOB_FLAG(gob, GOBF_RESTORE);
-							CLR_GOB_FLAGS(gob, GOBF_MAXIMIZE, GOBF_MINIMIZE);
-							CLR_GOB_FLAG(gob, GOBF_FULLSCREEN);
-						}
-					}
-					break;
-				case SDL_WINDOWEVENT_ENTER:
-					SDL_Log("Mouse entered window %d",
-							evt->window.windowID);
-					break;
-				case SDL_WINDOWEVENT_LEAVE:
-					SDL_Log("Mouse left window %d", evt->window.windowID);
-					break;
-				case SDL_WINDOWEVENT_FOCUS_GAINED:
-					SDL_Log("Window %d gained keyboard focus",
-							evt->window.windowID);
-					break;
-				case SDL_WINDOWEVENT_FOCUS_LOST:
-					SDL_Log("Window %d lost keyboard focus",
-							evt->window.windowID);
-					break;
-				case SDL_WINDOWEVENT_CLOSE:
-					SDL_Log("Window %d closed", evt->window.windowID);
-					win = SDL_GetWindowFromID(evt->window.windowID);
-					if (win) {
-						gob = SDL_GetWindowData(win, "GOB");
-						if (gob != NULL)
-							Add_Event_XY(gob, EVT_CLOSE, 0, 0);
-					}
-					break;
-#if SDL_VERSION_ATLEAST(2, 0, 5)
-		        case SDL_WINDOWEVENT_TAKE_FOCUS:
-		            SDL_Log("Window %d is offered a focus", evt->window.windowID);
-		            break;
-		        case SDL_WINDOWEVENT_HIT_TEST:
-		            SDL_Log("Window %d has a special hit test", evt->window.windowID);
-		            break;
-#endif
-				default:
-					SDL_Log("Window %d got unknown evt %d",
-							evt->window.windowID, evt->window.event);
-					break;
-			}
-			break;
-		case SDL_KEYDOWN:
-		case SDL_KEYUP:
-			if (!SDL_IsTextInputActive()) {
-				int i, key = -1;
-				SDL_Keymod mod = SDL_GetModState();
-				int flags = state_to_flags(mod, 0);
-				win = SDL_GetWindowFromID(evt->key.windowID);
-				if (!win) {
-					win = SDL_GetMouseFocus();
-				}
-				SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Key event for window 0x%p", win);
-				if (!win) {
-					return;
-				}
-				gob = SDL_GetWindowData(win, "GOB");
-				if (gob != NULL) {
-					SDL_Keycode keycode = evt->key.keysym.sym;
-					for (i = 0; keycode_to_event[i] && keycode > keycode_to_event[i]; i += 2);
-					if (keycode == keycode_to_event[i]) {
-						key = keycode_to_event[i + 1] << 16;
-					} else {
-						for (i = 0; keycode_to_char[i] && keycode > keycode_to_char[i]; i += NUM_MAP_IN_A_ROW);
-						if (keycode == keycode_to_char[i]) {
-							if (mod & KMOD_CTRL) {
-								key = keycode_to_char[i + 5];
-							} else if (mod & KMOD_SHIFT && mod & KMOD_CAPS) {
-								key = keycode_to_char[i + 4];
-							} else if (mod & KMOD_CAPS) {
-								key = keycode_to_char[i + 3];
-							} else if (mod & KMOD_SHIFT) {
-								key = keycode_to_char[i + 2];
-							} else {
-								key = keycode_to_char[i + 1];
-							}
-						}
-					}
-					SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Key event: 0x%x, keycode: 0x%x, flags: 0x%x", key, keycode, flags);
-					if (key > 0) {
-						Add_Event_Key(gob,
-									  evt->key.state == SDL_PRESSED? EVT_KEY : EVT_KEY_UP,
-									  key, flags);
-					}
-				}
-			} else {
-				SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Text Input Active");
-			}
-			break;
-		case SDL_TEXTINPUT:
-			SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Text Input: %s", evt->text.text);
-			break;
-		case SDL_MOUSEBUTTONDOWN:
-		case SDL_MOUSEBUTTONUP:
-			win = SDL_GetWindowFromID(evt->button.windowID);
-			gob = SDL_GetWindowData(win, "GOB");
-			if (gob != NULL) {
-				REBFLG flags = state_to_flags(SDL_GetModState(), 0);
-				int id = 0;
-				if (evt->button.clicks == 2) {
-					flags |= 1 << EVF_DOUBLE;
-				}
-
-				switch (evt->button.button) {
-					case SDL_BUTTON_LEFT:
-						id = (evt->button.state == SDL_PRESSED)? EVT_DOWN : EVT_UP;
-						break;
-					case SDL_BUTTON_MIDDLE:
-						id = (evt->button.state == SDL_PRESSED)? EVT_AUX_DOWN : EVT_AUX_UP;
-						break;
-					case SDL_BUTTON_RIGHT:
-						id = (evt->button.state == SDL_PRESSED)? EVT_ALT_DOWN : EVT_ALT_UP;
-						break;
-					default: /* unrecognized buttons */
-						return;
-				}
-				xyd = (ROUND_TO_INT(PHYS_COORD_X(evt->button.x))) + (ROUND_TO_INT(PHYS_COORD_Y(evt->button.y)) << 16);
-				SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "button event, button: %d, clicks: %d", evt->button.button, evt->button.clicks);
-				Add_Event_XY(gob, id, xyd, flags);
-			}
-			break;
-
-		case SDL_MOUSEWHEEL:
-			win = SDL_GetWindowFromID(evt->wheel.windowID);
-			gob = SDL_GetWindowData(win, "GOB");
-			if (gob != NULL) {
-				int flags = state_to_flags(SDL_GetModState(), 0);
-				const int nw_num_lines = 3;
-				xyd = (ROUND_TO_INT(PHYS_COORD_X(evt->wheel.x)) * nw_num_lines) + ((ROUND_TO_INT(PHYS_COORD_Y(evt->wheel.y)) * nw_num_lines)  << 16);
-				SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Wheel event, xyd: 0x%x, flags: 0x%x", xyd, flags);
-				Add_Event_XY(gob, (flags & (1 << EVF_CONTROL)) ? EVT_SCROLL_PAGE : EVT_SCROLL_LINE, xyd, 0);
-			}
-			break;
-		case SDL_MOUSEMOTION:
-			win = SDL_GetWindowFromID(evt->motion.windowID);
-			gob = SDL_GetWindowData(win, "GOB");
-			if (gob != NULL) {
-				int flags = state_to_flags(SDL_GetModState(), 0);
-				SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "motion event");
-				xyd = (ROUND_TO_INT(PHYS_COORD_X(evt->motion.x))) + (ROUND_TO_INT(PHYS_COORD_Y(evt->motion.y)) << 16);
-				Update_Event_XY(gob, EVT_MOVE, xyd, flags);
-			}
-			break;
-		case SDL_MULTIGESTURE:
-			win = SDL_GetMouseFocus();
+	case SDL_QUIT:
+		SDL_Log("Quiting ...");
+		break;
+	case SDL_WINDOWEVENT:
+		switch (evt->window.event) {
+		case SDL_WINDOWEVENT_SHOWN:
+			SDL_Log("Window %d shown", evt->window.windowID);
+			win = SDL_GetWindowFromID(evt->window.windowID);
 			if (win) {
 				gob = SDL_GetWindowData(win, "GOB");
-			} else {
-				SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Invalid win: %d", win);
-			}
-			SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Multigesture event, gob: %p, loc: %fx%f, numfingers: %d, dist: %f",
-						 gob,
-						 evt->mgesture.x, evt->mgesture.y,
-						 evt->mgesture.numFingers,
-						 evt->mgesture.dDist);
-			if (gob != NULL && evt->mgesture.numFingers == 2) {
-				SDL_Rect rect;
-				REBINT diag = 0;
-				REBINT flags = 0;
-
-				SDL_GetDisplayBounds(0, &rect);
-				diag = sqrt (rect.w * rect.w + rect.h * rect.h);
-				xyd = (ROUND_TO_INT(PHYS_COORD_X(evt->mgesture.dDist * diag))) + (ROUND_TO_INT(PHYS_COORD_Y(evt->mgesture.dTheta * diag)) << 16);
-#define SCROLL_THREADHOLD 10 // in pixels
-				if (abs(xyd & 0xFFFF) > SCROLL_THREADHOLD) {
-					Accumulate_Event_XY(gob, EVT_SCROLL_LINE, xyd, flags);
+				if (gob != NULL) {
+					if (GET_GOB_FLAG(gob, GOBF_HIDDEN)) {
+						CLR_GOB_FLAG(gob, GOBF_HIDDEN);
+					}
+					REBCMP_CTX *compositor = Find_Compositor(gob);
+					rebcmp_compose(compositor, gob, gob, FALSE);
+					rebcmp_blit(compositor);
 				}
-				//Accumulate_Event_XY(gob, EVT_TOUCH_PINCH, xyd, flags);
 			}
 			break;
+		case SDL_WINDOWEVENT_HIDDEN:
+			SDL_Log("Window %d hidden", evt->window.windowID);
+			win = SDL_GetWindowFromID(evt->window.windowID);
+			if (win) {
+				gob = SDL_GetWindowData(win, "GOB");
+				if (gob != NULL && !GET_GOB_FLAG(gob, GOBF_HIDDEN)) {
+					SET_GOB_FLAG(gob, GOBF_HIDDEN);
+				}
+			}
+			break;
+		case SDL_WINDOWEVENT_EXPOSED:
+			SDL_Log("Window %d exposed", evt->window.windowID);
+			win = SDL_GetWindowFromID(evt->window.windowID);
+			if (win) {
+				gob = SDL_GetWindowData(win, "GOB");
+				if (gob != NULL) {
+					REBCMP_CTX *compositor = Find_Compositor(gob);
+					rebcmp_compose(compositor, gob, gob, FALSE);
+					rebcmp_blit(compositor);
+				}
+			}
+			break;
+		case SDL_WINDOWEVENT_MOVED:
+			SDL_Log("Window %d moved to %d,%d",
+				evt->window.windowID, evt->window.data1,
+				evt->window.data2);
+			win = SDL_GetWindowFromID(evt->window.windowID);
+			if (win) {
+				gob = SDL_GetWindowData(win, "GOB");
+				if (gob != NULL) {
+					gob->offset.x = ROUND_TO_INT(PHYS_COORD_X(evt->window.data1));
+					gob->offset.y = ROUND_TO_INT(PHYS_COORD_Y(evt->window.data2));
+					xyd = (ROUND_TO_INT((gob->offset.x))) + (ROUND_TO_INT(gob->offset.y) << 16);
+					Update_Event_XY(gob, EVT_OFFSET, xyd, 0);
+				}
+			}
+			break;
+		case SDL_WINDOWEVENT_RESIZED:
+		case SDL_WINDOWEVENT_SIZE_CHANGED:
+			SDL_Log("Window %d resized to %dx%d",
+				evt->window.windowID, evt->window.data1,
+				evt->window.data2);
+			win = SDL_GetWindowFromID(evt->window.windowID);
+			if (win) {
+				gob = SDL_GetWindowData(win, "GOB");
+				if (gob != NULL) {
+					gob->size.x = ROUND_TO_INT(PHYS_COORD_X(evt->window.data1));
+					gob->size.y = ROUND_TO_INT(PHYS_COORD_Y(evt->window.data2));
+					xyd = (ROUND_TO_INT((gob->size.x))) + (ROUND_TO_INT(gob->size.y) << 16);
+					SDL_Log("gob %p resized to %dx%d", gob, (int)gob->size.x, (int)gob->size.y);
+					Update_Event_XY(gob, EVT_RESIZE, xyd, 0);
+					Resize_Window(gob, TRUE);
+				}
+			}
+			break;
+			break;
+		case SDL_WINDOWEVENT_MINIMIZED:
+			SDL_Log("Window %d minimized", evt->window.windowID);
+			win = SDL_GetWindowFromID(evt->window.windowID);
+			if (win) {
+				gob = SDL_GetWindowData(win, "GOB");
+				if (gob != NULL && !GET_GOB_FLAG(gob, GOBF_MINIMIZE)) {
+					SET_GOB_FLAG(gob, GOBF_MINIMIZE);
+					CLR_GOB_FLAGS(gob, GOBF_RESTORE, GOBF_MAXIMIZE);
+					CLR_GOB_FLAG(gob, GOBF_FULLSCREEN);
+				}
+			}
+			break;
+		case SDL_WINDOWEVENT_MAXIMIZED:
+			SDL_Log("Window %d maximized", evt->window.windowID);
+			win = SDL_GetWindowFromID(evt->window.windowID);
+			if (win) {
+				gob = SDL_GetWindowData(win, "GOB");
+				if (gob != NULL && !GET_GOB_FLAG(gob, GOBF_MAXIMIZE)) {
+					SET_GOB_FLAG(gob, GOBF_MAXIMIZE);
+					CLR_GOB_FLAGS(gob, GOBF_RESTORE, GOBF_MINIMIZE);
+					CLR_GOB_FLAG(gob, GOBF_FULLSCREEN);
+				}
+			}
+			break;
+		case SDL_WINDOWEVENT_RESTORED:
+			SDL_Log("Window %d restored", evt->window.windowID);
+			win = SDL_GetWindowFromID(evt->window.windowID);
+			if (win) {
+				gob = SDL_GetWindowData(win, "GOB");
+				if (gob != NULL && !GET_GOB_FLAG(gob, GOBF_RESTORE)) {
+					SET_GOB_FLAG(gob, GOBF_RESTORE);
+					CLR_GOB_FLAGS(gob, GOBF_MAXIMIZE, GOBF_MINIMIZE);
+					CLR_GOB_FLAG(gob, GOBF_FULLSCREEN);
+				}
+			}
+			break;
+		case SDL_WINDOWEVENT_ENTER:
+			SDL_Log("Mouse entered window %d",
+				evt->window.windowID);
+			break;
+		case SDL_WINDOWEVENT_LEAVE:
+			SDL_Log("Mouse left window %d", evt->window.windowID);
+			break;
+		case SDL_WINDOWEVENT_FOCUS_GAINED:
+			SDL_Log("Window %d gained keyboard focus",
+				evt->window.windowID);
+			break;
+		case SDL_WINDOWEVENT_FOCUS_LOST:
+			SDL_Log("Window %d lost keyboard focus",
+				evt->window.windowID);
+			break;
+		case SDL_WINDOWEVENT_CLOSE:
+			SDL_Log("Window %d closed", evt->window.windowID);
+			win = SDL_GetWindowFromID(evt->window.windowID);
+			if (win) {
+				gob = SDL_GetWindowData(win, "GOB");
+				if (gob != NULL)
+					Add_Event_XY(gob, EVT_CLOSE, 0, 0);
+			}
+			break;
+#if SDL_VERSION_ATLEAST(2, 0, 5)
+	    case SDL_WINDOWEVENT_TAKE_FOCUS:
+            SDL_Log("Window %d is offered a focus", evt->window.windowID);
+            break;
+        case SDL_WINDOWEVENT_HIT_TEST:
+            SDL_Log("Window %d has a special hit test", evt->window.windowID);
+            break;
+#endif
+        default:
+            SDL_Log("Window %d got unknown evt %d",
+                evt->window.windowID, evt->window.event);
+            break;
+        }
+        break;
+    case SDL_KEYDOWN:
+    case SDL_KEYUP:
+        if (!SDL_IsTextInputActive()) {
+            int i, key = -1;
+			int flags = state_to_flags(0);
+            win = SDL_GetWindowFromID(evt->key.windowID);
+            if (!win) {
+                win = SDL_GetMouseFocus();
+            }
+            SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Key event for window 0x%p", win);
+            if (!win) {
+                return;
+            }
+            gob = SDL_GetWindowData(win, "GOB");
+            if (gob != NULL) {
+                SDL_Keycode keycode = evt->key.keysym.sym;
+				Uint16 mod = evt->key.keysym.mod;
+				if (keycode == SDLK_RSHIFT || keycode == SDLK_LSHIFT) {
+					modifiers.shift_down = (evt->type == SDL_KEYDOWN);
+					break;
+				}
+				else if (keycode == SDLK_RCTRL || keycode == SDLK_LCTRL) {
+					modifiers.ctrl_down = (evt->type == SDL_KEYDOWN);
+					break;
+				}
+
+                for (i = 0; keycode_to_event[i] && keycode > keycode_to_event[i]; i += 2);
+                if (keycode == keycode_to_event[i]) {
+                    key = keycode_to_event[i + 1] << 16;
+				} else {
+                    for (i = 0; keycode_to_char[i] && keycode > keycode_to_char[i]; i += NUM_MAP_IN_A_ROW);
+                    if (keycode == keycode_to_char[i]) {
+						if (mod & KMOD_CTRL) {
+							key = keycode_to_char[i + 5];
+						} else if (mod & KMOD_SHIFT && mod & KMOD_CAPS) {
+							key = keycode_to_char[i + 4];
+						} else if (mod & KMOD_CAPS) {
+							key = keycode_to_char[i + 3];
+						} else if (mod & KMOD_SHIFT) {
+							key = keycode_to_char[i + 2];
+						} else {
+							key = keycode_to_char[i + 1];
+                        }
+                    }
+                }
+                SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Key event: 0x%x, keycode: 0x%x, flags: 0x%x", key, keycode, flags);
+                if (key > 0) {
+                    Add_Event_Key(gob,
+                        evt->key.state == SDL_PRESSED ? EVT_KEY : EVT_KEY_UP,
+                        key, flags);
+                }
+            }
+		} else {
+            SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Text Input Active");
+        }
+        break;
+    case SDL_TEXTINPUT:
+        SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Text Input: %s", evt->text.text);
+        break;
+    case SDL_MOUSEBUTTONDOWN:
+    case SDL_MOUSEBUTTONUP:
+        if (evt->button.which == SDL_TOUCH_MOUSEID) {
+            // already processed by finger up/down
+            SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "SDL_TOUCH_MOUSEID");
+            //break;
+        }
+        win = SDL_GetWindowFromID(evt->button.windowID);
+        gob = SDL_GetWindowData(win, "GOB");
+        if (gob != NULL) {
+            REBFLG flags = state_to_flags(0);
+            int id = 0;
+            if (evt->button.clicks == 2) {
+                flags |= 1 << EVF_DOUBLE;
+            }
+
+            switch (evt->button.button) {
+            case SDL_BUTTON_LEFT:
+                id = (evt->button.state == SDL_PRESSED) ? EVT_DOWN : EVT_UP;
+                break;
+            case SDL_BUTTON_MIDDLE:
+                id = (evt->button.state == SDL_PRESSED) ? EVT_AUX_DOWN : EVT_AUX_UP;
+                break;
+            case SDL_BUTTON_RIGHT:
+                id = (evt->button.state == SDL_PRESSED) ? EVT_ALT_DOWN : EVT_ALT_UP;
+                break;
+            default: /* unrecognized buttons */
+                return;
+            }
+            xyd = (ROUND_TO_INT(PHYS_COORD_X(evt->button.x))) + (ROUND_TO_INT(PHYS_COORD_Y(evt->button.y)) << 16);
+            SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "button event@%d, xy: %dx%d, which: %d, button: %d, clicks: %d, state: %s",
+                evt->button.timestamp,
+                evt->button.x, evt->button.y,
+                evt->button.which,
+                evt->button.button,
+                evt->button.clicks,
+                (evt->button.state == SDL_PRESSED) ? "PRESSED" : "RELEASED");
+            Add_Event_XY(gob, id, xyd, flags);
+        }
+        break;
+
+    case SDL_MOUSEWHEEL:
+        win = SDL_GetWindowFromID(evt->wheel.windowID);
+        gob = SDL_GetWindowData(win, "GOB");
+        if (gob != NULL) {
+			int flags = state_to_flags(0);
+            const int nw_num_lines = 3;
+            xyd = (ROUND_TO_INT(PHYS_COORD_X(evt->wheel.x)) * nw_num_lines) + ((ROUND_TO_INT(PHYS_COORD_Y(evt->wheel.y)) * nw_num_lines) << 16);
+			SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Wheel event (%d, %d), xyd: 0x%x, flags: 0x%x", evt->wheel.x, evt->wheel.y, xyd, flags);
+			if (xyd != 0) {
+                Add_Event_XY(gob, (flags & (1 << EVF_CONTROL)) ? EVT_SCROLL_PAGE : EVT_SCROLL_LINE, xyd, 0);
+            }
+        }
+        break;
+    case SDL_MOUSEMOTION:
+        if (evt->motion.which == SDL_TOUCH_MOUSEID) {
+            // already processed by finger motion
+            SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "SDL_TOUCH_MOUSEID");
+            //break;
+        }
+        win = SDL_GetWindowFromID(evt->motion.windowID);
+        gob = SDL_GetWindowData(win, "GOB");
+        if (gob != NULL) {
+            int flags = state_to_flags(0);
+            SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Mouse motion event");
+            xyd = (ROUND_TO_INT(PHYS_COORD_X(evt->motion.x))) + (ROUND_TO_INT(PHYS_COORD_Y(evt->motion.y)) << 16);
+            Update_Event_XY(gob, EVT_MOVE, xyd, flags);
+        }
+        break;
+	case SDL_FINGERDOWN:
+	case SDL_FINGERUP:
+	case SDL_FINGERMOTION:
+		// touch finger doesn't have an associated window, because it might not be attached to a screen.
+		// use the current focused windows instead.
+		if (evt->type == SDL_FINGERDOWN) {
+			n_fingers++;
+		}
+		win = SDL_GetKeyboardFocus();
+		gob = SDL_GetWindowData(win, "GOB");
+		if (gob != NULL) {
+			SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "finger event %s, number of active finger touchs: %d, finger ID: %d\n",
+				evt->type == SDL_FINGERDOWN ? "DOWN"
+				: evt->type == SDL_FINGERUP ? "UP"
+				: "MOTION",
+				n_fingers,
+				evt->tfinger.fingerId
+			);
+			if (n_fingers != 1) {
+				SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "finger event is ignored, because the number of currently active fingers is not 1: %d\n",
+					n_fingers
+				);
+				if (evt->type == SDL_FINGERUP) {
+					n_fingers--;
+				}
+				break;
+			}
+			REBFLG flags = state_to_flags(0);
+
+			SDL_Rect rect;
+			SDL_GetDisplayBounds(0, &rect);
+			xyd = (ROUND_TO_INT(PHYS_COORD_X(evt->tfinger.x * rect.w))) + (ROUND_TO_INT(PHYS_COORD_Y(evt->tfinger.y * rect.h)) << 16);
+			if (evt->type == SDL_FINGERMOTION) {
+				SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Finger motion event: %dx%d", xyd & 0xFFFF, xyd >> 16);
+				Update_Event_XY(gob, EVT_MOVE, xyd, flags);
+			}
+			else {
+				SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "tfinger event@%d, xy: %fx%f, xyd: %dx%d, state: %s",
+					evt->tfinger.timestamp,
+					evt->tfinger.x, evt->tfinger.y,
+					xyd & 0xFFFF, xyd >> 16,
+					(evt->type == SDL_FINGERDOWN) ? "DOWN" : "UP");
+				Add_Event_XY(gob, evt->type == SDL_FINGERDOWN ? EVT_DOWN : EVT_UP, xyd, flags);
+			}
+		}
+		if (evt->type == SDL_FINGERUP) {
+			n_fingers--;
+		}
+		break;
+	case SDL_MULTIGESTURE:
+		assert(n_fingers == evt->mgesture.numFingers);
+		win = SDL_GetMouseFocus();
+		if (win) {
+			gob = SDL_GetWindowData(win, "GOB");
+		} else {
+			SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Invalid win: %d", win);
+		}
+		SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Multigesture event@%d, gob: %p, loc: %fx%f, numfingers: %d, dist: %f",
+					evt->mgesture.timestamp,
+					 gob,
+					 evt->mgesture.x, evt->mgesture.y,
+					 evt->mgesture.numFingers,
+					 evt->mgesture.dDist);
+		if (gob != NULL && evt->mgesture.numFingers == 2) {
+			SDL_Rect rect;
+			REBINT diag = 0;
+			REBINT flags = 0;
+
+			SDL_GetDisplayBounds(0, &rect);
+			diag = sqrt (rect.w * rect.w + rect.h * rect.h);
+#define SCROLL_THREADHOLD 10 // in pixels
+#define SCROLL_SEGMENT 10 // in pixels
+			int scroll = ROUND_TO_INT(PHYS_COORD_X(evt->mgesture.dDist * diag));
+			if (abs(scroll) > SCROLL_THREADHOLD) {
+				xyd = (scroll / SCROLL_SEGMENT)  << 16;
+				SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Simulated wheel event, scroll: %d, xyd: 0x%x, flags: 0x%x", scroll, xyd, flags);
+				Accumulate_Event_XY(gob, EVT_SCROLL_LINE, xyd, flags);
+			}
+			//Accumulate_Event_XY(gob, EVT_TOUCH_PINCH, xyd, flags);
+		}
+        break;
 	}
 	SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "win: %x, focus: %p, event on gob: %p\n", win_id, focus, gob);
 }
