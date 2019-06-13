@@ -42,6 +42,7 @@
 #include "host-compositor.h"
 
 #include "SDL.h"
+#include "SDL_syswm.h"
 
 #ifdef TO_WIN32
 #include <windows.h>
@@ -281,6 +282,25 @@ void OS_Close_Window(REBGOB *gob);
 	}
 
 	SDL_SetWindowData(win, "GOB", gob);
+
+	SDL_SysWMinfo win_info;
+
+	SDL_VERSION(&win_info.version);
+	if (SDL_GetWindowWMInfo(win, &win_info)) {
+		if (win_info.subsystem == SDL_SYSWM_WINDOWS) {
+			//
+#if defined(SDL_VIDEO_DRIVER_WINDOWS)
+			ULONG flags;
+			HWND handle = win_info.info.win.window;
+			if (IsTouchWindow(handle, &flags)) {
+				if (flags & TWF_FINETOUCH) {
+					SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Unregistering touch\n");
+					UnregisterTouchWindow(handle);
+				 }
+			}
+#endif
+		}
+	}
 
 	if (GET_GOB_FLAG(gob, GOBF_HIDDEN)
 		|| (x + w) < 0
