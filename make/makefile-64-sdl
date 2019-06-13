@@ -30,5 +30,20 @@ LIBREBSKIA=$(HOME)/work/reb-skia.git/build-linux-release/librebskia.a \
 	$(HOME)/work/skia.git/out/Release/libskia.a \
 	-lpthread -lEGL
 
+LIBREBSKIA=../src/reb-skia/build-linux-release/librebskia.a \
+	../src/reb-skia/build-linux-release/libunibreak/lib/libunibreak.a \
+	../src/skia/out/Release/libskia.a \
+	-lpthread -lEGL
+
+#LIBREBSKIA=../src/reb-skia/build-linux/librebskia.a \
+#	../src/reb-skia/build-linux/libunibreak/lib/libunibreak.a \
+#	../src/skia/out/Release/libskia.a \
+#	-lpthread -lEGL
+#
+#LIBREBSKIA=../src/reb-skia/build-linux/librebskia.a \
+#	../src/reb-skia/build-linux/libunibreak/lib/libunibreak.a \
+#	../src/skia/out/Debug/libskia.a \
+#	-lpthread -lEGL
+
 include $(MD)/common-targets
 include $(MD)/linux-common-targets-sdl

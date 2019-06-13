@@ -399,6 +399,9 @@
     <ClCompile Include="..\..\..\src\os\host-text-api-skia.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\src\remotery\lib\Remotery.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\src\codecs\aes\aes.h">
@@ -615,6 +618,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\src\include\tmp-sysobj.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\src\remotery\lib\Remotery.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

@@ -78,7 +78,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>false</LinkIncremental>
     <CustomBuildBeforeTargets />
-    <PreBuildEventUseInBuild>false</PreBuildEventUseInBuild>
+    <PreBuildEventUseInBuild>true</PreBuildEventUseInBuild>
     <TargetName>r3-64-view</TargetName>
     <SourcePath>C:\Users\user\work\reb-skia.git;$(SourcePath)</SourcePath>
   </PropertyGroup>
@@ -87,7 +87,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
-    <PreBuildEventUseInBuild>false</PreBuildEventUseInBuild>
+    <PreBuildEventUseInBuild>true</PreBuildEventUseInBuild>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -123,15 +123,15 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;TO_WIN32;REB_EXE;CUSTOM_STARTUP;FFI_BUILDING;WITH_OPENGLES;__LLP64__;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>..\..\..\src\include;..\..\..\..\SDL2-2.0.8\include;..\..\..\..\angle.git\include;..\..\..\..\reb-skia.git;..\..\..\make\msvc\libffi\include\x64;..\..\..\src\codecs;..\..\..\src\agg\util;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;_CONSOLE;TO_WIN32;REB_EXE;CUSTOM_STARTUP;FFI_BUILDING;WITH_OPENGLES;__LLP64__;RMT_ENABLED=0;RMT_USE_OPENGL;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..\..\..\src\include;..\..\..\src\SDL\include;..\..\..\src\angle\include;..\..\..\src\reb-skia;..\..\..\make\msvc\libffi\include\x64;..\..\..\src\codecs;..\..\..\src\agg\util;..\..\..\src\remotery\lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalDependencies>wsock32.lib;rebskia.lib;..\..\..\..\reb-skia.git\build\libunibreak\lib\unibreak.lib;libEGL.dll.lib;libGLESv2.dll.lib;SDL2.lib;SDL2main.lib;skia.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <StackReserveSize>4194300</StackReserveSize>
-      <AdditionalLibraryDirectories>..\..\..\..\reb-skia.git\build\Debug\;..\..\..\..\SDL2-2.0.8\lib\x64;..\..\..\..\skia.git\out\Debug</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\..\..\..\SDL2-2.0.9\lib\x64;..\..\..\src\reb-skia\build\Debug\;..\..\..\src\skia\out\Debug</AdditionalLibraryDirectories>
     </Link>
     <ProjectReference>
       <LinkLibraryDependencies>true</LinkLibraryDependencies>
@@ -179,8 +179,8 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;TO_WIN32;REB_EXE;CUSTOM_STARTUP;FFI_BUILDING;WITH_OPENGLES;__LLP64__;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>..\..\..\src\include;..\..\..\..\SDL2-2.0.8\include;..\..\..\..\angle.git\include;..\..\..\..\reb-skia.git;..\..\..\make\msvc\libffi\include\x64;..\..\..\src\codecs;..\..\..\src\agg\util;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;_CONSOLE;TO_WIN32;REB_EXE;CUSTOM_STARTUP;FFI_BUILDING;WITH_OPENGLES;__LLP64__;RMT_ENABLED=0;RMT_USE_OPENGL;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..\..\..\src\include;..\..\..\src\SDL\include;..\..\..\..\angle.git\include;..\..\..\src\reb-skia;..\..\..\make\msvc\libffi\include\x64;..\..\..\src\codecs;..\..\..\src\agg\util;..\..\..\src\remotery\lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
     <Link>
@@ -190,7 +190,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <StackReserveSize>4194300</StackReserveSize>
       <AdditionalDependencies>wsock32.lib;rebskia.lib;..\..\..\..\reb-skia.git\build\libunibreak\lib\unibreak.lib;libEGL.dll.lib;libGLESv2.dll.lib;SDL2.lib;SDL2main.lib;skia.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>..\..\..\..\SDL2-2.0.8\lib\x64;..\..\..\..\skia.git\out\Release;..\..\..\..\reb-skia.git\build\Release\</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\..\..\..\SDL2-2.0.8\lib\x64;..\..\..\..\skia.git\out\Release;..\..\..\src\reb-skia\build\Release\</AdditionalLibraryDirectories>
     </Link>
     <PreBuildEvent>
       <Command>prebuild64.bat</Command>
@@ -335,6 +335,7 @@
     <ClCompile Include="..\..\..\src\os\win32\dev-serial.c" />
     <ClCompile Include="..\..\..\src\os\win32\dev-stdio.c" />
     <ClCompile Include="..\..\..\src\os\win32\host-lib.c" />
+    <ClCompile Include="..\..\..\src\remotery\lib\Remotery.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\src\codecs\aes\aes.h" />
@@ -409,6 +410,7 @@
     <ClInclude Include="..\..\..\src\include\tmp-strings.h" />
     <ClInclude Include="..\..\..\src\include\tmp-sysctx.h" />
     <ClInclude Include="..\..\..\src\include\tmp-sysobj.h" />
+    <ClInclude Include="..\..\..\src\remotery\lib\Remotery.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\libffi\libffi.vcxproj">
