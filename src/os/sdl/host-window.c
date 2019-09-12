@@ -139,6 +139,8 @@ void OS_Close_Window(REBGOB *gob);
 	//rs_draw_enable_skia_trace();
 	SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Initializing the windowing system");
 
+	SDL_SetHint(SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS, "0");
+
 	prepare_gl_env();
 }
 
