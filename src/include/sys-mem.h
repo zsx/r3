@@ -34,7 +34,7 @@
 
 typedef struct _REBGCM REBGCM;
 
-typedef struct _REBGCM {
+struct _REBGCM {
 	void (*free) (void *);
 	void *mem;
 	REBFLG 	flags;
