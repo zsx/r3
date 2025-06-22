@@ -76,7 +76,7 @@ static get_scalar(REBSTU *stu,
 			SET_INTEGER(val, *(u16*)data);
 			break;
 		case STRUCT_TYPE_INT16:
-			SET_INTEGER(val, *(i8*)data);
+			SET_INTEGER(val, *(i16*)data);
 			break;
 		case STRUCT_TYPE_UINT32:
 			SET_INTEGER(val, *(u32*)data);
